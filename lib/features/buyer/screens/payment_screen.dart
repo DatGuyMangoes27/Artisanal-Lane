@@ -1,0 +1,307 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../app/theme.dart';
+import '../../../models/cart_item.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../providers/buyer_providers.dart';
+
+class PaymentScreen extends ConsumerStatefulWidget {
+  final Map<String, dynamic>? checkoutData;
+
+  const PaymentScreen({super.key, this.checkoutData});
+
+  @override
+  ConsumerState<PaymentScreen> createState() => _PaymentScreenState();
+}
+
+class _PaymentScreenState extends ConsumerState<PaymentScreen> {
+  bool _processing = false;
+
+  double get _total => (widget.checkoutData?['total'] as num?)?.toDouble() ?? 0;
+
+  Future<void> _processPayment() async {
+    setState(() => _processing = true);
+
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      final data = widget.checkoutData!;
+      final items = data['items'] as List<CartItem>;
+
+      final shopIds = items.map((i) => i.product?.shopId).whereType<String>().toSet();
+      final shopId = shopIds.first;
+
+      final order = await service.createOrder(
+        userId: Supabase.instance.client.auth.currentUser!.id,
+        shopId: shopId,
+        items: items,
+        shippingAddress: data['address'] as Map<String, dynamic>,
+        shippingMethod: data['shippingMethod'] as String,
+        shippingCost: (data['shippingCost'] as num).toDouble(),
+      );
+
+      await service.clearCart(Supabase.instance.client.auth.currentUser!.id);
+      ref.invalidate(cartItemsProvider);
+      ref.invalidate(ordersProvider);
+
+      if (mounted) {
+        context.go('/cart/confirmation', extra: {'orderId': order.id});
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _processing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Payment failed: $e', style: GoogleFonts.poppins(color: Colors.white)),
+            backgroundColor: AppTheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.scaffoldBg,
+      appBar: _processing
+          ? null
+          : AppBar(
+              backgroundColor: AppTheme.scaffoldBg,
+              elevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+                onPressed: () => context.pop(),
+              ),
+              title: Text(
+                'Payment',
+                style: GoogleFonts.playfairDisplay(
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 24,
+                ),
+              ),
+              centerTitle: true,
+            ),
+      body: SafeArea(
+        child: _processing ? _buildProcessingState() : _buildPaymentForm(),
+      ),
+    );
+  }
+
+  Widget _buildProcessingState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 64,
+            height: 64,
+            child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 3),
+          ),
+          const SizedBox(height: 32),
+          Text(
+            'Processing Payment',
+            style: GoogleFonts.playfairDisplay(fontSize: 24, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Please do not close this page',
+            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentForm() {
+    final totalStr = 'R${_total.toStringAsFixed(2)}';
+
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildPayFastCard(),
+                const SizedBox(height: 24),
+                _buildAmountCard(totalStr),
+                const SizedBox(height: 32),
+                Center(child: _buildSecurityNote()),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _processPayment,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.baobab,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    child: Text(
+                      'Pay $totalStr',
+                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => context.pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.textSecondary,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                    ),
+                    child: Text(
+                      'Cancel Payment',
+                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPayFastCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00457C),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'PayFast',
+              style: GoogleFonts.poppins(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Secure Payment Gateway',
+            style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'You will be redirected to PayFast to complete your payment securely.',
+            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _paymentIcon(Icons.credit_card, 'Visa'),
+              const SizedBox(width: 24),
+              _paymentIcon(Icons.credit_card, 'Mastercard'),
+              const SizedBox(width: 24),
+              _paymentIcon(Icons.account_balance, 'EFT'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAmountCard(String totalStr) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
+      decoration: BoxDecoration(
+        color: AppTheme.scaffoldBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Total Amount',
+            style: GoogleFonts.poppins(fontSize: 15, color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+          ),
+          Text(
+            totalStr,
+            style: GoogleFonts.playfairDisplay(fontSize: 28, fontWeight: FontWeight.w700, color: AppTheme.sienna),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityNote() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.lock_outline_rounded, size: 16, color: AppTheme.baobab),
+        const SizedBox(width: 8),
+        Text(
+          'Secured with 256-bit encryption',
+          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.baobab, fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+
+  Widget _paymentIcon(IconData icon, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.scaffoldBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+          ),
+          child: Icon(icon, size: 24, color: AppTheme.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+}
