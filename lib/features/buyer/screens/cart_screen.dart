@@ -4,25 +4,42 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../models/cart_item.dart';
 import '../providers/buyer_providers.dart';
 
-class CartScreen extends ConsumerWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
 
-  Future<void> _removeItem(WidgetRef ref, String cartItemId) async {
+  @override
+  ConsumerState<CartScreen> createState() => _CartScreenState();
+}
+
+class _CartScreenState extends ConsumerState<CartScreen> {
+  bool _isGift = false;
+  final _recipientController = TextEditingController();
+  final _messageController = TextEditingController();
+
+  @override
+  void dispose() {
+    _recipientController.dispose();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _removeItem(String cartItemId) async {
     final service = ref.read(supabaseServiceProvider);
     await service.removeCartItem(cartItemId);
     ref.invalidate(cartItemsProvider);
   }
 
-  Future<void> _updateQuantity(WidgetRef ref, String cartItemId, int newQty) async {
+  Future<void> _updateQuantity(String cartItemId, int newQty) async {
     final service = ref.read(supabaseServiceProvider);
     await service.updateCartItemQuantity(cartItemId, newQty);
     ref.invalidate(cartItemsProvider);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final cartItems = ref.watch(cartItemsProvider);
 
     return Scaffold(
@@ -30,7 +47,7 @@ class CartScreen extends ConsumerWidget {
       body: cartItems.when(
         data: (items) {
           if (items.isEmpty) return _buildEmptyState(context);
-          return _buildCartContent(context, ref, items);
+          return _buildCartContent(context, items);
         },
         loading: () => const Center(
           child: CircularProgressIndicator(
@@ -38,9 +55,7 @@ class CartScreen extends ConsumerWidget {
             strokeWidth: 2,
           ),
         ),
-        error: (error, _) => Center(
-          child: Text('Error: $error'),
-        ),
+        error: (error, _) => Center(child: Text('Error: $error')),
       ),
     );
   }
@@ -87,12 +102,9 @@ class CartScreen extends ConsumerWidget {
                 color: AppTheme.bone.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Icon(
-                  Icons.shopping_bag_outlined,
-                  size: 32,
-                  color: AppTheme.textHint,
-                ),
+              child: const Center(
+                child: Icon(Icons.shopping_bag_outlined,
+                    size: 32, color: AppTheme.textHint),
               ),
             ),
             const SizedBox(height: 24),
@@ -108,9 +120,7 @@ class CartScreen extends ConsumerWidget {
             Text(
               'Add handcrafted items to get started',
               style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
-              ),
+                  fontSize: 14, color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 32),
             OutlinedButton(
@@ -118,17 +128,15 @@ class CartScreen extends ConsumerWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.terracotta,
                 side: const BorderSide(color: AppTheme.terracotta),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                    borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(
                 'Start Shopping',
                 style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
+                    fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -138,37 +146,68 @@ class CartScreen extends ConsumerWidget {
   }
 
   // ── Cart Content ────────────────────────────────────────────────
-  Widget _buildCartContent(BuildContext context, WidgetRef ref, List items) {
+  Widget _buildCartContent(BuildContext context, List<CartItem> items) {
     final subtotal =
         items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+    final expiringSoonCount = items.where((i) => i.isExpiringSoon).length;
 
     return SafeArea(
       bottom: false,
       child: Column(
         children: [
-          // Scrollable area: header + items list
+          if (expiringSoonCount > 0)
+            _buildExpiryWarningBanner(expiringSoonCount),
           Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.only(bottom: 24),
-              itemCount: items.length + 1, // +1 for the header
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemCount: items.length + 2, // +1 header, +1 gift card
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
                 if (index == 0) return _buildHeader();
-                final item = items[index - 1];
-                return _buildCartItem(ref, item);
+                if (index == items.length + 1) return _buildGiftCard();
+                return _buildCartItem(items[index - 1]);
               },
             ),
           ),
-          // Bottom summary bar
           _buildSummaryBar(context, subtotal),
         ],
       ),
     );
   }
 
+  Widget _buildExpiryWarningBanner(int count) {
+    return Container(
+      width: double.infinity,
+      color: AppTheme.ochre.withValues(alpha: 0.1),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Row(
+        children: [
+          Icon(Icons.timer_outlined, size: 16, color: AppTheme.ochre),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              count == 1
+                  ? '1 item in your basket is expiring soon — checkout before it\'s released'
+                  : '$count items in your basket are expiring soon — checkout before they\'re released',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.ochre,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Cart Item Card ──────────────────────────────────────────────
-  Widget _buildCartItem(WidgetRef ref, dynamic item) {
+  Widget _buildCartItem(CartItem item) {
     final product = item.product;
+    final expiringSoon = item.isExpiringSoon;
+    final borderColor = expiringSoon
+        ? AppTheme.ochre.withValues(alpha: 0.6)
+        : AppTheme.sand.withValues(alpha: 0.3);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -183,15 +222,12 @@ class CartScreen extends ConsumerWidget {
               offset: const Offset(0, 4),
             ),
           ],
-          border: Border.all(
-            color: AppTheme.sand.withValues(alpha: 0.3),
-          ),
+          border: Border.all(color: borderColor),
         ),
         padding: const EdgeInsets.all(16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Product image
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: SizedBox(
@@ -201,12 +237,12 @@ class CartScreen extends ConsumerWidget {
                   imageUrl: product?.primaryImage ?? '',
                   fit: BoxFit.cover,
                   placeholder: (_, __) => Container(color: AppTheme.bone),
-                  errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
+                  errorWidget: (_, __, ___) =>
+                      Container(color: AppTheme.bone),
                 ),
               ),
             ),
             const SizedBox(width: 16),
-            // Details column
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,14 +264,11 @@ class CartScreen extends ConsumerWidget {
                         ),
                       ),
                       GestureDetector(
-                        onTap: () => _removeItem(ref, item.id),
+                        onTap: () => _removeItem(item.id),
                         child: Padding(
                           padding: const EdgeInsets.only(left: 8, bottom: 8),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: AppTheme.textHint,
-                          ),
+                          child: const Icon(Icons.close_rounded,
+                              size: 18, color: AppTheme.textHint),
                         ),
                       ),
                     ],
@@ -243,11 +276,11 @@ class CartScreen extends ConsumerWidget {
                   Text(
                     product?.shopName ?? '',
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppTheme.textHint,
-                    ),
+                        fontSize: 12, color: AppTheme.textHint),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  _ExpiryChip(item: item),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -259,14 +292,12 @@ class CartScreen extends ConsumerWidget {
                           color: AppTheme.textPrimary,
                         ),
                       ),
-                      // Quantity stepper
                       Container(
                         decoration: BoxDecoration(
                           color: AppTheme.scaffoldBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.5),
-                          ),
+                              color: AppTheme.sand.withValues(alpha: 0.5)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -274,7 +305,8 @@ class CartScreen extends ConsumerWidget {
                             _StepperButton(
                               icon: Icons.remove_rounded,
                               onTap: item.quantity > 1
-                                  ? () => _updateQuantity(ref, item.id, item.quantity - 1)
+                                  ? () => _updateQuantity(
+                                      item.id, item.quantity - 1)
                                   : null,
                             ),
                             Padding(
@@ -283,19 +315,201 @@ class CartScreen extends ConsumerWidget {
                               child: Text(
                                 '${item.quantity}',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600),
                               ),
                             ),
                             _StepperButton(
                               icon: Icons.add_rounded,
-                              onTap: () => _updateQuantity(ref, item.id, item.quantity + 1),
+                              onTap: () => _updateQuantity(
+                                  item.id, item.quantity + 1),
                             ),
                           ],
                         ),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Gift Options Card ───────────────────────────────────────────
+  Widget _buildGiftCard() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isGift
+                ? AppTheme.terracotta.withValues(alpha: 0.4)
+                : AppTheme.sand.withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Toggle row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      gradient: _isGift
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [AppTheme.terracotta, AppTheme.baobab],
+                            )
+                          : null,
+                      color: _isGift ? null : AppTheme.bone,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.card_giftcard_rounded,
+                      size: 20,
+                      color: _isGift ? Colors.white : AppTheme.textHint,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Send as a Gift',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          'Add a personal message for the recipient',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: _isGift,
+                    onChanged: (val) {
+                      setState(() => _isGift = val);
+                      ref.read(giftOptionsProvider.notifier).update(
+                          ref.read(giftOptionsProvider).copyWith(isGift: val));
+                    },
+                    activeColor: AppTheme.terracotta,
+                    activeTrackColor:
+                        AppTheme.terracotta.withValues(alpha: 0.2),
+                    inactiveThumbColor: AppTheme.textHint,
+                    inactiveTrackColor: AppTheme.bone,
+                  ),
+                ],
+              ),
+            ),
+
+            // Expandable fields
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 280),
+              crossFadeState: _isGift
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Column(
+                children: [
+                  Divider(
+                      height: 1, color: AppTheme.sand.withValues(alpha: 0.5)),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                    child: TextField(
+                      controller: _recipientController,
+                      onChanged: (v) => ref.read(giftOptionsProvider.notifier).update(
+                          ref.read(giftOptionsProvider).copyWith(recipient: v)),
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: "Recipient's name",
+                        labelStyle: GoogleFonts.poppins(
+                            fontSize: 13, color: AppTheme.textHint),
+                        prefixIcon: const Icon(Icons.person_outline_rounded,
+                            size: 20, color: AppTheme.textHint),
+                        filled: true,
+                        fillColor: AppTheme.scaffoldBg,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: AppTheme.terracotta.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    child: TextField(
+                      controller: _messageController,
+                      onChanged: (v) => ref.read(giftOptionsProvider.notifier).update(
+                          ref.read(giftOptionsProvider).copyWith(message: v)),
+                      maxLines: 4,
+                      maxLength: 200,
+                      style: GoogleFonts.poppins(
+                          fontSize: 14, color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
+                        labelText: 'Gift message',
+                        alignLabelWithHint: true,
+                        labelStyle: GoogleFonts.poppins(
+                            fontSize: 13, color: AppTheme.textHint),
+                        hintText:
+                            'Write something meaningful for the recipient…',
+                        hintStyle: GoogleFonts.poppins(
+                            fontSize: 13, color: AppTheme.textHint),
+                        prefixIcon: const Padding(
+                          padding: EdgeInsets.only(bottom: 60),
+                          child: Icon(Icons.edit_note_rounded,
+                              size: 20, color: AppTheme.textHint),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.scaffoldBg,
+                        contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: AppTheme.terracotta.withValues(alpha: 0.5)),
+                        ),
+                        counterStyle: GoogleFonts.poppins(
+                            fontSize: 11, color: AppTheme.textHint),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -328,13 +542,9 @@ class CartScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Subtotal',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
+                Text('Subtotal',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, color: AppTheme.textSecondary)),
                 Text(
                   'R${subtotal.toStringAsFixed(0)}',
                   style: GoogleFonts.poppins(
@@ -349,42 +559,51 @@ class CartScreen extends ConsumerWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Shipping',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                Text(
-                  'Calculated at checkout',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
+                Text('Shipping',
+                    style: GoogleFonts.poppins(
+                        fontSize: 14, color: AppTheme.textSecondary)),
+                Text('Calculated at checkout',
+                    style: GoogleFonts.poppins(
+                        fontSize: 12, color: AppTheme.textHint)),
               ],
             ),
             const SizedBox(height: 24),
+            // Gradient checkout button
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => context.push('/cart/checkout'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.baobab,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+              height: 56,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [AppTheme.terracotta, AppTheme.baobab],
                   ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.terracotta.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Text(
-                  'Proceed to Checkout',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => context.push('/cart/checkout'),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Center(
+                      child: Text(
+                        'Proceed to Checkout',
+                        style: GoogleFonts.poppins(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -396,7 +615,58 @@ class CartScreen extends ConsumerWidget {
   }
 }
 
-// ── Stepper Button (private) ──────────────────────────────────────
+// ── Expiry Chip ───────────────────────────────────────────────────
+class _ExpiryChip extends StatelessWidget {
+  final CartItem item;
+  const _ExpiryChip({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    final IconData icon;
+
+    if (item.isExpiringSoon) {
+      bg = AppTheme.ochre.withValues(alpha: 0.12);
+      fg = AppTheme.ochre;
+      icon = Icons.timer_outlined;
+    } else {
+      bg = AppTheme.baobab.withValues(alpha: 0.08);
+      fg = AppTheme.baobab;
+      icon = Icons.schedule_outlined;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 11, color: fg),
+              const SizedBox(width: 4),
+              Text(
+                'Reserved ${item.expiryLabel}',
+                style: GoogleFonts.poppins(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: fg,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Stepper Button ────────────────────────────────────────────────
 class _StepperButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;

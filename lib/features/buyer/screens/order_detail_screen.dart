@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
@@ -176,27 +177,12 @@ class OrderDetailScreen extends ConsumerWidget {
 
                   // ── Action Buttons ─────────────────────────
                   if (order.status == 'delivered') ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => context.push(
-                          '/profile/orders/${order.id}/confirm',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.baobab,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('Confirm Receipt'),
+                    GradientButton(
+                      label: 'Confirm Receipt',
+                      onPressed: () => context.push(
+                        '/profile/orders/${order.id}/confirm',
                       ),
+                      verticalPadding: 16,
                     ),
                     const SizedBox(height: 16),
                   ],

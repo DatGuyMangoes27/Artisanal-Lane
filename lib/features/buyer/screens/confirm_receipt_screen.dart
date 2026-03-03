@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 
 class ConfirmReceiptScreen extends ConsumerWidget {
@@ -169,25 +170,10 @@ class ConfirmReceiptScreen extends ConsumerWidget {
                     const SizedBox(height: 40),
 
                     // ── Confirm button ─────────────────────────────
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => _showConfirmDialog(context, ref),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.baobab,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: GoogleFonts.poppins(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('Yes, I Received My Order'),
-                      ),
+                    GradientButton(
+                      label: 'Yes, I Received My Order',
+                      onPressed: () => _showConfirmDialog(context, ref),
+                      verticalPadding: 16,
                     ),
                     const SizedBox(height: 16),
 
@@ -259,7 +245,11 @@ class ConfirmReceiptScreen extends ConsumerWidget {
             ),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
+          GradientButton(
+            label: 'Confirm',
+            borderRadius: 12,
+            verticalPadding: 12,
+            fontSize: 15,
             onPressed: () async {
               Navigator.pop(ctx);
               try {
@@ -283,20 +273,6 @@ class ConfirmReceiptScreen extends ConsumerWidget {
                 context.pop();
               }
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.baobab,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              textStyle: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            child: const Text('Confirm'),
           ),
         ],
       ),

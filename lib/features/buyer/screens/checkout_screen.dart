@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../models/shipping_option.dart';
+import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -13,7 +15,7 @@ class CheckoutScreen extends ConsumerStatefulWidget {
 }
 
 class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
-  String _selectedShipping = 'courier_guy';
+  String? _selectedShipping;
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController(text: '');
@@ -22,37 +24,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _postalController = TextEditingController(text: '');
   final _provinceController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
-
-  final _shippingOptions = [
-    {
-      'key': 'courier_guy',
-      'name': 'The Courier Guy',
-      'desc': 'Door-to-door delivery, 2-4 business days',
-      'cost': 99.00,
-      'icon': Icons.local_shipping_outlined,
-    },
-    {
-      'key': 'pargo',
-      'name': 'Pargo',
-      'desc': 'Pick up at a Pargo point near you',
-      'cost': 65.00,
-      'icon': Icons.store_outlined,
-    },
-    {
-      'key': 'paxi',
-      'name': 'PAXI',
-      'desc': 'Collect at PEP stores or PAXI points',
-      'cost': 45.00,
-      'icon': Icons.pin_drop_outlined,
-    },
-    {
-      'key': 'market_pickup',
-      'name': 'Market Pickup',
-      'desc': 'Collect from the artisan in person',
-      'cost': 0.00,
-      'icon': Icons.handshake_outlined,
-    },
-  ];
 
   @override
   void dispose() {
@@ -65,11 +36,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  double get _selectedShippingCost {
-    final option = _shippingOptions.firstWhere(
-      (o) => o['key'] == _selectedShipping,
-    );
-    return option['cost'] as double;
+  double _selectedShippingCost(List<ShippingOption> options) {
+    if (_selectedShipping == null) return 0;
+    final match = options.where((o) => o.key == _selectedShipping).toList();
+    return match.isNotEmpty ? match.first.price : 0;
+  }
+
+  void _initSelection(List<ShippingOption> options) {
+    if (_selectedShipping == null && options.isNotEmpty) {
+      final enabled = options.where((o) => o.enabled).toList();
+      if (enabled.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _selectedShipping = enabled.first.key);
+        });
+      }
+    }
   }
 
   @override
@@ -102,9 +83,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               child: Text('Your cart is empty', style: GoogleFonts.poppins(color: AppTheme.textSecondary)),
             );
           }
-          final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
-          final shippingCost = _selectedShippingCost;
-          final total = subtotal + shippingCost;
+
+          // Derive shop ID from cart items
+          final shopId = items
+              .map((i) => i.product?.shopId)
+              .whereType<String>()
+              .toSet()
+              .firstOrNull;
+
+          final shippingAsync = shopId != null
+              ? ref.watch(shopShippingOptionsProvider(shopId))
+              : const AsyncData(<ShippingOption>[]);
+
+          return shippingAsync.when(
+            data: (shippingOptions) {
+              final enabledOptions = shippingOptions.where((o) => o.enabled).toList();
+              _initSelection(enabledOptions);
+
+              final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+              final shippingCost = _selectedShippingCost(enabledOptions);
+              final total = subtotal + shippingCost;
 
           return SafeArea(
             child: SingleChildScrollView(
@@ -149,12 +147,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     const SizedBox(height: 32),
 
                     _buildSectionTitle('Shipping Method'),
-                    const SizedBox(height: 24),
-                    ...List.generate(_shippingOptions.length, (index) {
-                      final option = _shippingOptions[index];
-                      final isSelected = _selectedShipping == option['key'];
-                      return _buildShippingTile(option, isSelected);
-                    }),
+                    const SizedBox(height: 8),
+                    if (enabledOptions.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          'This shop has not configured shipping options yet.',
+                          style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+                        ),
+                      )
+                    else ...[
+                      const SizedBox(height: 16),
+                      ...enabledOptions.map((opt) => _buildShippingTile(opt)),
+                    ],
 
                     const SizedBox(height: 32),
                     const Divider(height: 1, color: Color(0xFFEEEEEE)),
@@ -195,47 +200,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                     const SizedBox(height: 40),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          if (!_formKey.currentState!.validate()) return;
-
-                          final checkoutData = {
-                            'items': items,
-                            'subtotal': subtotal,
-                            'shippingCost': shippingCost,
-                            'shippingMethod': _selectedShipping,
-                            'total': total,
-                            'address': {
-                              'name': _nameController.text,
-                              'street': _streetController.text,
-                              'city': _cityController.text,
-                              'postal_code': _postalController.text,
-                              'province': _provinceController.text,
-                              'phone': _phoneController.text,
+                    GradientButton(
+                      label: 'Pay Now',
+                      onPressed: enabledOptions.isEmpty || _selectedShipping == null
+                          ? null
+                          : () {
+                              if (!_formKey.currentState!.validate()) return;
+                              final checkoutData = {
+                                'items': items,
+                                'subtotal': subtotal,
+                                'shippingCost': shippingCost,
+                                'shippingMethod': _selectedShipping,
+                                'total': total,
+                                'address': {
+                                  'name': _nameController.text,
+                                  'street': _streetController.text,
+                                  'city': _cityController.text,
+                                  'postal_code': _postalController.text,
+                                  'province': _provinceController.text,
+                                  'phone': _phoneController.text,
+                                },
+                              };
+                              context.push('/cart/payment', extra: checkoutData);
                             },
-                          };
-                          context.push('/cart/payment', extra: checkoutData);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.baobab,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: Text(
-                          'Pay Now',
-                          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 32),
                   ],
                 ),
               ),
             ),
+          );
+            },
+            loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+            error: (_, __) => Center(child: Text('Could not load shipping options', style: GoogleFonts.poppins(color: AppTheme.textSecondary))),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
@@ -289,12 +286,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildShippingTile(Map<String, Object> option, bool isSelected) {
-    final cost = option['cost'] as double;
-    final isFree = cost == 0;
+  Widget _buildShippingTile(ShippingOption option) {
+    final isSelected = _selectedShipping == option.key;
+    final isFree = option.price == 0;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedShipping = option['key'] as String),
+      onTap: () => setState(() => _selectedShipping = option.key),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
@@ -322,7 +319,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                option['icon'] as IconData,
+                option.icon,
                 color: isSelected ? AppTheme.terracotta : AppTheme.textHint,
                 size: 24,
               ),
@@ -333,7 +330,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    option['name'] as String,
+                    option.name,
                     style: GoogleFonts.poppins(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -342,14 +339,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    option['desc'] as String,
+                    option.description,
                     style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary),
                   ),
                 ],
               ),
             ),
             Text(
-              isFree ? 'FREE' : 'R${cost.toStringAsFixed(0)}',
+              isFree ? 'FREE' : 'R${option.price.toStringAsFixed(0)}',
               style: GoogleFonts.poppins(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,

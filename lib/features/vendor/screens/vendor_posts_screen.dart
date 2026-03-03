@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_fab.dart';
 import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
@@ -25,11 +26,9 @@ class VendorPostsScreen extends ConsumerWidget {
         ),
         title: Text('Shop Posts', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/vendor/profile/posts/new'),
-        backgroundColor: AppTheme.terracotta,
-        foregroundColor: Colors.white,
-        child: const Icon(Icons.add_rounded),
+      floatingActionButton: GradientFab(
+        icon: Icons.add_rounded,
+        onTap: () => context.push('/vendor/profile/posts/new'),
       ),
       body: postsAsync.when(
         data: (posts) {

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -316,33 +317,10 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
           ),
           const SizedBox(height: 36),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.terracotta,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              ),
-              child: _isLoading
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                        const SizedBox(width: 12),
-                        Text(
-                          _isUploading ? 'Uploading...' : 'Publishing...',
-                          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      _isEditing ? 'Update Post' : 'Publish Post',
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-            ),
+          GradientButton(
+            label: _isEditing ? 'Update Post' : 'Publish Post',
+            isLoading: _isLoading,
+            onPressed: _isLoading ? null : _save,
           ),
         ],
       ),

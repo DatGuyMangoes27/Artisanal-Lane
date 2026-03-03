@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
@@ -225,27 +226,9 @@ class _EmptyOrdersState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onStartShopping,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.baobab,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: Text(
-                  'Start Shopping',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+            GradientButton(
+              label: 'Start Shopping',
+              onPressed: onStartShopping,
             ),
             const SizedBox(height: 32),
             const TripleDot(),

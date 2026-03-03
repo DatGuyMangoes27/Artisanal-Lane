@@ -8,6 +8,9 @@ class Order {
   final String? shippingMethod;
   final Map<String, dynamic>? shippingAddress;
   final String? trackingNumber;
+  final bool isGift;
+  final String? giftRecipient;
+  final String? giftMessage;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +28,9 @@ class Order {
     this.shippingMethod,
     this.shippingAddress,
     this.trackingNumber,
+    this.isGift = false,
+    this.giftRecipient,
+    this.giftMessage,
     required this.createdAt,
     required this.updatedAt,
     this.shopName,
@@ -45,6 +51,9 @@ class Order {
       shippingMethod: json['shipping_method'] as String?,
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       trackingNumber: json['tracking_number'] as String?,
+      isGift: json['is_gift'] as bool? ?? false,
+      giftRecipient: json['gift_recipient'] as String?,
+      giftMessage: json['gift_message'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       shopName: shopData?['name'] as String?,

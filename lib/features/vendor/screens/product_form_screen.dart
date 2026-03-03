@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -26,6 +27,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _priceController = TextEditingController();
   final _compareAtPriceController = TextEditingController();
   final _stockController = TextEditingController();
+  final _careController = TextEditingController();
 
   String? _selectedCategoryId;
   bool _isPublished = true;
@@ -68,6 +70,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.dispose();
     _compareAtPriceController.dispose();
     _stockController.dispose();
+    _careController.dispose();
     super.dispose();
   }
 
@@ -83,6 +86,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _stockController.text = product.stockQty.toString();
     _selectedCategoryId = product.categoryId;
     _isPublished = product.isPublished;
+    _careController.text = product.careInstructions ?? '';
     _imageUrls.addAll(product.images);
   }
 
@@ -251,6 +255,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
         if (_compareAtPriceController.text.isNotEmpty)
           'compare_at_price': double.parse(_compareAtPriceController.text),
+        if (_careController.text.trim().isNotEmpty)
+          'care_instructions': _careController.text.trim(),
       };
 
       if (_isEditing) {
@@ -516,6 +522,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 20),
 
+            // ── Care Instructions ────────────────────────────────
+            _buildCareSection(),
+            const SizedBox(height: 20),
+
             SwitchListTile(
               value: _isPublished,
               onChanged: (v) => setState(() => _isPublished = v),
@@ -529,39 +539,69 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 32),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.terracotta,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _isLoading
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _isUploading ? 'Uploading Photos...' : 'Saving...',
-                            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      )
-                    : Text(
-                        _isEditing ? 'Save Changes' : 'Create Product',
-                        style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-              ),
+            GradientButton(
+              label: _isEditing ? 'Save Changes' : 'Create Product',
+              isLoading: _isLoading,
+              onPressed: _isLoading ? null : _save,
             ),
             const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCareSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.spa_outlined, color: Colors.white, size: 18),
+          ),
+          title: Text(
+            'Care Instructions',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            'Optional · helps buyers look after their item',
+            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
+          ),
+          children: [
+            TextFormField(
+              controller: _careController,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              style: GoogleFonts.poppins(fontSize: 13),
+              decoration: InputDecoration(
+                hintText:
+                    'e.g. Hand wash in cold water. Do not bleach. Air dry flat. Store in a cool dry place away from direct sunlight.',
+                hintStyle:
+                    GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                hintMaxLines: 4,
+              ),
+            ),
           ],
         ),
       ),

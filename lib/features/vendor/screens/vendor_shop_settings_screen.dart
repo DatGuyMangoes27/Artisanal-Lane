@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../app/theme.dart';
+import '../../../models/shipping_option.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -32,6 +34,12 @@ class _VendorShopSettingsScreenState
   File? _pendingCover;
   bool _isLoading = false;
   bool _isInitialized = false;
+  List<ShippingOption> _shippingOptions = ShippingOption.defaults();
+  // Controllers for per-method price inputs
+  late final Map<String, TextEditingController> _priceControllers = {
+    for (final o in ShippingOption.defaults())
+      o.key: TextEditingController(text: o.price.toStringAsFixed(2))
+  };
 
   @override
   void dispose() {
@@ -39,6 +47,9 @@ class _VendorShopSettingsScreenState
     _bioController.dispose();
     _brandStoryController.dispose();
     _locationController.dispose();
+    for (final c in _priceControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -167,6 +178,14 @@ class _VendorShopSettingsScreenState
         }
       }
 
+      // Collect current price values from controllers
+      final updatedShipping = _shippingOptions.map((opt) {
+        final price = double.tryParse(
+                _priceControllers[opt.key]?.text ?? '') ??
+            opt.price;
+        return opt.copyWith(price: price);
+      }).toList();
+
       await service.updateShop(shop.id, {
         'name': _nameController.text.trim(),
         'bio': _bioController.text.trim(),
@@ -176,6 +195,8 @@ class _VendorShopSettingsScreenState
         'location': _locationController.text.trim().isNotEmpty
             ? _locationController.text.trim()
             : null,
+        'shipping_options':
+            updatedShipping.map((o) => o.toJson()).toList(),
       });
 
       ref.invalidate(vendorShopProvider);
@@ -209,6 +230,12 @@ class _VendorShopSettingsScreenState
         _locationController.text = shop.location ?? '';
         _logoUrl = shop.logoUrl;
         _coverUrl = shop.coverImageUrl;
+        _shippingOptions = shop.shippingOptions.isNotEmpty
+            ? shop.shippingOptions
+            : ShippingOption.defaults();
+        for (final opt in _shippingOptions) {
+          _priceControllers[opt.key]?.text = opt.price.toStringAsFixed(2);
+        }
       }
     });
 
@@ -323,27 +350,21 @@ class _VendorShopSettingsScreenState
               ),
               const SizedBox(height: 36),
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _save,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.terracotta,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: _isLoading
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                            const SizedBox(width: 12),
-                            Text('Saving...', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
-                          ],
-                        )
-                      : Text('Save Changes', style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600)),
-                ),
+              // ── Shipping & Delivery ────────────────────────────
+              _buildLabel('Shipping & Delivery'),
+              const SizedBox(height: 4),
+              Text(
+                'Choose which methods you offer and set your own price for each.',
+                style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+              ),
+              const SizedBox(height: 12),
+              ..._shippingOptions.map((opt) => _buildShippingOptionCard(opt)),
+              const SizedBox(height: 36),
+
+              GradientButton(
+                label: 'Save Changes',
+                isLoading: _isLoading,
+                onPressed: _isLoading ? null : _save,
               ),
               const SizedBox(height: 24),
             ],
@@ -436,6 +457,156 @@ class _VendorShopSettingsScreenState
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
         child: Text(text, style: GoogleFonts.poppins(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+
+  Widget _buildShippingOptionCard(ShippingOption opt) {
+    final isEnabled = opt.enabled;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isEnabled
+              ? AppTheme.terracotta.withValues(alpha: 0.3)
+              : AppTheme.sand.withValues(alpha: 0.4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header row: icon, name/desc, toggle
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: isEnabled
+                        ? AppTheme.terracotta.withValues(alpha: 0.1)
+                        : AppTheme.bone,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(opt.icon,
+                      size: 20,
+                      color: isEnabled
+                          ? AppTheme.terracotta
+                          : AppTheme.textHint),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        opt.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isEnabled
+                              ? AppTheme.textPrimary
+                              : AppTheme.textHint,
+                        ),
+                      ),
+                      Text(
+                        opt.description,
+                        style: GoogleFonts.poppins(
+                            fontSize: 11, color: AppTheme.textHint),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: isEnabled,
+                  onChanged: (val) {
+                    setState(() {
+                      _shippingOptions = _shippingOptions
+                          .map((o) =>
+                              o.key == opt.key ? o.copyWith(enabled: val) : o)
+                          .toList();
+                    });
+                  },
+                  activeColor: AppTheme.terracotta,
+                  activeTrackColor: AppTheme.terracotta.withValues(alpha: 0.2),
+                  inactiveThumbColor: AppTheme.textHint,
+                  inactiveTrackColor: AppTheme.bone,
+                ),
+              ],
+            ),
+          ),
+
+          // Price row (only when enabled)
+          if (isEnabled) ...[
+            Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.5)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: Row(
+                children: [
+                  Text(
+                    'Price',
+                    style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textSecondary),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('R',
+                      style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary)),
+                  const SizedBox(width: 4),
+                  SizedBox(
+                    width: 90,
+                    child: TextFormField(
+                      controller: _priceControllers[opt.key],
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 8),
+                        filled: true,
+                        fillColor: AppTheme.scaffoldBg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(
+                              color:
+                                  AppTheme.terracotta.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (opt.key == 'market_pickup')
+                    Text(
+                      '(free pickup)',
+                      style: GoogleFonts.poppins(
+                          fontSize: 11, color: AppTheme.textHint),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

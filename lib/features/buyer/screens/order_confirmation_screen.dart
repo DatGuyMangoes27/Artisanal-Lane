@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 
 class OrderConfirmationScreen extends ConsumerWidget {
@@ -125,22 +126,9 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 48),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => context.go('/profile/orders'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.baobab,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: Text(
-                      'View My Orders',
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                    ),
-                  ),
+                GradientButton(
+                  label: 'View My Orders',
+                  onPressed: () => context.go('/profile/orders'),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(

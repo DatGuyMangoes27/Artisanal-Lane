@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../../models/cart_item.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
@@ -32,6 +33,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final shopIds = items.map((i) => i.product?.shopId).whereType<String>().toSet();
       final shopId = shopIds.first;
 
+      final gift = ref.read(giftOptionsProvider);
+
       final order = await service.createOrder(
         userId: Supabase.instance.client.auth.currentUser!.id,
         shopId: shopId,
@@ -39,7 +42,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         shippingAddress: data['address'] as Map<String, dynamic>,
         shippingMethod: data['shippingMethod'] as String,
         shippingCost: (data['shippingCost'] as num).toDouble(),
+        isGift: gift.isGift,
+        giftRecipient: gift.recipient,
+        giftMessage: gift.message,
       );
+
+      // Reset gift state after order is placed
+      ref.read(giftOptionsProvider.notifier).reset();
 
       await service.clearCart(Supabase.instance.client.auth.currentUser!.id);
       ref.invalidate(cartItemsProvider);
@@ -153,22 +162,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             top: false,
             child: Column(
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _processPayment,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.baobab,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: Text(
-                      'Pay $totalStr',
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                    ),
-                  ),
+                GradientButton(
+                  label: 'Pay $totalStr',
+                  onPressed: _processPayment,
                 ),
                 const SizedBox(height: 16),
                 SizedBox(

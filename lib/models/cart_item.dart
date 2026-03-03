@@ -1,5 +1,8 @@
 import 'product.dart';
 
+/// How long a cart item is held before it expires and is automatically removed.
+const kCartExpiryHours = 48;
+
 class CartItem {
   final String id;
   final String cartId;
@@ -30,6 +33,26 @@ class CartItem {
       createdAt: DateTime.parse(json['created_at'] as String),
       product: productData != null ? Product.fromJson(productData) : null,
     );
+  }
+
+  DateTime get expiresAt =>
+      createdAt.toLocal().add(Duration(hours: kCartExpiryHours));
+
+  /// Positive = hours remaining; negative = already expired.
+  double get hoursRemaining =>
+      expiresAt.difference(DateTime.now()).inMinutes / 60.0;
+
+  bool get isExpired => hoursRemaining <= 0;
+
+  /// True when fewer than 6 hours remain — shown as a warning.
+  bool get isExpiringSoon => !isExpired && hoursRemaining < 6;
+
+  /// Human-readable label, e.g. "23h left", "45 min left", "Expired"
+  String get expiryLabel {
+    if (isExpired) return 'Expired';
+    final remaining = expiresAt.difference(DateTime.now());
+    if (remaining.inHours >= 1) return '${remaining.inHours}h left';
+    return '${remaining.inMinutes}m left';
   }
 
   double get lineTotal => (product?.price ?? 0) * quantity;

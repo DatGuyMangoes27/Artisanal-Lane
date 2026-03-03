@@ -125,19 +125,16 @@ class CategoriesScreen extends ConsumerWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Emoji circle
+                              // Line art icon circle
                               Container(
                                 width: 70,
                                 height: 70,
-                                decoration: BoxDecoration(
+                                decoration: const BoxDecoration(
                                   color: AppTheme.bone,
                                   shape: BoxShape.circle,
                                 ),
                                 child: Center(
-                                  child: Text(
-                                    cat.emoji,
-                                    style: const TextStyle(fontSize: 36),
-                                  ),
+                                  child: Icon(cat.icon, color: AppTheme.terracotta, size: 32),
                                 ),
                               ),
                               const SizedBox(height: 16),

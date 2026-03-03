@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -170,7 +171,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       Expanded(
                         child: _AccountTypeTab(
-                          label: 'Vendor',
+                          label: 'Artisan',
                           icon: Icons.storefront_outlined,
                           isSelected: _isVendor,
                           onTap: () => setState(() => _isVendor = true),
@@ -189,7 +190,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Vendor accounts require approval before you can start selling',
+                            'Artisan accounts require approval before you can start selling',
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppTheme.baobab,
@@ -276,27 +277,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _signUp,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _isVendor ? AppTheme.baobab : AppTheme.terracotta,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                          )
-                        : Text(
-                            _isVendor ? 'Create Vendor Account' : 'Create Account',
-                            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
-                          ),
-                  ),
+                GradientButton(
+                  label: _isVendor ? 'Create Artisan Account' : 'Create Account',
+                  isLoading: _isLoading,
+                  onPressed: _isLoading ? null : _signUp,
                 ),
                 const SizedBox(height: 24),
                 Row(
@@ -367,15 +351,21 @@ class _AccountTypeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isArtisan = label == 'Artisan';
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: isSelected
-              ? (label == 'Vendor' ? AppTheme.baobab : AppTheme.terracotta)
-              : Colors.transparent,
+          color: isSelected && !isArtisan ? AppTheme.terracotta : null,
+          gradient: isSelected && isArtisan
+              ? const LinearGradient(
+                  colors: [AppTheme.terracotta, AppTheme.baobab],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                )
+              : null,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(

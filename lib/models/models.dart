@@ -1,5 +1,6 @@
 export 'category.dart';
 export 'shop.dart';
+export 'shipping_option.dart';
 export 'shop_post.dart';
 export 'product.dart';
 export 'order.dart';

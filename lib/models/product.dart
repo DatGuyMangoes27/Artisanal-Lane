@@ -9,6 +9,7 @@ class Product {
   final int stockQty;
   final List<String> images;
   final bool isPublished;
+  final String? careInstructions;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -28,6 +29,7 @@ class Product {
     this.stockQty = 0,
     this.images = const [],
     this.isPublished = true,
+    this.careInstructions,
     required this.createdAt,
     required this.updatedAt,
     this.shopName,
@@ -59,6 +61,7 @@ class Product {
       stockQty: json['stock_qty'] as int? ?? 0,
       images: parseImages(json['images']),
       isPublished: json['is_published'] as bool? ?? true,
+      careInstructions: json['care_instructions'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       shopName: shopData?['name'] as String?,
@@ -78,6 +81,7 @@ class Product {
         'stock_qty': stockQty,
         'images': images,
         'is_published': isPublished,
+        'care_instructions': careInstructions,
       };
 
   bool get isOnSale => compareAtPrice != null && compareAtPrice! > price;

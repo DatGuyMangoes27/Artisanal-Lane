@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
+import '../../../widgets/gradient_fab.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
 
@@ -88,39 +90,32 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                   _field('Province', provinceC),
                   _field('Phone', phoneC, type: TextInputType.phone),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (!formKey.currentState!.validate()) return;
-                        final addr = {
-                          'name': nameC.text,
-                          'street': streetC.text,
-                          'city': cityC.text,
-                          'postal_code': postalC.text,
-                          'province': provinceC.text,
-                          'phone': phoneC.text,
-                          'is_default': existing?['is_default'] ?? _addresses.isEmpty,
-                        };
-                        setState(() {
-                          if (index != null) {
-                            _addresses[index] = addr;
-                          } else {
-                            _addresses.add(addr);
-                          }
-                        });
-                        _saveAddresses();
-                        Navigator.pop(ctx);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.baobab,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: Text('Save Address', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600)),
-                    ),
+                  GradientButton(
+                    label: 'Save Address',
+                    verticalPadding: 16,
+                    borderRadius: 14,
+                    fontSize: 15,
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) return;
+                      final addr = {
+                        'name': nameC.text,
+                        'street': streetC.text,
+                        'city': cityC.text,
+                        'postal_code': postalC.text,
+                        'province': provinceC.text,
+                        'phone': phoneC.text,
+                        'is_default': existing?['is_default'] ?? _addresses.isEmpty,
+                      };
+                      setState(() {
+                        if (index != null) {
+                          _addresses[index] = addr;
+                        } else {
+                          _addresses.add(addr);
+                        }
+                      });
+                      _saveAddresses();
+                      Navigator.pop(ctx);
+                    },
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -184,10 +179,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         ),
         centerTitle: true,
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppTheme.terracotta,
-        onPressed: () => _showAddressSheet(),
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+      floatingActionButton: GradientFab(
+        icon: Icons.add_rounded,
+        onTap: () => _showAddressSheet(),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2))

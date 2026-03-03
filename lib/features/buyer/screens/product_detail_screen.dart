@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../../models/product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
@@ -96,6 +98,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     return productAsync.when(
       data: (product) {
         final isFav = favIds.contains(product.id);
+        final shopAsync = ref.watch(shopDetailProvider(product.shopId));
+        final shop = shopAsync.asData?.value;
+        final shopOffline = shop?.isOffline ?? false;
+        final backToWork = shop?.backToWorkDate;
         final imageCount =
             product.images.isEmpty ? 1 : product.images.length;
 
@@ -338,8 +344,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                               // Stock Status
                               _buildStockIndicator(product),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 16),
 
+                              // Out of Office banner
+                              if (shopOffline)
+                                _buildOfflineBanner(backToWork),
+
+                              const SizedBox(height: 24),
                               const Divider(
                                   height: 1, color: Color(0xFFEEEEEE)),
                               const SizedBox(height: 24),
@@ -364,6 +375,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ),
                               ),
                               const SizedBox(height: 32),
+
+                              // Care Instructions
+                              if (product.careInstructions != null &&
+                                  product.careInstructions!.isNotEmpty) ...[
+                                const SizedBox(height: 32),
+                                _buildCareCard(product.careInstructions!),
+                              ],
 
                               // Artisan Card
                               if (product.shopName != null)
@@ -487,31 +505,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: ElevatedButton(
+                    child: GradientButton(
+                      label: !product.isInStock
+                          ? 'Sold Out'
+                          : shopOffline
+                              ? 'Pre-order • R${product.price.toStringAsFixed(0)}'
+                              : 'Add to Basket • R${product.price.toStringAsFixed(0)}',
                       onPressed: product.isInStock && !_isAddingToCart
                           ? () => _addToCart(product.id)
                           : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.baobab,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppTheme.sand,
-                        disabledForegroundColor: AppTheme.textHint,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: Text(
-                        product.isInStock
-                            ? 'Add to Basket • R${product.price.toStringAsFixed(0)}'
-                            : 'Sold Out',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
+                      isLoading: _isAddingToCart,
                     ),
                   ),
                 ],
@@ -540,6 +543,122 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           ),
         ),
         body: Center(child: Text('Error: $error')),
+      ),
+    );
+  }
+
+  Widget _buildCareCard(String instructions) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding:
+              const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.spa_outlined,
+                color: Colors.white, size: 18),
+          ),
+          title: Text(
+            'How to Care',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            'From the artisan',
+            style: GoogleFonts.poppins(
+                fontSize: 11, color: AppTheme.textHint),
+          ),
+          children: [
+            Text(
+              instructions,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner(DateTime? backToWork) {
+    final fmt = DateFormat('d MMMM yyyy');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.terracotta.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.do_not_disturb_on_outlined,
+              size: 18, color: AppTheme.terracotta),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'This shop is currently out of office',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.terracotta,
+                  ),
+                ),
+                if (backToWork != null)
+                  Text(
+                    'Back ${fmt.format(backToWork)} · You can still pre-order',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  )
+                else
+                  Text(
+                    'Return date not yet set · You can still pre-order',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

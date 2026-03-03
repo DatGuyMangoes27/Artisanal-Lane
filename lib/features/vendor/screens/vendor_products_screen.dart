@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
+import '../../../widgets/gradient_button.dart';
+import '../../../widgets/gradient_fab.dart';
 import '../providers/vendor_providers.dart';
 
 class VendorProductsScreen extends ConsumerWidget {
@@ -16,12 +18,10 @@ class VendorProductsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/vendor/products/new'),
-        backgroundColor: AppTheme.terracotta,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: Text('Add Product', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+      floatingActionButton: GradientFabExtended(
+        label: 'Add Product',
+        icon: Icons.add_rounded,
+        onTap: () => context.push('/vendor/products/new'),
       ),
       body: SafeArea(
         child: Column(
@@ -163,16 +163,10 @@ class VendorProductsScreen extends ConsumerWidget {
               style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary),
             ),
             const SizedBox(height: 24),
-            ElevatedButton.icon(
+            GradientButton(
+              label: 'Add Product',
+              icon: Icons.add_rounded,
               onPressed: () => context.push('/vendor/products/new'),
-              icon: const Icon(Icons.add_rounded),
-              label: Text('Add Product', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.terracotta,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
             ),
           ],
         ),

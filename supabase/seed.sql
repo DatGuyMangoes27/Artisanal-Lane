@@ -22,12 +22,13 @@ on conflict (id) do nothing;
 -- 2. Categories
 -- ============================================================
 insert into categories (id, name, slug, icon_url, sort_order) values
-  ('c0000000-0000-0000-0000-000000000001', 'Ceramics', 'ceramics', null, 1),
-  ('c0000000-0000-0000-0000-000000000002', 'Woodwork', 'woodwork', null, 2),
-  ('c0000000-0000-0000-0000-000000000003', 'Textiles', 'textiles', null, 3),
+  ('c0000000-0000-0000-0000-000000000001', 'Art & Design', 'art-design', null, 1),
+  ('c0000000-0000-0000-0000-000000000002', 'Clothing', 'clothing', null, 2),
+  ('c0000000-0000-0000-0000-000000000003', 'Beauty', 'beauty', null, 3),
   ('c0000000-0000-0000-0000-000000000004', 'Jewellery', 'jewellery', null, 4),
-  ('c0000000-0000-0000-0000-000000000005', 'Leather Goods', 'leather-goods', null, 5)
-on conflict (id) do nothing;
+  ('c0000000-0000-0000-0000-000000000005', 'Home & Living', 'home-living', null, 5),
+  ('c0000000-0000-0000-0000-000000000006', 'Baby & Kids', 'baby-kids', null, 6)
+on conflict (id) do update set name = excluded.name, slug = excluded.slug, sort_order = excluded.sort_order;
 
 -- ============================================================
 -- 3. Invite Codes

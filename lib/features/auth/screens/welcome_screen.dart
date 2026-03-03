@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -57,26 +58,9 @@ class WelcomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => context.push('/login'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.terracotta,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    'Sign In',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+              GradientButton(
+                label: 'Sign In',
+                onPressed: () => context.push('/login'),
               ),
               const SizedBox(height: 14),
               SizedBox(
@@ -100,7 +84,20 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () => context.go('/home'),
+                child: Text(
+                  'Browse as Guest',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: AppTheme.textHint,
+                    decoration: TextDecoration.underline,
+                    decorationColor: AppTheme.textHint,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               Text(
                 'By continuing, you agree to our Terms of Service',
                 style: GoogleFonts.poppins(

@@ -62,7 +62,15 @@ create table if not exists shops (
   cover_image_url text,
   logo_url text,
   location text,
+  shipping_options jsonb not null default '[
+    {"key": "courier_guy",   "enabled": true,  "price": 99.00},
+    {"key": "pargo",         "enabled": true,  "price": 65.00},
+    {"key": "paxi",          "enabled": true,  "price": 45.00},
+    {"key": "market_pickup", "enabled": true,  "price": 0.00}
+  ]'::jsonb,
   is_active boolean default true,
+  is_offline boolean not null default false,
+  back_to_work_date date,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -121,6 +129,9 @@ create table if not exists orders (
   shipping_method text check (shipping_method in ('courier_guy','pargo','paxi','market_pickup')),
   shipping_address jsonb,
   tracking_number text,
+  is_gift boolean not null default false,
+  gift_recipient text,
+  gift_message text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );

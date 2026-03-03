@@ -61,6 +61,15 @@ class SupabaseService {
     return (data as List).map((e) => Category.fromJson(e)).toList();
   }
 
+  Future<List<String>> getTrendingSearches() async {
+    final data = await _client
+        .from('trending_searches')
+        .select('term')
+        .eq('is_active', true)
+        .order('sort_order', ascending: true);
+    return (data as List).map((e) => e['term'] as String).toList();
+  }
+
   // ── Products ──────────────────────────────────────────────────
   Future<List<Product>> getProducts({
     String? categoryId,
@@ -139,6 +148,66 @@ class SupabaseService {
     return Shop.fromJson(data);
   }
 
+  Future<List<ShippingOption>> getShopShippingOptions(String shopId) async {
+    final data = await _client
+        .from('shops')
+        .select('shipping_options')
+        .eq('id', shopId)
+        .single();
+    return ShippingOption.listFromJson(data['shipping_options']);
+  }
+
+  Future<void> updateShopShippingOptions(
+      String shopId, List<ShippingOption> options) async {
+    await _client.from('shops').update({
+      'shipping_options': options.map((o) => o.toJson()).toList(),
+    }).eq('id', shopId);
+  }
+
+  Future<void> setShopOfflineMode(
+    String shopId, {
+    required bool isOffline,
+    DateTime? backToWorkDate,
+  }) async {
+    await _client.from('shops').update({
+      'is_offline': isOffline,
+      'back_to_work_date': isOffline && backToWorkDate != null
+          ? backToWorkDate.toIso8601String().split('T').first
+          : null,
+    }).eq('id', shopId);
+  }
+
+  // ── Stationery Requests ───────────────────────────────────────
+  Future<void> submitStationeryRequest({
+    required String shopId,
+    required String vendorId,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+    String? deliveryAddress,
+  }) async {
+    await _client.from('stationery_requests').insert({
+      'shop_id': shopId,
+      'vendor_id': vendorId,
+      'items': items,
+      'notes': notes,
+      'delivery_address': deliveryAddress,
+    });
+  }
+
+  Future<void> submitSupportTicket({
+    required String userId,
+    String? shopId,
+    required String subject,
+    required String message,
+  }) async {
+    await _client.from('support_tickets').insert({
+      'user_id': userId,
+      'shop_id': shopId,
+      'subject': subject,
+      'message': message,
+    });
+  }
+
   // ── Favourites ────────────────────────────────────────────────
   Future<List<Product>> getFavourites(String userId) async {
     final data = await _client
@@ -188,6 +257,18 @@ class SupabaseService {
         .single();
 
     final cartId = cartData['id'] as String;
+
+    // Remove items that are older than kCartExpiryHours
+    final expiryCutoff = DateTime.now()
+        .toUtc()
+        .subtract(const Duration(hours: kCartExpiryHours))
+        .toIso8601String();
+    await _client
+        .from('cart_items')
+        .delete()
+        .eq('cart_id', cartId)
+        .lt('created_at', expiryCutoff);
+
     final items = await _client
         .from('cart_items')
         .select('*, products(*, shops(name, logo_url), categories(name))')
@@ -358,6 +439,9 @@ class SupabaseService {
     required Map<String, dynamic> shippingAddress,
     required String shippingMethod,
     required double shippingCost,
+    bool isGift = false,
+    String? giftRecipient,
+    String? giftMessage,
   }) async {
     final subtotal = items.fold<double>(
       0,
@@ -374,6 +458,11 @@ class SupabaseService {
           'shipping_cost': shippingCost,
           'shipping_method': shippingMethod,
           'shipping_address': shippingAddress,
+          'is_gift': isGift,
+          if (isGift && giftRecipient != null && giftRecipient.isNotEmpty)
+            'gift_recipient': giftRecipient,
+          if (isGift && giftMessage != null && giftMessage.isNotEmpty)
+            'gift_message': giftMessage,
         })
         .select()
         .single();
@@ -588,6 +677,8 @@ class SupabaseService {
     String? motivation,
     String? portfolioUrl,
     String? location,
+    String? deliveryInfo,
+    String? turnaroundTime,
   }) async {
     // Validate invite code
     final codeData = await _client
@@ -618,6 +709,8 @@ class SupabaseService {
           'portfolio_url': portfolioUrl,
           'location': location,
           'invite_code': inviteCode,
+          'delivery_info': deliveryInfo,
+          'turnaround_time': turnaroundTime,
           'status': 'pending',
         })
         .select()
@@ -632,6 +725,8 @@ class SupabaseService {
     String? motivation,
     String? portfolioUrl,
     String? location,
+    String? deliveryInfo,
+    String? turnaroundTime,
   }) async {
     final appData = await _client
         .from('vendor_applications')
@@ -641,6 +736,8 @@ class SupabaseService {
           'motivation': motivation,
           'portfolio_url': portfolioUrl,
           'location': location,
+          'delivery_info': deliveryInfo,
+          'turnaround_time': turnaroundTime,
           'status': 'pending',
         })
         .select()

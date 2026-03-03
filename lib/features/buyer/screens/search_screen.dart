@@ -1,33 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../providers/buyer_providers.dart';
 
-class SearchScreen extends StatefulWidget {
+class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
-
-  final List<String> _recentSearches = [
-    'Ceramic vase',
-    'Leather wallet',
-    'Beaded necklace',
-    'Wooden bowl',
-  ];
-
-  final _trending = [
-    'Basotho blanket',
-    'Zulu beadwork',
-    'Yellowwood cutting board',
-    'Ndebele pottery',
-    'Handwoven textiles',
-  ];
 
   @override
   void initState() {
@@ -46,18 +33,24 @@ class _SearchScreenState extends State<SearchScreen> {
 
   void _search(String query) {
     if (query.trim().isEmpty) return;
+    ref.read(recentSearchesProvider.notifier).add(query.trim());
     context.push('/search/results?q=${Uri.encodeComponent(query.trim())}');
   }
 
   @override
   Widget build(BuildContext context) {
+    final recentSearches = ref.watch(recentSearchesProvider);
+    final trending = ref.watch(trendingSearchesProvider);
+    final categories = ref.watch(categoriesProvider);
+
     return Scaffold(
-      backgroundColor: AppTheme.scaffoldBg, // White
+      backgroundColor: AppTheme.scaffoldBg,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
+          // ── Header ───────────────────────────────────────────────
           SliverToBoxAdapter(
             child: SafeArea(
               bottom: false,
@@ -71,7 +64,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                          border: Border.all(
+                              color: AppTheme.sand.withValues(alpha: 0.3)),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
@@ -89,20 +83,13 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Search',
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                              height: 1.0,
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Search',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                        height: 1.0,
                       ),
                     ),
                   ],
@@ -110,6 +97,8 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
           ),
+
+          // ── Search Bar ───────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
               margin: const EdgeInsets.fromLTRB(20, 24, 20, 0),
@@ -136,7 +125,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.white,
-                  hintText: 'Try "Zulu beadwork" or "clay pot"...',
+                  hintText: 'Search for anything handmade...',
                   hintStyle: GoogleFonts.poppins(
                     color: AppTheme.textHint,
                     fontSize: 14,
@@ -147,29 +136,43 @@ class _SearchScreenState extends State<SearchScreen> {
                     color: AppTheme.textPrimary,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear_rounded, size: 20, color: AppTheme.textHint),
+                    icon: const Icon(Icons.clear_rounded,
+                        size: 20, color: AppTheme.textHint),
                     onPressed: _controller.clear,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                 ),
               ),
             ),
           ),
+
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          
+
+          // ── Recent Searches ──────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _SearchSectionHeader(
-                title: 'Recent Searches',
-                trailing: _recentSearches.isEmpty
-                    ? null
-                    : TextButton(
-                        onPressed: () => setState(_recentSearches.clear),
+              child: recentSearches.when(
+                data: (searches) => Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Recent Searches',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (searches.isNotEmpty)
+                      TextButton(
+                        onPressed: () =>
+                            ref.read(recentSearchesProvider.notifier).clear(),
                         child: Text(
                           'Clear',
                           style: GoogleFonts.poppins(
@@ -179,96 +182,173 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                         ),
                       ),
+                  ],
+                ),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
               ),
             ),
           ),
+
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: _recentSearches.isEmpty
-                  ? _EmptySearchBlock(message: 'No recent searches yet.')
-                  : Column(
-                      children: _recentSearches
-                          .map(
-                            (s) => _RecentSearchTile(
-                              text: s,
-                              onTap: () => _search(s),
-                            ),
-                          )
-                          .toList(),
-                    ),
-            ),
-          ),
-          
-          const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: const _SearchSectionHeader(
-                title: 'Trending',
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: _trending
-                    .map(
-                      (t) => _TrendingChip(
-                        label: t,
-                        onTap: () => _search(t),
+              child: recentSearches.when(
+                data: (searches) => searches.isEmpty
+                    ? _EmptyBlock(message: 'No recent searches yet.')
+                    : Column(
+                        children: searches
+                            .map((s) => _RecentSearchTile(
+                                  text: s,
+                                  onTap: () => _search(s),
+                                  onRemove: () => ref
+                                      .read(recentSearchesProvider.notifier)
+                                      .remove(s),
+                                ))
+                            .toList(),
                       ),
-                    )
-                    .toList(),
+                loading: () => const SizedBox(height: 48),
+                error: (_, __) => const SizedBox.shrink(),
               ),
             ),
           ),
-          
+
           const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          
+
+          // ── Trending ─────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: const _SearchSectionHeader(
-                title: 'Browse by Material',
+              child: Text(
+                'Trending',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: trending.when(
+                data: (terms) => Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: terms
+                      .map((t) => _TrendingChip(
+                            label: t,
+                            onTap: () => _search(t),
+                          ))
+                      .toList(),
+                ),
+                loading: () => Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: List.generate(
+                    5,
+                    (_) => Container(
+                      width: 100,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppTheme.bone,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                  ),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+
+          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+
+          // ── Browse by Category ───────────────────────────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Browse by Category',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ),
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 140,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                scrollDirection: Axis.horizontal,
-                children: [
-                  _MaterialCard(
-                    emoji: '🧶',
-                    title: 'Textiles',
-                    subtitle: 'Woven stories',
-                    onTap: () => _search('Handwoven textiles'),
+              height: 100,
+              child: categories.when(
+                data: (cats) => ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: cats.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 24),
+                  itemBuilder: (context, index) {
+                    final cat = cats[index];
+                    return GestureDetector(
+                      onTap: () => context
+                          .push('/home/category/${cat.id}?name=${cat.name}'),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              color: AppTheme.bone,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: AppTheme.sand.withValues(alpha: 0.5)),
+                            ),
+                            child: Center(
+                              child: Icon(cat.icon,
+                                  color: AppTheme.terracotta, size: 24),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            cat.name,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w500,
+                              fontSize: 10,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                loading: () => ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: 6,
+                  separatorBuilder: (_, __) => const SizedBox(width: 24),
+                  itemBuilder: (_, __) => Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.bone,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Container(
+                          width: 48, height: 10, color: AppTheme.bone),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  _MaterialCard(
-                    emoji: '🏺',
-                    title: 'Clay',
-                    subtitle: 'Fired earth',
-                    onTap: () => _search('Ndebele pottery'),
-                  ),
-                  const SizedBox(width: 12),
-                  _MaterialCard(
-                    emoji: '🪵',
-                    title: 'Wood',
-                    subtitle: 'Carved craft',
-                    onTap: () => _search('Wooden bowl'),
-                  ),
-                ],
+                ),
+                error: (_, __) => const SizedBox.shrink(),
               ),
             ),
           ),
+
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
@@ -276,39 +356,16 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 }
 
-class _SearchSectionHeader extends StatelessWidget {
-  final String title;
-  final Widget? trailing;
-
-  const _SearchSectionHeader({
-    required this.title,
-    this.trailing,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 20,
-            color: AppTheme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        if (trailing != null) trailing!,
-      ],
-    );
-  }
-}
-
 class _RecentSearchTile extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
+  final VoidCallback onRemove;
 
-  const _RecentSearchTile({required this.text, required this.onTap});
+  const _RecentSearchTile({
+    required this.text,
+    required this.onTap,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -328,13 +385,19 @@ class _RecentSearchTile extends StatelessWidget {
       ),
       child: ListTile(
         dense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: const Icon(Icons.history_rounded, size: 20, color: AppTheme.textHint),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading:
+            const Icon(Icons.history_rounded, size: 20, color: AppTheme.textHint),
         title: Text(
           text,
           style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textPrimary),
         ),
-        trailing: const Icon(Icons.north_west_rounded, size: 16, color: AppTheme.textHint),
+        trailing: GestureDetector(
+          onTap: onRemove,
+          child: const Icon(Icons.close_rounded,
+              size: 16, color: AppTheme.textHint),
+        ),
         onTap: onTap,
       ),
     );
@@ -354,9 +417,7 @@ class _TrendingChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       side: BorderSide(color: AppTheme.sand.withValues(alpha: 0.3)),
       backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       elevation: 0,
       label: Text(
         label,
@@ -370,70 +431,10 @@ class _TrendingChip extends StatelessWidget {
   }
 }
 
-class _MaterialCard extends StatelessWidget {
-  final String emoji;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  const _MaterialCard({
-    required this.emoji,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
-            const Spacer(),
-            Text(
-              title,
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 18,
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptySearchBlock extends StatelessWidget {
+class _EmptyBlock extends StatelessWidget {
   final String message;
 
-  const _EmptySearchBlock({required this.message});
+  const _EmptyBlock({required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -446,7 +447,8 @@ class _EmptySearchBlock extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_off_rounded, color: AppTheme.textHint, size: 24),
+          const Icon(Icons.search_off_rounded,
+              color: AppTheme.textHint, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(

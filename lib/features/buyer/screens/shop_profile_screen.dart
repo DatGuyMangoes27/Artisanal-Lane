@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
@@ -69,6 +70,12 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     ),
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: 80)),
+
+                  // Offline banner
+                  if (shop.isOffline)
+                    SliverToBoxAdapter(
+                      child: _OfflineBanner(shop: shop),
+                    ),
 
                   // Story
                   SliverToBoxAdapter(
@@ -896,6 +903,77 @@ class _InlineError extends StatelessWidget {
           message,
           textAlign: TextAlign.center,
           style: GoogleFonts.poppins(color: AppTheme.textHint),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  final Shop shop;
+  const _OfflineBanner({required this.shop});
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('d MMMM yyyy');
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppTheme.terracotta.withValues(alpha: 0.12),
+              AppTheme.terracotta.withValues(alpha: 0.06),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: AppTheme.terracotta.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.terracotta.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.do_not_disturb_on_outlined,
+                  size: 20, color: AppTheme.terracotta),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Out of Office',
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.terracotta,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    shop.backToWorkDate != null
+                        ? 'This shop returns on ${fmt.format(shop.backToWorkDate!)}. Pre-orders are welcome!'
+                        : 'This shop is temporarily offline. Pre-orders are welcome!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

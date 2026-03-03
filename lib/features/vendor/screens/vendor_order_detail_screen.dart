@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -95,21 +96,7 @@ class _VendorOrderDetailScreenState
                         'Order #${order.shortId}',
                         style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.getStatusColor(order.status).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          order.status.toUpperCase(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.getStatusColor(order.status),
-                          ),
-                        ),
-                      ),
+                      _StatusBadge(status: order.status),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -161,6 +148,116 @@ class _VendorOrderDetailScreenState
                   ),
                 )),
             const SizedBox(height: 20),
+
+            // Gift details
+            if (order.isGift) ...[
+              Text(
+                'Gift Details',
+                style: GoogleFonts.playfairDisplay(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.terracotta.withValues(alpha: 0.08),
+                      AppTheme.baobab.withValues(alpha: 0.06),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: AppTheme.terracotta.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: AppTheme.terracotta.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.card_giftcard_outlined,
+                              size: 16, color: AppTheme.terracotta),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          'This is a gift order',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.terracotta,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (order.giftRecipient != null &&
+                        order.giftRecipient!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'RECIPIENT',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textHint,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        order.giftRecipient!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                    ],
+                    if (order.giftMessage != null &&
+                        order.giftMessage!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'GIFT MESSAGE',
+                        style: GoogleFonts.poppins(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textHint,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '"${order.giftMessage!}"',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                            fontStyle: FontStyle.italic,
+                            height: 1.6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // Shipping address
             if (order.shippingAddress != null) ...[
@@ -218,28 +315,13 @@ class _VendorOrderDetailScreenState
                       decoration: const InputDecoration(hintText: 'Enter tracking number'),
                     ),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _isShipping ? null : _markShipped,
-                        icon: _isShipping
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Icon(Icons.local_shipping_outlined),
-                        label: Text(
-                          'Mark as Shipped',
-                          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.baobab,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
+                    GradientButton(
+                      label: 'Mark as Shipped',
+                      icon: Icons.local_shipping_outlined,
+                      isLoading: _isShipping,
+                      onPressed: _isShipping ? null : _markShipped,
+                      verticalPadding: 16,
+                      borderRadius: 14,
                     ),
                   ],
                 ),
@@ -265,6 +347,54 @@ class _VendorOrderDetailScreenState
           Text(label, style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint)),
           Text(value, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
         ],
+      ),
+    );
+  }
+}
+
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
+
+  static const _gradientStatuses = {'shipped', 'delivered'};
+
+  @override
+  Widget build(BuildContext context) {
+    final useGradient = _gradientStatuses.contains(status);
+    if (useGradient) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [AppTheme.terracotta, AppTheme.baobab],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          status.toUpperCase(),
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppTheme.getStatusColor(status).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        status.toUpperCase(),
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.getStatusColor(status),
+        ),
       ),
     );
   }

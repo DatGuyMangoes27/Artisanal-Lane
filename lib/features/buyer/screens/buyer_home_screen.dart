@@ -141,7 +141,7 @@ class BuyerHomeScreen extends ConsumerWidget {
                                 border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
                               ),
                               child: Center(
-                                child: Text(cat.emoji, style: const TextStyle(fontSize: 28)),
+                                child: Icon(cat.icon, color: AppTheme.terracotta, size: 26),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -350,53 +350,57 @@ class _ElegantHero extends StatelessWidget {
       height: 200,
       width: double.infinity,
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppTheme.terracotta, AppTheme.baobab],
+        ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppTheme.terracotta.withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          // Abstract pattern background
+          // Decorative circle top-right
           Positioned(
             right: -50,
             top: -50,
             child: Opacity(
-              opacity: 0.1,
+              opacity: 0.15,
               child: Container(
                 width: 200,
                 height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.terracotta, width: 40),
+                  border: Border.all(color: Colors.white, width: 40),
                 ),
               ),
             ),
           ),
+          // Decorative circle bottom-left
           Positioned(
             left: -30,
             bottom: -30,
             child: Opacity(
-              opacity: 0.05,
+              opacity: 0.1,
               child: Container(
                 width: 150,
                 height: 150,
                 decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppTheme.baobab,
+                  color: Colors.white,
                 ),
               ),
             ),
           ),
-          
-          // Clean typographic greeting
+
+          // Text content
           Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -406,16 +410,16 @@ class _ElegantHero extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppTheme.terracotta.withValues(alpha: 0.1),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.2)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
                   ),
                   child: Text(
                     'FEATURED COLLECTION',
                     style: GoogleFonts.poppins(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.terracotta,
+                      color: Colors.white,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -427,7 +431,7 @@ class _ElegantHero extends StatelessWidget {
                     fontSize: 32,
                     height: 1.1,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: Colors.white,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -439,13 +443,13 @@ class _ElegantHero extends StatelessWidget {
                       Text(
                         'Explore Now',
                         style: GoogleFonts.poppins(
-                          color: AppTheme.terracotta,
+                          color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward, color: AppTheme.terracotta, size: 16),
+                      const Icon(Icons.arrow_forward, color: Colors.white, size: 16),
                     ],
                   ),
                 ),

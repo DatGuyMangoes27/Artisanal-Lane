@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 class Category {
   final String id;
   final String name;
@@ -34,14 +36,15 @@ class Category {
         'sort_order': sortOrder,
       };
 
-  // Category icons mapping
-  static const Map<String, String> categoryEmojis = {
-    'ceramics': '🏺',
-    'woodwork': '🪵',
-    'textiles': '🧵',
-    'jewellery': '💍',
-    'leather-goods': '👜',
+  // Line art icon mapping – outlined Flutter icons for each category slug
+  static const Map<String, IconData> categoryIcons = {
+    'art-design': Icons.palette_outlined,
+    'clothing': Icons.checkroom_outlined,
+    'beauty': Icons.spa_outlined,
+    'jewellery': Icons.diamond_outlined,
+    'home-living': Icons.home_outlined,
+    'baby-kids': Icons.child_care_outlined,
   };
 
-  String get emoji => categoryEmojis[slug] ?? '🎨';
+  IconData get icon => categoryIcons[slug] ?? Icons.category_outlined;
 }

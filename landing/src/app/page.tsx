@@ -24,6 +24,11 @@ import {
   Sparkles,
   Users,
   ArrowRight,
+  Gem,
+  MapPin,
+  ClipboardList,
+  Package,
+  Flag,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -163,8 +168,8 @@ function HeroSection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="text-center lg:text-left">
-            <Badge variant="secondary" className="mb-6 px-5 py-2.5 text-sm bg-white/50 backdrop-blur-md text-[#7A0000] border-[#EDD5BE] shadow-sm font-medium tracking-wide">
-              ✨ Discover Authentic South African Craft
+            <Badge variant="secondary" className="mb-6 px-5 py-2.5 text-sm bg-white/50 backdrop-blur-md text-[#7A0000] border-[#EDD5BE] shadow-sm font-medium tracking-wide inline-flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5" /> Discover Authentic South African Craft
             </Badge>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-[#3A1F10]">
@@ -224,9 +229,15 @@ function HeroSection() {
                 priority
               />
             </div>
-            <div className="absolute top-10 right-10 text-4xl animate-float" style={{ animationDelay: "-1s" }}>🏺</div>
-            <div className="absolute bottom-20 left-10 text-3xl animate-float" style={{ animationDelay: "-2s" }}>🧶</div>
-            <div className="absolute top-1/2 right-0 text-2xl animate-float" style={{ animationDelay: "-3s" }}>✨</div>
+            <div className="absolute top-10 right-10 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-1s" }}>
+              <Gem className="w-6 h-6 text-[#7A0000]" />
+            </div>
+            <div className="absolute bottom-20 left-10 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-2s" }}>
+              <Palette className="w-6 h-6 text-[#D4A020]" />
+            </div>
+            <div className="absolute top-1/2 right-0 w-10 h-10 rounded-xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-3s" }}>
+              <Sparkles className="w-5 h-5 text-[#559826]" />
+            </div>
           </div>
         </div>
       </div>
@@ -240,13 +251,13 @@ function FeaturesSection() {
       icon: Search,
       title: "Discover Unique Crafts",
       description:
-        "Browse a curated collection of handmade goods—from ceramics and textiles to jewellery and woodwork. Every item is one of a kind.",
+        "Browse a curated collection of handmade goods—from art & design and clothing to jewellery, beauty, home & living, and baby & kids. Every item is one of a kind.",
     },
     {
       icon: Store,
       title: "Dedicated Artisan Shops",
       description:
-        "Each vendor gets their own branded storefront to showcase their craft, share their story, and build a loyal following.",
+        "Each artisan gets their own branded storefront to showcase their craft, share their story, and build a loyal following.",
     },
     {
       icon: Shield,
@@ -268,9 +279,9 @@ function FeaturesSection() {
     },
     {
       icon: Sparkles,
-      title: "Invite-Only Quality",
+      title: "Curated Quality",
       description:
-        "Every artisan is vetted through our invite-only model. This means no mass-produced items—just genuine craftsmanship.",
+        "Every artisan is reviewed before going live. This means no mass-produced items—just genuine, handcrafted goods you can trust.",
     },
   ];
 
@@ -376,7 +387,7 @@ function AppShowcaseSection() {
         </div>
 
         <div className="flex flex-wrap justify-center gap-3 mt-16">
-          {["Ceramics", "Textiles", "Jewellery", "Woodwork", "Art", "Leather", "Candles", "Food"].map((category) => (
+          {["Art & Design", "Clothing", "Beauty", "Jewellery", "Home & Living", "Baby & Kids"].map((category) => (
             <Badge
               key={category}
               variant="outline"
@@ -506,13 +517,13 @@ function TrustSection() {
                 alt="Secure checkout with escrow protection"
               />
             </div>
-            <div className="absolute top-16 -right-4 bg-[#559826] text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg animate-float">
-              🛡️ Escrow Protected
+            <div className="absolute top-16 -right-4 bg-[#559826] text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg animate-float flex items-center gap-2">
+              <Shield className="w-4 h-4" /> Escrow Protected
             </div>
             <Card className="absolute bottom-24 -left-8 p-4 shadow-xl bg-white/90 backdrop-blur">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7A0000] to-[#D4A020] flex items-center justify-center text-white text-lg">
-                  🏺
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7A0000] to-[#D4A020] flex items-center justify-center">
+                  <Store className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <p className="font-semibold">Clay & Fire Studio</p>
@@ -532,11 +543,11 @@ function TrustSection() {
 
 function MarqueeSection() {
   const items = [
-    "🏺 Curated South African crafts",
-    "✨ Invite-only artisans",
-    "🛡️ Escrow-protected payments",
-    "🚚 Nationwide delivery options",
-    "❤️ Handmade with heart & soul",
+    { icon: Palette, label: "Curated South African crafts" },
+    { icon: Sparkles, label: "Curated artisans" },
+    { icon: Shield, label: "Escrow-protected payments" },
+    { icon: Truck, label: "Nationwide delivery options" },
+    { icon: Heart, label: "Handmade with heart & soul" },
   ];
 
   return (
@@ -545,9 +556,10 @@ function MarqueeSection() {
         {[...items, ...items].map((item, index) => (
           <span
             key={index}
-            className="whitespace-nowrap text-lg font-medium text-muted-foreground"
+            className="whitespace-nowrap text-lg font-medium text-muted-foreground flex items-center gap-2"
           >
-            {item}
+            <item.icon className="w-5 h-5 text-[#7A0000] shrink-0" />
+            {item.label}
           </span>
         ))}
       </div>
@@ -582,14 +594,14 @@ function ForArtisansSection() {
           {[
             {
               step: "01",
-              title: "Get Invited",
-              description: "Receive an invite code from the Artisan Lane team or an existing vendor. Submit your application with your craft details.",
-              icon: Sparkles,
+              title: "Apply to Join",
+              description: "Submit an application with your business details, craft story, delivery method, and turnaround times. It's an open process — anyone can apply.",
+              icon: ClipboardList,
             },
             {
               step: "02",
-              title: "Set Up Your Shop",
-              description: "Create your branded storefront, upload your products, set your prices, and tell your story. Your shop, your rules.",
+              title: "Get Reviewed & Set Up",
+              description: "Our team reviews every application to ensure quality standards are met. Once approved, create your branded storefront and upload your products.",
               icon: Store,
             },
             {
@@ -622,7 +634,7 @@ function FAQSection() {
     {
       question: "What is Artisan Lane?",
       answer:
-        "Artisan Lane is a curated mobile marketplace connecting South African artisans with buyers who appreciate unique, handmade goods. We focus on quality over quantity through an invite-only vendor model, ensuring every product meets a high standard of craftsmanship.",
+        "Artisan Lane is a curated mobile marketplace connecting South African artisans with buyers who appreciate unique, handmade goods. We focus on quality over quantity — every artisan is reviewed before going live, ensuring every product meets a high standard of craftsmanship.",
     },
     {
       question: "How does the escrow payment system work?",
@@ -630,14 +642,14 @@ function FAQSection() {
         "When you place an order, your payment is held securely via our escrow system powered by PayFast. The vendor is notified, ships your order, and once you confirm receipt, funds are released to the artisan. If you don't confirm within 14 days of delivery, funds are auto-released. Disputes can be raised any time before release.",
     },
     {
-      question: "How can I become a vendor on Artisan Lane?",
+      question: "How can I become an artisan on Artisan Lane?",
       answer:
-        "Artisan Lane uses an invite-only model to maintain quality. You'll need an invite code from the Artisan Lane team or an existing vendor. Once you have a code, submit an application with your business details and craft portfolio. Our team reviews every application to ensure it meets our standards.",
+        "It's an open application process — anyone can apply. Simply register as an artisan in the app, tell us about your craft, how you fulfil orders, and your typical turnaround times. Our team reviews every application before you go live to ensure quality standards are met. Once approved, you can set up your shop and start selling.",
     },
     {
       question: "What shipping options are available?",
       answer:
-        "We support multiple South African delivery options: Courier Guy for door-to-door delivery, Pargo for nationwide pickup points, PAXI for collection at PEP stores, and Market Pickup for in-person collection from the vendor at markets or events.",
+        "We support multiple South African delivery options: Courier Guy for door-to-door delivery and locker-to-locker, Pargo for nationwide pickup points, PAXI for collection at PEP stores, and Market Pickup for in-person collection from the artisan at markets or events.",
     },
     {
       question: "Is Artisan Lane free to use for buyers?",
@@ -647,7 +659,7 @@ function FAQSection() {
     {
       question: "What types of products can I find?",
       answer:
-        "You'll find a diverse range of handcrafted goods including ceramics, textiles, jewellery, woodwork, leather goods, artisanal food products, candles, art prints, and much more—all made by verified South African artisans.",
+        "You'll find a diverse range of handcrafted goods across Art & Design, Clothing, Beauty, Jewellery, Home & Living, and Baby & Kids. You'll also find artisan-made preserves and sauces. Everything is handmade by verified South African artisans — no mass-produced items.",
     },
   ];
 
@@ -825,7 +837,7 @@ function Footer() {
             © 2026 Artisan Lane. Celebrating South African craftsmanship.
           </p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>🇿🇦</span>
+            <Flag className="w-4 h-4 text-[#7A0000]" />
             <span>Made in South Africa</span>
           </div>
         </div>

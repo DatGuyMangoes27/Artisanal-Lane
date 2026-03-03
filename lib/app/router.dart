@@ -68,7 +68,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/register' ||
           path == '/forgot-password';
 
-      if (!isLoggedIn && !isAuthRoute) return '/welcome';
+      // Guests can browse home, search, products, shops, categories
+      final isBrowseRoute = path == '/home' ||
+          path.startsWith('/home/') ||
+          path == '/search' ||
+          path.startsWith('/search/');
+
+      // Favourites, cart and profile require a login
+      final isProtectedBuyerRoute = path == '/favourites' ||
+          path == '/cart' ||
+          path.startsWith('/cart/') ||
+          path == '/profile' ||
+          path.startsWith('/profile/');
+
+      if (!isLoggedIn) {
+        if (isProtectedBuyerRoute) return '/login';
+        if (!isAuthRoute && !isBrowseRoute) return '/welcome';
+      }
+
       if (isLoggedIn && isAuthRoute) {
         final user = Supabase.instance.client.auth.currentUser;
         final role = user?.userMetadata?['role'] as String? ?? 'buyer';

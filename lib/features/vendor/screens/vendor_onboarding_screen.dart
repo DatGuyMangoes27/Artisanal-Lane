@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -22,6 +23,9 @@ class _VendorOnboardingScreenState
   final _motivationController = TextEditingController();
   final _locationController = TextEditingController();
   final _portfolioController = TextEditingController();
+  final _deliveryController = TextEditingController();
+  final _turnaroundController = TextEditingController();
+  bool _acceptedTcs = false;
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -31,11 +35,17 @@ class _VendorOnboardingScreenState
     _motivationController.dispose();
     _locationController.dispose();
     _portfolioController.dispose();
+    _deliveryController.dispose();
+    _turnaroundController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (!_acceptedTcs) {
+      setState(() => _errorMessage = 'Please accept the Terms & Conditions to continue.');
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -56,6 +66,12 @@ class _VendorOnboardingScreenState
             : null,
         location: _locationController.text.trim().isNotEmpty
             ? _locationController.text.trim()
+            : null,
+        deliveryInfo: _deliveryController.text.trim().isNotEmpty
+            ? _deliveryController.text.trim()
+            : null,
+        turnaroundTime: _turnaroundController.text.trim().isNotEmpty
+            ? _turnaroundController.text.trim()
             : null,
       );
       ref.invalidate(vendorApplicationProvider);
@@ -236,29 +252,100 @@ class _VendorOnboardingScreenState
                 prefixIcon: Icon(Icons.link, color: AppTheme.textHint),
               ),
             ),
-            const SizedBox(height: 36),
+            const SizedBox(height: 20),
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.baobab,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : Text('Submit for Review',
-                        style: GoogleFonts.poppins(
-                            fontSize: 16, fontWeight: FontWeight.w600)),
+            _buildLabel('How will you fulfil orders?'),
+            const SizedBox(height: 4),
+            Text(
+              'Courier, self-delivery, click & collect — tell us how you\'ll get orders to buyers.',
+              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _deliveryController,
+              maxLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please describe your fulfilment method' : null,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Courier Guy nationwide, or local drop-offs in Cape Town',
               ),
+            ),
+            const SizedBox(height: 20),
+
+            _buildLabel('Typical turnaround time?'),
+            const SizedBox(height: 4),
+            Text(
+              'How long from order placed to ready-to-ship? Include made-to-order time if applicable.',
+              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _turnaroundController,
+              textCapitalization: TextCapitalization.sentences,
+              validator: (v) => v == null || v.trim().isEmpty ? 'Please provide your turnaround time' : null,
+              decoration: const InputDecoration(
+                hintText: 'e.g. 3–5 business days, or 10–14 days for custom orders',
+                prefixIcon: Icon(Icons.schedule_outlined, color: AppTheme.textHint),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            // Terms & Conditions
+            GestureDetector(
+              onTap: () => setState(() => _acceptedTcs = !_acceptedTcs),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _acceptedTcs
+                      ? AppTheme.baobab.withValues(alpha: 0.06)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _acceptedTcs
+                        ? AppTheme.baobab.withValues(alpha: 0.4)
+                        : AppTheme.sand.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Checkbox(
+                        value: _acceptedTcs,
+                        onChanged: (v) => setState(() => _acceptedTcs = v ?? false),
+                        activeColor: AppTheme.baobab,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: RichText(
+                        text: TextSpan(
+                          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary, height: 1.5),
+                          children: const [
+                            TextSpan(text: 'I have read and agree to the Artisan Lane '),
+                            TextSpan(
+                              text: 'Vendor Terms & Conditions',
+                              style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w600),
+                            ),
+                            TextSpan(text: ', including commission rates, listing policies, and fulfilment responsibilities.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+
+            GradientButton(
+              label: 'Submit for Review',
+              isLoading: _isLoading,
+              onPressed: _isLoading ? null : _submit,
             ),
             const SizedBox(height: 16),
             Center(
@@ -460,31 +547,11 @@ class _VendorOnboardingScreenState
                 fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 36),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed:
-                  _isLoading ? null : () => _activateAccount(application),
-              icon: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.storefront_rounded),
-              label: Text(
-                _isLoading ? 'Setting up your shop...' : 'Open My Shop',
-                style: GoogleFonts.poppins(
-                    fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.baobab,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-              ),
-            ),
+          GradientButton(
+            label: _isLoading ? 'Setting up your shop...' : 'Open My Shop',
+            icon: Icons.storefront_rounded,
+            isLoading: _isLoading,
+            onPressed: _isLoading ? null : () => _activateAccount(application),
           ),
           const SizedBox(height: 12),
           Text(
