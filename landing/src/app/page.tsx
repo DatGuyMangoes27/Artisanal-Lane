@@ -493,7 +493,7 @@ function TrustSection() {
 
             <div className="grid grid-cols-2 gap-4 mb-8">
               {[
-                { value: "PayFast", label: "Secure gateway" },
+                { value: "TradeSafe", label: "Secure gateway" },
                 { value: "Escrow", label: "Protected funds" },
                 { value: "4 options", label: "Shipping methods" },
                 { value: "14 days", label: "Buyer protection" },
@@ -639,7 +639,7 @@ function FAQSection() {
     {
       question: "How does the escrow payment system work?",
       answer:
-        "When you place an order, your payment is held securely via our escrow system powered by PayFast. The vendor is notified, ships your order, and once you confirm receipt, funds are released to the artisan. If you don't confirm within 14 days of delivery, funds are auto-released. Disputes can be raised any time before release.",
+        "When you place an order, your payment is held securely via our escrow system powered by TradeSafe. The artisan is notified, ships your order, and once you confirm receipt, funds are released to the artisan. If you don't confirm within 14 days of delivery, funds are auto-released. Disputes can be raised any time before release.",
     },
     {
       question: "How can I become an artisan on Artisan Lane?",
