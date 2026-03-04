@@ -815,7 +815,7 @@ function Footer() {
               <li><Link href="#features" className="hover:text-[#7A0000] transition-colors">Features</Link></li>
               <li><Link href="#how-it-works" className="hover:text-[#7A0000] transition-colors">How It Works</Link></li>
               <li><Link href="#artisans" className="hover:text-[#7A0000] transition-colors">For Artisans</Link></li>
-              <li><Link href="/categories" className="hover:text-[#7A0000] transition-colors">Categories</Link></li>
+              <li><Link href="#how-it-works" className="hover:text-[#7A0000] transition-colors">Categories</Link></li>
             </ul>
           </div>
 
@@ -823,7 +823,7 @@ function Footer() {
             <h4 className="font-semibold mb-4">Support</h4>
             <ul className="space-y-3 text-muted-foreground">
               <li><Link href="#faq" className="hover:text-[#7A0000] transition-colors">FAQ</Link></li>
-              <li><Link href="/contact" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
+              <li><Link href="mailto:hello@artisanlane.co.za" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
               <li><Link href="/privacy" className="hover:text-[#7A0000] transition-colors">Privacy Policy</Link></li>
               <li><Link href="/terms" className="hover:text-[#7A0000] transition-colors">Terms of Service</Link></li>
             </ul>
