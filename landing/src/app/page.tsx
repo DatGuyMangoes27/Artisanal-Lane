@@ -185,23 +185,27 @@ function HeroSection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
-              <Button
-                size="lg"
-                className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full"
-              >
-                <Apple className="w-5 h-5 mr-2" />
-                iOS — Coming Soon
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full"
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                </svg>
-                Android — Coming Soon
-              </Button>
+              <Link href="#" target="_blank" rel="noopener noreferrer">
+                <Button
+                  size="lg"
+                  className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full"
+                >
+                  <Apple className="w-5 h-5 mr-2" />
+                  iOS — Coming Soon
+                </Button>
+              </Link>
+              <Link href="#" target="_blank" rel="noopener noreferrer">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full"
+                >
+                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                  </svg>
+                  Android — Coming Soon
+                </Button>
+              </Link>
             </div>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-muted-foreground">
@@ -711,29 +715,33 @@ function CTASection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Button
-                size="lg"
-                className="bg-[#3A1F10] hover:bg-[#2a1510] text-white rounded-xl px-6 h-14 w-full"
-              >
-                <Apple className="w-6 h-6 mr-3" />
-                <div className="text-left">
-                  <span className="text-[10px] block opacity-70">Coming soon on the</span>
-                  <span className="font-semibold">App Store</span>
-                </div>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="rounded-xl px-6 h-14 border-2 w-full"
-              >
-                <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                </svg>
-                <div className="text-left">
-                  <span className="text-[10px] block opacity-70">Coming soon on</span>
-                  <span className="font-semibold">Google Play</span>
-                </div>
-              </Button>
+              <Link href="#" target="_blank" rel="noopener noreferrer">
+                <Button
+                  size="lg"
+                  className="bg-[#3A1F10] hover:bg-[#2a1510] text-white rounded-xl px-6 h-14 w-full"
+                >
+                  <Apple className="w-6 h-6 mr-3" />
+                  <div className="text-left">
+                    <span className="text-[10px] block opacity-70">Coming Soon on the</span>
+                    <span className="font-semibold">App Store</span>
+                  </div>
+                </Button>
+              </Link>
+              <Link href="#" target="_blank" rel="noopener noreferrer">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-xl px-6 h-14 border-2 w-full"
+                >
+                  <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                  </svg>
+                  <div className="text-left">
+                    <span className="text-[10px] block opacity-70">Coming Soon on</span>
+                    <span className="font-semibold">Google Play</span>
+                  </div>
+                </Button>
+              </Link>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
