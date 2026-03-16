@@ -19,7 +19,6 @@ class VendorApplicationScreen extends ConsumerStatefulWidget {
 class _VendorApplicationScreenState
     extends ConsumerState<VendorApplicationScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _inviteCodeController = TextEditingController();
   final _businessNameController = TextEditingController();
   final _motivationController = TextEditingController();
   final _portfolioController = TextEditingController();
@@ -32,7 +31,6 @@ class _VendorApplicationScreenState
 
   @override
   void dispose() {
-    _inviteCodeController.dispose();
     _businessNameController.dispose();
     _motivationController.dispose();
     _portfolioController.dispose();
@@ -45,7 +43,10 @@ class _VendorApplicationScreenState
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptedTcs) {
-      setState(() => _errorMessage = 'Please accept the Terms & Conditions to continue.');
+      setState(
+        () =>
+            _errorMessage = 'Please accept the Terms & Conditions to continue.',
+      );
       return;
     }
     setState(() {
@@ -59,7 +60,6 @@ class _VendorApplicationScreenState
       await service.submitVendorApplication(
         userId: userId,
         businessName: _businessNameController.text.trim(),
-        inviteCode: _inviteCodeController.text.trim(),
         motivation: _motivationController.text.trim().isNotEmpty
             ? _motivationController.text.trim()
             : null,
@@ -83,17 +83,31 @@ class _VendorApplicationScreenState
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             title: Row(
               children: [
-                const Icon(Icons.check_circle_rounded, color: AppTheme.baobab, size: 28),
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppTheme.baobab,
+                  size: 28,
+                ),
                 const SizedBox(width: 10),
-                Text('Submitted!', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
+                Text(
+                  'Submitted!',
+                  style: GoogleFonts.playfairDisplay(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
             content: Text(
               'Your vendor application has been submitted. We\'ll review it and get back to you soon.',
-              style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary),
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
             actions: [
               TextButton(
@@ -101,14 +115,22 @@ class _VendorApplicationScreenState
                   Navigator.pop(ctx);
                   context.pop();
                 },
-                child: Text('OK', style: GoogleFonts.poppins(fontWeight: FontWeight.w600, color: AppTheme.terracotta)),
+                child: Text(
+                  'OK',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.terracotta,
+                  ),
+                ),
               ),
             ],
           ),
         );
       }
     } catch (e) {
-      setState(() => _errorMessage = e.toString().replaceAll('Exception: ', ''));
+      setState(
+        () => _errorMessage = e.toString().replaceAll('Exception: ', ''),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -116,7 +138,7 @@ class _VendorApplicationScreenState
 
   @override
   Widget build(BuildContext context) {
-    final appAsync = ref.watch(vendorApplicationProvider);
+    final appAsync = ref.watch(vendorApplicationStreamProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -126,14 +148,22 @@ class _VendorApplicationScreenState
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
         ),
-        title: Text('Become a Vendor', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Become a Vendor',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
       ),
       body: appAsync.when(
         data: (existing) {
           if (existing != null) return _buildExistingApplication(existing);
           return _buildApplicationForm();
         },
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
+        ),
         error: (_, __) => _buildApplicationForm(),
       ),
     );
@@ -146,14 +176,20 @@ class _VendorApplicationScreenState
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
       final service = ref.read(supabaseServiceProvider);
-      await service.activateVendorAccount(
-        userId: userId,
-        businessName: application.businessName,
-        location: application.location,
-      );
-
-      if (mounted) {
-        GoRouter.of(context).go('/vendor');
+      final profile = await service.getProfile(userId);
+      if (profile.role == 'vendor') {
+        if (mounted) {
+          GoRouter.of(context).go('/vendor');
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your approved seller account is still being provisioned by an admin.',
+            ),
+            backgroundColor: AppTheme.ochre,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -183,18 +219,22 @@ class _VendorApplicationScreenState
               color: isPending
                   ? AppTheme.ochre.withValues(alpha: 0.12)
                   : isApproved
-                      ? AppTheme.baobab.withValues(alpha: 0.12)
-                      : AppTheme.error.withValues(alpha: 0.12),
+                  ? AppTheme.baobab.withValues(alpha: 0.12)
+                  : AppTheme.error.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isPending
                   ? Icons.hourglass_top_rounded
                   : isApproved
-                      ? Icons.celebration_rounded
-                      : Icons.cancel_rounded,
+                  ? Icons.celebration_rounded
+                  : Icons.cancel_rounded,
               size: 36,
-              color: isPending ? AppTheme.ochre : isApproved ? AppTheme.baobab : AppTheme.error,
+              color: isPending
+                  ? AppTheme.ochre
+                  : isApproved
+                  ? AppTheme.baobab
+                  : AppTheme.error,
             ),
           ),
           const SizedBox(height: 20),
@@ -202,19 +242,27 @@ class _VendorApplicationScreenState
             isPending
                 ? 'Application Under Review'
                 : isApproved
-                    ? 'You\'re Approved!'
-                    : 'Application Not Approved',
-            style: GoogleFonts.playfairDisplay(fontSize: 24, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                ? 'You\'re Approved!'
+                : 'Application Not Approved',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             isPending
                 ? 'Our team is reviewing your application. This usually takes 1-3 business days. We\'ll notify you once a decision has been made.'
                 : isApproved
-                    ? 'Congratulations! Your application to sell on Artisan Lane has been approved. Activate your vendor account below to start setting up your shop.'
-                    : 'Unfortunately your application was not approved at this time. You may contact us for more details.',
+                ? 'Congratulations! Your application to sell on Artisan Lane has been approved. Activate your vendor account below to start setting up your shop.'
+                : 'Unfortunately your application was not approved at this time. You may contact us for more details.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -231,8 +279,16 @@ class _VendorApplicationScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _infoRow('Business', application.businessName),
-                if (application.location != null) _infoRow('Location', application.location!),
-                _infoRow('Status', isPending ? 'PENDING REVIEW' : isApproved ? 'APPROVED' : 'REJECTED'),
+                if (application.location != null)
+                  _infoRow('Location', application.location!),
+                _infoRow(
+                  'Status',
+                  isPending
+                      ? 'PENDING REVIEW'
+                      : isApproved
+                      ? 'APPROVED'
+                      : 'REJECTED',
+                ),
               ],
             ),
           ),
@@ -241,24 +297,28 @@ class _VendorApplicationScreenState
           if (isApproved) ...[
             const SizedBox(height: 32),
             GradientButton(
-              label: _isActivating ? 'Setting up your shop...' : 'Activate Vendor Account',
+              label: _isActivating
+                  ? 'Checking Access...'
+                  : 'Continue to Dashboard',
               icon: Icons.storefront_rounded,
               isLoading: _isActivating,
-              onPressed: _isActivating ? null : () => _activateVendorAccount(application),
+              onPressed: _isActivating
+                  ? null
+                  : () => _activateVendorAccount(application),
             ),
             const SizedBox(height: 12),
             Text(
-              'This will create your shop and switch you to the vendor dashboard.',
+              'Admin approval now provisions your seller role and shop automatically.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textHint,
+              ),
             ),
           ],
 
           // Pending progress steps
-          if (isPending) ...[
-            const SizedBox(height: 32),
-            _buildProgressSteps(),
-          ],
+          if (isPending) ...[const SizedBox(height: 32), _buildProgressSteps()],
 
           // Rejected - option to contact
           if (isRejected) ...[
@@ -269,11 +329,22 @@ class _VendorApplicationScreenState
                 onPressed: () => context.pop(),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.terracotta,
-                  side: const BorderSide(color: AppTheme.terracotta, width: 1.5),
+                  side: const BorderSide(
+                    color: AppTheme.terracotta,
+                    width: 1.5,
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
-                child: Text('Go Back', style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600)),
+                child: Text(
+                  'Go Back',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
           ],
@@ -296,7 +367,11 @@ class _VendorApplicationScreenState
         children: [
           Text(
             'What happens next?',
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 16),
           _progressStep(1, 'Application submitted', true),
@@ -317,7 +392,9 @@ class _VendorApplicationScreenState
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: completed ? AppTheme.baobab : AppTheme.sand.withValues(alpha: 0.5),
+              color: completed
+                  ? AppTheme.baobab
+                  : AppTheme.sand.withValues(alpha: 0.5),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -325,7 +402,11 @@ class _VendorApplicationScreenState
                   ? const Icon(Icons.check, size: 16, color: Colors.white)
                   : Text(
                       '$step',
-                      style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textHint),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textHint,
+                      ),
                     ),
             ),
           ),
@@ -335,7 +416,9 @@ class _VendorApplicationScreenState
               label,
               style: GoogleFonts.poppins(
                 fontSize: 13,
-                color: completed ? AppTheme.textPrimary : AppTheme.textSecondary,
+                color: completed
+                    ? AppTheme.textPrimary
+                    : AppTheme.textSecondary,
                 fontWeight: completed ? FontWeight.w500 : FontWeight.w400,
               ),
             ),
@@ -351,8 +434,18 @@ class _VendorApplicationScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint)),
-          Text(value, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+            ),
+          ),
         ],
       ),
     );
@@ -380,11 +473,22 @@ class _VendorApplicationScreenState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Invite-Only Marketplace', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                      Text(
+                        'Application Review',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
-                        'You need a valid invite code to apply as a vendor. Contact us or ask an existing vendor for a code.',
-                        style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary, height: 1.4),
+                        'Tell us about your shop, fulfilment, and portfolio. The admin team will review your application before your store goes live.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                          height: 1.4,
+                        ),
                       ),
                     ],
                   ),
@@ -401,25 +505,17 @@ class _VendorApplicationScreenState
               decoration: BoxDecoration(
                 color: AppTheme.error.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+                border: Border.all(
+                  color: AppTheme.error.withValues(alpha: 0.3),
+                ),
               ),
-              child: Text(_errorMessage!, style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error)),
+              child: Text(
+                _errorMessage!,
+                style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+              ),
             ),
             const SizedBox(height: 20),
           ],
-
-          _buildLabel('Invite Code'),
-          const SizedBox(height: 8),
-          TextFormField(
-            controller: _inviteCodeController,
-            textCapitalization: TextCapitalization.characters,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Invite code is required' : null,
-            decoration: const InputDecoration(
-              hintText: 'Enter your invite code',
-              prefixIcon: Icon(Icons.vpn_key_outlined, color: AppTheme.textHint),
-            ),
-          ),
-          const SizedBox(height: 20),
 
           _buildLabel('Business Name'),
           const SizedBox(height: 8),
@@ -427,7 +523,9 @@ class _VendorApplicationScreenState
             controller: _businessNameController,
             textCapitalization: TextCapitalization.words,
             validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
-            decoration: const InputDecoration(hintText: 'Your craft business name'),
+            decoration: const InputDecoration(
+              hintText: 'Your craft business name',
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -437,7 +535,9 @@ class _VendorApplicationScreenState
             controller: _motivationController,
             maxLines: 3,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(hintText: 'Why do you want to sell on Artisan Lane?'),
+            decoration: const InputDecoration(
+              hintText: 'Why do you want to sell on Artisan Lane?',
+            ),
           ),
           const SizedBox(height: 20),
 
@@ -457,7 +557,10 @@ class _VendorApplicationScreenState
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
               hintText: 'e.g. Cape Town, South Africa',
-              prefixIcon: Icon(Icons.location_on_outlined, color: AppTheme.textHint),
+              prefixIcon: Icon(
+                Icons.location_on_outlined,
+                color: AppTheme.textHint,
+              ),
             ),
           ),
           const SizedBox(height: 20),
@@ -466,16 +569,23 @@ class _VendorApplicationScreenState
           const SizedBox(height: 4),
           Text(
             'Tell us about your delivery method — courier, self-delivery, click & collect, etc.',
-            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: AppTheme.textHint,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 8),
           TextFormField(
             controller: _deliveryController,
             maxLines: 2,
             textCapitalization: TextCapitalization.sentences,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Please describe your fulfilment method' : null,
+            validator: (v) => v == null || v.trim().isEmpty
+                ? 'Please describe your fulfilment method'
+                : null,
             decoration: const InputDecoration(
-              hintText: 'e.g. I use Courier Guy for deliveries, or can do local drop-offs in Cape Town',
+              hintText:
+                  'e.g. I use Courier Guy for deliveries, or can do local drop-offs in Cape Town',
             ),
           ),
           const SizedBox(height: 20),
@@ -484,16 +594,26 @@ class _VendorApplicationScreenState
           const SizedBox(height: 4),
           Text(
             'How long from order placed to ready-to-ship? Include any made-to-order time.',
-            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: AppTheme.textHint,
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 8),
           TextFormField(
             controller: _turnaroundController,
             textCapitalization: TextCapitalization.sentences,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Please provide your turnaround time' : null,
+            validator: (v) => v == null || v.trim().isEmpty
+                ? 'Please provide your turnaround time'
+                : null,
             decoration: const InputDecoration(
-              hintText: 'e.g. 3–5 business days for ready stock, 10–14 days for custom orders',
-              prefixIcon: Icon(Icons.schedule_outlined, color: AppTheme.textHint),
+              hintText:
+                  'e.g. 3–5 business days for ready stock, 10–14 days for custom orders',
+              prefixIcon: Icon(
+                Icons.schedule_outlined,
+                color: AppTheme.textHint,
+              ),
             ),
           ),
           const SizedBox(height: 28),
@@ -522,9 +642,12 @@ class _VendorApplicationScreenState
                     height: 22,
                     child: Checkbox(
                       value: _acceptedTcs,
-                      onChanged: (v) => setState(() => _acceptedTcs = v ?? false),
+                      onChanged: (v) =>
+                          setState(() => _acceptedTcs = v ?? false),
                       activeColor: AppTheme.baobab,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
@@ -532,14 +655,26 @@ class _VendorApplicationScreenState
                   Expanded(
                     child: RichText(
                       text: TextSpan(
-                        style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary, height: 1.5),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                          height: 1.5,
+                        ),
                         children: const [
-                          TextSpan(text: 'I have read and agree to the Artisan Lane '),
+                          TextSpan(
+                            text: 'I have read and agree to the Artisan Lane ',
+                          ),
                           TextSpan(
                             text: 'Vendor Terms & Conditions',
-                            style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                              color: AppTheme.terracotta,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          TextSpan(text: ', including commission rates, listing policies, and fulfilment responsibilities.'),
+                          TextSpan(
+                            text:
+                                ', including commission rates, listing policies, and fulfilment responsibilities.',
+                          ),
                         ],
                       ),
                     ),
@@ -564,7 +699,11 @@ class _VendorApplicationScreenState
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textPrimary,
+      ),
     );
   }
 }

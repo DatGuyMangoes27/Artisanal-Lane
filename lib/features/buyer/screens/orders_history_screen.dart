@@ -14,7 +14,7 @@ class OrdersHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orders = ref.watch(ordersProvider);
+    final orders = ref.watch(ordersStreamProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -226,10 +226,7 @@ class _EmptyOrdersState extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 40),
-            GradientButton(
-              label: 'Start Shopping',
-              onPressed: onStartShopping,
-            ),
+            GradientButton(label: 'Start Shopping', onPressed: onStartShopping),
             const SizedBox(height: 32),
             const TripleDot(),
           ],
@@ -301,10 +298,7 @@ class _OrderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Divider(
-              height: 1,
-              color: AppTheme.sand.withValues(alpha: 0.2),
-            ),
+            Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.2)),
             const SizedBox(height: 16),
 
             // ── Shop Name ───────────────────────────────────────

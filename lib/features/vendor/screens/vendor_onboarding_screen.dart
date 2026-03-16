@@ -43,7 +43,10 @@ class _VendorOnboardingScreenState
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_acceptedTcs) {
-      setState(() => _errorMessage = 'Please accept the Terms & Conditions to continue.');
+      setState(
+        () =>
+            _errorMessage = 'Please accept the Terms & Conditions to continue.',
+      );
       return;
     }
     setState(() {
@@ -77,7 +80,8 @@ class _VendorOnboardingScreenState
       ref.invalidate(vendorApplicationProvider);
     } catch (e) {
       setState(
-          () => _errorMessage = e.toString().replaceAll('Exception: ', ''));
+        () => _errorMessage = e.toString().replaceAll('Exception: ', ''),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -88,13 +92,22 @@ class _VendorOnboardingScreenState
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
       final service = ref.read(supabaseServiceProvider);
-      await service.activateVendorAccount(
-        userId: userId,
-        businessName: application.businessName,
-        location: application.location,
-      );
-      ref.invalidate(vendorShopProvider);
-      if (mounted) GoRouter.of(context).go('/vendor');
+      final profile = await service.getProfile(userId);
+      if (profile.role == 'vendor') {
+        ref.invalidate(vendorShopProvider);
+        if (mounted) GoRouter.of(context).go('/vendor');
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Your approved seller account is still being provisioned by an admin.',
+            ),
+            backgroundColor: AppTheme.ochre,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -115,7 +128,7 @@ class _VendorOnboardingScreenState
 
   @override
   Widget build(BuildContext context) {
-    final appAsync = ref.watch(vendorApplicationProvider);
+    final appAsync = ref.watch(vendorApplicationStreamProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -129,7 +142,9 @@ class _VendorOnboardingScreenState
           },
           loading: () => const Center(
             child: CircularProgressIndicator(
-                color: AppTheme.terracotta, strokeWidth: 2),
+              color: AppTheme.terracotta,
+              strokeWidth: 2,
+            ),
           ),
           error: (_, __) => _buildApplicationForm(),
         ),
@@ -175,7 +190,10 @@ class _VendorOnboardingScreenState
                 'Tell us about your craft so we can set up\nyour shop on Artisan Lane',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
-                    fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -191,12 +209,17 @@ class _VendorOnboardingScreenState
                 decoration: BoxDecoration(
                   color: AppTheme.error.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(12),
-                  border:
-                      Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppTheme.error.withValues(alpha: 0.3),
+                  ),
                 ),
-                child: Text(_errorMessage!,
-                    style:
-                        GoogleFonts.poppins(fontSize: 13, color: AppTheme.error)),
+                child: Text(
+                  _errorMessage!,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: AppTheme.error,
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
             ],
@@ -210,8 +233,10 @@ class _VendorOnboardingScreenState
                   v == null || v.trim().isEmpty ? 'Required' : null,
               decoration: const InputDecoration(
                 hintText: 'e.g. Ndlovu Ceramics',
-                prefixIcon:
-                    Icon(Icons.store_outlined, color: AppTheme.textHint),
+                prefixIcon: Icon(
+                  Icons.store_outlined,
+                  color: AppTheme.textHint,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -236,8 +261,10 @@ class _VendorOnboardingScreenState
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
                 hintText: 'e.g. Cape Town, South Africa',
-                prefixIcon:
-                    Icon(Icons.location_on_outlined, color: AppTheme.textHint),
+                prefixIcon: Icon(
+                  Icons.location_on_outlined,
+                  color: AppTheme.textHint,
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -258,16 +285,23 @@ class _VendorOnboardingScreenState
             const SizedBox(height: 4),
             Text(
               'Courier, self-delivery, click & collect — tell us how you\'ll get orders to buyers.',
-              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppTheme.textHint,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _deliveryController,
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please describe your fulfilment method' : null,
+              validator: (v) => v == null || v.trim().isEmpty
+                  ? 'Please describe your fulfilment method'
+                  : null,
               decoration: const InputDecoration(
-                hintText: 'e.g. Courier Guy nationwide, or local drop-offs in Cape Town',
+                hintText:
+                    'e.g. Courier Guy nationwide, or local drop-offs in Cape Town',
               ),
             ),
             const SizedBox(height: 20),
@@ -276,16 +310,26 @@ class _VendorOnboardingScreenState
             const SizedBox(height: 4),
             Text(
               'How long from order placed to ready-to-ship? Include made-to-order time if applicable.',
-              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, height: 1.4),
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppTheme.textHint,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _turnaroundController,
               textCapitalization: TextCapitalization.sentences,
-              validator: (v) => v == null || v.trim().isEmpty ? 'Please provide your turnaround time' : null,
+              validator: (v) => v == null || v.trim().isEmpty
+                  ? 'Please provide your turnaround time'
+                  : null,
               decoration: const InputDecoration(
-                hintText: 'e.g. 3–5 business days, or 10–14 days for custom orders',
-                prefixIcon: Icon(Icons.schedule_outlined, color: AppTheme.textHint),
+                hintText:
+                    'e.g. 3–5 business days, or 10–14 days for custom orders',
+                prefixIcon: Icon(
+                  Icons.schedule_outlined,
+                  color: AppTheme.textHint,
+                ),
               ),
             ),
             const SizedBox(height: 28),
@@ -314,9 +358,12 @@ class _VendorOnboardingScreenState
                       height: 22,
                       child: Checkbox(
                         value: _acceptedTcs,
-                        onChanged: (v) => setState(() => _acceptedTcs = v ?? false),
+                        onChanged: (v) =>
+                            setState(() => _acceptedTcs = v ?? false),
                         activeColor: AppTheme.baobab,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
@@ -324,14 +371,27 @@ class _VendorOnboardingScreenState
                     Expanded(
                       child: RichText(
                         text: TextSpan(
-                          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary, height: 1.5),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                            height: 1.5,
+                          ),
                           children: const [
-                            TextSpan(text: 'I have read and agree to the Artisan Lane '),
+                            TextSpan(
+                              text:
+                                  'I have read and agree to the Artisan Lane ',
+                            ),
                             TextSpan(
                               text: 'Vendor Terms & Conditions',
-                              style: TextStyle(color: AppTheme.terracotta, fontWeight: FontWeight.w600),
+                              style: TextStyle(
+                                color: AppTheme.terracotta,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            TextSpan(text: ', including commission rates, listing policies, and fulfilment responsibilities.'),
+                            TextSpan(
+                              text:
+                                  ', including commission rates, listing policies, and fulfilment responsibilities.',
+                            ),
                           ],
                         ),
                       ),
@@ -354,7 +414,9 @@ class _VendorOnboardingScreenState
                 child: Text(
                   'Sign out',
                   style: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint),
+                    fontSize: 13,
+                    color: AppTheme.textHint,
+                  ),
                 ),
               ),
             ),
@@ -392,8 +454,11 @@ class _VendorOnboardingScreenState
               color: AppTheme.ochre.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.hourglass_top_rounded,
-                size: 36, color: AppTheme.ochre),
+            child: const Icon(
+              Icons.hourglass_top_rounded,
+              size: 36,
+              color: AppTheme.ochre,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
@@ -409,7 +474,10 @@ class _VendorOnboardingScreenState
             'Thanks for applying, ${application.businessName}! Our team is reviewing your application. This usually takes 1-3 business days.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-                fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 32),
 
@@ -425,11 +493,14 @@ class _VendorOnboardingScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Your Application',
-                    style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                Text(
+                  'Your Application',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _detailRow('Business', application.businessName),
                 if (application.location != null)
@@ -452,11 +523,14 @@ class _VendorOnboardingScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('What happens next?',
-                    style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                Text(
+                  'What happens next?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _stepRow(1, 'Application submitted', true),
                 _stepRow(2, 'Team review (1-3 business days)', false),
@@ -472,16 +546,20 @@ class _VendorOnboardingScreenState
             child: OutlinedButton.icon(
               onPressed: () => ref.invalidate(vendorApplicationProvider),
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: Text('Check Status',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
+              label: Text(
+                'Check Status',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.terracotta,
-                side:
-                    const BorderSide(color: AppTheme.terracotta, width: 1.5),
+                side: const BorderSide(color: AppTheme.terracotta, width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
           ),
@@ -489,9 +567,13 @@ class _VendorOnboardingScreenState
           Center(
             child: TextButton(
               onPressed: _logout,
-              child: Text('Sign out',
-                  style: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint)),
+              child: Text(
+                'Sign out',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: AppTheme.textHint,
+                ),
+              ),
             ),
           ),
         ],
@@ -527,8 +609,11 @@ class _VendorOnboardingScreenState
               color: AppTheme.baobab.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.celebration_rounded,
-                size: 36, color: AppTheme.baobab),
+            child: const Icon(
+              Icons.celebration_rounded,
+              size: 36,
+              color: AppTheme.baobab,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
@@ -541,21 +626,24 @@ class _VendorOnboardingScreenState
           ),
           const SizedBox(height: 12),
           Text(
-            'Congratulations! Your application to sell on Artisan Lane has been approved. Activate your shop below to start your journey.',
+            'Congratulations! Your application has been approved. Once admin provisioning finishes, you can continue straight to your dashboard.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-                fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 36),
           GradientButton(
-            label: _isLoading ? 'Setting up your shop...' : 'Open My Shop',
+            label: _isLoading ? 'Checking Access...' : 'Continue to Dashboard',
             icon: Icons.storefront_rounded,
             isLoading: _isLoading,
             onPressed: _isLoading ? null : () => _activateAccount(application),
           ),
           const SizedBox(height: 12),
           Text(
-            'This will create your shop and take you to\nyour vendor dashboard.',
+            'Admin approval now provisions your seller role and shop automatically.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
           ),
@@ -578,8 +666,11 @@ class _VendorOnboardingScreenState
               color: AppTheme.error.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.cancel_rounded,
-                size: 36, color: AppTheme.error),
+            child: const Icon(
+              Icons.cancel_rounded,
+              size: 36,
+              color: AppTheme.error,
+            ),
           ),
           const SizedBox(height: 24),
           Text(
@@ -595,7 +686,10 @@ class _VendorOnboardingScreenState
             'Unfortunately your application was not approved at this time. Please contact us if you have questions or would like to reapply.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-                fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 32),
           Container(
@@ -620,11 +714,14 @@ class _VendorOnboardingScreenState
           Center(
             child: TextButton(
               onPressed: _logout,
-              child: Text('Sign out',
-                  style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: AppTheme.terracotta,
-                      fontWeight: FontWeight.w500)),
+              child: Text(
+                'Sign out',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppTheme.terracotta,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
           ),
         ],
@@ -710,23 +807,28 @@ class _VendorOnboardingScreenState
             child: Center(
               child: completed
                   ? const Icon(Icons.check, size: 16, color: Colors.white)
-                  : Text('$step',
+                  : Text(
+                      '$step',
                       style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textHint)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(label,
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  color: completed
-                      ? AppTheme.textPrimary
-                      : AppTheme.textSecondary,
-                  fontWeight: completed ? FontWeight.w500 : FontWeight.w400,
-                )),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: completed
+                    ? AppTheme.textPrimary
+                    : AppTheme.textSecondary,
+                fontWeight: completed ? FontWeight.w500 : FontWeight.w400,
+              ),
+            ),
           ),
         ],
       ),
@@ -739,14 +841,18 @@ class _VendorOnboardingScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: GoogleFonts.poppins(
-                  fontSize: 13, color: AppTheme.textHint)),
-          Text(value,
-              style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textPrimary)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+            ),
+          ),
         ],
       ),
     );
@@ -756,9 +862,10 @@ class _VendorOnboardingScreenState
     return Text(
       text,
       style: GoogleFonts.poppins(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.textPrimary),
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textPrimary,
+      ),
     );
   }
 }

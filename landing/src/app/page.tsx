@@ -820,6 +820,7 @@ function Footer() {
             <ul className="space-y-3 text-muted-foreground">
               <li><Link href="#faq" className="hover:text-[#7A0000] transition-colors">FAQ</Link></li>
               <li><Link href="mailto:nicky@artisanlanesa.com" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
+              <li><Link href="/admin/login" className="hover:text-[#7A0000] transition-colors">Admin Portal</Link></li>
               <li><Link href="/privacy" className="hover:text-[#7A0000] transition-colors">Privacy Policy</Link></li>
               <li><Link href="/terms" className="hover:text-[#7A0000] transition-colors">Terms of Service</Link></li>
             </ul>

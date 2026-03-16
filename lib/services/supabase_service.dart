@@ -29,7 +29,9 @@ class SupabaseService {
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
     final storagePath = '$userId/$fileName';
 
-    await _client.storage.from('product-images').upload(
+    await _client.storage
+        .from('product-images')
+        .upload(
           storagePath,
           imageFile,
           fileOptions: FileOptions(contentType: _mimeType(ext)),
@@ -38,12 +40,18 @@ class SupabaseService {
     return _client.storage.from('product-images').getPublicUrl(storagePath);
   }
 
-  Future<String> uploadShopImage(String userId, File imageFile, {String folder = 'general'}) async {
+  Future<String> uploadShopImage(
+    String userId,
+    File imageFile, {
+    String folder = 'general',
+  }) async {
     final ext = imageFile.path.split('.').last.toLowerCase();
     final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
     final storagePath = '$userId/$folder/$fileName';
 
-    await _client.storage.from('shop-assets').upload(
+    await _client.storage
+        .from('shop-assets')
+        .upload(
           storagePath,
           imageFile,
           fileOptions: FileOptions(contentType: _mimeType(ext)),
@@ -126,7 +134,9 @@ class SupabaseService {
   Future<Product> getProduct(String id) async {
     final data = await _client
         .from('products')
-        .select('*, shops(name, logo_url, slug, bio, location), categories(name)')
+        .select(
+          '*, shops(name, logo_url, slug, bio, location), categories(name)',
+        )
         .eq('id', id)
         .single();
     return Product.fromJson(data);
@@ -143,8 +153,7 @@ class SupabaseService {
   }
 
   Future<Shop> getShop(String id) async {
-    final data =
-        await _client.from('shops').select().eq('id', id).single();
+    final data = await _client.from('shops').select().eq('id', id).single();
     return Shop.fromJson(data);
   }
 
@@ -158,10 +167,13 @@ class SupabaseService {
   }
 
   Future<void> updateShopShippingOptions(
-      String shopId, List<ShippingOption> options) async {
-    await _client.from('shops').update({
-      'shipping_options': options.map((o) => o.toJson()).toList(),
-    }).eq('id', shopId);
+    String shopId,
+    List<ShippingOption> options,
+  ) async {
+    await _client
+        .from('shops')
+        .update({'shipping_options': options.map((o) => o.toJson()).toList()})
+        .eq('id', shopId);
   }
 
   Future<void> setShopOfflineMode(
@@ -169,12 +181,15 @@ class SupabaseService {
     required bool isOffline,
     DateTime? backToWorkDate,
   }) async {
-    await _client.from('shops').update({
-      'is_offline': isOffline,
-      'back_to_work_date': isOffline && backToWorkDate != null
-          ? backToWorkDate.toIso8601String().split('T').first
-          : null,
-    }).eq('id', shopId);
+    await _client
+        .from('shops')
+        .update({
+          'is_offline': isOffline,
+          'back_to_work_date': isOffline && backToWorkDate != null
+              ? backToWorkDate.toIso8601String().split('T').first
+              : null,
+        })
+        .eq('id', shopId);
   }
 
   // ── Stationery Requests ───────────────────────────────────────
@@ -212,7 +227,9 @@ class SupabaseService {
   Future<List<Product>> getFavourites(String userId) async {
     final data = await _client
         .from('favourites')
-        .select('product_id, products(*, shops(name, logo_url), categories(name))')
+        .select(
+          'product_id, products(*, shops(name, logo_url), categories(name))',
+        )
         .eq('user_id', userId);
     return (data as List)
         .map((e) => Product.fromJson(e['products'] as Map<String, dynamic>))
@@ -228,9 +245,10 @@ class SupabaseService {
   }
 
   Future<void> addFavourite(String userId, String productId) async {
-    await _client
-        .from('favourites')
-        .upsert({'user_id': userId, 'product_id': productId});
+    await _client.from('favourites').upsert({
+      'user_id': userId,
+      'product_id': productId,
+    });
   }
 
   Future<void> removeFavourite(String userId, String productId) async {
@@ -277,7 +295,11 @@ class SupabaseService {
     return (items as List).map((e) => CartItem.fromJson(e)).toList();
   }
 
-  Future<void> addToCart(String userId, String productId, {int quantity = 1}) async {
+  Future<void> addToCart(
+    String userId,
+    String productId, {
+    int quantity = 1,
+  }) async {
     var cartData = await _client
         .from('carts')
         .select('id')
@@ -344,11 +366,30 @@ class SupabaseService {
     return Order.fromJson(data);
   }
 
+  Stream<List<Order>> watchOrders(String userId) {
+    return _client
+        .from('orders')
+        .stream(primaryKey: ['id'])
+        .eq('buyer_id', userId)
+        .order('created_at', ascending: false)
+        .asyncMap((_) => getOrders(userId));
+  }
+
+  Stream<Order> watchOrder(String orderId) {
+    return _client
+        .from('orders')
+        .stream(primaryKey: ['id'])
+        .eq('id', orderId)
+        .limit(1)
+        .asyncMap((_) => getOrder(orderId));
+  }
+
   // ── Shop Follows ─────────────────────────────────────────────
   Future<void> followShop(String userId, String shopId) async {
-    await _client
-        .from('shop_follows')
-        .upsert({'user_id': userId, 'shop_id': shopId});
+    await _client.from('shop_follows').upsert({
+      'user_id': userId,
+      'shop_id': shopId,
+    });
   }
 
   Future<void> unfollowShop(String userId, String shopId) async {
@@ -422,20 +463,55 @@ class SupabaseService {
 
   // ── Profile ───────────────────────────────────────────────────
   Future<Profile> getProfile(String userId) async {
-    final data =
-        await _client.from('profiles').select().eq('id', userId).single();
+    final data = await _client
+        .from('profiles')
+        .select()
+        .eq('id', userId)
+        .single();
     return Profile.fromJson(data);
   }
 
-  Future<void> updateProfile(String userId, Map<String, dynamic> updates) async {
+  Future<void> updateProfile(
+    String userId,
+    Map<String, dynamic> updates,
+  ) async {
     await _client.from('profiles').update(updates).eq('id', userId);
   }
 
+  Future<Profile?> syncCurrentUserProfile() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return null;
+
+    final existingProfile = await _client
+        .from('profiles')
+        .select('role, phone, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    final profileData = {
+      'id': user.id,
+      'role': existingProfile?['role'] as String? ?? 'buyer',
+      'display_name':
+          (user.userMetadata?['display_name'] ??
+                  user.userMetadata?['full_name'] ??
+                  user.userMetadata?['name'] ??
+                  user.email?.split('@').first)
+              as String?,
+      'email': user.email,
+      'phone': existingProfile?['phone'] as String?,
+      'avatar_url':
+          (existingProfile?['avatar_url'] ??
+                  user.userMetadata?['avatar_url'] ??
+                  user.userMetadata?['picture'])
+              as String?,
+    };
+
+    await _client.from('profiles').upsert(profileData);
+    return getProfile(user.id);
+  }
+
   // ── Order Creation ─────────────────────────────────────────────
-  Future<Order> createOrder({
-    required String userId,
-    required String shopId,
-    required List<CartItem> items,
+  Future<CheckoutSession> createCheckout({
     required Map<String, dynamic> shippingAddress,
     required String shippingMethod,
     required double shippingCost,
@@ -443,49 +519,21 @@ class SupabaseService {
     String? giftRecipient,
     String? giftMessage,
   }) async {
-    final subtotal = items.fold<double>(
-      0,
-      (sum, item) => sum + (item.product?.price ?? 0) * item.quantity,
+    final response = await _client.functions.invoke(
+      'create-checkout',
+      body: {
+        'shippingAddress': shippingAddress,
+        'shippingMethod': shippingMethod,
+        'shippingCost': shippingCost,
+        'isGift': isGift,
+        'giftRecipient': giftRecipient,
+        'giftMessage': giftMessage,
+      },
     );
 
-    final orderData = await _client
-        .from('orders')
-        .insert({
-          'buyer_id': userId,
-          'shop_id': shopId,
-          'status': 'paid',
-          'total': subtotal,
-          'shipping_cost': shippingCost,
-          'shipping_method': shippingMethod,
-          'shipping_address': shippingAddress,
-          'is_gift': isGift,
-          if (isGift && giftRecipient != null && giftRecipient.isNotEmpty)
-            'gift_recipient': giftRecipient,
-          if (isGift && giftMessage != null && giftMessage.isNotEmpty)
-            'gift_message': giftMessage,
-        })
-        .select()
-        .single();
-
-    final orderId = orderData['id'] as String;
-
-    for (final item in items) {
-      await _client.from('order_items').insert({
-        'order_id': orderId,
-        'product_id': item.productId,
-        'quantity': item.quantity,
-        'unit_price': item.product?.price ?? 0,
-      });
-    }
-
-    await _client.from('escrow_transactions').insert({
-      'order_id': orderId,
-      'amount': subtotal + shippingCost,
-      'platform_fee': (subtotal + shippingCost) * 0.05,
-      'status': 'held',
-    });
-
-    return getOrder(orderId);
+    return CheckoutSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
   }
 
   Future<void> clearCart(String userId) async {
@@ -504,29 +552,21 @@ class SupabaseService {
   }
 
   Future<void> confirmReceipt(String orderId) async {
-    await _client
-        .from('orders')
-        .update({'status': 'completed'})
-        .eq('id', orderId);
-
-    await _client
-        .from('escrow_transactions')
-        .update({'status': 'released', 'released_at': DateTime.now().toIso8601String()})
-        .eq('order_id', orderId);
+    await _client.functions.invoke(
+      'release-escrow',
+      body: {'orderId': orderId},
+    );
   }
 
-  Future<void> createDispute(String orderId, String raisedBy, String reason) async {
-    await _client.from('disputes').insert({
-      'order_id': orderId,
-      'raised_by': raisedBy,
-      'reason': reason,
-      'status': 'open',
-    });
-
-    await _client
-        .from('orders')
-        .update({'status': 'disputed'})
-        .eq('id', orderId);
+  Future<void> createDispute(
+    String orderId,
+    String raisedBy,
+    String reason,
+  ) async {
+    await _client.functions.invoke(
+      'open-dispute',
+      body: {'orderId': orderId, 'raisedBy': raisedBy, 'reason': reason},
+    );
   }
 
   // ── Addresses ──────────────────────────────────────────────────
@@ -541,7 +581,10 @@ class SupabaseService {
     return (addresses as List).cast<Map<String, dynamic>>();
   }
 
-  Future<void> saveAddresses(String userId, List<Map<String, dynamic>> addresses) async {
+  Future<void> saveAddresses(
+    String userId,
+    List<Map<String, dynamic>> addresses,
+  ) async {
     await _client
         .from('profiles')
         .update({'shipping_addresses': addresses})
@@ -577,19 +620,22 @@ class SupabaseService {
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
 
-  Future<Product> createProduct(String shopId, Map<String, dynamic> data) async {
+  Future<Product> createProduct(
+    String shopId,
+    Map<String, dynamic> data,
+  ) async {
     final row = await _client
         .from('products')
-        .insert({
-          'shop_id': shopId,
-          ...data,
-        })
+        .insert({'shop_id': shopId, ...data})
         .select('*, categories(name)')
         .single();
     return Product.fromJson(row);
   }
 
-  Future<void> updateProduct(String productId, Map<String, dynamic> updates) async {
+  Future<void> updateProduct(
+    String productId,
+    Map<String, dynamic> updates,
+  ) async {
     await _client.from('products').update(updates).eq('id', productId);
   }
 
@@ -607,11 +653,28 @@ class SupabaseService {
     return (data as List).map((e) => Order.fromJson(e)).toList();
   }
 
+  Stream<List<Order>> watchShopOrders(String shopId) {
+    return _client
+        .from('orders')
+        .stream(primaryKey: ['id'])
+        .eq('shop_id', shopId)
+        .order('created_at', ascending: false)
+        .asyncMap((_) => getShopOrders(shopId));
+  }
+
   Future<void> updateOrderStatus(
     String orderId,
     String status, {
     String? trackingNumber,
   }) async {
+    if (status == 'shipped') {
+      await _client.functions.invoke(
+        'mark-order-shipped',
+        body: {'orderId': orderId, 'trackingNumber': trackingNumber},
+      );
+      return;
+    }
+
     final updates = <String, dynamic>{'status': status};
     if (trackingNumber != null) {
       updates['tracking_number'] = trackingNumber;
@@ -670,36 +733,24 @@ class SupabaseService {
     return VendorApplication.fromJson(data);
   }
 
+  Stream<VendorApplication?> watchVendorApplication(String userId) {
+    return _client
+        .from('vendor_applications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .limit(1)
+        .asyncMap((_) => getVendorApplication(userId));
+  }
+
   Future<VendorApplication> submitVendorApplication({
     required String userId,
     required String businessName,
-    required String inviteCode,
     String? motivation,
     String? portfolioUrl,
     String? location,
     String? deliveryInfo,
     String? turnaroundTime,
   }) async {
-    // Validate invite code
-    final codeData = await _client
-        .from('invite_codes')
-        .select()
-        .eq('code', inviteCode)
-        .eq('is_used', false)
-        .maybeSingle();
-
-    if (codeData == null) {
-      throw Exception('Invalid or already used invite code');
-    }
-
-    // Mark code as used
-    await _client.from('invite_codes').update({
-      'is_used': true,
-      'used_by': userId,
-      'used_at': DateTime.now().toIso8601String(),
-    }).eq('id', codeData['id'] as String);
-
-    // Create application
     final appData = await _client
         .from('vendor_applications')
         .insert({
@@ -708,7 +759,6 @@ class SupabaseService {
           'motivation': motivation,
           'portfolio_url': portfolioUrl,
           'location': location,
-          'invite_code': inviteCode,
           'delivery_info': deliveryInfo,
           'turnaround_time': turnaroundTime,
           'status': 'pending',
@@ -751,31 +801,9 @@ class SupabaseService {
     required String businessName,
     String? location,
   }) async {
-    await _client.from('profiles').update({
-      'role': 'vendor',
-    }).eq('id', userId);
-
-    final existing = await _client
-        .from('shops')
-        .select('id')
-        .eq('vendor_id', userId)
-        .maybeSingle();
-
-    if (existing != null) return;
-
-    final slug = businessName
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-    final uniqueSlug = '$slug-${DateTime.now().millisecondsSinceEpoch}';
-
-    await _client.from('shops').insert({
-      'vendor_id': userId,
-      'name': businessName,
-      'slug': uniqueSlug,
-      'bio': 'Welcome to $businessName!',
-      if (location != null) 'location': location,
-    });
+    throw Exception(
+      'Vendor accounts are provisioned by an admin after approval.',
+    );
   }
 
   // ── Shop Posts (Vendor) ─────────────────────────────────────
@@ -797,7 +825,10 @@ class SupabaseService {
     return ShopPost.fromJson(data);
   }
 
-  Future<void> updateShopPost(String postId, Map<String, dynamic> updates) async {
+  Future<void> updateShopPost(
+    String postId,
+    Map<String, dynamic> updates,
+  ) async {
     await _client.from('shop_posts').update(updates).eq('id', postId);
   }
 

@@ -4,11 +4,18 @@ class AppConstants {
   static const String appName = 'Artisan Lane';
   static const String currency = 'R';
   static const String currencyCode = 'ZAR';
+  static const String authRedirectUrl = 'artisanlane://login-callback';
 
   // Supabase
-  static const String supabaseUrl = 'https://byckurabenbunsbrzcpl.supabase.co';
-  static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5Y2t1cmFiZW5idW5zYnJ6Y3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MTA0MjgsImV4cCI6MjA4NjI4NjQyOH0.4ElDNdxVtTxyCeEg9Yx-N1jUrNijTr54bmCPkHoW33A';
+  static const String supabaseUrl = String.fromEnvironment(
+    'SUPABASE_URL',
+    defaultValue: 'https://byckurabenbunsbrzcpl.supabase.co',
+  );
+  static const String supabaseAnonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5Y2t1cmFiZW5idW5zYnJ6Y3BsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA3MTA0MjgsImV4cCI6MjA4NjI4NjQyOH0.4ElDNdxVtTxyCeEg9Yx-N1jUrNijTr54bmCPkHoW33A',
+  );
 
   // Storage buckets
   static const String productImagesBucket = 'product-images';

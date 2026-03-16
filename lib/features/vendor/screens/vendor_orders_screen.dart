@@ -18,7 +18,13 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
   late TabController _tabController;
 
   static const _tabs = ['All', 'New', 'Shipped', 'Completed', 'Disputed'];
-  static const _statusFilters = ['', 'paid', 'shipped', 'completed', 'disputed'];
+  static const _statusFilters = [
+    '',
+    'paid',
+    'shipped',
+    'completed',
+    'disputed',
+  ];
 
   @override
   void initState() {
@@ -40,7 +46,7 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
 
   @override
   Widget build(BuildContext context) {
-    final ordersAsync = ref.watch(vendorOrdersProvider);
+    final ordersAsync = ref.watch(vendorOrdersStreamProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -65,7 +71,10 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
               isScrollable: true,
               labelColor: AppTheme.terracotta,
               unselectedLabelColor: AppTheme.textHint,
-              labelStyle: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600),
+              labelStyle: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
               unselectedLabelStyle: GoogleFonts.poppins(fontSize: 13),
               indicatorColor: AppTheme.terracotta,
               indicatorSize: TabBarIndicatorSize.label,
@@ -84,27 +93,41 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.receipt_long_outlined, size: 48, color: AppTheme.textHint),
+                            Icon(
+                              Icons.receipt_long_outlined,
+                              size: 48,
+                              color: AppTheme.textHint,
+                            ),
                             const SizedBox(height: 12),
-                            Text('No orders', style: GoogleFonts.poppins(color: AppTheme.textHint)),
+                            Text(
+                              'No orders',
+                              style: GoogleFonts.poppins(
+                                color: AppTheme.textHint,
+                              ),
+                            ),
                           ],
                         ),
                       );
                     }
                     return RefreshIndicator(
                       color: AppTheme.terracotta,
-                      onRefresh: () async => ref.invalidate(vendorOrdersProvider),
+                      onRefresh: () async =>
+                          ref.invalidate(vendorOrdersStreamProvider),
                       child: ListView.separated(
                         padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
                         itemCount: filtered.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
-                        itemBuilder: (_, idx) => _buildOrderCard(context, filtered[idx]),
+                        itemBuilder: (_, idx) =>
+                            _buildOrderCard(context, filtered[idx]),
                       ),
                     );
                   }),
                 ),
                 loading: () => const Center(
-                  child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: AppTheme.terracotta,
+                    strokeWidth: 2,
+                  ),
                 ),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
@@ -133,12 +156,21 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
               children: [
                 Text(
                   'Order #${order.shortId}',
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppTheme.getStatusColor(order.status).withValues(alpha: 0.12),
+                    color: AppTheme.getStatusColor(
+                      order.status,
+                    ).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -155,13 +187,19 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
             const SizedBox(height: 8),
             Text(
               '${order.items?.length ?? 0} item(s) · R${order.grandTotal.toStringAsFixed(0)}',
-              style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary),
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
             ),
             if (order.shippingMethod != null) ...[
               const SizedBox(height: 4),
               Text(
                 order.shippingMethodDisplay,
-                style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
               ),
             ],
           ],

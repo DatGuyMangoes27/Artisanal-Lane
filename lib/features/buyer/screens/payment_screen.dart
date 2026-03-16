@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
-import '../../../models/cart_item.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
@@ -28,17 +27,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     try {
       final service = ref.read(supabaseServiceProvider);
       final data = widget.checkoutData!;
-      final items = data['items'] as List<CartItem>;
-
-      final shopIds = items.map((i) => i.product?.shopId).whereType<String>().toSet();
-      final shopId = shopIds.first;
-
       final gift = ref.read(giftOptionsProvider);
 
-      final order = await service.createOrder(
-        userId: Supabase.instance.client.auth.currentUser!.id,
-        shopId: shopId,
-        items: items,
+      final checkoutSession = await service.createCheckout(
         shippingAddress: data['address'] as Map<String, dynamic>,
         shippingMethod: data['shippingMethod'] as String,
         shippingCost: (data['shippingCost'] as num).toDouble(),
@@ -50,22 +41,35 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // Reset gift state after order is placed
       ref.read(giftOptionsProvider.notifier).reset();
 
-      await service.clearCart(Supabase.instance.client.auth.currentUser!.id);
-      ref.invalidate(cartItemsProvider);
       ref.invalidate(ordersProvider);
 
+      final checkoutUri = Uri.tryParse(checkoutSession.checkoutUrl);
+      if (checkoutUri == null) {
+        throw Exception('TradeSafe returned an invalid checkout URL.');
+      }
+
+      await launchUrl(checkoutUri, mode: LaunchMode.externalApplication);
+
       if (mounted) {
-        context.go('/cart/confirmation', extra: {'orderId': order.id});
+        context.go(
+          '/cart/confirmation',
+          extra: {'orderId': checkoutSession.orderId},
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _processing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: $e', style: GoogleFonts.poppins(color: Colors.white)),
+            content: Text(
+              'Payment failed: $e',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
             backgroundColor: AppTheme.error,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
         );
       }
@@ -82,7 +86,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               backgroundColor: AppTheme.scaffoldBg,
               elevation: 0,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+                icon: const Icon(
+                  Icons.arrow_back_rounded,
+                  color: AppTheme.textPrimary,
+                ),
                 onPressed: () => context.pop(),
               ),
               title: Text(
@@ -109,17 +116,27 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           const SizedBox(
             width: 64,
             height: 64,
-            child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 3),
+            child: CircularProgressIndicator(
+              color: AppTheme.terracotta,
+              strokeWidth: 3,
+            ),
           ),
           const SizedBox(height: 32),
           Text(
             'Processing Payment',
-            style: GoogleFonts.playfairDisplay(fontSize: 24, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 24,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             'Please do not close this page',
-            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+            ),
           ),
         ],
       ),
@@ -177,7 +194,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ),
                     child: Text(
                       'Cancel Payment',
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w500),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
@@ -197,7 +217,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
         border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
       ),
@@ -211,18 +235,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             ),
             child: Text(
               'PayFast',
-              style: GoogleFonts.poppins(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 1),
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
             ),
           ),
           const SizedBox(height: 24),
           Text(
             'Secure Payment Gateway',
-            style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             'You will be redirected to PayFast to complete your payment securely.',
-            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
@@ -255,11 +292,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         children: [
           Text(
             'Total Amount',
-            style: GoogleFonts.poppins(fontSize: 15, color: AppTheme.textSecondary, fontWeight: FontWeight.w500),
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              color: AppTheme.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           Text(
             totalStr,
-            style: GoogleFonts.playfairDisplay(fontSize: 28, fontWeight: FontWeight.w700, color: AppTheme.sienna),
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.sienna,
+            ),
           ),
         ],
       ),
@@ -270,11 +315,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.lock_outline_rounded, size: 16, color: AppTheme.baobab),
+        const Icon(
+          Icons.lock_outline_rounded,
+          size: 16,
+          color: AppTheme.baobab,
+        ),
         const SizedBox(width: 8),
         Text(
           'Secured with 256-bit encryption',
-          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.baobab, fontWeight: FontWeight.w500),
+          style: GoogleFonts.poppins(
+            fontSize: 12,
+            color: AppTheme.baobab,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
@@ -295,7 +348,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         const SizedBox(height: 8),
         Text(
           label,
-          style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500),
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            color: AppTheme.textHint,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

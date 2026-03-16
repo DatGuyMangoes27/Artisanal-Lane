@@ -17,12 +17,13 @@ class OrderDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final orderAsync = ref.watch(orderDetailProvider(orderId));
+    final orderAsync = ref.watch(orderDetailStreamProvider(orderId));
 
     return orderAsync.when(
       data: (order) {
-        final dateStr =
-            DateFormat('dd MMM yyyy, HH:mm').format(order.createdAt);
+        final dateStr = DateFormat(
+          'dd MMM yyyy, HH:mm',
+        ).format(order.createdAt);
 
         return Scaffold(
           backgroundColor: AppTheme.scaffoldBg,
@@ -72,7 +73,8 @@ class OrderDetailScreen extends ConsumerWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: AppTheme.sand.withValues(alpha: 0.3)),
+                        color: AppTheme.sand.withValues(alpha: 0.3),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),
@@ -109,9 +111,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   _SectionTitle(title: 'Items'),
                   const SizedBox(height: 16),
                   if (order.items != null)
-                    ...order.items!.map(
-                      (item) => _ItemCard(item: item),
-                    ),
+                    ...order.items!.map((item) => _ItemCard(item: item)),
 
                   const SizedBox(height: 32),
 
@@ -124,7 +124,8 @@ class OrderDetailScreen extends ConsumerWidget {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: AppTheme.sand.withValues(alpha: 0.3)),
+                        color: AppTheme.sand.withValues(alpha: 0.3),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),
@@ -176,12 +177,12 @@ class OrderDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 40),
 
                   // ── Action Buttons ─────────────────────────
-                  if (order.status == 'delivered') ...[
+                  if (order.status == 'shipped' ||
+                      order.status == 'delivered') ...[
                     GradientButton(
                       label: 'Confirm Receipt',
-                      onPressed: () => context.push(
-                        '/profile/orders/${order.id}/confirm',
-                      ),
+                      onPressed: () =>
+                          context.push('/profile/orders/${order.id}/confirm'),
                       verticalPadding: 16,
                     ),
                     const SizedBox(height: 16),
@@ -191,9 +192,8 @@ class OrderDetailScreen extends ConsumerWidget {
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton(
-                        onPressed: () => context.push(
-                          '/profile/orders/${order.id}/dispute',
-                        ),
+                        onPressed: () =>
+                            context.push('/profile/orders/${order.id}/dispute'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppTheme.error,
                           side: BorderSide(

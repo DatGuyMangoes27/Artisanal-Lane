@@ -8,6 +8,10 @@ class Order {
   final String? shippingMethod;
   final Map<String, dynamic>? shippingAddress;
   final String? trackingNumber;
+  final String paymentState;
+  final String? paymentProvider;
+  final String? paymentUrl;
+  final String? tradesafeTransactionId;
   final bool isGift;
   final String? giftRecipient;
   final String? giftMessage;
@@ -28,6 +32,10 @@ class Order {
     this.shippingMethod,
     this.shippingAddress,
     this.trackingNumber,
+    this.paymentState = 'created',
+    this.paymentProvider,
+    this.paymentUrl,
+    this.tradesafeTransactionId,
     this.isGift = false,
     this.giftRecipient,
     this.giftMessage,
@@ -51,6 +59,10 @@ class Order {
       shippingMethod: json['shipping_method'] as String?,
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       trackingNumber: json['tracking_number'] as String?,
+      paymentState: json['payment_state'] as String? ?? 'created',
+      paymentProvider: json['payment_provider'] as String?,
+      paymentUrl: json['payment_url'] as String?,
+      tradesafeTransactionId: json['tradesafe_transaction_id'] as String?,
       isGift: json['is_gift'] as bool? ?? false,
       giftRecipient: json['gift_recipient'] as String?,
       giftMessage: json['gift_message'] as String?,

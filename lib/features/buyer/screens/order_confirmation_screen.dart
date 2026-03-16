@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
@@ -13,30 +14,46 @@ class OrderConfirmationScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (orderId == null) return _buildFallback(context);
+    if (orderId == null) return _buildFallback(context, ref);
 
-    final orderAsync = ref.watch(orderDetailProvider(orderId!));
+    final orderAsync = ref.watch(orderDetailStreamProvider(orderId!));
 
     return orderAsync.when(
-      data: (order) => _buildContent(context, order),
+      data: (order) => _buildContent(context, ref, order),
       loading: () => const Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
+        ),
       ),
-      error: (_, __) => _buildFallback(context),
+      error: (_, __) => _buildFallback(context, ref),
     );
   }
 
-  Widget _buildFallback(BuildContext context) {
-    return _buildContent(context, null);
+  Widget _buildFallback(BuildContext context, WidgetRef ref) {
+    return _buildContent(context, ref, null);
   }
 
-  Widget _buildContent(BuildContext context, dynamic order) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, dynamic order) {
     final orderNumber = order != null ? '#${order.shortId}' : '#---';
-    final itemCount = order?.items != null ? '${order.items.length} items' : '--';
-    final totalPaid = order != null ? 'R${order.grandTotal.toStringAsFixed(2)}' : '--';
+    final itemCount = order?.items != null
+        ? '${order.items.length} items'
+        : '--';
+    final totalPaid = order != null
+        ? 'R${order.grandTotal.toStringAsFixed(2)}'
+        : '--';
     final shippingDisplay = order?.shippingMethodDisplay ?? '--';
     final deliveryEstimate = _estimateDelivery(order?.shippingMethod);
+    final isAwaitingPayment = order?.status == 'pending';
+    final paymentTitle = isAwaitingPayment
+        ? 'Complete Your Payment'
+        : 'Order Confirmed';
+    final paymentSubtitle = isAwaitingPayment
+        ? 'Your order has been created. Finish the secure TradeSafe checkout to lock in your purchase.'
+        : 'Thank you for supporting local artisans.\nYour order has been placed successfully.';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -51,27 +68,48 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: AppTheme.baobab.withValues(alpha: 0.1),
+                    color:
+                        (isAwaitingPayment ? AppTheme.ochre : AppTheme.baobab)
+                            .withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Container(
                       width: 60,
                       height: 60,
-                      decoration: const BoxDecoration(color: AppTheme.baobab, shape: BoxShape.circle),
-                      child: const Icon(Icons.check_rounded, size: 32, color: Colors.white),
+                      decoration: BoxDecoration(
+                        color: isAwaitingPayment
+                            ? AppTheme.ochre
+                            : AppTheme.baobab,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isAwaitingPayment
+                            ? Icons.lock_clock_outlined
+                            : Icons.check_rounded,
+                        size: 32,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 32),
                 Text(
-                  'Order Confirmed',
-                  style: GoogleFonts.playfairDisplay(fontSize: 32, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                  paymentTitle,
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Thank you for supporting local artisans.\nYour order has been placed successfully.',
-                  style: GoogleFonts.poppins(fontSize: 15, color: AppTheme.textSecondary, height: 1.6),
+                  paymentSubtitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    color: AppTheme.textSecondary,
+                    height: 1.6,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
@@ -82,9 +120,15 @@ class OrderConfirmationScreen extends ConsumerWidget {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
                     ],
-                    border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppTheme.sand.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -92,10 +136,21 @@ class OrderConfirmationScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       _detailRow('Items', itemCount),
                       const SizedBox(height: 16),
-                      _detailRow('Total Paid', totalPaid, isBold: true),
+                      _detailRow(
+                        isAwaitingPayment ? 'Total Due' : 'Total Paid',
+                        totalPaid,
+                        isBold: true,
+                      ),
                       const SizedBox(height: 16),
                       const Divider(height: 1, color: Color(0xFFEEEEEE)),
                       const SizedBox(height: 16),
+                      if (order != null) ...[
+                        _detailRow(
+                          'Payment Status',
+                          order.paymentState.toString().replaceAll('_', ' '),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       _detailRow('Shipping', shippingDisplay),
                       const SizedBox(height: 16),
                       _detailRow('Est. Delivery', deliveryEstimate),
@@ -109,23 +164,76 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.terracotta.withValues(alpha: 0.04),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.1)),
+                    border: Border.all(
+                      color: AppTheme.terracotta.withValues(alpha: 0.1),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.shield_outlined, size: 20, color: AppTheme.terracotta),
+                      Icon(
+                        isAwaitingPayment
+                            ? Icons.lock_clock_outlined
+                            : Icons.shield_outlined,
+                        size: 20,
+                        color: isAwaitingPayment
+                            ? AppTheme.ochre
+                            : AppTheme.terracotta,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Your payment is held safely in escrow until you confirm receipt of your order.',
-                          style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.terracotta, height: 1.5),
+                          isAwaitingPayment
+                              ? 'If the checkout page expired, reopen it below. The order will move to paid once TradeSafe confirms the deposit.'
+                              : 'Your payment is held safely in escrow until you confirm receipt of your order.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: isAwaitingPayment
+                                ? AppTheme.ochre
+                                : AppTheme.terracotta,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 48),
+                if (isAwaitingPayment && order?.paymentUrl != null) ...[
+                  GradientButton(
+                    label: 'Open TradeSafe Checkout',
+                    onPressed: () async {
+                      final uri = Uri.tryParse(order.paymentUrl as String);
+                      if (uri != null) {
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => ref.invalidate(
+                        orderDetailStreamProvider(order.id as String),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.textPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: Text(
+                        'Refresh Payment Status',
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 GradientButton(
                   label: 'View My Orders',
                   onPressed: () => context.go('/profile/orders'),
@@ -141,7 +249,10 @@ class OrderConfirmationScreen extends ConsumerWidget {
                     ),
                     child: Text(
                       'Continue Shopping',
-                      style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500),
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ),
@@ -172,7 +283,13 @@ class OrderConfirmationScreen extends ConsumerWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary)),
+        Text(
+          label,
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: AppTheme.textSecondary,
+          ),
+        ),
         Text(
           value,
           style: GoogleFonts.poppins(

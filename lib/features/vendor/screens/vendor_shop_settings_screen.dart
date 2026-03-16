@@ -34,11 +34,13 @@ class _VendorShopSettingsScreenState
   File? _pendingCover;
   bool _isLoading = false;
   bool _isInitialized = false;
+  bool _isOffline = false;
+  DateTime? _backToWorkDate;
   List<ShippingOption> _shippingOptions = ShippingOption.defaults();
   // Controllers for per-method price inputs
   late final Map<String, TextEditingController> _priceControllers = {
     for (final o in ShippingOption.defaults())
-      o.key: TextEditingController(text: o.price.toStringAsFixed(2))
+      o.key: TextEditingController(text: o.price.toStringAsFixed(2)),
   };
 
   @override
@@ -67,23 +69,47 @@ class _VendorShopSettingsScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: AppTheme.sand, borderRadius: BorderRadius.circular(2)),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.sand,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
               const SizedBox(height: 20),
               Text(
                 isLogo ? 'Shop Logo' : 'Cover Image',
-                style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 20),
               ListTile(
                 leading: Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(color: AppTheme.terracotta.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.camera_alt_rounded, color: AppTheme.terracotta),
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: AppTheme.terracotta,
+                  ),
                 ),
-                title: Text('Take Photo', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                subtitle: Text('Use your camera', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint)),
+                title: Text(
+                  'Take Photo',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Use your camera',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _doPick(ImageSource.camera, isLogo: isLogo);
@@ -91,25 +117,57 @@ class _VendorShopSettingsScreenState
               ),
               ListTile(
                 leading: Container(
-                  width: 48, height: 48,
-                  decoration: BoxDecoration(color: AppTheme.baobab.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.photo_library_rounded, color: AppTheme.baobab),
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: AppTheme.baobab.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.photo_library_rounded,
+                    color: AppTheme.baobab,
+                  ),
                 ),
-                title: Text('Choose from Gallery', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                subtitle: Text('Pick from your photos', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint)),
+                title: Text(
+                  'Choose from Gallery',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Pick from your photos',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _doPick(ImageSource.gallery, isLogo: isLogo);
                 },
               ),
-              if ((isLogo ? (_logoUrl ?? _pendingLogo) : (_coverUrl ?? _pendingCover)) != null)
+              if ((isLogo
+                      ? (_logoUrl ?? _pendingLogo)
+                      : (_coverUrl ?? _pendingCover)) !=
+                  null)
                 ListTile(
                   leading: Container(
-                    width: 48, height: 48,
-                    decoration: BoxDecoration(color: AppTheme.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                    child: const Icon(Icons.delete_outline, color: AppTheme.error),
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.delete_outline,
+                      color: AppTheme.error,
+                    ),
                   ),
-                  title: Text('Remove', style: GoogleFonts.poppins(fontWeight: FontWeight.w500, color: AppTheme.error)),
+                  title: Text(
+                    'Remove',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.error,
+                    ),
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     setState(() {
@@ -151,7 +209,10 @@ class _VendorShopSettingsScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick image: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text('Could not pick image: $e'),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     }
@@ -169,19 +230,27 @@ class _VendorShopSettingsScreenState
 
       if (userId != null) {
         if (_pendingLogo != null) {
-          _logoUrl = await service.uploadShopImage(userId, _pendingLogo!, folder: 'logo');
+          _logoUrl = await service.uploadShopImage(
+            userId,
+            _pendingLogo!,
+            folder: 'logo',
+          );
           _pendingLogo = null;
         }
         if (_pendingCover != null) {
-          _coverUrl = await service.uploadShopImage(userId, _pendingCover!, folder: 'cover');
+          _coverUrl = await service.uploadShopImage(
+            userId,
+            _pendingCover!,
+            folder: 'cover',
+          );
           _pendingCover = null;
         }
       }
 
       // Collect current price values from controllers
       final updatedShipping = _shippingOptions.map((opt) {
-        final price = double.tryParse(
-                _priceControllers[opt.key]?.text ?? '') ??
+        final price =
+            double.tryParse(_priceControllers[opt.key]?.text ?? '') ??
             opt.price;
         return opt.copyWith(price: price);
       }).toList();
@@ -195,14 +264,21 @@ class _VendorShopSettingsScreenState
         'location': _locationController.text.trim().isNotEmpty
             ? _locationController.text.trim()
             : null,
-        'shipping_options':
-            updatedShipping.map((o) => o.toJson()).toList(),
+        'shipping_options': updatedShipping.map((o) => o.toJson()).toList(),
       });
+      await service.setShopOfflineMode(
+        shop.id,
+        isOffline: _isOffline,
+        backToWorkDate: _backToWorkDate,
+      );
 
       ref.invalidate(vendorShopProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Shop updated', style: GoogleFonts.poppins()), backgroundColor: AppTheme.baobab),
+          SnackBar(
+            content: Text('Shop updated', style: GoogleFonts.poppins()),
+            backgroundColor: AppTheme.baobab,
+          ),
         );
         context.pop();
       }
@@ -230,6 +306,8 @@ class _VendorShopSettingsScreenState
         _locationController.text = shop.location ?? '';
         _logoUrl = shop.logoUrl;
         _coverUrl = shop.coverImageUrl;
+        _isOffline = shop.isOffline;
+        _backToWorkDate = shop.backToWorkDate;
         _shippingOptions = shop.shippingOptions.isNotEmpty
             ? shop.shippingOptions
             : ShippingOption.defaults();
@@ -247,7 +325,10 @@ class _VendorShopSettingsScreenState
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
         ),
-        title: Text('Shop Settings', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Shop Settings',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
       ),
       body: shopAsync.when(
         data: (_) => Form(
@@ -300,12 +381,19 @@ class _VendorShopSettingsScreenState
                       children: [
                         Text(
                           'Tap to change',
-                          style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textSecondary),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Square image works best',
-                          style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppTheme.textHint,
+                          ),
                         ),
                       ],
                     ),
@@ -319,7 +407,8 @@ class _VendorShopSettingsScreenState
               const SizedBox(height: 8),
               TextFormField(
                 controller: _nameController,
-                validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+                validator: (v) =>
+                    v == null || v.trim().isEmpty ? 'Required' : null,
                 decoration: const InputDecoration(hintText: 'Your shop name'),
               ),
               const SizedBox(height: 20),
@@ -329,7 +418,9 @@ class _VendorShopSettingsScreenState
               TextFormField(
                 controller: _bioController,
                 maxLines: 3,
-                decoration: const InputDecoration(hintText: 'Short description of your shop'),
+                decoration: const InputDecoration(
+                  hintText: 'Short description of your shop',
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -338,7 +429,9 @@ class _VendorShopSettingsScreenState
               TextFormField(
                 controller: _brandStoryController,
                 maxLines: 5,
-                decoration: const InputDecoration(hintText: 'Tell your story...'),
+                decoration: const InputDecoration(
+                  hintText: 'Tell your story...',
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -346,7 +439,126 @@ class _VendorShopSettingsScreenState
               const SizedBox(height: 8),
               TextFormField(
                 controller: _locationController,
-                decoration: const InputDecoration(hintText: 'e.g. Cape Town, South Africa'),
+                decoration: const InputDecoration(
+                  hintText: 'e.g. Cape Town, South Africa',
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              _buildLabel('Vacation Mode'),
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      value: _isOffline,
+                      activeThumbColor: AppTheme.terracotta,
+                      title: Text(
+                        'Pause my shop while I am away',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _isOffline
+                            ? 'Buyers can still view your shop, but the storefront is marked as offline.'
+                            : 'Turn this on when you need to put the store into vacation mode.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setState(() {
+                          _isOffline = value;
+                          if (!value) {
+                            _backToWorkDate = null;
+                          }
+                        });
+                      },
+                    ),
+                    if (_isOffline) ...[
+                      Divider(
+                        height: 1,
+                        color: AppTheme.sand.withValues(alpha: 0.5),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Back to work date',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _backToWorkDate != null
+                                        ? '${_backToWorkDate!.day}/${_backToWorkDate!.month}/${_backToWorkDate!.year}'
+                                        : 'Optional. Let customers know when you expect to return.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: AppTheme.textHint,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            OutlinedButton(
+                              onPressed: () async {
+                                final now = DateTime.now();
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _backToWorkDate ?? now,
+                                  firstDate: DateTime(
+                                    now.year,
+                                    now.month,
+                                    now.day,
+                                  ),
+                                  lastDate: DateTime(now.year + 2),
+                                );
+                                if (picked != null) {
+                                  setState(() => _backToWorkDate = picked);
+                                }
+                              },
+                              child: const Text('Choose date'),
+                            ),
+                            if (_backToWorkDate != null) ...[
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed: () {
+                                  setState(() => _backToWorkDate = null);
+                                },
+                                icon: const Icon(
+                                  Icons.close_rounded,
+                                  color: AppTheme.textHint,
+                                ),
+                                tooltip: 'Clear date',
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SizedBox(height: 36),
 
@@ -355,7 +567,10 @@ class _VendorShopSettingsScreenState
               const SizedBox(height: 4),
               Text(
                 'Choose which methods you offer and set your own price for each.',
-                style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
               ),
               const SizedBox(height: 12),
               ..._shippingOptions.map((opt) => _buildShippingOptionCard(opt)),
@@ -370,7 +585,12 @@ class _VendorShopSettingsScreenState
             ],
           ),
         ),
-        loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+        loading: () => const Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
+        ),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
     );
@@ -400,12 +620,27 @@ class _VendorShopSettingsScreenState
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(color: AppTheme.baobab.withValues(alpha: 0.1), shape: BoxShape.circle),
-          child: const Icon(Icons.add_photo_alternate_rounded, color: AppTheme.baobab, size: 24),
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: AppTheme.baobab.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.add_photo_alternate_rounded,
+            color: AppTheme.baobab,
+            size: 24,
+          ),
         ),
         const SizedBox(height: 8),
-        Text('Tap to add cover image', style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.baobab, fontWeight: FontWeight.w500)),
+        Text(
+          'Tap to add cover image',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: AppTheme.baobab,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -427,12 +662,27 @@ class _VendorShopSettingsScreenState
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 36, height: 36,
-          decoration: BoxDecoration(color: AppTheme.terracotta.withValues(alpha: 0.1), shape: BoxShape.circle),
-          child: const Icon(Icons.add_a_photo_rounded, color: AppTheme.terracotta, size: 18),
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppTheme.terracotta.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.add_a_photo_rounded,
+            color: AppTheme.terracotta,
+            size: 18,
+          ),
         ),
         const SizedBox(height: 4),
-        Text('Logo', style: GoogleFonts.poppins(fontSize: 10, color: AppTheme.terracotta, fontWeight: FontWeight.w500)),
+        Text(
+          'Logo',
+          style: GoogleFonts.poppins(
+            fontSize: 10,
+            color: AppTheme.terracotta,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
@@ -442,8 +692,12 @@ class _VendorShopSettingsScreenState
       bottom: 8,
       right: 8,
       child: Container(
-        width: 32, height: 32,
-        decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+        width: 32,
+        height: 32,
+        decoration: const BoxDecoration(
+          color: Colors.black54,
+          shape: BoxShape.circle,
+        ),
         child: const Icon(Icons.edit, size: 16, color: Colors.white),
       ),
     );
@@ -455,8 +709,18 @@ class _VendorShopSettingsScreenState
       left: 6,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(6)),
-        child: Text(text, style: GoogleFonts.poppins(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600)),
+        decoration: BoxDecoration(
+          color: Colors.black54,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.poppins(
+            fontSize: 9,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -497,11 +761,11 @@ class _VendorShopSettingsScreenState
                         : AppTheme.bone,
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(opt.icon,
-                      size: 20,
-                      color: isEnabled
-                          ? AppTheme.terracotta
-                          : AppTheme.textHint),
+                  child: Icon(
+                    opt.icon,
+                    size: 20,
+                    color: isEnabled ? AppTheme.terracotta : AppTheme.textHint,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -521,7 +785,9 @@ class _VendorShopSettingsScreenState
                       Text(
                         opt.description,
                         style: GoogleFonts.poppins(
-                            fontSize: 11, color: AppTheme.textHint),
+                          fontSize: 11,
+                          color: AppTheme.textHint,
+                        ),
                       ),
                     ],
                   ),
@@ -531,12 +797,14 @@ class _VendorShopSettingsScreenState
                   onChanged: (val) {
                     setState(() {
                       _shippingOptions = _shippingOptions
-                          .map((o) =>
-                              o.key == opt.key ? o.copyWith(enabled: val) : o)
+                          .map(
+                            (o) =>
+                                o.key == opt.key ? o.copyWith(enabled: val) : o,
+                          )
                           .toList();
                     });
                   },
-                  activeColor: AppTheme.terracotta,
+                  activeThumbColor: AppTheme.terracotta,
                   activeTrackColor: AppTheme.terracotta.withValues(alpha: 0.2),
                   inactiveThumbColor: AppTheme.textHint,
                   inactiveTrackColor: AppTheme.bone,
@@ -555,31 +823,39 @@ class _VendorShopSettingsScreenState
                   Text(
                     'Price',
                     style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.textSecondary),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textSecondary,
+                    ),
                   ),
                   const SizedBox(width: 8),
-                  Text('R',
-                      style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary)),
+                  Text(
+                    'R',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   SizedBox(
                     width: 90,
                     child: TextFormField(
                       controller: _priceControllers[opt.key],
                       keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                        decimal: true,
+                      ),
                       style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                       decoration: InputDecoration(
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 8),
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
                         filled: true,
                         fillColor: AppTheme.scaffoldBg,
                         border: OutlineInputBorder(
@@ -589,8 +865,8 @@ class _VendorShopSettingsScreenState
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                           borderSide: BorderSide(
-                              color:
-                                  AppTheme.terracotta.withValues(alpha: 0.5)),
+                            color: AppTheme.terracotta.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                     ),
@@ -600,7 +876,9 @@ class _VendorShopSettingsScreenState
                     Text(
                       '(free pickup)',
                       style: GoogleFonts.poppins(
-                          fontSize: 11, color: AppTheme.textHint),
+                        fontSize: 11,
+                        color: AppTheme.textHint,
+                      ),
                     ),
                 ],
               ),
@@ -614,7 +892,11 @@ class _VendorShopSettingsScreenState
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textPrimary,
+      ),
     );
   }
 }

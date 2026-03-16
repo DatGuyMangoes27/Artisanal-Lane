@@ -44,7 +44,10 @@ class _VendorOrderDetailScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Order marked as shipped', style: GoogleFonts.poppins()),
+            content: Text(
+              'Order marked as shipped',
+              style: GoogleFonts.poppins(),
+            ),
             backgroundColor: AppTheme.baobab,
           ),
         );
@@ -62,7 +65,9 @@ class _VendorOrderDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    final orderAsync = ref.watch(vendorOrderDetailProvider(widget.orderId));
+    final orderAsync = ref.watch(
+      vendorOrderDetailStreamProvider(widget.orderId),
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -72,7 +77,10 @@ class _VendorOrderDetailScreenState
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => context.pop(),
         ),
-        title: Text('Order Details', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
+        title: Text(
+          'Order Details',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
       ),
       body: orderAsync.when(
         data: (order) => ListView(
@@ -94,7 +102,11 @@ class _VendorOrderDetailScreenState
                     children: [
                       Text(
                         'Order #${order.shortId}',
-                        style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary,
+                        ),
                       ),
                       _StatusBadge(status: order.status),
                     ],
@@ -112,41 +124,58 @@ class _VendorOrderDetailScreenState
             // Items
             Text(
               'Items',
-              style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
             ),
             const SizedBox(height: 12),
-            ...?order.items?.map((item) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+            ...?order.items?.map(
+              (item) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
                   ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.productTitle ?? 'Product',
-                              style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.productTitle ?? 'Product',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
                             ),
-                            Text(
-                              'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',
-                              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                          Text(
+                            'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        'R${item.lineTotal.toStringAsFixed(0)}',
-                        style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      'R${item.lineTotal.toStringAsFixed(0)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 20),
 
             // Gift details
@@ -154,9 +183,10 @@ class _VendorOrderDetailScreenState
               Text(
                 'Gift Details',
                 style: GoogleFonts.playfairDisplay(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 12),
               Container(
@@ -173,7 +203,8 @@ class _VendorOrderDetailScreenState
                   ),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                      color: AppTheme.terracotta.withValues(alpha: 0.2)),
+                    color: AppTheme.terracotta.withValues(alpha: 0.2),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,8 +217,11 @@ class _VendorOrderDetailScreenState
                             color: AppTheme.terracotta.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Icon(Icons.card_giftcard_outlined,
-                              size: 16, color: AppTheme.terracotta),
+                          child: const Icon(
+                            Icons.card_giftcard_outlined,
+                            size: 16,
+                            color: AppTheme.terracotta,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -263,7 +297,11 @@ class _VendorOrderDetailScreenState
             if (order.shippingAddress != null) ...[
               Text(
                 'Shipping Address',
-                style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 12),
               Container(
@@ -272,17 +310,25 @@ class _VendorOrderDetailScreenState
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Text(
                   [
-                    order.shippingAddress!['name'],
-                    order.shippingAddress!['street'],
-                    order.shippingAddress!['city'],
-                    order.shippingAddress!['province'],
-                    order.shippingAddress!['postal_code'],
-                  ].where((s) => s != null && s.toString().isNotEmpty).join('\n'),
-                  style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary, height: 1.5),
+                        order.shippingAddress!['name'],
+                        order.shippingAddress!['street'],
+                        order.shippingAddress!['city'],
+                        order.shippingAddress!['province'],
+                        order.shippingAddress!['postal_code'],
+                      ]
+                      .where((s) => s != null && s.toString().isNotEmpty)
+                      .join('\n'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -292,7 +338,11 @@ class _VendorOrderDetailScreenState
             if (order.status == 'paid') ...[
               Text(
                 'Fulfillment',
-                style: GoogleFonts.playfairDisplay(fontSize: 18, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 12),
               Container(
@@ -300,19 +350,27 @@ class _VendorOrderDetailScreenState
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Tracking Number (optional)',
-                      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _trackingController,
-                      decoration: const InputDecoration(hintText: 'Enter tracking number'),
+                      decoration: const InputDecoration(
+                        hintText: 'Enter tracking number',
+                      ),
                     ),
                     const SizedBox(height: 16),
                     GradientButton(
@@ -331,7 +389,10 @@ class _VendorOrderDetailScreenState
           ],
         ),
         loading: () => const Center(
-          child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2),
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
         ),
         error: (e, _) => Center(child: Text('Error: $e')),
       ),
@@ -344,8 +405,18 @@ class _VendorOrderDetailScreenState
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint)),
-          Text(value, style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+          Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: AppTheme.textPrimary,
+            ),
+          ),
         ],
       ),
     );
