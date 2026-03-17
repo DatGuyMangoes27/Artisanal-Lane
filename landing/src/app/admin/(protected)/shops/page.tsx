@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Store } from "lucide-react";
+import { ArrowRight, Star, Store } from "lucide-react";
 
-import { toggleShopStatus } from "@/app/admin/actions";
+import { toggleShopSpotlight, toggleShopStatus } from "@/app/admin/actions";
+import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import { listShops } from "@/lib/admin-data";
@@ -114,6 +115,7 @@ export default async function AdminShopsPage({
                       {shop.name}
                     </h3>
                     <StatusBadge value={shop.is_active ? "active" : "suspended"} />
+                    {shop.is_spotlight ? <StatusBadge value="spotlight" /> : null}
                     {shop.is_offline ? <StatusBadge value="offline" /> : null}
                   </div>
 
@@ -148,6 +150,14 @@ export default async function AdminShopsPage({
                         {new Date(shop.back_to_work_date).toLocaleDateString()}
                       </p>
                     ) : null}
+                    {shop.spotlighted_at ? (
+                      <p>
+                        <span className="font-medium text-artisan-sienna">
+                          Spotlighted:
+                        </span>{" "}
+                        {new Date(shop.spotlighted_at).toLocaleDateString()}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -160,24 +170,40 @@ export default async function AdminShopsPage({
                   </Link>
                 </Button>
 
-                <form action={toggleShopStatus}>
-                  <input name="shopId" type="hidden" value={shop.id} />
-                  <input
-                    name="nextValue"
-                    type="hidden"
-                    value={String(!shop.is_active)}
-                  />
-                  <Button
-                    className={
-                      shop.is_active
-                        ? "w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
-                        : "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
-                    }
-                    type="submit"
-                  >
-                    {shop.is_active ? "Suspend shop" : "Restore shop"}
-                  </Button>
-                </form>
+                <AdminActionButtonForm
+                  action={toggleShopSpotlight}
+                  buttonClassName={
+                    shop.is_spotlight
+                      ? "w-full bg-artisan-ochre text-white hover:bg-artisan-ochre/90"
+                      : "w-full bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+                  }
+                  hiddenFields={[
+                    { name: "shopId", value: shop.id },
+                    { name: "nextValue", value: String(!shop.is_spotlight) },
+                  ]}
+                  idleContent={
+                    <>
+                      <Star className="h-4 w-4" />
+                      {shop.is_spotlight ? "Remove spotlight" : "Spotlight artist"}
+                    </>
+                  }
+                  pendingLabel="Saving..."
+                />
+
+                <AdminActionButtonForm
+                  action={toggleShopStatus}
+                  buttonClassName={
+                    shop.is_active
+                      ? "w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                      : "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                  }
+                  hiddenFields={[
+                    { name: "shopId", value: shop.id },
+                    { name: "nextValue", value: String(!shop.is_active) },
+                  ]}
+                  idleContent={shop.is_active ? "Suspend shop" : "Restore shop"}
+                  pendingLabel="Saving..."
+                />
               </div>
             </div>
           ))}

@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { EyeOff, RefreshCcw } from "lucide-react";
+import { EyeOff, RefreshCcw, Star } from "lucide-react";
 
-import { toggleProductPublish } from "@/app/admin/actions";
+import { toggleProductFeatured, toggleProductPublish } from "@/app/admin/actions";
+import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import { listProducts } from "@/lib/admin-data";
@@ -72,6 +73,7 @@ export default async function AdminProductsPage({
             <option value="price-low">Price low to high</option>
             <option value="stock-high">Highest stock</option>
             <option value="title">Title A-Z</option>
+            <option value="featured">Featured first</option>
           </select>
           <div className="flex gap-3">
             <Button className="bg-artisan-sienna text-white hover:bg-artisan-sienna/90" type="submit">
@@ -113,6 +115,7 @@ export default async function AdminProductsPage({
                     <StatusBadge
                       value={product.is_published ? "published" : "unpublished"}
                     />
+                    {product.is_featured ? <StatusBadge value="featured" /> : null}
                   </div>
                   <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-3">
                     <p>
@@ -139,33 +142,54 @@ export default async function AdminProductsPage({
                 </div>
               </div>
 
-              <form action={toggleProductPublish}>
-                <input name="productId" type="hidden" value={product.id} />
-                <input
-                  name="nextValue"
-                  type="hidden"
-                  value={String(!product.is_published)}
-                />
-                <Button
-                  className={
-                    product.is_published
-                      ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
-                      : "bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+              <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
+                <AdminActionButtonForm
+                  action={toggleProductFeatured}
+                  buttonClassName={
+                    product.is_featured
+                      ? "w-full bg-artisan-ochre text-white hover:bg-artisan-ochre/90"
+                      : "w-full bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
                   }
-                >
-                  {product.is_published ? (
+                  hiddenFields={[
+                    { name: "productId", value: product.id },
+                    { name: "nextValue", value: String(!product.is_featured) },
+                  ]}
+                  idleContent={
                     <>
-                      <EyeOff className="mr-2 h-4 w-4" />
-                      Unpublish
+                      <Star className="mr-2 h-4 w-4" />
+                      {product.is_featured ? "Unfeature" : "Feature"}
                     </>
-                  ) : (
-                    <>
-                      <RefreshCcw className="mr-2 h-4 w-4" />
-                      Republish
-                    </>
-                  )}
-                </Button>
-              </form>
+                  }
+                  pendingLabel="Saving..."
+                />
+
+                <AdminActionButtonForm
+                  action={toggleProductPublish}
+                  buttonClassName={
+                    product.is_published
+                      ? "w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                      : "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                  }
+                  hiddenFields={[
+                    { name: "productId", value: product.id },
+                    { name: "nextValue", value: String(!product.is_published) },
+                  ]}
+                  idleContent={
+                    product.is_published ? (
+                      <>
+                        <EyeOff className="mr-2 h-4 w-4" />
+                        Unpublish
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCcw className="mr-2 h-4 w-4" />
+                        Republish
+                      </>
+                    )
+                  }
+                  pendingLabel="Saving..."
+                />
+              </div>
             </div>
           ))}
         </div>

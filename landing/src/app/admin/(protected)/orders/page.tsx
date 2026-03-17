@@ -12,6 +12,10 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatTimelineDate(value: string | null) {
+  return value ? new Date(value).toLocaleDateString() : "—";
+}
+
 function readParam(
   value: string | string[] | undefined,
   fallback = "",
@@ -105,8 +109,8 @@ export default async function AdminOrdersPage({
                   <th className="px-4 py-3 font-semibold">Shop</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Shipping</th>
+                  <th className="px-4 py-3 font-semibold">Timeline</th>
                   <th className="px-4 py-3 font-semibold">Total</th>
-                  <th className="px-4 py-3 font-semibold">Created</th>
                 </tr>
               </thead>
               <tbody>
@@ -142,11 +146,13 @@ export default async function AdminOrdersPage({
                         </div>
                       ) : null}
                     </td>
+                    <td className="px-4 py-3 text-xs">
+                      <div>Ordered: {formatTimelineDate(order.created_at)}</div>
+                      <div>Shipped: {formatTimelineDate(order.shipped_at)}</div>
+                      <div>Received: {formatTimelineDate(order.received_at)}</div>
+                    </td>
                     <td className="px-4 py-3 font-medium text-artisan-sienna">
                       {formatCurrency(order.grand_total)}
-                    </td>
-                    <td className="px-4 py-3">
-                      {new Date(order.created_at).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}

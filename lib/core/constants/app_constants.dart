@@ -5,6 +5,16 @@ class AppConstants {
   static const String currency = 'R';
   static const String currencyCode = 'ZAR';
   static const String authRedirectUrl = 'artisanlane://login-callback';
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '1047012816139-8tott1eo69fltvgbgimg8fflqb95co3k.apps.googleusercontent.com',
+  );
+  static const String googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+    defaultValue:
+        '1047012816139-g1ms8kvei782freogsoba9b3fp14juen.apps.googleusercontent.com',
+  );
 
   // Supabase
   static const String supabaseUrl = String.fromEnvironment(

@@ -67,6 +67,7 @@ Deno.serve(async (request) => {
       .update({
         status: "shipped",
         tracking_number: trackingNumber ?? null,
+        shipped_at: new Date().toISOString(),
       })
       .eq("id", orderId);
 

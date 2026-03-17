@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../providers/auth_providers.dart';
 import '../../../widgets/gradient_button.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -63,7 +65,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
       if (mounted) {
         if (res.session != null) {
-          context.go(_isVendor ? '/vendor/onboarding' : '/home');
+          final service = ref.read(supabaseServiceProvider);
+          final profile = await service.syncCurrentUserProfile();
+          final route = await service.getPostAuthRoute(profile: profile);
+          if (mounted) context.go(route);
         } else {
           _showVerificationDialog();
         }
@@ -97,6 +102,41 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _errorMessage = 'Unable to start social sign-up');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      if (kIsWeb) {
+        await _signInWithOAuth(OAuthProvider.google);
+        return;
+      }
+
+      await ref
+          .read(supabaseServiceProvider)
+          .signInWithGoogleNative(
+            requestedRole: _isVendor ? 'vendor' : 'buyer',
+            displayName: _nameController.text.trim(),
+          );
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
+        );
       }
     } finally {
       if (mounted) {
@@ -358,9 +398,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 _OAuthButton(
                   icon: Icons.g_mobiledata_rounded,
                   label: 'Continue with Google',
-                  onTap: _isLoading
-                      ? null
-                      : () => _signInWithOAuth(OAuthProvider.google),
+                  onTap: _isLoading ? null : _signInWithGoogle,
                 ),
                 if (Platform.isIOS) ...[
                   const SizedBox(height: 12),

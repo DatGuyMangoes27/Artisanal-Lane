@@ -11,6 +11,19 @@ final vendorShopProvider = FutureProvider<Shop?>((ref) async {
   return service.getVendorShop(userId);
 });
 
+final vendorMarketEventsProvider = FutureProvider<List<ShopMarketEvent>>((
+  ref,
+) async {
+  final shop = await ref.watch(vendorShopProvider.future);
+  if (shop == null) return [];
+  final service = ref.read(supabaseServiceProvider);
+  return service.getShopMarketEvents(
+    shop.id,
+    upcomingOnly: false,
+    includeInactive: true,
+  );
+});
+
 // ── Vendor Products ─────────────────────────────────────────────
 final vendorProductsProvider = FutureProvider<List<Product>>((ref) async {
   final shop = await ref.watch(vendorShopProvider.future);
@@ -91,6 +104,24 @@ final vendorPostsProvider = FutureProvider<List<ShopPost>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
   return service.getShopPosts(shop.id);
 });
+
+final vendorStationeryRequestsProvider =
+    FutureProvider<List<StationeryRequest>>((ref) async {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) return [];
+      final service = ref.read(supabaseServiceProvider);
+      return service.getVendorStationeryRequests(userId);
+    });
+
+final vendorStationeryRequestsStreamProvider =
+    StreamProvider<List<StationeryRequest>>((ref) {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) {
+        return Stream.value(const <StationeryRequest>[]);
+      }
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchVendorStationeryRequests(userId);
+    });
 
 // ── Categories (for product form) ──────────────────────────────
 final vendorCategoriesProvider = FutureProvider<List<Category>>((ref) async {

@@ -1,5 +1,6 @@
 export 'category.dart';
 export 'shop.dart';
+export 'shop_market_event.dart';
 export 'shipping_option.dart';
 export 'shop_post.dart';
 export 'product.dart';
@@ -7,4 +8,5 @@ export 'order.dart';
 export 'checkout_session.dart';
 export 'cart_item.dart';
 export 'profile.dart';
+export 'stationery_request.dart';
 export 'vendor_application.dart';

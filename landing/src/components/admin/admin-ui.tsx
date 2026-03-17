@@ -88,16 +88,21 @@ export function StatusBadge({
     normalized === "approved" ||
       normalized === "active" ||
       normalized === "published" ||
+      normalized === "featured" ||
+      normalized === "spotlight" ||
       normalized === "released" ||
       normalized === "completed" ||
+      normalized === "shipped" ||
       normalized === "delivered"
       ? "border-green-200 bg-green-50 text-green-700"
       : normalized === "pending" ||
+          normalized === "processing" ||
           normalized === "offline" ||
           normalized === "paid" ||
           normalized === "held"
         ? "border-amber-200 bg-amber-50 text-amber-700"
         : normalized === "disputed" ||
+            normalized === "cancelled" ||
             normalized === "suspended" ||
             normalized === "inactive" ||
             normalized === "open" ||

@@ -33,7 +33,11 @@ class VendorProfileScreen extends ConsumerWidget {
                           ? NetworkImage(shop!.logoUrl!)
                           : null,
                       child: shop?.logoUrl == null
-                          ? const Icon(Icons.store_rounded, size: 36, color: AppTheme.terracotta)
+                          ? const Icon(
+                              Icons.store_rounded,
+                              size: 36,
+                              color: AppTheme.terracotta,
+                            )
                           : null,
                     ),
                     const SizedBox(height: 14),
@@ -48,13 +52,19 @@ class VendorProfileScreen extends ConsumerWidget {
                     if (shop?.location != null)
                       Text(
                         shop!.location!,
-                        style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     profileAsync.when(
                       data: (profile) => profile != null
                           ? Text(
                               profile.email ?? '',
-                              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: AppTheme.textHint,
+                              ),
                             )
                           : const SizedBox.shrink(),
                       loading: () => const SizedBox.shrink(),
@@ -62,8 +72,15 @@ class VendorProfileScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-                loading: () => const CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2),
-                error: (_, __) => const Icon(Icons.store_rounded, size: 48, color: AppTheme.textHint),
+                loading: () => const CircularProgressIndicator(
+                  color: AppTheme.terracotta,
+                  strokeWidth: 2,
+                ),
+                error: (_, __) => const Icon(
+                  Icons.store_rounded,
+                  size: 48,
+                  color: AppTheme.textHint,
+                ),
               ),
               const SizedBox(height: 32),
 
@@ -74,6 +91,13 @@ class VendorProfileScreen extends ConsumerWidget {
                 'Shop Settings',
                 'Edit your shop profile and branding',
                 () => context.push('/vendor/profile/shop'),
+              ),
+              _buildMenuItem(
+                context,
+                Icons.inventory_2_outlined,
+                'Stationery Requests',
+                'Track branded packaging orders and fulfilment',
+                () => context.push('/vendor/profile/stationery'),
               ),
               _buildMenuItem(
                 context,
@@ -131,11 +155,18 @@ class VendorProfileScreen extends ConsumerWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                   Text(
                     subtitle,
-                    style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
                   ),
                 ],
               ),

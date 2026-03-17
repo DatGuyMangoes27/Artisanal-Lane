@@ -1,7 +1,13 @@
-import { Clock3, Receipt, ShieldAlert, Store, Users } from "lucide-react";
+import { Clock3, PackageOpen, ShieldAlert, Store, Users } from "lucide-react";
 
 import { AdminPageHeader, MetricCard, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
-import { getDashboardStats, listDisputes, listOrders, listVendorApplications } from "@/lib/admin-data";
+import {
+  getDashboardStats,
+  listDisputes,
+  listOrders,
+  listStationeryRequests,
+  listVendorApplications,
+} from "@/lib/admin-data";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-ZA", {
@@ -12,11 +18,12 @@ function formatCurrency(value: number) {
 }
 
 export default async function AdminDashboardPage() {
-  const [stats, applications, orders, disputes] = await Promise.all([
+  const [stats, applications, orders, disputes, stationeryRequests] = await Promise.all([
     getDashboardStats(),
     listVendorApplications(),
     listOrders(),
     listDisputes(),
+    listStationeryRequests(),
   ]);
 
   const pendingApplications = applications.filter(
@@ -24,6 +31,9 @@ export default async function AdminDashboardPage() {
   );
   const openDisputes = disputes.filter(
     (dispute) => dispute.status === "open" || dispute.status === "investigating",
+  );
+  const openStationeryRequests = stationeryRequests.filter(
+    (request) => request.status === "pending" || request.status === "processing",
   );
 
   return (
@@ -51,9 +61,9 @@ export default async function AdminDashboardPage() {
           value={String(stats.activeShops)}
         />
         <MetricCard
-          helper={`${formatCurrency(stats.releasedRevenue)} already released`}
-          label="Escrow Revenue"
-          value={formatCurrency(stats.totalRevenue)}
+          helper="Stationery requests waiting on fulfilment"
+          label="Stationery Queue"
+          value={String(stats.pendingStationeryRequests)}
         />
       </section>
 
@@ -156,6 +166,42 @@ export default async function AdminDashboardPage() {
         </PanelCard>
 
         <PanelCard
+          description="The newest branded stationery requests from artisan shops."
+          title="Stationery Requests"
+        >
+          <div className="space-y-3">
+            {openStationeryRequests.slice(0, 6).map((request) => (
+              <div
+                key={request.id}
+                className="flex flex-col gap-3 rounded-2xl border border-artisan-clay bg-white p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="font-medium text-artisan-sienna">
+                    {request.shop?.name ?? "Unknown shop"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {request.totalQuantity} items for{" "}
+                    {request.vendor?.display_name ?? request.vendor?.email ?? "Unknown vendor"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusBadge value={request.status} />
+                  <span className="text-xs text-muted-foreground">
+                    <Clock3 className="mr-1 inline h-3.5 w-3.5" />
+                    {new Date(request.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {openStationeryRequests.length === 0 ? (
+              <p className="rounded-2xl border border-artisan-clay bg-artisan-bone/40 p-4 text-sm text-muted-foreground">
+                No stationery requests are waiting right now.
+              </p>
+            ) : null}
+          </div>
+        </PanelCard>
+
+        <PanelCard
           description="Quick operational focus areas."
           title="Today"
         >
@@ -188,12 +234,12 @@ export default async function AdminDashboardPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-artisan-clay bg-artisan-bone/50 p-4">
-              <Receipt className="h-5 w-5 text-artisan-terracotta" />
+              <PackageOpen className="h-5 w-5 text-artisan-terracotta" />
               <p className="mt-3 font-medium text-artisan-sienna">
-                {formatCurrency(stats.totalRevenue)} in escrow
+                {stats.pendingStationeryRequests} stationery requests active
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
-                TradeSafe-backed payments will reconcile into this view.
+                Pack and dispatch Artisan Lane materials so vendors can fulfil consistently.
               </p>
             </div>
           </div>

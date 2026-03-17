@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, EyeOff, RefreshCcw } from "lucide-react";
+import { ArrowLeft, EyeOff, RefreshCcw, Star } from "lucide-react";
 
 import {
-  createShopNote,
+  toggleShopSpotlight,
   toggleShopPostPublish,
   toggleShopStatus,
 } from "@/app/admin/actions";
+import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
+import { ShopNoteForm } from "@/components/admin/shop-note-form";
 import { Button } from "@/components/ui/button";
 import { getShopDetail } from "@/lib/admin-data";
 
@@ -45,24 +47,39 @@ export default async function AdminShopDetailPage({
                 Back to stores
               </Link>
             </Button>
-            <form action={toggleShopStatus}>
-              <input name="shopId" type="hidden" value={shop.id} />
-              <input
-                name="nextValue"
-                type="hidden"
-                value={String(!shop.is_active)}
-              />
-              <Button
-                className={
-                  shop.is_active
-                    ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
-                    : "bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
-                }
-                type="submit"
-              >
-                {shop.is_active ? "Suspend shop" : "Restore shop"}
-              </Button>
-            </form>
+            <AdminActionButtonForm
+              action={toggleShopSpotlight}
+              buttonClassName={
+                shop.is_spotlight
+                  ? "bg-artisan-ochre text-white hover:bg-artisan-ochre/90"
+                  : "bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+              }
+              hiddenFields={[
+                { name: "shopId", value: shop.id },
+                { name: "nextValue", value: String(!shop.is_spotlight) },
+              ]}
+              idleContent={
+                <>
+                  <Star className="h-4 w-4" />
+                  {shop.is_spotlight ? "Remove spotlight" : "Spotlight artist"}
+                </>
+              }
+              pendingLabel="Saving..."
+            />
+            <AdminActionButtonForm
+              action={toggleShopStatus}
+              buttonClassName={
+                shop.is_active
+                  ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                  : "bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+              }
+              hiddenFields={[
+                { name: "shopId", value: shop.id },
+                { name: "nextValue", value: String(!shop.is_active) },
+              ]}
+              idleContent={shop.is_active ? "Suspend shop" : "Restore shop"}
+              pendingLabel="Saving..."
+            />
           </div>
         }
       />
@@ -75,6 +92,7 @@ export default async function AdminShopDetailPage({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
               <StatusBadge value={shop.is_active ? "active" : "suspended"} />
+              {shop.is_spotlight ? <StatusBadge value="spotlight" /> : null}
               {shop.is_offline ? <StatusBadge value="offline" /> : null}
             </div>
             <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
@@ -104,6 +122,14 @@ export default async function AdminShopDetailPage({
                   {new Date(shop.back_to_work_date).toLocaleDateString()}
                 </p>
               ) : null}
+              {shop.spotlighted_at ? (
+                <p>
+                  <span className="font-medium text-artisan-sienna">
+                    Spotlighted:
+                  </span>{" "}
+                  {new Date(shop.spotlighted_at).toLocaleDateString()}
+                </p>
+              ) : null}
             </div>
             {shop.bio ? (
               <p className="text-sm text-muted-foreground">
@@ -126,17 +152,7 @@ export default async function AdminShopDetailPage({
           title="Admin Notes"
           description="Private moderation notes for suspension context, follow-ups, and seller history."
         >
-          <form action={createShopNote} className="space-y-3">
-            <input name="shopId" type="hidden" value={shop.id} />
-            <textarea
-              className="min-h-28 w-full rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm text-artisan-sienna outline-none transition focus:border-artisan-terracotta"
-              name="note"
-              placeholder="Leave an internal note for the admin team..."
-            />
-            <Button className="bg-artisan-sienna text-white hover:bg-artisan-sienna/90" type="submit">
-              Save note
-            </Button>
-          </form>
+          <ShopNoteForm shopId={shop.id} />
 
           <div className="mt-5 space-y-3">
             {shop.notes.length === 0 ? (
@@ -264,23 +280,20 @@ export default async function AdminShopDetailPage({
                     </div>
                   </div>
 
-                  <form action={toggleShopPostPublish}>
-                    <input name="shopId" type="hidden" value={shop.id} />
-                    <input name="postId" type="hidden" value={post.id} />
-                    <input
-                      name="nextValue"
-                      type="hidden"
-                      value={String(!post.is_published)}
-                    />
-                    <Button
-                      className={
-                        post.is_published
-                          ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
-                          : "bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
-                      }
-                      type="submit"
-                    >
-                      {post.is_published ? (
+                  <AdminActionButtonForm
+                    action={toggleShopPostPublish}
+                    buttonClassName={
+                      post.is_published
+                        ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                        : "bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                    }
+                    hiddenFields={[
+                      { name: "shopId", value: shop.id },
+                      { name: "postId", value: post.id },
+                      { name: "nextValue", value: String(!post.is_published) },
+                    ]}
+                    idleContent={
+                      post.is_published ? (
                         <>
                           <EyeOff className="h-4 w-4" />
                           Unpublish post
@@ -290,9 +303,10 @@ export default async function AdminShopDetailPage({
                           <RefreshCcw className="h-4 w-4" />
                           Republish post
                         </>
-                      )}
-                    </Button>
-                  </form>
+                      )
+                    }
+                    pendingLabel="Saving..."
+                  />
                 </div>
               ))
             )}

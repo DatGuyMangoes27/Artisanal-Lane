@@ -1,8 +1,8 @@
 import { Check, X } from "lucide-react";
 
 import { approveApplication, rejectApplication } from "@/app/admin/actions";
+import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
-import { Button } from "@/components/ui/button";
 import { listVendorApplications } from "@/lib/admin-data";
 
 function getPortfolioHref(url: string) {
@@ -95,43 +95,35 @@ export default async function AdminApplicationsPage() {
 
                 {application.status === "pending" ? (
                   <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
-                    <form action={approveApplication}>
-                      <input
-                        name="applicationId"
-                        type="hidden"
-                        value={application.id}
-                      />
-                      <input
-                        name="userId"
-                        type="hidden"
-                        value={application.user_id}
-                      />
-                      <input
-                        name="businessName"
-                        type="hidden"
-                        value={application.business_name}
-                      />
-                      <input
-                        name="location"
-                        type="hidden"
-                        value={application.location ?? ""}
-                      />
-                      <Button className="w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90">
-                        <Check className="mr-2 h-4 w-4" />
-                        Approve
-                      </Button>
-                    </form>
-                    <form action={rejectApplication}>
-                      <input
-                        name="applicationId"
-                        type="hidden"
-                        value={application.id}
-                      />
-                      <Button className="w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark">
-                        <X className="mr-2 h-4 w-4" />
-                        Reject
-                      </Button>
-                    </form>
+                    <AdminActionButtonForm
+                      action={approveApplication}
+                      buttonClassName="w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                      hiddenFields={[
+                        { name: "applicationId", value: application.id },
+                        { name: "userId", value: application.user_id },
+                        { name: "businessName", value: application.business_name },
+                        { name: "location", value: application.location ?? "" },
+                      ]}
+                      idleContent={
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Approve
+                        </>
+                      }
+                      pendingLabel="Approving..."
+                    />
+                    <AdminActionButtonForm
+                      action={rejectApplication}
+                      buttonClassName="w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                      hiddenFields={[{ name: "applicationId", value: application.id }]}
+                      idleContent={
+                        <>
+                          <X className="mr-2 h-4 w-4" />
+                          Reject
+                        </>
+                      }
+                      pendingLabel="Rejecting..."
+                    />
                   </div>
                 ) : (
                   <div className="text-sm text-muted-foreground">

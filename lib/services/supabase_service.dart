@@ -1,11 +1,105 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../core/constants/app_constants.dart';
 import '../models/models.dart';
 
 class SupabaseService {
   final SupabaseClient _client;
 
+  static const _pendingRequestedRoleKey = 'pending_auth_requested_role';
+  static const _pendingDisplayNameKey = 'pending_auth_display_name';
+
   SupabaseService(this._client);
+
+  Future<void> savePendingAuthIntent({
+    required String requestedRole,
+    String? displayName,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_pendingRequestedRoleKey, requestedRole);
+
+    final trimmedName = displayName?.trim();
+    if (trimmedName == null || trimmedName.isEmpty) {
+      await prefs.remove(_pendingDisplayNameKey);
+    } else {
+      await prefs.setString(_pendingDisplayNameKey, trimmedName);
+    }
+  }
+
+  Future<void> clearPendingAuthIntent() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pendingRequestedRoleKey);
+    await prefs.remove(_pendingDisplayNameKey);
+  }
+
+  Future<Map<String, String>?> _consumePendingAuthIntent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final requestedRole = prefs.getString(_pendingRequestedRoleKey);
+    final displayName = prefs.getString(_pendingDisplayNameKey);
+
+    await prefs.remove(_pendingRequestedRoleKey);
+    await prefs.remove(_pendingDisplayNameKey);
+
+    if (requestedRole == null && displayName == null) {
+      return null;
+    }
+
+    return {
+      if (requestedRole != null) 'requested_role': requestedRole,
+      if (displayName != null) 'display_name': displayName,
+    };
+  }
+
+  Future<AuthResponse> signInWithGoogleNative({
+    String? requestedRole,
+    String? displayName,
+  }) async {
+    final normalizedRole = requestedRole == 'vendor' ? 'vendor' : 'buyer';
+    final trimmedDisplayName = displayName?.trim();
+    final webClientId = AppConstants.googleWebClientId.trim();
+    final iosClientId = AppConstants.googleIosClientId.trim();
+
+    if (webClientId.isEmpty) {
+      throw Exception(
+        'GOOGLE_WEB_CLIENT_ID is not configured. Add it to your Dart defines before using native Google sign-in.',
+      );
+    }
+
+    if (requestedRole != null || (trimmedDisplayName?.isNotEmpty ?? false)) {
+      await savePendingAuthIntent(
+        requestedRole: normalizedRole,
+        displayName: trimmedDisplayName,
+      );
+    }
+
+    try {
+      final signIn = GoogleSignIn.instance;
+      await signIn.initialize(
+        serverClientId: webClientId,
+        clientId: Platform.isIOS ? iosClientId : null,
+      );
+
+      final googleAccount = await signIn.authenticate();
+      final googleAuthentication = googleAccount.authentication;
+      final idToken = googleAuthentication.idToken;
+
+      if (idToken == null) {
+        throw Exception('Google sign-in did not return an ID token.');
+      }
+
+      return _client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+    } catch (error) {
+      if (requestedRole != null || (trimmedDisplayName?.isNotEmpty ?? false)) {
+        await clearPendingAuthIntent();
+      }
+      rethrow;
+    }
+  }
 
   // ── Storage ─────────────────────────────────────────────────
   static String _mimeType(String ext) {
@@ -115,7 +209,8 @@ class SupabaseService {
         .from('products')
         .select('*, shops(name, logo_url), categories(name)')
         .eq('is_published', true)
-        .order('created_at', ascending: false)
+        .eq('is_featured', true)
+        .order('featured_at', ascending: false)
         .limit(limit);
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
@@ -152,9 +247,67 @@ class SupabaseService {
     return (data as List).map((e) => Shop.fromJson(e)).toList();
   }
 
+  Future<Shop?> getSpotlightShop() async {
+    final data = await _client
+        .from('shops')
+        .select()
+        .eq('is_active', true)
+        .eq('is_spotlight', true)
+        .maybeSingle();
+
+    if (data == null) {
+      return null;
+    }
+
+    return Shop.fromJson(data);
+  }
+
   Future<Shop> getShop(String id) async {
     final data = await _client.from('shops').select().eq('id', id).single();
     return Shop.fromJson(data);
+  }
+
+  Future<List<ShopMarketEvent>> getShopMarketEvents(
+    String shopId, {
+    bool upcomingOnly = true,
+    bool includeInactive = false,
+  }) async {
+    var query = _client
+        .from('shop_market_events')
+        .select()
+        .eq('shop_id', shopId);
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true);
+    }
+
+    if (upcomingOnly) {
+      final today = DateTime.now().toIso8601String().split('T').first;
+      query = query.gte('event_date', today);
+    }
+
+    final data = await query
+        .order('event_date', ascending: true)
+        .order('created_at', ascending: true);
+
+    return (data as List)
+        .map((e) => ShopMarketEvent.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  Future<void> replaceShopMarketEvents(
+    String shopId,
+    List<ShopMarketEvent> events,
+  ) async {
+    await _client.from('shop_market_events').delete().eq('shop_id', shopId);
+
+    if (events.isEmpty) {
+      return;
+    }
+
+    await _client
+        .from('shop_market_events')
+        .insert(events.map((event) => event.toInsertJson(shopId)).toList());
   }
 
   Future<List<ShippingOption>> getShopShippingOptions(String shopId) async {
@@ -207,6 +360,29 @@ class SupabaseService {
       'notes': notes,
       'delivery_address': deliveryAddress,
     });
+  }
+
+  Future<List<StationeryRequest>> getVendorStationeryRequests(
+    String vendorId,
+  ) async {
+    final data = await _client
+        .from('stationery_requests')
+        .select()
+        .eq('vendor_id', vendorId)
+        .order('created_at', ascending: false);
+
+    return (data as List).map((e) => StationeryRequest.fromJson(e)).toList();
+  }
+
+  Stream<List<StationeryRequest>> watchVendorStationeryRequests(
+    String vendorId,
+  ) {
+    return _client
+        .from('stationery_requests')
+        .stream(primaryKey: ['id'])
+        .eq('vendor_id', vendorId)
+        .order('created_at')
+        .asyncMap((_) => getVendorStationeryRequests(vendorId));
   }
 
   Future<void> submitSupportTicket({
@@ -482,32 +658,85 @@ class SupabaseService {
     final user = _client.auth.currentUser;
     if (user == null) return null;
 
+    final pendingIntent = await _consumePendingAuthIntent();
+
     final existingProfile = await _client
         .from('profiles')
         .select('role, phone, avatar_url')
         .eq('id', user.id)
         .maybeSingle();
 
+    final currentMetadata = Map<String, dynamic>.from(user.userMetadata ?? {});
+    final requestedRole =
+        pendingIntent?['requested_role'] ??
+        currentMetadata['requested_role'] as String? ??
+        'buyer';
+    final pendingDisplayName = pendingIntent?['display_name']?.trim();
+    final metadataDisplayName =
+        currentMetadata['display_name'] ??
+        currentMetadata['full_name'] ??
+        currentMetadata['name'];
+
+    final updatedMetadata = <String, dynamic>{...currentMetadata};
+    var shouldUpdateMetadata = false;
+
+    if (updatedMetadata['requested_role'] != requestedRole) {
+      updatedMetadata['requested_role'] = requestedRole;
+      shouldUpdateMetadata = true;
+    }
+
+    if (pendingDisplayName != null &&
+        pendingDisplayName.isNotEmpty &&
+        (updatedMetadata['display_name'] as String?)?.trim().isEmpty != false) {
+      updatedMetadata['display_name'] = pendingDisplayName;
+      shouldUpdateMetadata = true;
+    }
+
+    if (shouldUpdateMetadata) {
+      await _client.auth.updateUser(UserAttributes(data: updatedMetadata));
+    }
+
+    final effectiveUser = _client.auth.currentUser ?? user;
+
     final profileData = {
-      'id': user.id,
+      'id': effectiveUser.id,
       'role': existingProfile?['role'] as String? ?? 'buyer',
       'display_name':
-          (user.userMetadata?['display_name'] ??
-                  user.userMetadata?['full_name'] ??
-                  user.userMetadata?['name'] ??
-                  user.email?.split('@').first)
+          (pendingDisplayName ??
+                  metadataDisplayName ??
+                  effectiveUser.email?.split('@').first)
               as String?,
-      'email': user.email,
+      'email': effectiveUser.email,
       'phone': existingProfile?['phone'] as String?,
       'avatar_url':
           (existingProfile?['avatar_url'] ??
-                  user.userMetadata?['avatar_url'] ??
-                  user.userMetadata?['picture'])
+                  effectiveUser.userMetadata?['avatar_url'] ??
+                  effectiveUser.userMetadata?['picture'])
               as String?,
     };
 
     await _client.from('profiles').upsert(profileData);
-    return getProfile(user.id);
+    return getProfile(effectiveUser.id);
+  }
+
+  Future<String> getPostAuthRoute({Profile? profile}) async {
+    final currentUser = _client.auth.currentUser;
+    final currentProfile =
+        profile ??
+        (currentUser == null ? null : await getProfile(currentUser.id));
+
+    if (currentProfile?.isVendor == true) {
+      return '/vendor';
+    }
+
+    final requestedRole =
+        currentUser?.userMetadata?['requested_role'] as String? ?? 'buyer';
+
+    if (requestedRole == 'vendor') {
+      return '/vendor/onboarding';
+    }
+
+    return '/home';
   }
 
   // ── Order Creation ─────────────────────────────────────────────

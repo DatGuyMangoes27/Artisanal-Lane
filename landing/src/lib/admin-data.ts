@@ -17,6 +17,8 @@ type ShopRecord = {
   logo_url?: string | null;
   is_active?: boolean;
   is_offline?: boolean;
+  is_spotlight?: boolean;
+  spotlighted_at?: string | null;
   back_to_work_date?: string | null;
   created_at?: string;
 };
@@ -35,6 +37,8 @@ type OrderRecord = {
   shipping_cost: number | null;
   shipping_method: string | null;
   tracking_number: string | null;
+  shipped_at: string | null;
+  received_at: string | null;
   created_at: string;
 };
 
@@ -62,6 +66,8 @@ type ProductRecord = {
   stock_qty: number;
   images: string[] | null;
   is_published: boolean;
+  is_featured: boolean;
+  featured_at: string | null;
   created_at: string;
 };
 
@@ -93,6 +99,23 @@ type ShopNoteRecord = {
   created_at: string;
 };
 
+type StationeryRequestRecord = {
+  id: string;
+  shop_id: string;
+  vendor_id: string;
+  items: Array<{ key?: string; name?: string; quantity?: number }> | null;
+  notes: string | null;
+  delivery_address: string | null;
+  status: string;
+  admin_notes: string | null;
+  tracking_number: string | null;
+  courier_name: string | null;
+  fulfilled_by: string | null;
+  fulfilled_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type ProductListOptions = {
   query?: string;
   status?: string;
@@ -111,6 +134,12 @@ type OrderListOptions = {
   query?: string;
   status?: string;
   shipping?: string;
+  sort?: string;
+};
+
+type StationeryRequestListOptions = {
+  query?: string;
+  status?: string;
   sort?: string;
 };
 
@@ -179,6 +208,7 @@ export async function getDashboardStats() {
     { count: pendingApplications },
     { count: openDisputes },
     { count: activeShops },
+    { count: pendingStationeryRequests },
     escrowResult,
   ] = await Promise.all([
     admin.from("orders").select("id", { count: "exact", head: true }),
@@ -194,6 +224,10 @@ export async function getDashboardStats() {
       .from("shops")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true),
+    admin
+      .from("stationery_requests")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["pending", "processing"]),
     admin.from("escrow_transactions").select("amount, status, platform_fee"),
   ]);
 
@@ -211,6 +245,7 @@ export async function getDashboardStats() {
     pendingApplications: pendingApplications ?? 0,
     openDisputes: openDisputes ?? 0,
     activeShops: activeShops ?? 0,
+    pendingStationeryRequests: pendingStationeryRequests ?? 0,
     totalRevenue,
     releasedRevenue,
   };
@@ -245,7 +280,7 @@ export async function listProducts(options: ProductListOptions = {}) {
   const { data } = await admin
     .from("products")
     .select(
-      "id, shop_id, category_id, title, price, stock_qty, images, is_published, created_at",
+      "id, shop_id, category_id, title, price, stock_qty, images, is_published, is_featured, featured_at, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -293,6 +328,8 @@ export async function listProducts(options: ProductListOptions = {}) {
 
   filtered.sort((a, b) => {
     switch (options.sort) {
+      case "featured":
+        return Number(b.is_featured) - Number(a.is_featured);
       case "oldest":
         return a.created_at.localeCompare(b.created_at);
       case "price-high":
@@ -316,7 +353,7 @@ export async function listShops(options: ShopListOptions = {}) {
   const { data } = await admin
     .from("shops")
     .select(
-      "id, name, vendor_id, location, logo_url, is_active, is_offline, back_to_work_date, created_at",
+      "id, name, vendor_id, location, logo_url, is_active, is_offline, is_spotlight, spotlighted_at, back_to_work_date, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -410,6 +447,9 @@ export async function listShops(options: ShopListOptions = {}) {
       case "posts-high":
         return b.totalPostCount - a.totalPostCount;
       default:
+        if (a.is_spotlight !== b.is_spotlight) {
+          return Number(b.is_spotlight) - Number(a.is_spotlight);
+        }
         return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     }
   });
@@ -422,7 +462,7 @@ export async function getShopDetail(shopId: string) {
   const { data } = await admin
     .from("shops")
     .select(
-      "id, name, vendor_id, bio, brand_story, location, logo_url, cover_image_url, is_active, is_offline, back_to_work_date, created_at, updated_at",
+      "id, name, vendor_id, bio, brand_story, location, logo_url, cover_image_url, is_active, is_offline, is_spotlight, spotlighted_at, back_to_work_date, created_at, updated_at",
     )
     .eq("id", shopId)
     .maybeSingle();
@@ -443,7 +483,7 @@ export async function getShopDetail(shopId: string) {
     admin
       .from("products")
       .select(
-        "id, shop_id, category_id, title, price, stock_qty, images, is_published, created_at",
+        "id, shop_id, category_id, title, price, stock_qty, images, is_published, is_featured, featured_at, created_at",
       )
       .eq("shop_id", shopId)
       .order("created_at", { ascending: false })
@@ -492,7 +532,7 @@ export async function listOrders(options: OrderListOptions = {}) {
   const { data } = await admin
     .from("orders")
     .select(
-      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, created_at",
+      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, shipped_at, received_at, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -570,7 +610,9 @@ export async function listDisputes() {
     getProfilesMap(disputes.map((row) => row.raised_by ?? "")),
     admin
       .from("orders")
-      .select("id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, created_at")
+      .select(
+        "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, shipped_at, received_at, created_at",
+      )
       .in("id", disputes.map((row) => row.order_id)),
   ]);
 
@@ -592,5 +634,83 @@ export async function listDisputes() {
       shop: order?.shop_id ? shops.get(order.shop_id) ?? null : null,
     };
   });
+}
+
+export async function listStationeryRequests(
+  options: StationeryRequestListOptions = {},
+) {
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("stationery_requests")
+    .select(
+      "id, shop_id, vendor_id, items, notes, delivery_address, status, admin_notes, tracking_number, courier_name, fulfilled_by, fulfilled_at, created_at, updated_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  const requests = (data ?? []) as StationeryRequestRecord[];
+  const [shops, profiles] = await Promise.all([
+    getShopsMap(requests.map((request) => request.shop_id)),
+    getProfilesMap(
+      requests.flatMap((request) => [
+        request.vendor_id,
+        request.fulfilled_by ?? "",
+      ]),
+    ),
+  ]);
+
+  const rows = requests.map((request) => ({
+    ...request,
+    items: Array.isArray(request.items) ? request.items : [],
+    shop: shops.get(request.shop_id) ?? null,
+    vendor: profiles.get(request.vendor_id) ?? null,
+    fulfilledByProfile: request.fulfilled_by
+      ? profiles.get(request.fulfilled_by) ?? null
+      : null,
+    totalQuantity: Array.isArray(request.items)
+      ? request.items.reduce(
+          (sum, item) => sum + Number(item.quantity ?? 0),
+          0,
+        )
+      : 0,
+  }));
+
+  const query = normalizeQuery(options.query);
+  const filtered = rows.filter((request) => {
+    if (options.status && options.status !== "all" && request.status !== options.status) {
+      return false;
+    }
+    if (!query) {
+      return true;
+    }
+
+    const haystack = [
+      request.shop?.name ?? "",
+      request.vendor?.display_name ?? "",
+      request.vendor?.email ?? "",
+      request.delivery_address ?? "",
+      request.notes ?? "",
+      request.items.map((item) => item.name ?? item.key ?? "").join(" "),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(query);
+  });
+
+  filtered.sort((a, b) => {
+    switch (options.sort) {
+      case "oldest":
+        return a.created_at.localeCompare(b.created_at);
+      case "status":
+        return a.status.localeCompare(b.status);
+      case "quantity-high":
+        return b.totalQuantity - a.totalQuantity;
+      default:
+        return b.created_at.localeCompare(a.created_at);
+    }
+  });
+
+  return filtered;
 }
 

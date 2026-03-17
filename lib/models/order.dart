@@ -12,6 +12,8 @@ class Order {
   final String? paymentProvider;
   final String? paymentUrl;
   final String? tradesafeTransactionId;
+  final DateTime? shippedAt;
+  final DateTime? receivedAt;
   final bool isGift;
   final String? giftRecipient;
   final String? giftMessage;
@@ -36,6 +38,8 @@ class Order {
     this.paymentProvider,
     this.paymentUrl,
     this.tradesafeTransactionId,
+    this.shippedAt,
+    this.receivedAt,
     this.isGift = false,
     this.giftRecipient,
     this.giftMessage,
@@ -63,6 +67,12 @@ class Order {
       paymentProvider: json['payment_provider'] as String?,
       paymentUrl: json['payment_url'] as String?,
       tradesafeTransactionId: json['tradesafe_transaction_id'] as String?,
+      shippedAt: json['shipped_at'] != null
+          ? DateTime.parse(json['shipped_at'] as String)
+          : null,
+      receivedAt: json['received_at'] != null
+          ? DateTime.parse(json['received_at'] as String)
+          : null,
       isGift: json['is_gift'] as bool? ?? false,
       giftRecipient: json['gift_recipient'] as String?,
       giftMessage: json['gift_message'] as String?,

@@ -34,7 +34,19 @@
 				<string>artisanlane</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.googleusercontent.apps.1047012816139-g1ms8kvei782freogsoba9b3fp14juen</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.1047012816139-g1ms8kvei782freogsoba9b3fp14juen</string>
+			</array>
+		</dict>
 	</array>
+	<key>GIDServerClientID</key>
+	<string>1047012816139-8tott1eo69fltvgbgimg8fflqb95co3k.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

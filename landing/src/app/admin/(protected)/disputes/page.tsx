@@ -4,8 +4,8 @@ import {
   resolveDisputeRefund,
   resolveDisputeRelease,
 } from "@/app/admin/actions";
+import { DisputeResolutionForm } from "@/components/admin/dispute-resolution-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
-import { Button } from "@/components/ui/button";
 import { listDisputes } from "@/lib/admin-data";
 
 export default async function AdminDisputesPage() {
@@ -66,35 +66,35 @@ export default async function AdminDisputesPage() {
 
                 {dispute.status === "open" || dispute.status === "investigating" ? (
                   <div className="w-full max-w-xl space-y-3">
-                    <form action={resolveDisputeRelease} className="space-y-3">
-                      <input name="disputeId" type="hidden" value={dispute.id} />
-                      <input name="orderId" type="hidden" value={dispute.order_id} />
-                      <textarea
-                        className="min-h-24 w-full rounded-2xl border border-artisan-clay bg-artisan-bone/30 px-4 py-3 text-sm outline-none transition focus:border-artisan-terracotta"
-                        name="resolution"
-                        placeholder="Explain why funds should be released to the seller..."
-                        required
-                      />
-                      <Button className="bg-artisan-baobab text-white hover:bg-artisan-baobab/90">
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Release Funds
-                      </Button>
-                    </form>
+                    <DisputeResolutionForm
+                      action={resolveDisputeRelease}
+                      buttonClassName="bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                      disputeId={dispute.id}
+                      idleContent={
+                        <>
+                          <CheckCircle2 className="mr-2 h-4 w-4" />
+                          Release Funds
+                        </>
+                      }
+                      orderId={dispute.order_id}
+                      pendingLabel="Releasing..."
+                      placeholder="Explain why funds should be released to the seller..."
+                    />
 
-                    <form action={resolveDisputeRefund} className="space-y-3">
-                      <input name="disputeId" type="hidden" value={dispute.id} />
-                      <input name="orderId" type="hidden" value={dispute.order_id} />
-                      <textarea
-                        className="min-h-24 w-full rounded-2xl border border-artisan-clay bg-artisan-bone/30 px-4 py-3 text-sm outline-none transition focus:border-artisan-terracotta"
-                        name="resolution"
-                        placeholder="Explain why the buyer should be refunded..."
-                        required
-                      />
-                      <Button className="bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark">
-                        <Undo2 className="mr-2 h-4 w-4" />
-                        Refund Buyer
-                      </Button>
-                    </form>
+                    <DisputeResolutionForm
+                      action={resolveDisputeRefund}
+                      buttonClassName="bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                      disputeId={dispute.id}
+                      idleContent={
+                        <>
+                          <Undo2 className="mr-2 h-4 w-4" />
+                          Refund Buyer
+                        </>
+                      }
+                      orderId={dispute.order_id}
+                      pendingLabel="Refunding..."
+                      placeholder="Explain why the buyer should be refunded..."
+                    />
                   </div>
                 ) : null}
               </div>

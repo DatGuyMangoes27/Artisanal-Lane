@@ -17,7 +17,7 @@ class BuyerHomeScreen extends ConsumerWidget {
     final categories = ref.watch(categoriesProvider);
     final featured = ref.watch(featuredProductsProvider);
     final onSale = ref.watch(onSaleProductsProvider);
-    final shops = ref.watch(shopsProvider);
+    final spotlightShop = ref.watch(spotlightShopProvider);
     final followingFeed = ref.watch(followingFeedProvider);
 
     return Scaffold(
@@ -29,7 +29,7 @@ class BuyerHomeScreen extends ConsumerWidget {
           ref.invalidate(categoriesProvider);
           ref.invalidate(featuredProductsProvider);
           ref.invalidate(onSaleProductsProvider);
-          ref.invalidate(shopsProvider);
+          ref.invalidate(spotlightShopProvider);
           ref.invalidate(followingFeedProvider);
         },
         child: CustomScrollView(
@@ -201,38 +201,60 @@ class BuyerHomeScreen extends ConsumerWidget {
 
             // ── Featured Collection ───────────────────────────────────────
             SliverToBoxAdapter(
-              child: _SectionHeader(
-                title: 'Curated Collection',
-                subtitle: 'Handpicked for their exceptional craft',
-                onTap: () => context.push('/home/categories'),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 310,
-                child: featured.when(
-                  data: (products) => ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: products.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (_, i) => _ElegantProductCard(product: products[i]),
-                  ),
-                  loading: () => _shimmerRow(3, 200, 300),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-              ),
-            ),
+              child: featured.when(
+                data: (products) {
+                  if (products.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
 
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SectionHeader(
+                        title: 'Curated Collection',
+                        subtitle: 'Handpicked for their exceptional craft',
+                        onTap: () => context.push('/home/categories'),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 310,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: products.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          itemBuilder: (_, i) => _ElegantProductCard(product: products[i]),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  );
+                },
+                loading: () => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionHeader(
+                      title: 'Curated Collection',
+                      subtitle: 'Handpicked for their exceptional craft',
+                      onTap: () => context.push('/home/categories'),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      height: 310,
+                      child: _shimmerRow(3, 200, 300),
+                    ),
+                    const SizedBox(height: 32),
+                  ],
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ),
 
             // ── Meet the Makers ───────────────────────────────────────────
             SliverToBoxAdapter(
-              child: shops.when(
-                data: (list) {
-                  if (list.isEmpty) return const SizedBox.shrink();
-                  final maker = list.first;
+              child: spotlightShop.when(
+                data: (maker) {
+                  if (maker == null) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -255,19 +277,23 @@ class BuyerHomeScreen extends ConsumerWidget {
                           quote: maker.brandStory ?? maker.bio,
                           onTap: () => context.push('/home/shop/${maker.id}'),
                         ),
+                        const SizedBox(height: 32),
                       ],
                     ),
                   );
                 },
                 loading: () => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _shimmerCard(200),
+                  child: Column(
+                    children: [
+                      _shimmerCard(200),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
                 error: (_, __) => const SizedBox.shrink(),
               ),
             ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
             // ── Market Specials ──────────────────────────────────────────
             SliverToBoxAdapter(

@@ -9,7 +9,9 @@ class Product {
   final int stockQty;
   final List<String> images;
   final bool isPublished;
+  final bool isFeatured;
   final String? careInstructions;
+  final DateTime? featuredAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -29,7 +31,9 @@ class Product {
     this.stockQty = 0,
     this.images = const [],
     this.isPublished = true,
+    this.isFeatured = false,
     this.careInstructions,
+    this.featuredAt,
     required this.createdAt,
     required this.updatedAt,
     this.shopName,
@@ -61,7 +65,11 @@ class Product {
       stockQty: json['stock_qty'] as int? ?? 0,
       images: parseImages(json['images']),
       isPublished: json['is_published'] as bool? ?? true,
+      isFeatured: json['is_featured'] as bool? ?? false,
       careInstructions: json['care_instructions'] as String?,
+      featuredAt: json['featured_at'] != null
+          ? DateTime.parse(json['featured_at'] as String)
+          : null,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       shopName: shopData?['name'] as String?,
@@ -81,6 +89,7 @@ class Product {
         'stock_qty': stockQty,
         'images': images,
         'is_published': isPublished,
+        'is_featured': isFeatured,
         'care_instructions': careInstructions,
       };
 

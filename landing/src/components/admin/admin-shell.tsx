@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Package,
+  PackageOpen,
   Receipt,
   ShieldAlert,
   Store,
@@ -41,6 +42,11 @@ const navItems = [
     href: "/admin/orders",
     label: "Orders",
     icon: Receipt,
+  },
+  {
+    href: "/admin/stationery",
+    label: "Stationery",
+    icon: PackageOpen,
   },
   {
     href: "/admin/disputes",

@@ -147,6 +147,11 @@ final shopsProvider = FutureProvider<List<Shop>>((ref) async {
   return service.getShops();
 });
 
+final spotlightShopProvider = FutureProvider<Shop?>((ref) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getSpotlightShop();
+});
+
 final shopDetailProvider = FutureProvider.family<Shop, String>((
   ref,
   shopId,
@@ -154,6 +159,12 @@ final shopDetailProvider = FutureProvider.family<Shop, String>((
   final service = ref.read(supabaseServiceProvider);
   return service.getShop(shopId);
 });
+
+final shopMarketEventsProvider =
+    FutureProvider.family<List<ShopMarketEvent>, String>((ref, shopId) async {
+      final service = ref.read(supabaseServiceProvider);
+      return service.getShopMarketEvents(shopId);
+    });
 
 // ── Favourites ──────────────────────────────────────────────────
 final favouriteProductsProvider = FutureProvider<List<Product>>((ref) async {

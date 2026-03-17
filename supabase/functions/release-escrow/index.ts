@@ -78,6 +78,7 @@ Deno.serve(async (request) => {
       .update({
         status: "completed",
         payment_state: "released",
+        received_at: releasedAt,
       })
       .eq("id", orderId);
 

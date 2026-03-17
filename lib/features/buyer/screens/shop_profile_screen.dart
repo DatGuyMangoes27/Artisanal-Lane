@@ -29,6 +29,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     final shopAsync = ref.watch(shopDetailProvider(widget.shopId));
     final productsAsync = ref.watch(shopProductsProvider(widget.shopId));
     final postsAsync = ref.watch(shopPostsProvider(widget.shopId));
+    final marketEventsAsync = ref.watch(
+      shopMarketEventsProvider(widget.shopId),
+    );
     final isFollowingAsync = ref.watch(isFollowingProvider(widget.shopId));
 
     return shopAsync.when(
@@ -43,6 +46,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ref.invalidate(shopDetailProvider(widget.shopId));
                 ref.invalidate(shopProductsProvider(widget.shopId));
                 ref.invalidate(shopPostsProvider(widget.shopId));
+                ref.invalidate(shopMarketEventsProvider(widget.shopId));
                 ref.invalidate(isFollowingProvider(widget.shopId));
               },
               child: CustomScrollView(
@@ -62,8 +66,11 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           bottom: -60,
                           child: _MakerIdentityCard(
                             shop: shop,
-                            isFollowing: isFollowingAsync.asData?.value ?? false,
-                            onFollowToggle: () => _toggleFollow(isFollowingAsync.asData?.value ?? false),
+                            isFollowing:
+                                isFollowingAsync.asData?.value ?? false,
+                            onFollowToggle: () => _toggleFollow(
+                              isFollowingAsync.asData?.value ?? false,
+                            ),
                           ),
                         ),
                       ],
@@ -73,9 +80,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
                   // Offline banner
                   if (shop.isOffline)
-                    SliverToBoxAdapter(
-                      child: _OfflineBanner(shop: shop),
-                    ),
+                    SliverToBoxAdapter(child: _OfflineBanner(shop: shop)),
 
                   // Story
                   SliverToBoxAdapter(
@@ -84,7 +89,18 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       child: _ShopStoryCard(shop: shop),
                     ),
                   ),
-                  
+
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                      child: marketEventsAsync.when(
+                        data: (events) => _UpcomingMarketsCard(events: events),
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
+
                   const SliverToBoxAdapter(child: SizedBox(height: 32)),
 
                   // Tab selector: Products / Posts
@@ -97,47 +113,6 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
                   // ── Products tab content ──────────────────
                   if (_selectedTab == 0) ...[
-                    SliverToBoxAdapter(
-                      child: _ShopSectionHeader(
-                        title: 'Featured',
-                        subtitle: 'Handpicked pieces',
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 280,
-                        child: productsAsync.when(
-                          data: (products) {
-                            if (products.isEmpty) {
-                              return const _EmptyCollection(
-                                message: 'No featured pieces available yet.',
-                              );
-                            }
-                            final featured = products.take(6).toList();
-                            return ListView.separated(
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              scrollDirection: Axis.horizontal,
-                              itemCount: featured.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 16),
-                              itemBuilder: (_, index) => SizedBox(
-                                width: 200,
-                                child: ProductCard(
-                                  product: featured[index],
-                                  showShopName: false,
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => _LoadingPlaceholderRow(),
-                          error: (e, _) => const _InlineError(
-                            message: 'Could not load featured items.',
-                          ),
-                        ),
-                      ),
-                    ),
-                    
-                    const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                    
                     SliverToBoxAdapter(
                       child: _ShopSectionHeader(
                         title: 'Collection',
@@ -159,7 +134,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                             child: Padding(
                               padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
                               child: _EmptyCollection(
-                                message: 'This maker has not listed products yet.',
+                                message:
+                                    'This maker has not listed products yet.',
                               ),
                             ),
                           );
@@ -176,11 +152,11 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                             ),
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 16,
-                              crossAxisSpacing: 16,
-                              childAspectRatio: 0.65,
-                            ),
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 16,
+                                  crossAxisSpacing: 16,
+                                  childAspectRatio: 0.65,
+                                ),
                           ),
                         );
                       },
@@ -278,7 +254,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       const Spacer(),
                       _HeroIconButton(
                         icon: Icons.share_outlined,
-                        onTap: () => Share.share('Check out ${shop.name} on Artisan Lane!'),
+                        onTap: () => Share.share(
+                          'Check out ${shop.name} on Artisan Lane!',
+                        ),
                       ),
                     ],
                   ),
@@ -310,9 +288,15 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
   Future<void> _toggleFollow(bool currentlyFollowing) async {
     final service = ref.read(supabaseServiceProvider);
     if (currentlyFollowing) {
-      await service.unfollowShop(Supabase.instance.client.auth.currentUser!.id, widget.shopId);
+      await service.unfollowShop(
+        Supabase.instance.client.auth.currentUser!.id,
+        widget.shopId,
+      );
     } else {
-      await service.followShop(Supabase.instance.client.auth.currentUser!.id, widget.shopId);
+      await service.followShop(
+        Supabase.instance.client.auth.currentUser!.id,
+        widget.shopId,
+      );
     }
     ref.invalidate(isFollowingProvider(widget.shopId));
     ref.invalidate(followedShopIdsProvider);
@@ -342,8 +326,7 @@ class _ShopHero extends StatelessWidget {
               imageUrl: shop.coverImageUrl!,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(color: AppTheme.bone),
-              errorWidget: (_, __, ___) =>
-                  Container(color: AppTheme.bone),
+              errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
             )
           else
             Container(
@@ -479,7 +462,11 @@ class _MakerIdentityCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary),
+                        Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: AppTheme.textSecondary,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           location,
@@ -500,12 +487,12 @@ class _MakerIdentityCard extends StatelessWidget {
             children: [
               _MetaPill(icon: Icons.storefront_outlined, text: countLabel),
               const SizedBox(width: 8),
-              _MetaPill(icon: Icons.auto_awesome_outlined, text: 'Since $founded'),
-              const Spacer(),
-              _FollowButton(
-                isFollowing: isFollowing,
-                onTap: onFollowToggle,
+              _MetaPill(
+                icon: Icons.auto_awesome_outlined,
+                text: 'Since $founded',
               ),
+              const Spacer(),
+              _FollowButton(isFollowing: isFollowing, onTap: onFollowToggle),
             ],
           ),
         ],
@@ -530,10 +517,7 @@ class _FollowButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: isFollowing ? AppTheme.terracotta : Colors.white,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: AppTheme.terracotta,
-            width: 1.5,
-          ),
+          border: Border.all(color: AppTheme.terracotta, width: 1.5),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -596,10 +580,7 @@ class _TabSelector extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onChanged;
 
-  const _TabSelector({
-    required this.selectedIndex,
-    required this.onChanged,
-  });
+  const _TabSelector({required this.selectedIndex, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -637,11 +618,11 @@ class _TabSelector extends StatelessWidget {
                       color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 4,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ]
                 : null,
           ),
-          child:           Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
@@ -693,8 +674,9 @@ class _PostCard extends StatelessWidget {
           // Post image
           if (post.mediaUrls.isNotEmpty)
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(19)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(19),
+              ),
               child: AspectRatio(
                 aspectRatio: 1,
                 child: CachedNetworkImage(
@@ -708,8 +690,10 @@ class _PostCard extends StatelessWidget {
                   ),
                   errorWidget: (_, __, ___) => Container(
                     color: AppTheme.bone,
-                    child: const Icon(Icons.image_not_supported_outlined,
-                        color: AppTheme.textHint),
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                      color: AppTheme.textHint,
+                    ),
                   ),
                 ),
               ),
@@ -859,7 +843,9 @@ class _ShopSectionHeader extends StatelessWidget {
                 Text(
                   subtitle,
                   style: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint),
+                    fontSize: 13,
+                    color: AppTheme.textHint,
+                  ),
                 ),
               ],
             ),
@@ -871,20 +857,170 @@ class _ShopSectionHeader extends StatelessWidget {
   }
 }
 
-class _LoadingPlaceholderRow extends StatelessWidget {
+class _UpcomingMarketsCard extends StatelessWidget {
+  final List<ShopMarketEvent> events;
+
+  const _UpcomingMarketsCard({required this.events});
+
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      scrollDirection: Axis.horizontal,
-      itemCount: 3,
-      separatorBuilder: (_, __) => const SizedBox(width: 16),
-      itemBuilder: (_, __) => Container(
-        width: 200,
-        decoration: BoxDecoration(
-          color: AppTheme.bone,
-          borderRadius: BorderRadius.circular(20),
-        ),
+    if (events.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final dateFormat = DateFormat('EEE, d MMM');
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppTheme.terracotta.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.event_available_rounded,
+                  color: AppTheme.terracotta,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upcoming Markets',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        color: AppTheme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Catch this maker in person at their next events.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...events.map(
+            (event) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.bone,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.marketName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          dateFormat.format(event.eventDate),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.terracotta,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on_outlined,
+                          size: 14,
+                          color: AppTheme.textHint,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            event.location,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (event.timeLabel != null &&
+                        event.timeLabel!.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.access_time_rounded,
+                            size: 14,
+                            color: AppTheme.textHint,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            event.timeLabel!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (event.notes != null && event.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        event.notes!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -931,8 +1067,7 @@ class _OfflineBanner extends StatelessWidget {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(14),
-          border:
-              Border.all(color: AppTheme.terracotta.withValues(alpha: 0.3)),
+          border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.3)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -943,8 +1078,11 @@ class _OfflineBanner extends StatelessWidget {
                 color: AppTheme.terracotta.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.do_not_disturb_on_outlined,
-                  size: 20, color: AppTheme.terracotta),
+              child: Icon(
+                Icons.do_not_disturb_on_outlined,
+                size: 20,
+                color: AppTheme.terracotta,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1004,8 +1142,11 @@ class _EmptyCollection extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.storefront_outlined,
-              color: AppTheme.textHint, size: 32),
+          const Icon(
+            Icons.storefront_outlined,
+            color: AppTheme.textHint,
+            size: 32,
+          ),
           const SizedBox(height: 12),
           Text(
             message,

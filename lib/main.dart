@@ -27,10 +27,10 @@ class ArtisanalLaneApp extends ConsumerWidget {
     ref.listen(authStateProvider, (_, next) {
       next.whenData((authState) async {
         if (authState.event == AuthChangeEvent.signedIn) {
-          final profile = await ref
-              .read(supabaseServiceProvider)
-              .syncCurrentUserProfile();
-          router.go(profile?.isVendor == true ? '/vendor' : '/home');
+          final service = ref.read(supabaseServiceProvider);
+          final profile = await service.syncCurrentUserProfile();
+          final route = await service.getPostAuthRoute(profile: profile);
+          router.go(route);
         }
 
         if (authState.event == AuthChangeEvent.signedOut) {

@@ -12,7 +12,9 @@ class Shop {
   final String? location;
   final bool isActive;
   final bool isOffline;
+  final bool isSpotlight;
   final DateTime? backToWorkDate;
+  final DateTime? spotlightedAt;
   final List<ShippingOption> shippingOptions;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -30,7 +32,9 @@ class Shop {
     this.location,
     this.isActive = true,
     this.isOffline = false,
+    this.isSpotlight = false,
     this.backToWorkDate,
+    this.spotlightedAt,
     List<ShippingOption>? shippingOptions,
     required this.createdAt,
     required this.updatedAt,
@@ -50,8 +54,12 @@ class Shop {
       location: json['location'] as String?,
       isActive: json['is_active'] as bool? ?? true,
       isOffline: json['is_offline'] as bool? ?? false,
+      isSpotlight: json['is_spotlight'] as bool? ?? false,
       backToWorkDate: json['back_to_work_date'] != null
           ? DateTime.parse(json['back_to_work_date'] as String)
+          : null,
+      spotlightedAt: json['spotlighted_at'] != null
+          ? DateTime.parse(json['spotlighted_at'] as String)
           : null,
       shippingOptions: ShippingOption.listFromJson(json['shipping_options']),
       createdAt: DateTime.parse(json['created_at'] as String),
@@ -76,6 +84,8 @@ class Shop {
         'location': location,
         'is_active': isActive,
         'is_offline': isOffline,
+        'is_spotlight': isSpotlight,
+        'spotlighted_at': spotlightedAt?.toIso8601String(),
         'back_to_work_date': backToWorkDate?.toIso8601String().split('T').first,
         'shipping_options': shippingOptions.map((o) => o.toJson()).toList(),
       };

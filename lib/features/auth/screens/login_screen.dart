@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../providers/auth_providers.dart';
 import '../../../widgets/gradient_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -43,13 +45,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         password: _passwordController.text,
       );
       if (mounted && res.user != null) {
-        final profile = await Supabase.instance.client
-            .from('profiles')
-            .select('role')
-            .eq('id', res.user!.id)
-            .maybeSingle();
-        final role = profile?['role'] as String? ?? 'buyer';
-        if (mounted) context.go(role == 'vendor' ? '/vendor' : '/home');
+        final service = ref.read(supabaseServiceProvider);
+        final profile = await service.syncCurrentUserProfile();
+        final route = await service.getPostAuthRoute(profile: profile);
+        if (mounted) context.go(route);
       }
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -80,6 +79,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (_) {
       if (mounted) {
         setState(() => _errorMessage = 'Unable to start social sign-in');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      if (kIsWeb) {
+        await _signInWithOAuth(OAuthProvider.google);
+        return;
+      }
+
+      await ref.read(supabaseServiceProvider).signInWithGoogleNative();
+    } on AuthException catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = e.message);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
+        );
       }
     } finally {
       if (mounted) {
@@ -232,9 +261,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _OAuthButton(
                   icon: Icons.g_mobiledata_rounded,
                   label: 'Continue with Google',
-                  onTap: _isLoading
-                      ? null
-                      : () => _signInWithOAuth(OAuthProvider.google),
+                  onTap: _isLoading ? null : _signInWithGoogle,
                 ),
                 if (Platform.isIOS) ...[
                   const SizedBox(height: 12),

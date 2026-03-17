@@ -19,7 +19,12 @@ class VendorDashboardScreen extends ConsumerWidget {
     return shopAsync.when(
       loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
+        ),
       ),
       error: (e, _) => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
@@ -32,7 +37,12 @@ class VendorDashboardScreen extends ConsumerWidget {
           });
           return Scaffold(
             backgroundColor: AppTheme.scaffoldBg,
-            body: const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+            body: const Center(
+              child: CircularProgressIndicator(
+                color: AppTheme.terracotta,
+                strokeWidth: 2,
+              ),
+            ),
           );
         }
         return _DashboardContent(shop: shop);
@@ -181,6 +191,14 @@ class _DashboardContent extends ConsumerWidget {
                     Expanded(child: _buildContactActionCard(context)),
                   ],
                 ),
+                const SizedBox(height: 12),
+                _buildActionCard(
+                  context,
+                  Icons.inventory_2_outlined,
+                  'Track Stationery Requests',
+                  AppTheme.terracotta,
+                  () => context.push('/vendor/profile/stationery'),
+                ),
                 const SizedBox(height: 32),
               ],
             ),
@@ -223,7 +241,12 @@ class _DashboardContent extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatCard(String value, String label, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String value,
+    String label,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -253,17 +276,17 @@ class _DashboardContent extends ConsumerWidget {
           ),
           Text(
             label,
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              color: AppTheme.textHint,
-            ),
+            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEarningsCard(BuildContext context, Map<String, double> earnings) {
+  Widget _buildEarningsCard(
+    BuildContext context,
+    Map<String, double> earnings,
+  ) {
     return GestureDetector(
       onTap: () => context.go('/vendor/earnings'),
       child: Container(
@@ -297,7 +320,11 @@ class _DashboardContent extends ConsumerWidget {
                     color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
-                const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white54),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 14,
+                  color: Colors.white54,
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -319,9 +346,15 @@ class _DashboardContent extends ConsumerWidget {
             const SizedBox(height: 16),
             Row(
               children: [
-                _buildEarningsPill('Held', 'R${(earnings['held'] ?? 0).toStringAsFixed(0)}'),
+                _buildEarningsPill(
+                  'Held',
+                  'R${(earnings['held'] ?? 0).toStringAsFixed(0)}',
+                ),
                 const SizedBox(width: 10),
-                _buildEarningsPill('Fees', 'R${(earnings['fees'] ?? 0).toStringAsFixed(0)}'),
+                _buildEarningsPill(
+                  'Fees',
+                  'R${(earnings['fees'] ?? 0).toStringAsFixed(0)}',
+                ),
               ],
             ),
           ],
@@ -393,7 +426,9 @@ class _DashboardContent extends ConsumerWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppTheme.getStatusColor(order.status).withValues(alpha: 0.12),
+                color: AppTheme.getStatusColor(
+                  order.status,
+                ).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -437,9 +472,14 @@ class _DashboardContent extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: AppTheme.getStatusColor(order.status).withValues(alpha: 0.12),
+                    color: AppTheme.getStatusColor(
+                      order.status,
+                    ).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
@@ -523,8 +563,11 @@ class _DashboardContent extends ConsumerWidget {
                 color: Colors.white.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.card_giftcard_outlined,
-                  color: Colors.white, size: 24),
+              child: const Icon(
+                Icons.card_giftcard_outlined,
+                color: Colors.white,
+                size: 24,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -562,8 +605,11 @@ class _DashboardContent extends ConsumerWidget {
                 color: AppTheme.terracotta.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: const Icon(Icons.support_agent_outlined,
-                  color: AppTheme.terracotta, size: 24),
+              child: const Icon(
+                Icons.support_agent_outlined,
+                color: AppTheme.terracotta,
+                size: 24,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -613,9 +659,20 @@ class _DashboardContent extends ConsumerWidget {
         children: [
           Icon(icon, size: 40, color: AppTheme.textHint),
           const SizedBox(height: 12),
-          Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(subtitle, textAlign: TextAlign.center, style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint)),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+          ),
         ],
       ),
     );
@@ -630,7 +687,10 @@ class _DashboardContent extends ConsumerWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Center(
-        child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2),
+        child: CircularProgressIndicator(
+          color: AppTheme.terracotta,
+          strokeWidth: 2,
+        ),
       ),
     );
   }
@@ -643,7 +703,10 @@ class _DashboardContent extends ConsumerWidget {
         color: AppTheme.error.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Text('Error: $error', style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error)),
+      child: Text(
+        'Error: $error',
+        style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+      ),
     );
   }
 }
@@ -657,14 +720,13 @@ class _StationeryItem {
   final String name;
   final String description;
   final IconData icon;
-  int quantity;
+  int quantity = 0;
 
   _StationeryItem({
     required this.key,
     required this.name,
     required this.description,
     required this.icon,
-    this.quantity = 0,
   });
 }
 
@@ -677,8 +739,7 @@ class _StationeryOrderSheet extends ConsumerStatefulWidget {
       _StationeryOrderSheetState();
 }
 
-class _StationeryOrderSheetState
-    extends ConsumerState<_StationeryOrderSheet> {
+class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
   final _notesController = TextEditingController();
   final _addressController = TextEditingController();
   bool _isSubmitting = false;
@@ -745,6 +806,8 @@ class _StationeryOrderSheetState
             ? null
             : _addressController.text.trim(),
       );
+      ref.invalidate(vendorStationeryRequestsProvider);
+      ref.invalidate(vendorStationeryRequestsStreamProvider);
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -755,8 +818,9 @@ class _StationeryOrderSheetState
             ),
             backgroundColor: AppTheme.baobab,
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -764,8 +828,10 @@ class _StationeryOrderSheetState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit: $e',
-                style: GoogleFonts.poppins(fontSize: 13)),
+            content: Text(
+              'Failed to submit: $e',
+              style: GoogleFonts.poppins(fontSize: 13),
+            ),
             backgroundColor: AppTheme.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -818,8 +884,11 @@ class _StationeryOrderSheetState
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.card_giftcard_outlined,
-                        color: Colors.white, size: 22),
+                    child: const Icon(
+                      Icons.card_giftcard_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -863,8 +932,9 @@ class _StationeryOrderSheetState
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
                 ),
                 child: Column(
                   children: _items.asMap().entries.map((entry) {
@@ -874,13 +944,16 @@ class _StationeryOrderSheetState
                       children: [
                         if (i > 0)
                           Divider(
-                              height: 1,
-                              color: AppTheme.sand.withValues(alpha: 0.3),
-                              indent: 16,
-                              endIndent: 16),
+                            height: 1,
+                            color: AppTheme.sand.withValues(alpha: 0.3),
+                            indent: 16,
+                            endIndent: 16,
+                          ),
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
                               Container(
@@ -890,8 +963,11 @@ class _StationeryOrderSheetState
                                   color: AppTheme.bone,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Icon(item.icon,
-                                    size: 18, color: AppTheme.terracotta),
+                                child: Icon(
+                                  item.icon,
+                                  size: 18,
+                                  color: AppTheme.terracotta,
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -922,8 +998,8 @@ class _StationeryOrderSheetState
                                   color: AppTheme.scaffoldBg,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                      color:
-                                          AppTheme.sand.withValues(alpha: 0.5)),
+                                    color: AppTheme.sand.withValues(alpha: 0.5),
+                                  ),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -931,8 +1007,8 @@ class _StationeryOrderSheetState
                                     _SheetStepperBtn(
                                       icon: Icons.remove_rounded,
                                       onTap: item.quantity > 0
-                                          ? () => setState(
-                                              () => item.quantity--)
+                                          ? () =>
+                                                setState(() => item.quantity--)
                                           : null,
                                     ),
                                     SizedBox(
@@ -986,24 +1062,27 @@ class _StationeryOrderSheetState
                 decoration: InputDecoration(
                   hintText: 'Where should we send the stationery?',
                   hintStyle: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint),
+                    fontSize: 13,
+                    color: AppTheme.textHint,
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.all(14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: AppTheme.sand.withValues(alpha: 0.4)),
+                    borderSide: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: AppTheme.sand.withValues(alpha: 0.4)),
+                    borderSide: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: AppTheme.terracotta),
+                    borderSide: const BorderSide(color: AppTheme.terracotta),
                   ),
                 ),
               ),
@@ -1028,24 +1107,27 @@ class _StationeryOrderSheetState
                 decoration: InputDecoration(
                   hintText: 'Any specific requests…',
                   hintStyle: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint),
+                    fontSize: 13,
+                    color: AppTheme.textHint,
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.all(14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: AppTheme.sand.withValues(alpha: 0.4)),
+                    borderSide: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        BorderSide(color: AppTheme.sand.withValues(alpha: 0.4)),
+                    borderSide: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: AppTheme.terracotta),
+                    borderSide: const BorderSide(color: AppTheme.terracotta),
                   ),
                 ),
               ),
@@ -1053,14 +1135,15 @@ class _StationeryOrderSheetState
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.info_outline,
-                      size: 13, color: AppTheme.textHint),
+                  Icon(Icons.info_outline, size: 13, color: AppTheme.textHint),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Artisan Lane will contact you to confirm pricing & delivery.',
                       style: GoogleFonts.poppins(
-                          fontSize: 11, color: AppTheme.textHint),
+                        fontSize: 11,
+                        color: AppTheme.textHint,
+                      ),
                     ),
                   ),
                 ],
@@ -1160,7 +1243,8 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
             backgroundColor: AppTheme.terracotta,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -1168,8 +1252,10 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to send: $e',
-                style: GoogleFonts.poppins(fontSize: 13)),
+            content: Text(
+              'Failed to send: $e',
+              style: GoogleFonts.poppins(fontSize: 13),
+            ),
             backgroundColor: AppTheme.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1220,8 +1306,11 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
                       color: AppTheme.terracotta.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.support_agent_outlined,
-                        color: AppTheme.terracotta, size: 22),
+                    child: const Icon(
+                      Icons.support_agent_outlined,
+                      color: AppTheme.terracotta,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -1266,7 +1355,8 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                      color: AppTheme.sand.withValues(alpha: 0.4)),
+                    color: AppTheme.sand.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
@@ -1279,15 +1369,13 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
                       color: AppTheme.textPrimary,
                     ),
                     dropdownColor: Colors.white,
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                        color: AppTheme.textHint),
-                    onChanged: (v) =>
-                        setState(() => _selectedSubject = v!),
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppTheme.textHint,
+                    ),
+                    onChanged: (v) => setState(() => _selectedSubject = v!),
                     items: _subjects
-                        .map((s) => DropdownMenuItem(
-                              value: s,
-                              child: Text(s),
-                            ))
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                         .toList(),
                   ),
                 ),
@@ -1305,7 +1393,7 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
                 ),
               ),
               const SizedBox(height: 8),
-                TextField(
+              TextField(
                 controller: _messageController,
                 maxLines: 5,
                 onChanged: (v) =>
@@ -1314,24 +1402,27 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
                 decoration: InputDecoration(
                   hintText: 'Describe your issue or question…',
                   hintStyle: GoogleFonts.poppins(
-                      fontSize: 13, color: AppTheme.textHint),
+                    fontSize: 13,
+                    color: AppTheme.textHint,
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: const EdgeInsets.all(14),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
-                        color: AppTheme.sand.withValues(alpha: 0.4)),
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(
-                        color: AppTheme.sand.withValues(alpha: 0.4)),
+                      color: AppTheme.sand.withValues(alpha: 0.4),
+                    ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: AppTheme.terracotta),
+                    borderSide: const BorderSide(color: AppTheme.terracotta),
                   ),
                 ),
               ),

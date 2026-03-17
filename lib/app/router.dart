@@ -46,6 +46,7 @@ import '../features/vendor/screens/vendor_settings_screen.dart';
 import '../features/vendor/screens/vendor_posts_screen.dart';
 import '../features/vendor/screens/post_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
+import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
 
 import '../widgets/buyer_shell.dart';
 import '../widgets/vendor_shell.dart';
@@ -63,19 +64,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = session != null;
       final path = state.uri.path;
 
-      final isAuthRoute = path == '/welcome' ||
+      final isAuthRoute =
+          path == '/welcome' ||
           path == '/login' ||
           path == '/register' ||
           path == '/forgot-password';
 
       // Guests can browse home, search, products, shops, categories
-      final isBrowseRoute = path == '/home' ||
+      final isBrowseRoute =
+          path == '/home' ||
           path.startsWith('/home/') ||
           path == '/search' ||
           path.startsWith('/search/');
 
       // Favourites, cart and profile require a login
-      final isProtectedBuyerRoute = path == '/favourites' ||
+      final isProtectedBuyerRoute =
+          path == '/favourites' ||
           path == '/cart' ||
           path.startsWith('/cart/') ||
           path == '/profile' ||
@@ -88,8 +92,15 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isLoggedIn && isAuthRoute) {
         final user = Supabase.instance.client.auth.currentUser;
-        final role = user?.userMetadata?['role'] as String? ?? 'buyer';
-        return role == 'vendor' ? '/vendor' : '/home';
+        final role = user?.userMetadata?['role'] as String?;
+        final requestedRole = user?.userMetadata?['requested_role'] as String?;
+        if (role == 'vendor') {
+          return '/vendor';
+        }
+        if (requestedRole == 'vendor') {
+          return '/vendor/onboarding';
+        }
+        return '/home';
       }
 
       return null;
@@ -100,10 +111,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/welcome',
         builder: (context, state) => const WelcomeScreen(),
       ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
@@ -120,9 +128,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/home',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: BuyerHomeScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: BuyerHomeScreen()),
             routes: [
               GoRoute(
                 path: 'categories',
@@ -132,8 +139,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'category/:categoryId',
                 builder: (context, state) => CategoryProductsScreen(
                   categoryId: state.pathParameters['categoryId']!,
-                  categoryName:
-                      state.uri.queryParameters['name'] ?? 'Products',
+                  categoryName: state.uri.queryParameters['name'] ?? 'Products',
                 ),
               ),
               GoRoute(
@@ -144,9 +150,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
               GoRoute(
                 path: 'shop/:shopId',
-                builder: (context, state) => ShopProfileScreen(
-                  shopId: state.pathParameters['shopId']!,
-                ),
+                builder: (context, state) =>
+                    ShopProfileScreen(shopId: state.pathParameters['shopId']!),
               ),
               GoRoute(
                 path: 'shops',
@@ -156,9 +161,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/search',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: SearchScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SearchScreen()),
             routes: [
               GoRoute(
                 path: 'results',
@@ -170,15 +174,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/favourites',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: FavouritesScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: FavouritesScreen()),
           ),
           GoRoute(
             path: '/cart',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: CartScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: CartScreen()),
             routes: [
               GoRoute(
                 path: 'checkout',
@@ -203,9 +205,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/profile',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: BuyerProfileScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: BuyerProfileScreen()),
             routes: [
               GoRoute(
                 path: 'settings',
@@ -291,20 +292,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/vendor',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: VendorDashboardScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorDashboardScreen()),
           ),
           GoRoute(
             path: '/vendor/products',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: VendorProductsScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorProductsScreen()),
             routes: [
               GoRoute(
                 path: 'new',
-                builder: (context, state) =>
-                    const ProductFormScreen(),
+                builder: (context, state) => const ProductFormScreen(),
               ),
               GoRoute(
                 path: ':productId',
@@ -316,9 +314,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/vendor/orders',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: VendorOrdersScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorOrdersScreen()),
             routes: [
               GoRoute(
                 path: ':orderId',
@@ -330,41 +327,39 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/vendor/earnings',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: VendorEarningsScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorEarningsScreen()),
           ),
           GoRoute(
             path: '/vendor/profile',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: VendorProfileScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorProfileScreen()),
             routes: [
               GoRoute(
-                path: 'shop',
+                path: 'stationery',
                 builder: (context, state) =>
-                    const VendorShopSettingsScreen(),
+                    const VendorStationeryRequestsScreen(),
+              ),
+              GoRoute(
+                path: 'shop',
+                builder: (context, state) => const VendorShopSettingsScreen(),
               ),
               GoRoute(
                 path: 'settings',
-                builder: (context, state) =>
-                    const VendorSettingsScreen(),
+                builder: (context, state) => const VendorSettingsScreen(),
               ),
               GoRoute(
                 path: 'posts',
-                builder: (context, state) =>
-                    const VendorPostsScreen(),
+                builder: (context, state) => const VendorPostsScreen(),
                 routes: [
                   GoRoute(
                     path: 'new',
-                    builder: (context, state) =>
-                        const PostFormScreen(),
+                    builder: (context, state) => const PostFormScreen(),
                   ),
                   GoRoute(
                     path: ':postId',
-                    builder: (context, state) => PostFormScreen(
-                      postId: state.pathParameters['postId'],
-                    ),
+                    builder: (context, state) =>
+                        PostFormScreen(postId: state.pathParameters['postId']),
                   ),
                 ],
               ),
