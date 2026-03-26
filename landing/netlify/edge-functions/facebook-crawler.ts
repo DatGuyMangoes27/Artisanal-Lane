@@ -1,5 +1,4 @@
-import type { Config, Context } from "@netlify/edge-functions";
-
+// @ts-nocheck
 const META_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,7 +26,7 @@ const META_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default async (request: Request, context: Context) => {
+export default async (request, context) => {
   const ua = request.headers.get("user-agent") || "";
 
   const isFacebookCrawler =
@@ -46,6 +45,6 @@ export default async (request: Request, context: Context) => {
   });
 };
 
-export const config: Config = {
+export const config = {
   path: "/*",
 };
