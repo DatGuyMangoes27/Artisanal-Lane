@@ -14,6 +14,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://artisanlanesa.co.za"),
   title: "Artisan Lane — Curated Craft Marketplace",
   description: "Discover unique handmade goods from South Africa's finest artisans. Artisan Lane is a curated marketplace where every product tells a story of craftsmanship.",
   keywords: ["handmade", "artisan", "craft marketplace", "South Africa", "handcrafted goods", "curated marketplace", "artisanal products"],
@@ -27,6 +28,7 @@ export const metadata: Metadata = {
     description: "Discover unique handmade goods from South Africa's finest artisans.",
     type: "website",
     locale: "en_ZA",
+    url: "https://artisanlanesa.co.za",
     images: ["/logo.png"],
   },
   twitter: {
