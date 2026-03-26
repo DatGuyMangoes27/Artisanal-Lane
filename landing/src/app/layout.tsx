@@ -49,9 +49,7 @@ export default function RootLayout({
           name="facebook-domain-verification"
           content="vzpvpu5gikpmkqa7esir1tyo4lvzpe"
         />
-      </head>
-      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased relative`}>
-        <Script id="meta-pixel" strategy="afterInteractive">
+        <Script id="meta-pixel" strategy="beforeInteractive">
           {`!function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -63,6 +61,8 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 fbq('init', '2004374160517759');
 fbq('track', 'PageView');`}
         </Script>
+      </head>
+      <body className={`${inter.variable} ${playfair.variable} font-sans antialiased relative`}>
         <noscript>
           <img
             height="1"
