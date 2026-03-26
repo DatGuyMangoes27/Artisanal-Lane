@@ -12,3 +12,7 @@
   for = "/*"
   [headers.values]
     X-Robots-Tag = "all"
+
+[[edge_functions]]
+  function = "facebook-crawler"
+  path = "/*"
