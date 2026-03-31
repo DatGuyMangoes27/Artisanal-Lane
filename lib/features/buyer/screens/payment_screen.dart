@@ -154,7 +154,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildPayFastCard(),
+                _buildTradeSafeCard(),
                 const SizedBox(height: 24),
                 _buildAmountCard(totalStr),
                 const SizedBox(height: 32),
@@ -209,7 +209,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Widget _buildPayFastCard() {
+  Widget _buildTradeSafeCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(32),
@@ -230,16 +230,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
-              color: const Color(0xFF00457C),
+              color: const Color(0xFF2D5B2F),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              'PayFast',
+              'TradeSafe',
               style: GoogleFonts.poppins(
                 color: Colors.white,
-                fontSize: 24,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1,
+                letterSpacing: 0.4,
               ),
             ),
           ),
@@ -254,7 +254,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'You will be redirected to PayFast to complete your payment securely.',
+            'You will be redirected to TradeSafe to complete your secure escrow checkout. TradeSafe may add its own escrow processing fee at checkout depending on the payment method used.',
             style: GoogleFonts.poppins(
               fontSize: 14,
               color: AppTheme.textSecondary,
@@ -270,7 +270,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               const SizedBox(width: 24),
               _paymentIcon(Icons.credit_card, 'Mastercard'),
               const SizedBox(width: 24),
-              _paymentIcon(Icons.account_balance, 'EFT'),
+              _paymentIcon(Icons.shield_outlined, 'Escrow'),
             ],
           ),
         ],

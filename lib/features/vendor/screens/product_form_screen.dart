@@ -28,8 +28,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _compareAtPriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _careController = TextEditingController();
+  final _optionOneNameController = TextEditingController();
+  final _optionTwoNameController = TextEditingController();
+  final _optionOneValuesController = TextEditingController();
+  final _optionTwoValuesController = TextEditingController();
 
   String? _selectedCategoryId;
+  String? _selectedSubcategoryId;
+  final Set<String> _selectedTags = {};
   bool _isPublished = true;
   bool _isLoading = false;
   bool _isInitialized = false;
@@ -37,6 +43,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   final List<String> _imageUrls = [];
   final List<File> _pendingFiles = [];
+  final List<_VariantDraft> _variants = [];
   final ImagePicker _picker = ImagePicker();
 
   bool get _isEditing => widget.productId != null;
@@ -44,7 +51,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   @override
   void initState() {
     super.initState();
-    if (_isEditing) _loadProduct();
+    if (_isEditing) {
+      _loadProduct();
+    } else {
+      _variants.add(_VariantDraft.empty());
+    }
   }
 
   Future<void> _loadProduct() async {
@@ -57,7 +68,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load product: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text('Failed to load product: $e'),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     }
@@ -71,6 +85,13 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _compareAtPriceController.dispose();
     _stockController.dispose();
     _careController.dispose();
+    _optionOneNameController.dispose();
+    _optionTwoNameController.dispose();
+    _optionOneValuesController.dispose();
+    _optionTwoValuesController.dispose();
+    for (final variant in _variants) {
+      variant.dispose();
+    }
     super.dispose();
   }
 
@@ -81,13 +102,33 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _descriptionController.text = product.description ?? '';
     _priceController.text = product.price.toStringAsFixed(2);
     if (product.compareAtPrice != null) {
-      _compareAtPriceController.text = product.compareAtPrice!.toStringAsFixed(2);
+      _compareAtPriceController.text = product.compareAtPrice!.toStringAsFixed(
+        2,
+      );
     }
     _stockController.text = product.stockQty.toString();
     _selectedCategoryId = product.categoryId;
+    _selectedSubcategoryId = product.subcategoryId;
+    _selectedTags.addAll(product.tags);
     _isPublished = product.isPublished;
     _careController.text = product.careInstructions ?? '';
     _imageUrls.addAll(product.images);
+    final optionGroups = product.optionGroups;
+    if (optionGroups.isNotEmpty) {
+      _optionOneNameController.text = optionGroups.first.name;
+      _optionOneValuesController.text = optionGroups.first.values.join(', ');
+      if (optionGroups.length > 1) {
+        _optionTwoNameController.text = optionGroups[1].name;
+        _optionTwoValuesController.text = optionGroups[1].values.join(', ');
+      }
+    } else if (product.variants.isNotEmpty) {
+      _optionOneNameController.text = 'Colour';
+    }
+    if (product.variants.isNotEmpty) {
+      _variants.addAll(product.variants.map(_VariantDraft.fromVariant));
+    } else {
+      _variants.add(_VariantDraft.fromLegacyProduct(product));
+    }
   }
 
   void _showImageSourcePicker() {
@@ -129,10 +170,22 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     color: AppTheme.terracotta.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.camera_alt_rounded, color: AppTheme.terracotta),
+                  child: const Icon(
+                    Icons.camera_alt_rounded,
+                    color: AppTheme.terracotta,
+                  ),
                 ),
-                title: Text('Take Photo', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                subtitle: Text('Use your camera', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint)),
+                title: Text(
+                  'Take Photo',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Use your camera',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickImage(ImageSource.camera);
@@ -146,10 +199,22 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     color: AppTheme.baobab.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.photo_library_rounded, color: AppTheme.baobab),
+                  child: const Icon(
+                    Icons.photo_library_rounded,
+                    color: AppTheme.baobab,
+                  ),
                 ),
-                title: Text('Choose from Gallery', style: GoogleFonts.poppins(fontWeight: FontWeight.w500)),
-                subtitle: Text('Pick from your photos', style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint)),
+                title: Text(
+                  'Choose from Gallery',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                subtitle: Text(
+                  'Pick from your photos',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(ctx);
                   _pickMultipleImages();
@@ -177,7 +242,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not access camera: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text('Could not access camera: $e'),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     }
@@ -198,10 +266,374 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not access gallery: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text('Could not access gallery: $e'),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     }
+  }
+
+  void _addVariant() {
+    setState(() => _variants.add(_VariantDraft.empty()));
+  }
+
+  List<String> _parseOptionValues(String raw) {
+    final seen = <String>{};
+    final values = <String>[];
+    for (final piece in raw.split(RegExp(r'[\n,]'))) {
+      final trimmed = piece.trim();
+      final normalized = trimmed.toLowerCase();
+      if (trimmed.isEmpty || !seen.add(normalized)) {
+        continue;
+      }
+      values.add(trimmed);
+    }
+    return values;
+  }
+
+  String _variantKeyFromValues(String optionOneValue, String optionTwoValue) {
+    final second = optionTwoValue.trim();
+    return second.isEmpty
+        ? optionOneValue.trim().toLowerCase()
+        : '${optionOneValue.trim().toLowerCase()}|${second.toLowerCase()}';
+  }
+
+  String _variantKey(_VariantDraft variant) => _variantKeyFromValues(
+    variant.optionOneController.text,
+    variant.optionTwoController.text,
+  );
+
+  bool _isBlankVariantDraft(_VariantDraft variant) {
+    return variant.optionOneController.text.trim().isEmpty &&
+        variant.optionTwoController.text.trim().isEmpty &&
+        variant.priceController.text.trim().isEmpty &&
+        variant.compareAtPriceController.text.trim().isEmpty &&
+        variant.stockController.text.trim() == '0' &&
+        variant.imageUrls.isEmpty &&
+        variant.pendingFiles.isEmpty;
+  }
+
+  _VariantDraft _newGeneratedVariant({
+    required String optionOneValue,
+    required String optionTwoValue,
+  }) {
+    _VariantDraft? seed;
+    for (final variant in _variants) {
+      if (!_isBlankVariantDraft(variant)) {
+        seed = variant;
+        break;
+      }
+    }
+
+    return _VariantDraft(
+      optionOneController: TextEditingController(text: optionOneValue),
+      optionTwoController: TextEditingController(text: optionTwoValue),
+      priceController: TextEditingController(
+        text: (seed?.priceController.text.trim().isNotEmpty ?? false)
+            ? seed?.priceController.text.trim() ?? ''
+            : _priceController.text.trim(),
+      ),
+      compareAtPriceController: TextEditingController(
+        text: (seed?.compareAtPriceController.text.trim().isNotEmpty ?? false)
+            ? seed?.compareAtPriceController.text.trim() ?? ''
+            : _compareAtPriceController.text.trim(),
+      ),
+      stockController: TextEditingController(
+        text: (seed?.stockController.text.trim().isNotEmpty ?? false)
+            ? seed?.stockController.text.trim() ?? '0'
+            : '0',
+      ),
+    );
+  }
+
+  void _generateCombinations() {
+    final optionOneName = _optionOneNameController.text.trim();
+    final optionTwoName = _optionTwoNameController.text.trim();
+    final optionOneValues = _parseOptionValues(_optionOneValuesController.text);
+    final optionTwoValues = _parseOptionValues(_optionTwoValuesController.text);
+
+    if (optionOneName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Add the first option name before generating combinations.',
+          ),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (optionOneValues.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one value for the first option.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (optionTwoName.isNotEmpty && optionTwoValues.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one value for the second option.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    final existingByKey = <String, _VariantDraft>{};
+    final unmatchedExisting = <_VariantDraft>[];
+    for (final variant in _variants) {
+      final key = _variantKey(variant);
+      if (key.isEmpty || _isBlankVariantDraft(variant)) {
+        variant.dispose();
+        continue;
+      }
+      existingByKey[key] = variant;
+    }
+
+    final generated = <_VariantDraft>[];
+    for (final optionOneValue in optionOneValues) {
+      if (optionTwoName.isEmpty) {
+        final key = _variantKeyFromValues(optionOneValue, '');
+        generated.add(
+          existingByKey.remove(key) ??
+              _newGeneratedVariant(
+                optionOneValue: optionOneValue,
+                optionTwoValue: '',
+              ),
+        );
+        continue;
+      }
+
+      for (final optionTwoValue in optionTwoValues) {
+        final key = _variantKeyFromValues(optionOneValue, optionTwoValue);
+        generated.add(
+          existingByKey.remove(key) ??
+              _newGeneratedVariant(
+                optionOneValue: optionOneValue,
+                optionTwoValue: optionTwoValue,
+              ),
+        );
+      }
+    }
+
+    unmatchedExisting.addAll(existingByKey.values);
+
+    setState(() {
+      _variants
+        ..clear()
+        ..addAll(generated)
+        ..addAll(unmatchedExisting);
+    });
+
+    final generatedCount = generated.length;
+    final preservedCount = unmatchedExisting.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          preservedCount > 0
+              ? 'Generated $generatedCount combinations. Kept $preservedCount unmatched existing row(s) below.'
+              : 'Generated $generatedCount combinations.',
+        ),
+        backgroundColor: AppTheme.baobab,
+      ),
+    );
+  }
+
+  void _removeVariant(int index) {
+    if (_variants.length == 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add at least one option for this product.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+
+    final variant = _variants.removeAt(index);
+    variant.dispose();
+    setState(() {});
+  }
+
+  Future<void> _pickVariantImages(
+    int index, {
+    required bool multiple,
+    ImageSource? source,
+  }) async {
+    try {
+      if (multiple) {
+        final images = await _picker.pickMultiImage(
+          maxWidth: 1200,
+          maxHeight: 1200,
+          imageQuality: 85,
+        );
+        if (images.isNotEmpty) {
+          setState(() {
+            _variants[index].pendingFiles.addAll(
+              images.map((image) => File(image.path)),
+            );
+          });
+        }
+        return;
+      }
+
+      final image = await _picker.pickImage(
+        source: source ?? ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (image != null) {
+        setState(() => _variants[index].pendingFiles.add(File(image.path)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not add option photos: $error'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
+  void _showVariantImageSourcePicker(int index) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.sand,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Add Option Photos',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(
+                  Icons.camera_alt_rounded,
+                  color: AppTheme.terracotta,
+                ),
+                title: Text(
+                  'Take Photo',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickVariantImages(
+                    index,
+                    multiple: false,
+                    source: ImageSource.camera,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.photo_library_rounded,
+                  color: AppTheme.baobab,
+                ),
+                title: Text(
+                  'Choose from Gallery',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickVariantImages(index, multiple: true);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _uploadVariantPendingImages() async {
+    final service = ref.read(supabaseServiceProvider);
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+
+    for (final variant in _variants) {
+      if (variant.pendingFiles.isEmpty) continue;
+      for (final file in variant.pendingFiles) {
+        final url = await service.uploadProductImage(userId, file);
+        variant.imageUrls.add(url);
+      }
+      variant.pendingFiles.clear();
+    }
+  }
+
+  String? _validateVariants() {
+    if (_variants.isEmpty) {
+      return 'Add at least one option.';
+    }
+
+    final optionOneName = _optionOneNameController.text.trim();
+    final optionTwoName = _optionTwoNameController.text.trim();
+    if (optionOneName.isEmpty) {
+      return 'Add a first option name, like Size or Colour.';
+    }
+
+    final seenCombinations = <String>{};
+
+    for (final variant in _variants) {
+      final optionOneValue = variant.optionOneController.text.trim();
+      final optionTwoValue = variant.optionTwoController.text.trim();
+
+      if (optionOneValue.isEmpty) {
+        return 'Each combination needs a ${optionOneName.toLowerCase()} value.';
+      }
+      if (optionTwoName.isNotEmpty && optionTwoValue.isEmpty) {
+        return 'Each combination needs a ${optionTwoName.toLowerCase()} value.';
+      }
+      if (optionTwoName.isEmpty && optionTwoValue.isNotEmpty) {
+        return 'Add a second option name before using a second option value.';
+      }
+
+      final key = optionTwoName.isEmpty
+          ? optionOneValue.toLowerCase()
+          : '${optionOneValue.toLowerCase()}|${optionTwoValue.toLowerCase()}';
+      if (!seenCombinations.add(key)) {
+        return 'Each option combination must be unique.';
+      }
+      if (double.tryParse(variant.priceController.text.trim()) == null) {
+        return 'Each combination needs a valid price.';
+      }
+      if (int.tryParse(variant.stockController.text.trim()) == null) {
+        return 'Each combination needs a valid stock quantity.';
+      }
+      if (variant.imageUrls.isEmpty && variant.pendingFiles.isEmpty) {
+        return 'Each combination needs at least one photo.';
+      }
+    }
+
+    return null;
   }
 
   Future<List<String>> _uploadPendingImages() async {
@@ -220,10 +652,28 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_imageUrls.isEmpty && _pendingFiles.isEmpty) {
+    final variantError = _validateVariants();
+    if (variantError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Please add at least one product photo', style: GoogleFonts.poppins()),
+          content: Text(variantError, style: GoogleFonts.poppins()),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+    if (_imageUrls.isEmpty &&
+        _pendingFiles.isEmpty &&
+        _variants.every(
+          (variant) =>
+              variant.imageUrls.isEmpty && variant.pendingFiles.isEmpty,
+        )) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Please add at least one product photo',
+            style: GoogleFonts.poppins(),
+          ),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -233,26 +683,101 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     setState(() => _isLoading = true);
 
     try {
-      if (_pendingFiles.isNotEmpty) {
+      if (_pendingFiles.isNotEmpty ||
+          _variants.any((variant) => variant.pendingFiles.isNotEmpty)) {
         setState(() => _isUploading = true);
+      }
+      if (_pendingFiles.isNotEmpty) {
         final newUrls = await _uploadPendingImages();
         _imageUrls.addAll(newUrls);
         _pendingFiles.clear();
-        setState(() => _isUploading = false);
       }
+      await _uploadVariantPendingImages();
+      setState(() => _isUploading = false);
 
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
       if (shop == null) throw Exception('No shop found');
 
+      final optionOneName = _optionOneNameController.text.trim();
+      final optionTwoName = _optionTwoNameController.text.trim();
+
+      final variantPayloads = _variants.asMap().entries.map((entry) {
+        final variant = entry.value;
+        final optionValues = <String>[
+          variant.optionOneController.text.trim(),
+          if (optionTwoName.isNotEmpty) variant.optionTwoController.text.trim(),
+        ];
+        final displayName = optionValues.join(' / ');
+        return <String, dynamic>{
+          if (variant.id != null) 'id': variant.id,
+          'display_name': displayName,
+          'color_name': optionValues.length == 1
+              ? optionValues.first
+              : displayName,
+          'option_values': optionValues,
+          'price': double.parse(variant.priceController.text.trim()),
+          'compare_at_price':
+              variant.compareAtPriceController.text.trim().isNotEmpty
+              ? double.parse(variant.compareAtPriceController.text.trim())
+              : null,
+          'stock_qty': int.parse(variant.stockController.text.trim()),
+          'images': List<String>.from(variant.imageUrls),
+          'is_active': true,
+          'sort_order': entry.key,
+        };
+      }).toList();
+
+      final optionGroups = <Map<String, dynamic>>[
+        {
+          'name': optionOneName,
+          'values': _variants
+              .map((variant) => variant.optionOneController.text.trim())
+              .where((value) => value.isNotEmpty)
+              .toSet()
+              .toList(),
+        },
+        if (optionTwoName.isNotEmpty)
+          {
+            'name': optionTwoName,
+            'values': _variants
+                .map((variant) => variant.optionTwoController.text.trim())
+                .where((value) => value.isNotEmpty)
+                .toSet()
+                .toList(),
+          },
+      ];
+
+      final coverImages = _imageUrls.isNotEmpty
+          ? _imageUrls
+          : List<String>.from(variantPayloads.first['images'] as List);
+      final fallbackPrice =
+          (_priceController.text.trim().isNotEmpty
+              ? double.tryParse(_priceController.text.trim())
+              : null) ??
+          (variantPayloads.first['price'] as double);
+      final fallbackStock =
+          (_stockController.text.trim().isNotEmpty
+              ? int.tryParse(_stockController.text.trim())
+              : null) ??
+          _variants.fold<int>(
+            0,
+            (sum, variant) =>
+                sum + int.parse(variant.stockController.text.trim()),
+          );
+
       final data = {
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'price': double.parse(_priceController.text),
-        'stock_qty': int.parse(_stockController.text),
+        'price': fallbackPrice,
+        'stock_qty': fallbackStock,
         'is_published': _isPublished,
-        'images': _imageUrls,
+        'images': coverImages,
+        'option_groups': optionGroups,
+        'tags': _selectedTags.toList(),
+        'variants': variantPayloads,
         if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
+        'subcategory_id': _selectedSubcategoryId,
         if (_compareAtPriceController.text.isNotEmpty)
           'compare_at_price': double.parse(_compareAtPriceController.text),
         if (_careController.text.trim().isNotEmpty)
@@ -306,9 +831,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
             onPressed: () => context.pop(),
           ),
-          title: Text('Edit Product', style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600)),
+          title: Text(
+            'Edit Product',
+            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+          ),
         ),
-        body: const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2)),
+        body: const Center(
+          child: CircularProgressIndicator(
+            color: AppTheme.terracotta,
+            strokeWidth: 2,
+          ),
+        ),
       );
     }
 
@@ -331,11 +864,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             // ── Photos section ──────────────────────────────────
-            _buildLabel('Photos'),
+            _buildLabel('Fallback Photos'),
             const SizedBox(height: 4),
             Text(
-              '$totalImages/8 photos added',
-              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+              '$totalImages/8 photos added · used when no option photos are set',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textHint,
+              ),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -344,25 +880,36 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 scrollDirection: Axis.horizontal,
                 children: [
                   // Uploaded images (from server)
-                  ..._imageUrls.asMap().entries.map((entry) => _ImageTile(
-                        key: ValueKey('url-${entry.key}'),
-                        onRemove: () => _removeUploadedImage(entry.key),
-                        child: CachedNetworkImage(
-                          imageUrl: entry.value,
-                          fit: BoxFit.cover,
-                          placeholder: (_, __) => const Center(
-                            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ..._imageUrls.asMap().entries.map(
+                    (entry) => _ImageTile(
+                      key: ValueKey('url-${entry.key}'),
+                      onRemove: () => _removeUploadedImage(entry.key),
+                      child: CachedNetworkImage(
+                        imageUrl: entry.value,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                          errorWidget: (_, __, ___) => const Icon(Icons.broken_image, color: AppTheme.textHint),
                         ),
-                      )),
+                        errorWidget: (_, __, ___) => const Icon(
+                          Icons.broken_image,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                    ),
+                  ),
                   // Pending local files
-                  ..._pendingFiles.asMap().entries.map((entry) => _ImageTile(
-                        key: ValueKey('file-${entry.key}'),
-                        onRemove: () => _removePendingImage(entry.key),
-                        isPending: true,
-                        child: Image.file(entry.value, fit: BoxFit.cover),
-                      )),
+                  ..._pendingFiles.asMap().entries.map(
+                    (entry) => _ImageTile(
+                      key: ValueKey('file-${entry.key}'),
+                      onRemove: () => _removePendingImage(entry.key),
+                      isPending: true,
+                      child: Image.file(entry.value, fit: BoxFit.cover),
+                    ),
+                  ),
                   // Add button
                   if (totalImages < 8)
                     GestureDetector(
@@ -390,7 +937,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                                 color: AppTheme.baobab.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.add_a_photo_rounded, color: AppTheme.baobab, size: 20),
+                              child: const Icon(
+                                Icons.add_a_photo_rounded,
+                                color: AppTheme.baobab,
+                                size: 20,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             Text(
@@ -416,12 +967,18 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     const SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.baobab),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.baobab,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'Uploading photos...',
-                      style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.baobab),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.baobab,
+                      ),
                     ),
                   ],
                 ),
@@ -434,7 +991,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             TextFormField(
               controller: _titleController,
               textCapitalization: TextCapitalization.words,
-              validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+              validator: (v) =>
+                  v == null || v.trim().isEmpty ? 'Required' : null,
               decoration: const InputDecoration(hintText: 'Handwoven Basket'),
             ),
             const SizedBox(height: 20),
@@ -445,7 +1003,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               controller: _descriptionController,
               maxLines: 4,
               textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(hintText: 'Describe your product...'),
+              decoration: const InputDecoration(
+                hintText: 'Describe your product...',
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -456,15 +1016,218 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 initialValue: _selectedCategoryId,
                 decoration: const InputDecoration(hintText: 'Select category'),
                 items: categories
-                    .map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(c.name, style: GoogleFonts.poppins(fontSize: 14)),
-                        ))
+                    .map(
+                      (c) => DropdownMenuItem(
+                        value: c.id,
+                        child: Text(
+                          c.name,
+                          style: GoogleFonts.poppins(fontSize: 14),
+                        ),
+                      ),
+                    )
                     .toList(),
-                onChanged: (v) => setState(() => _selectedCategoryId = v),
+                onChanged: (v) => setState(() {
+                  _selectedCategoryId = v;
+                  _selectedSubcategoryId = null;
+                  _selectedTags.clear();
+                }),
               ),
               loading: () => const LinearProgressIndicator(),
               error: (_, __) => const Text('Could not load categories'),
+            ),
+            const SizedBox(height: 20),
+
+            // Subcategory
+            if (_selectedCategoryId != null) ...[
+              _buildLabel('Subcategory'),
+              const SizedBox(height: 8),
+              _buildSubcategoryDropdown(),
+              const SizedBox(height: 20),
+            ],
+
+            // Tags (category-specific filters)
+            if (_selectedCategoryId != null) ...[
+              Builder(
+                builder: (context) {
+                  final cats = ref.read(vendorCategoriesProvider).value ?? [];
+                  final cat = cats
+                      .where((c) => c.id == _selectedCategoryId)
+                      .firstOrNull;
+                  final tags = cat?.availableFilterTags ?? [];
+                  if (tags.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Tags'),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: tags.map((tag) {
+                          final selected = _selectedTags.contains(tag);
+                          return FilterChip(
+                            label: Text(
+                              tag[0].toUpperCase() + tag.substring(1),
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: selected
+                                    ? Colors.white
+                                    : AppTheme.textPrimary,
+                              ),
+                            ),
+                            selected: selected,
+                            onSelected: (v) {
+                              setState(() {
+                                if (v) {
+                                  _selectedTags.add(tag);
+                                } else {
+                                  _selectedTags.remove(tag);
+                                }
+                              });
+                            },
+                            selectedColor: AppTheme.terracotta,
+                            checkmarkColor: Colors.white,
+                            backgroundColor: Colors.white,
+                            side: BorderSide(
+                              color: selected
+                                  ? AppTheme.terracotta
+                                  : AppTheme.sand.withValues(alpha: 0.5),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  );
+                },
+              ),
+            ],
+
+            _buildLabel('Product Options'),
+            const SizedBox(height: 8),
+            Text(
+              'Set one or two option groups, then add each sellable combination with its own price, stock, and photos.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textHint,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _optionOneNameController,
+                    textCapitalization: TextCapitalization.words,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Option 1 Name',
+                      hintText: 'Size',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _optionTwoNameController,
+                    textCapitalization: TextCapitalization.words,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Option 2 Name',
+                      hintText: 'Colour (optional)',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _optionOneValuesController,
+                    minLines: 2,
+                    maxLines: 3,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: _optionOneNameController.text.trim().isEmpty
+                          ? 'Option 1 Values'
+                          : '${_optionOneNameController.text.trim()} Values',
+                      hintText: 'Small, Medium, Large',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _optionTwoValuesController,
+                    minLines: 2,
+                    maxLines: 3,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      labelText: _optionTwoNameController.text.trim().isEmpty
+                          ? 'Option 2 Values'
+                          : '${_optionTwoNameController.text.trim()} Values',
+                      hintText: 'Blue, Red, Natural',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter values separated by commas or new lines, then generate the combinations below.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textHint,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _generateCombinations,
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: const Text('Generate Combinations'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.terracotta,
+                    side: BorderSide(
+                      color: AppTheme.terracotta.withValues(alpha: 0.45),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            ..._variants.asMap().entries.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _buildVariantCard(entry.key, entry.value),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _addVariant,
+                icon: const Icon(Icons.add_rounded, color: AppTheme.terracotta),
+                label: Text(
+                  'Add Another Combination',
+                  style: GoogleFonts.poppins(
+                    color: AppTheme.terracotta,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -474,17 +1237,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('Price (R)'),
+                      _buildLabel('Fallback Price (R)'),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _priceController,
                         keyboardType: TextInputType.number,
                         validator: (v) {
+                          if (_variants.isNotEmpty) return null;
                           if (v == null || v.isEmpty) return 'Required';
                           if (double.tryParse(v) == null) return 'Invalid';
                           return null;
                         },
-                        decoration: const InputDecoration(hintText: '0.00'),
+                        decoration: const InputDecoration(
+                          hintText: 'Optional when variants are set',
+                        ),
                       ),
                     ],
                   ),
@@ -494,12 +1260,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('Compare at (R)'),
+                      _buildLabel('Fallback Compare at (R)'),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _compareAtPriceController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(hintText: 'Optional'),
+                        decoration: const InputDecoration(
+                          hintText: 'Optional sale price anchor',
+                        ),
                       ),
                     ],
                   ),
@@ -508,17 +1276,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 20),
 
-            _buildLabel('Stock Quantity'),
+            _buildLabel('Fallback Stock Quantity'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _stockController,
               keyboardType: TextInputType.number,
               validator: (v) {
+                if (_variants.isNotEmpty) return null;
                 if (v == null || v.isEmpty) return 'Required';
                 if (int.tryParse(v) == null) return 'Invalid';
                 return null;
               },
-              decoration: const InputDecoration(hintText: '0'),
+              decoration: const InputDecoration(
+                hintText: 'Optional when variants are set',
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -529,10 +1300,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             SwitchListTile(
               value: _isPublished,
               onChanged: (v) => setState(() => _isPublished = v),
-              title: Text('Publish', style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600)),
+              title: Text(
+                'Publish',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               subtitle: Text(
                 _isPublished ? 'Visible to buyers' : 'Saved as draft',
-                style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
               ),
               activeTrackColor: AppTheme.baobab,
               contentPadding: EdgeInsets.zero,
@@ -574,7 +1354,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.spa_outlined, color: Colors.white, size: 18),
+            child: const Icon(
+              Icons.spa_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
           title: Text(
             'Care Instructions',
@@ -597,8 +1381,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               decoration: InputDecoration(
                 hintText:
                     'e.g. Hand wash in cold water. Do not bleach. Air dry flat. Store in a cool dry place away from direct sunlight.',
-                hintStyle:
-                    GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                hintStyle: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
                 hintMaxLines: 4,
               ),
             ),
@@ -608,10 +1394,253 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     );
   }
 
+  Widget _buildVariantCard(int index, _VariantDraft variant) {
+    final totalImages = variant.imageUrls.length + variant.pendingFiles.length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Combination ${index + 1}',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              if (_variants.length > 1)
+                IconButton(
+                  onPressed: () => _removeVariant(index),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppTheme.error,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: variant.optionOneController,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              labelText: _optionOneNameController.text.trim().isEmpty
+                  ? 'Option 1 Value'
+                  : _optionOneNameController.text.trim(),
+              hintText: 'e.g. Small, Large, Terracotta',
+            ),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Add an option value';
+              }
+              return null;
+            },
+          ),
+          if (_optionTwoNameController.text.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: variant.optionTwoController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: _optionTwoNameController.text.trim(),
+                hintText: 'e.g. Red, Blue, Natural',
+              ),
+              validator: (value) {
+                if (_optionTwoNameController.text.trim().isNotEmpty &&
+                    (value == null || value.trim().isEmpty)) {
+                  return 'Add a second option value';
+                }
+                return null;
+              },
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: variant.priceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(hintText: 'Price'),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Required';
+                    }
+                    if (double.tryParse(value.trim()) == null) {
+                      return 'Invalid';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextFormField(
+                  controller: variant.compareAtPriceController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: 'Compare at (sale)',
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: variant.stockController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(hintText: 'Stock quantity'),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Required';
+              }
+              if (int.tryParse(value.trim()) == null) {
+                return 'Invalid';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '$totalImages/8 combination photos',
+            style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 110,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                ...variant.imageUrls.asMap().entries.map(
+                  (entry) => _ImageTile(
+                    key: ValueKey('variant-url-$index-${entry.key}'),
+                    onRemove: () =>
+                        setState(() => variant.imageUrls.removeAt(entry.key)),
+                    child: CachedNetworkImage(
+                      imageUrl: entry.value,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => const Center(
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.broken_image,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
+                  ),
+                ),
+                ...variant.pendingFiles.asMap().entries.map(
+                  (entry) => _ImageTile(
+                    key: ValueKey('variant-file-$index-${entry.key}'),
+                    onRemove: () => setState(
+                      () => variant.pendingFiles.removeAt(entry.key),
+                    ),
+                    isPending: true,
+                    child: Image.file(entry.value, fit: BoxFit.cover),
+                  ),
+                ),
+                if (totalImages < 8)
+                  GestureDetector(
+                    onTap: () => _showVariantImageSourcePicker(index),
+                    child: Container(
+                      width: 110,
+                      height: 110,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: AppTheme.cardBg,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppTheme.sand, width: 1.5),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.add_photo_alternate_outlined,
+                            color: AppTheme.baobab,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Add Photos',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.baobab,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubcategoryDropdown() {
+    if (_selectedCategoryId == null) return const SizedBox.shrink();
+    final subcategoriesAsync = ref.watch(
+      vendorSubcategoriesProvider(_selectedCategoryId!),
+    );
+    return subcategoriesAsync.when(
+      data: (subs) {
+        if (subs.isEmpty) {
+          return Text(
+            'No subcategories available',
+            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          );
+        }
+        final validId = subs.any((s) => s.id == _selectedSubcategoryId)
+            ? _selectedSubcategoryId
+            : null;
+        if (validId != _selectedSubcategoryId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _selectedSubcategoryId = validId);
+          });
+        }
+        return DropdownButtonFormField<String>(
+          initialValue: validId,
+          decoration: const InputDecoration(hintText: 'Select subcategory'),
+          items: subs
+              .map(
+                (s) => DropdownMenuItem(
+                  value: s.id,
+                  child: Text(s.name, style: GoogleFonts.poppins(fontSize: 14)),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => setState(() => _selectedSubcategoryId = v),
+        );
+      },
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const Text('Could not load subcategories'),
+    );
+  }
+
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: GoogleFonts.poppins(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+      style: GoogleFonts.poppins(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textPrimary,
+      ),
     );
   }
 }
@@ -652,7 +1681,11 @@ class _ImageTile extends StatelessWidget {
                 ),
                 child: Text(
                   'New',
-                  style: GoogleFonts.poppins(fontSize: 9, color: Colors.white, fontWeight: FontWeight.w600),
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
@@ -675,5 +1708,81 @@ class _ImageTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _VariantDraft {
+  final String? id;
+  final TextEditingController optionOneController;
+  final TextEditingController optionTwoController;
+  final TextEditingController priceController;
+  final TextEditingController compareAtPriceController;
+  final TextEditingController stockController;
+  final List<String> imageUrls;
+  final List<File> pendingFiles;
+
+  _VariantDraft({
+    this.id,
+    required this.optionOneController,
+    required this.optionTwoController,
+    required this.priceController,
+    required this.compareAtPriceController,
+    required this.stockController,
+    List<String>? imageUrls,
+    List<File>? pendingFiles,
+  }) : imageUrls = imageUrls ?? [],
+       pendingFiles = pendingFiles ?? [];
+
+  factory _VariantDraft.empty() {
+    return _VariantDraft(
+      optionOneController: TextEditingController(),
+      optionTwoController: TextEditingController(),
+      priceController: TextEditingController(),
+      compareAtPriceController: TextEditingController(),
+      stockController: TextEditingController(text: '0'),
+    );
+  }
+
+  factory _VariantDraft.fromVariant(ProductVariant variant) {
+    return _VariantDraft(
+      id: variant.id,
+      optionOneController: TextEditingController(
+        text: variant.optionValueAt(0) ?? variant.displayName,
+      ),
+      optionTwoController: TextEditingController(
+        text: variant.optionValueAt(1) ?? '',
+      ),
+      priceController: TextEditingController(
+        text: variant.price.toStringAsFixed(2),
+      ),
+      compareAtPriceController: TextEditingController(
+        text: variant.compareAtPrice?.toStringAsFixed(2) ?? '',
+      ),
+      stockController: TextEditingController(text: variant.stockQty.toString()),
+      imageUrls: List<String>.from(variant.images),
+    );
+  }
+
+  factory _VariantDraft.fromLegacyProduct(Product product) {
+    return _VariantDraft(
+      optionOneController: TextEditingController(),
+      optionTwoController: TextEditingController(),
+      priceController: TextEditingController(
+        text: product.price.toStringAsFixed(2),
+      ),
+      compareAtPriceController: TextEditingController(
+        text: product.compareAtPrice?.toStringAsFixed(2) ?? '',
+      ),
+      stockController: TextEditingController(text: product.stockQty.toString()),
+      imageUrls: List<String>.from(product.images),
+    );
+  }
+
+  void dispose() {
+    optionOneController.dispose();
+    optionTwoController.dispose();
+    priceController.dispose();
+    compareAtPriceController.dispose();
+    stockController.dispose();
   }
 }

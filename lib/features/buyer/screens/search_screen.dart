@@ -37,6 +37,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     context.push('/search/results?q=${Uri.encodeComponent(query.trim())}');
   }
 
+  void _closeSearch() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final recentSearches = ref.watch(recentSearchesProvider);
@@ -59,13 +68,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => context.pop(),
+                      onTap: _closeSearch,
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           border: Border.all(
-                              color: AppTheme.sand.withValues(alpha: 0.3)),
+                            color: AppTheme.sand.withValues(alpha: 0.3),
+                          ),
                           borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
@@ -136,8 +146,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     color: AppTheme.textPrimary,
                   ),
                   suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear_rounded,
-                        size: 20, color: AppTheme.textHint),
+                    icon: const Icon(
+                      Icons.clear_rounded,
+                      size: 20,
+                      color: AppTheme.textHint,
+                    ),
                     onPressed: _controller.clear,
                   ),
                   border: OutlineInputBorder(
@@ -145,7 +158,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 16),
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
@@ -198,13 +213,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? _EmptyBlock(message: 'No recent searches yet.')
                     : Column(
                         children: searches
-                            .map((s) => _RecentSearchTile(
-                                  text: s,
-                                  onTap: () => _search(s),
-                                  onRemove: () => ref
-                                      .read(recentSearchesProvider.notifier)
-                                      .remove(s),
-                                ))
+                            .map(
+                              (s) => _RecentSearchTile(
+                                text: s,
+                                onTap: () => _search(s),
+                                onRemove: () => ref
+                                    .read(recentSearchesProvider.notifier)
+                                    .remove(s),
+                              ),
+                            )
                             .toList(),
                       ),
                 loading: () => const SizedBox(height: 48),
@@ -220,7 +237,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                'Trending',
+                'Trending Searches',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 20,
                   color: AppTheme.textPrimary,
@@ -237,10 +254,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   spacing: 10,
                   runSpacing: 10,
                   children: terms
-                      .map((t) => _TrendingChip(
-                            label: t,
-                            onTap: () => _search(t),
-                          ))
+                      .map(
+                        (t) => _TrendingChip(label: t, onTap: () => _search(t)),
+                      )
                       .toList(),
                 ),
                 loading: () => Wrap(
@@ -291,8 +307,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   itemBuilder: (context, index) {
                     final cat = cats[index];
                     return GestureDetector(
-                      onTap: () => context
-                          .push('/home/category/${cat.id}?name=${cat.name}'),
+                      onTap: () => context.push(
+                        '/home/category/${cat.id}?name=${cat.name}',
+                      ),
                       child: Column(
                         children: [
                           Container(
@@ -302,11 +319,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               color: AppTheme.bone,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                  color: AppTheme.sand.withValues(alpha: 0.5)),
+                                color: AppTheme.sand.withValues(alpha: 0.5),
+                              ),
                             ),
                             child: Center(
-                              child: Icon(cat.icon,
-                                  color: AppTheme.terracotta, size: 24),
+                              child: Icon(
+                                cat.icon,
+                                color: AppTheme.terracotta,
+                                size: 24,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -326,7 +347,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 loading: () => ListView.separated(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                   scrollDirection: Axis.horizontal,
-                  itemCount: 6,
+                  itemCount: 9,
                   separatorBuilder: (_, __) => const SizedBox(width: 24),
                   itemBuilder: (_, __) => Column(
                     children: [
@@ -339,8 +360,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                          width: 48, height: 10, color: AppTheme.bone),
+                      Container(width: 48, height: 10, color: AppTheme.bone),
                     ],
                   ),
                 ),
@@ -385,18 +405,23 @@ class _RecentSearchTile extends StatelessWidget {
       ),
       child: ListTile(
         dense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading:
-            const Icon(Icons.history_rounded, size: 20, color: AppTheme.textHint),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: const Icon(
+          Icons.history_rounded,
+          size: 20,
+          color: AppTheme.textHint,
+        ),
         title: Text(
           text,
           style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textPrimary),
         ),
         trailing: GestureDetector(
           onTap: onRemove,
-          child: const Icon(Icons.close_rounded,
-              size: 16, color: AppTheme.textHint),
+          child: const Icon(
+            Icons.close_rounded,
+            size: 16,
+            color: AppTheme.textHint,
+          ),
         ),
         onTap: onTap,
       ),
@@ -447,13 +472,19 @@ class _EmptyBlock extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.search_off_rounded,
-              color: AppTheme.textHint, size: 24),
+          const Icon(
+            Icons.search_off_rounded,
+            color: AppTheme.textHint,
+            size: 24,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textHint),
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textHint,
+              ),
             ),
           ),
         ],

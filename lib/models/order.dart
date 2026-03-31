@@ -106,6 +106,9 @@ class OrderItem {
   final String id;
   final String orderId;
   final String productId;
+  final String? variantId;
+  final String? variantName;
+  final String? variantImage;
   final int quantity;
   final double unitPrice;
   final DateTime createdAt;
@@ -118,6 +121,9 @@ class OrderItem {
     required this.id,
     required this.orderId,
     required this.productId,
+    this.variantId,
+    this.variantName,
+    this.variantImage,
     required this.quantity,
     required this.unitPrice,
     required this.createdAt,
@@ -137,13 +143,18 @@ class OrderItem {
       id: json['id'] as String,
       orderId: json['order_id'] as String,
       productId: json['product_id'] as String,
+      variantId: json['variant_id'] as String?,
+      variantName: json['variant_name'] as String?,
+      variantImage: json['variant_image'] as String?,
       quantity: json['quantity'] as int,
       unitPrice: (json['unit_price'] as num).toDouble(),
       createdAt: DateTime.parse(json['created_at'] as String),
       productTitle: productData?['title'] as String?,
-      productImage: parseImages(productData?['images']).isNotEmpty
-          ? parseImages(productData?['images']).first
-          : null,
+      productImage:
+          (json['variant_image'] as String?) ??
+          (parseImages(productData?['images']).isNotEmpty
+              ? parseImages(productData?['images']).first
+              : null),
     );
   }
 

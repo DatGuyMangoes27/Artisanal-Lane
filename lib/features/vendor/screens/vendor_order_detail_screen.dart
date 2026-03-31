@@ -155,6 +155,15 @@ class _VendorOrderDetailScreenState
                               fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (item.variantName != null)
+                            Text(
+                              'Option: ${item.variantName}',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           Text(
                             'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',
                             style: GoogleFonts.poppins(

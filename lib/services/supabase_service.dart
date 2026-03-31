@@ -10,6 +10,11 @@ class SupabaseService {
 
   static const _pendingRequestedRoleKey = 'pending_auth_requested_role';
   static const _pendingDisplayNameKey = 'pending_auth_display_name';
+  static const _chatAttachmentBucket = 'chat-attachments';
+  static const _chatThreadSelect =
+      '*, shops(name, logo_url), buyer:profiles!chat_threads_buyer_id_fkey(display_name, avatar_url), vendor:profiles!chat_threads_vendor_id_fkey(display_name, avatar_url), chat_thread_reads(participant_id, last_read_at, last_read_message_id)';
+  static const _shopReviewSelect = '*, profiles(display_name, avatar_url)';
+  static const _productReviewSelect = '*, profiles(display_name, avatar_url)';
 
   SupabaseService(this._client);
 
@@ -113,9 +118,121 @@ class SupabaseService {
         return 'image/webp';
       case 'gif':
         return 'image/gif';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'txt':
+        return 'text/plain';
       default:
-        return 'image/jpeg';
+        return 'application/octet-stream';
     }
+  }
+
+  static String _fileNameFromPath(String path) {
+    final normalized = path.replaceAll('\\', '/');
+    return normalized.split('/').last;
+  }
+
+  static String _sanitizeFileName(String input) {
+    return input.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  }
+
+  Future<String?> _createSignedChatAttachmentUrl(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    try {
+      return await _client.storage
+          .from(_chatAttachmentBucket)
+          .createSignedUrl(path, 60 * 60);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<ChatMessage> _hydrateChatMessage(ChatMessage message) async {
+    final attachment = message.attachment;
+    final path = attachment?.path;
+    if (attachment == null || path == null || path.isEmpty) {
+      return message;
+    }
+
+    final signedUrl =
+        attachment.url ?? await _createSignedChatAttachmentUrl(path);
+    return message.copyWith(attachment: attachment.copyWith(url: signedUrl));
+  }
+
+  Future<int> _getUnreadMessageCountForThread(
+    ChatThread thread,
+    String currentUserId,
+  ) async {
+    if (thread.lastMessageAt == null ||
+        thread.lastMessageSenderId == currentUserId) {
+      return 0;
+    }
+
+    if (thread.lastReadAt != null &&
+        !thread.lastMessageAt!.isAfter(thread.lastReadAt!)) {
+      return 0;
+    }
+
+    var query = _client
+        .from('chat_messages')
+        .select('id')
+        .eq('thread_id', thread.id)
+        .neq('sender_id', currentUserId);
+
+    if (thread.lastReadAt != null) {
+      query = query.gt('created_at', thread.lastReadAt!.toIso8601String());
+    }
+
+    final rows = await query;
+    return (rows as List).length;
+  }
+
+  Future<ChatThread> _hydrateChatThread(
+    Map<String, dynamic> row,
+    String currentUserId,
+  ) async {
+    final thread = ChatThread.fromJson(row, currentUserId: currentUserId);
+    final unreadCount = await _getUnreadMessageCountForThread(
+      thread,
+      currentUserId,
+    );
+    return thread.copyWith(unreadCount: unreadCount);
+  }
+
+  Future<List<ChatThread>> _mapChatThreads(
+    List<dynamic> rows,
+    String currentUserId,
+  ) async {
+    return Future.wait(
+      rows.map(
+        (row) => _hydrateChatThread(
+          Map<String, dynamic>.from(row as Map),
+          currentUserId,
+        ),
+      ),
+    );
+  }
+
+  Future<List<ChatThread>> _getChatThreadsForParticipant({
+    required String column,
+    required String userId,
+  }) async {
+    final rows = await _client
+        .from('chat_threads')
+        .select(_chatThreadSelect)
+        .eq(column, userId)
+        .order('last_message_at', ascending: false)
+        .order('created_at', ascending: false);
+
+    return _mapChatThreads(rows as List, userId);
   }
 
   Future<String> uploadProductImage(String userId, File imageFile) async {
@@ -154,6 +271,429 @@ class SupabaseService {
     return _client.storage.from('shop-assets').getPublicUrl(storagePath);
   }
 
+  Future<String> uploadVendorApplicationImage(
+    String userId,
+    File imageFile,
+  ) async {
+    return uploadShopImage(userId, imageFile, folder: 'vendor-application');
+  }
+
+  Future<List<String>> _getEligibleDeliveredOrCompletedOrderIds(
+    String buyerId,
+  ) async {
+    final rows = await _client
+        .from('orders')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .inFilter('status', ['delivered', 'completed'])
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((row) => row['id'] as String)
+        .toList(growable: false);
+  }
+
+  Future<String?> _getLatestEligibleShopOrderId(
+    String buyerId,
+    String shopId,
+  ) async {
+    final rows = await _client
+        .from('orders')
+        .select('id')
+        .eq('buyer_id', buyerId)
+        .eq('shop_id', shopId)
+        .inFilter('status', ['delivered', 'completed'])
+        .order('created_at', ascending: false)
+        .limit(1);
+
+    final orderRows = rows as List;
+    if (orderRows.isEmpty) {
+      return null;
+    }
+    return orderRows.first['id'] as String;
+  }
+
+  Future<Map<String, String>?> _getLatestEligibleProductReviewContext(
+    String buyerId,
+    String productId,
+  ) async {
+    final orderIds = await _getEligibleDeliveredOrCompletedOrderIds(buyerId);
+    if (orderIds.isEmpty) {
+      return null;
+    }
+
+    for (final orderId in orderIds) {
+      final item = await _client
+          .from('order_items')
+          .select('id')
+          .eq('order_id', orderId)
+          .eq('product_id', productId)
+          .maybeSingle();
+
+      if (item != null) {
+        return {'order_id': orderId, 'order_item_id': item['id'] as String};
+      }
+    }
+
+    return null;
+  }
+
+  Future<ReviewSummary> _getReviewSummary({
+    required String table,
+    required String column,
+    required String value,
+  }) async {
+    final rows = await _client.from(table).select('rating').eq(column, value);
+    final ratings = (rows as List)
+        .map((row) => row['rating'] as int)
+        .toList(growable: false);
+    return ReviewSummary.fromRatings(ratings);
+  }
+
+  // ── Chat ───────────────────────────────────────────────────────
+  Future<List<ChatThread>> getBuyerThreads(String userId) {
+    return _getChatThreadsForParticipant(column: 'buyer_id', userId: userId);
+  }
+
+  Future<List<ChatThread>> getVendorThreads(String vendorId) {
+    return _getChatThreadsForParticipant(column: 'vendor_id', userId: vendorId);
+  }
+
+  Stream<List<ChatThread>> watchBuyerThreads(String userId) {
+    return _client
+        .from('chat_threads')
+        .stream(primaryKey: ['id'])
+        .eq('buyer_id', userId)
+        .order('last_message_at', ascending: false)
+        .asyncMap((_) => getBuyerThreads(userId));
+  }
+
+  Stream<List<ChatThread>> watchVendorThreads(String vendorId) {
+    return _client
+        .from('chat_threads')
+        .stream(primaryKey: ['id'])
+        .eq('vendor_id', vendorId)
+        .order('last_message_at', ascending: false)
+        .asyncMap((_) => getVendorThreads(vendorId));
+  }
+
+  Future<ChatThread> getThread(String threadId, String currentUserId) async {
+    final row = await _client
+        .from('chat_threads')
+        .select(_chatThreadSelect)
+        .eq('id', threadId)
+        .single();
+
+    return _hydrateChatThread(Map<String, dynamic>.from(row), currentUserId);
+  }
+
+  Future<ChatThread> getOrCreateThread({
+    required String shopId,
+    required String buyerId,
+  }) async {
+    final existing = await _client
+        .from('chat_threads')
+        .select(_chatThreadSelect)
+        .eq('shop_id', shopId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
+
+    if (existing != null) {
+      return _hydrateChatThread(Map<String, dynamic>.from(existing), buyerId);
+    }
+
+    try {
+      final inserted = await _client
+          .from('chat_threads')
+          .insert({'shop_id': shopId, 'buyer_id': buyerId})
+          .select(_chatThreadSelect)
+          .single();
+
+      return _hydrateChatThread(Map<String, dynamic>.from(inserted), buyerId);
+    } on PostgrestException catch (_) {
+      final row = await _client
+          .from('chat_threads')
+          .select(_chatThreadSelect)
+          .eq('shop_id', shopId)
+          .eq('buyer_id', buyerId)
+          .single();
+      return _hydrateChatThread(Map<String, dynamic>.from(row), buyerId);
+    }
+  }
+
+  Future<List<ChatMessage>> getThreadMessages(String threadId) async {
+    final rows = await _client
+        .from('chat_messages')
+        .select()
+        .eq('thread_id', threadId)
+        .order('created_at', ascending: true);
+
+    return Future.wait(
+      (rows as List)
+          .map((row) => ChatMessage.fromJson(Map<String, dynamic>.from(row)))
+          .map(_hydrateChatMessage),
+    );
+  }
+
+  Stream<List<ChatMessage>> watchThreadMessages(String threadId) {
+    return _client
+        .from('chat_messages')
+        .stream(primaryKey: ['id'])
+        .eq('thread_id', threadId)
+        .order('created_at')
+        .asyncMap((_) => getThreadMessages(threadId));
+  }
+
+  Future<ChatAttachment> uploadChatAttachment(
+    String threadId,
+    File file,
+  ) async {
+    final ext = file.path.split('.').last.toLowerCase();
+    final originalName = _fileNameFromPath(file.path);
+    final safeName = _sanitizeFileName(originalName);
+    final storagePath =
+        '$threadId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+    final sizeBytes = await file.length();
+
+    await _client.storage
+        .from(_chatAttachmentBucket)
+        .upload(
+          storagePath,
+          file,
+          fileOptions: FileOptions(contentType: _mimeType(ext)),
+        );
+
+    final signedUrl = await _createSignedChatAttachmentUrl(storagePath);
+
+    return ChatAttachment(
+      url: signedUrl,
+      path: storagePath,
+      name: originalName,
+      mimeType: _mimeType(ext),
+      sizeBytes: sizeBytes,
+    );
+  }
+
+  Future<ChatMessage> sendChatMessage({
+    required String threadId,
+    required String senderId,
+    String? body,
+    ChatAttachment? attachment,
+  }) async {
+    final trimmedBody = body?.trim();
+    final hasText = trimmedBody != null && trimmedBody.isNotEmpty;
+    final hasAttachment = attachment != null;
+
+    if (!hasText && !hasAttachment) {
+      throw Exception('A message needs text or an attachment.');
+    }
+
+    final messageType = hasText && hasAttachment
+        ? 'text_with_attachment'
+        : hasAttachment
+        ? 'attachment'
+        : 'text';
+
+    final row = await _client
+        .from('chat_messages')
+        .insert({
+          'thread_id': threadId,
+          'sender_id': senderId,
+          'body': hasText ? trimmedBody : null,
+          'message_type': messageType,
+          'attachment_path': attachment?.path,
+          'attachment_name': attachment?.name,
+          'attachment_mime': attachment?.mimeType,
+          'attachment_size_bytes': attachment?.sizeBytes,
+        })
+        .select()
+        .single();
+
+    return _hydrateChatMessage(
+      ChatMessage.fromJson(Map<String, dynamic>.from(row)),
+    );
+  }
+
+  Future<void> markThreadRead(String threadId, String participantId) async {
+    final latestMessage = await _client
+        .from('chat_messages')
+        .select('id, created_at')
+        .eq('thread_id', threadId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    await _client.from('chat_thread_reads').upsert({
+      'thread_id': threadId,
+      'participant_id': participantId,
+      'last_read_message_id': latestMessage?['id'],
+      'last_read_at':
+          latestMessage?['created_at'] ??
+          DateTime.now().toUtc().toIso8601String(),
+    }, onConflict: 'thread_id,participant_id');
+  }
+
+  Future<int> getUnreadThreadCountForBuyer(String userId) async {
+    final threads = await getBuyerThreads(userId);
+    return threads.where((thread) => thread.unreadCount > 0).length;
+  }
+
+  Future<int> getUnreadThreadCountForVendor(String vendorId) async {
+    final threads = await getVendorThreads(vendorId);
+    return threads.where((thread) => thread.unreadCount > 0).length;
+  }
+
+  // ── Reviews ────────────────────────────────────────────────────
+  Future<List<ShopReview>> getShopReviews(String shopId) async {
+    final rows = await _client
+        .from('shop_reviews')
+        .select(_shopReviewSelect)
+        .eq('shop_id', shopId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((row) => ShopReview.fromJson(Map<String, dynamic>.from(row)))
+        .toList();
+  }
+
+  Future<List<ProductReview>> getProductReviews(String productId) async {
+    final rows = await _client
+        .from('product_reviews')
+        .select(_productReviewSelect)
+        .eq('product_id', productId)
+        .order('created_at', ascending: false);
+
+    return (rows as List)
+        .map((row) => ProductReview.fromJson(Map<String, dynamic>.from(row)))
+        .toList();
+  }
+
+  Future<ReviewSummary> getShopReviewSummary(String shopId) {
+    return _getReviewSummary(
+      table: 'shop_reviews',
+      column: 'shop_id',
+      value: shopId,
+    );
+  }
+
+  Future<ReviewSummary> getProductReviewSummary(String productId) {
+    return _getReviewSummary(
+      table: 'product_reviews',
+      column: 'product_id',
+      value: productId,
+    );
+  }
+
+  Future<bool> canReviewShop(String shopId, String buyerId) async {
+    final orderId = await _getLatestEligibleShopOrderId(buyerId, shopId);
+    return orderId != null;
+  }
+
+  Future<bool> canReviewProduct(String productId, String buyerId) async {
+    final reviewContext = await _getLatestEligibleProductReviewContext(
+      buyerId,
+      productId,
+    );
+    return reviewContext != null;
+  }
+
+  Future<ShopReview> submitShopReview({
+    required String shopId,
+    required String buyerId,
+    required int rating,
+    String? reviewText,
+  }) async {
+    final orderId = await _getLatestEligibleShopOrderId(buyerId, shopId);
+    if (orderId == null) {
+      throw Exception('You can only review shops after a delivered order.');
+    }
+
+    final trimmedText = reviewText?.trim();
+    final payload = {
+      'shop_id': shopId,
+      'buyer_id': buyerId,
+      'order_id': orderId,
+      'rating': rating,
+      'review_text': trimmedText?.isEmpty == true ? null : trimmedText,
+    };
+
+    final existing = await _client
+        .from('shop_reviews')
+        .select('id')
+        .eq('shop_id', shopId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
+
+    final row = existing == null
+        ? await _client
+              .from('shop_reviews')
+              .insert(payload)
+              .select(_shopReviewSelect)
+              .single()
+        : await _client
+              .from('shop_reviews')
+              .update(payload)
+              .eq('id', existing['id'] as String)
+              .select(_shopReviewSelect)
+              .single();
+
+    return ShopReview.fromJson(Map<String, dynamic>.from(row));
+  }
+
+  Future<ProductReview> submitProductReview({
+    required String productId,
+    required String buyerId,
+    required int rating,
+    String? reviewText,
+  }) async {
+    final reviewContext = await _getLatestEligibleProductReviewContext(
+      buyerId,
+      productId,
+    );
+    if (reviewContext == null) {
+      throw Exception('You can only review products after delivery.');
+    }
+
+    final productRow = await _client
+        .from('products')
+        .select('shop_id')
+        .eq('id', productId)
+        .single();
+
+    final trimmedText = reviewText?.trim();
+    final payload = {
+      'product_id': productId,
+      'shop_id': productRow['shop_id'] as String,
+      'buyer_id': buyerId,
+      'order_id': reviewContext['order_id'],
+      'order_item_id': reviewContext['order_item_id'],
+      'rating': rating,
+      'review_text': trimmedText?.isEmpty == true ? null : trimmedText,
+    };
+
+    final existing = await _client
+        .from('product_reviews')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('buyer_id', buyerId)
+        .maybeSingle();
+
+    final row = existing == null
+        ? await _client
+              .from('product_reviews')
+              .insert(payload)
+              .select(_productReviewSelect)
+              .single()
+        : await _client
+              .from('product_reviews')
+              .update(payload)
+              .eq('id', existing['id'] as String)
+              .select(_productReviewSelect)
+              .single();
+
+    return ProductReview.fromJson(Map<String, dynamic>.from(row));
+  }
+
   // ── Categories ────────────────────────────────────────────────
   Future<List<Category>> getCategories() async {
     final data = await _client
@@ -172,11 +712,116 @@ class SupabaseService {
     return (data as List).map((e) => e['term'] as String).toList();
   }
 
+  Stream<List<String>> watchTrendingSearches() {
+    return _client
+        .from('trending_searches')
+        .stream(primaryKey: ['id'])
+        .eq('is_active', true)
+        .order('sort_order', ascending: true)
+        .map(
+          (rows) => rows
+              .map((row) => row['term'] as String)
+              .where((term) => term.trim().isNotEmpty)
+              .toList(),
+        );
+  }
+
+  // ── Subcategories ─────────────────────────────────────────────
+  Future<List<Subcategory>> getSubcategories(String categoryId) async {
+    final data = await _client
+        .from('subcategories')
+        .select()
+        .eq('category_id', categoryId)
+        .order('sort_order', ascending: true);
+    return (data as List).map((e) => Subcategory.fromJson(e)).toList();
+  }
+
   // ── Products ──────────────────────────────────────────────────
+  static const _productSelect =
+      '*, shops(name, logo_url), categories(name), subcategories(name), product_variants(*)';
+  static const _orderSelect =
+      '*, shops(name), order_items(*, products(title, images))';
+
+  Map<String, dynamic> _productSummaryFromVariants(
+    List<Map<String, dynamic>> variants,
+    Map<String, dynamic> fallback,
+  ) {
+    if (variants.isEmpty) {
+      return fallback;
+    }
+
+    final firstVariant = variants.first;
+    final images =
+        (firstVariant['images'] as List?)?.cast<String>() ?? const [];
+    final totalStock = variants.fold<int>(
+      0,
+      (sum, variant) => sum + ((variant['stock_qty'] as num?)?.toInt() ?? 0),
+    );
+
+    return {
+      ...fallback,
+      'price': (firstVariant['price'] as num).toDouble(),
+      'compare_at_price': (firstVariant['compare_at_price'] as num?)
+          ?.toDouble(),
+      'stock_qty': totalStock,
+      'images': images,
+    };
+  }
+
+  Future<void> _replaceProductVariants(
+    String productId,
+    List<Map<String, dynamic>> variants,
+  ) async {
+    final existingRows = await _client
+        .from('product_variants')
+        .select('id')
+        .eq('product_id', productId);
+
+    final existingIds = (existingRows as List)
+        .map((row) => row['id'] as String)
+        .toSet();
+    final incomingIds = variants
+        .map((variant) => variant['id'] as String?)
+        .whereType<String>()
+        .toSet();
+
+    final idsToDelete = existingIds.difference(incomingIds);
+    if (idsToDelete.isNotEmpty) {
+      await _client
+          .from('product_variants')
+          .delete()
+          .inFilter('id', idsToDelete.toList());
+    }
+
+    if (variants.isEmpty) {
+      return;
+    }
+
+    await _client
+        .from('product_variants')
+        .upsert(
+          variants
+              .asMap()
+              .entries
+              .map(
+                (entry) => {
+                  ...entry.value,
+                  'product_id': productId,
+                  'sort_order': entry.key,
+                },
+              )
+              .toList(),
+        );
+  }
+
   Future<List<Product>> getProducts({
     String? categoryId,
+    String? subcategoryId,
     String? shopId,
     String? search,
+    List<String>? tags,
+    bool? onSale,
+    bool? featured,
     String sortBy = 'created_at',
     bool ascending = false,
     int limit = 20,
@@ -184,17 +829,29 @@ class SupabaseService {
   }) async {
     var query = _client
         .from('products')
-        .select('*, shops(name, logo_url), categories(name)')
+        .select(_productSelect)
         .eq('is_published', true);
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
+    }
+    if (subcategoryId != null) {
+      query = query.eq('subcategory_id', subcategoryId);
     }
     if (shopId != null) {
       query = query.eq('shop_id', shopId);
     }
     if (search != null && search.isNotEmpty) {
       query = query.ilike('title', '%$search%');
+    }
+    if (tags != null && tags.isNotEmpty) {
+      query = query.overlaps('tags', tags);
+    }
+    if (onSale == true) {
+      query = query.not('compare_at_price', 'is', null);
+    }
+    if (featured == true) {
+      query = query.eq('is_featured', true);
     }
 
     final data = await query
@@ -207,7 +864,7 @@ class SupabaseService {
   Future<List<Product>> getFeaturedProducts({int limit = 10}) async {
     final data = await _client
         .from('products')
-        .select('*, shops(name, logo_url), categories(name)')
+        .select(_productSelect)
         .eq('is_published', true)
         .eq('is_featured', true)
         .order('featured_at', ascending: false)
@@ -218,7 +875,7 @@ class SupabaseService {
   Future<List<Product>> getOnSaleProducts({int limit = 10}) async {
     final data = await _client
         .from('products')
-        .select('*, shops(name, logo_url), categories(name)')
+        .select(_productSelect)
         .eq('is_published', true)
         .not('compare_at_price', 'is', null)
         .order('created_at', ascending: false)
@@ -230,7 +887,7 @@ class SupabaseService {
     final data = await _client
         .from('products')
         .select(
-          '*, shops(name, logo_url, slug, bio, location), categories(name)',
+          '*, shops(name, logo_url, slug, bio, location), categories(name), subcategories(name), product_variants(*)',
         )
         .eq('id', id)
         .single();
@@ -404,7 +1061,7 @@ class SupabaseService {
     final data = await _client
         .from('favourites')
         .select(
-          'product_id, products(*, shops(name, logo_url), categories(name))',
+          'product_id, products(*, shops(name, logo_url), categories(name), subcategories(name))',
         )
         .eq('user_id', userId);
     return (data as List)
@@ -465,7 +1122,7 @@ class SupabaseService {
 
     final items = await _client
         .from('cart_items')
-        .select('*, products(*, shops(name, logo_url), categories(name))')
+        .select('*, products($_productSelect), product_variants(*)')
         .eq('cart_id', cartId);
 
     return (items as List).map((e) => CartItem.fromJson(e)).toList();
@@ -474,6 +1131,7 @@ class SupabaseService {
   Future<void> addToCart(
     String userId,
     String productId, {
+    String? variantId,
     int quantity = 1,
   }) async {
     var cartData = await _client
@@ -490,12 +1148,19 @@ class SupabaseService {
 
     final cartId = cartData['id'] as String;
 
-    final existing = await _client
+    final existingRows = await _client
         .from('cart_items')
-        .select('id, quantity')
+        .select('id, quantity, variant_id')
         .eq('cart_id', cartId)
-        .eq('product_id', productId)
-        .maybeSingle();
+        .eq('product_id', productId);
+
+    Map<String, dynamic>? existing;
+    for (final row in existingRows as List) {
+      if (row['variant_id'] == variantId) {
+        existing = Map<String, dynamic>.from(row);
+        break;
+      }
+    }
 
     if (existing != null) {
       final newQty = (existing['quantity'] as int) + quantity;
@@ -507,6 +1172,7 @@ class SupabaseService {
       await _client.from('cart_items').insert({
         'cart_id': cartId,
         'product_id': productId,
+        'variant_id': variantId,
         'quantity': quantity,
       });
     }
@@ -527,7 +1193,7 @@ class SupabaseService {
   Future<List<Order>> getOrders(String userId) async {
     final data = await _client
         .from('orders')
-        .select('*, shops(name), order_items(*, products(title, images))')
+        .select(_orderSelect)
         .eq('buyer_id', userId)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Order.fromJson(e)).toList();
@@ -536,7 +1202,7 @@ class SupabaseService {
   Future<Order> getOrder(String id) async {
     final data = await _client
         .from('orders')
-        .select('*, shops(name), order_items(*, products(title, images))')
+        .select(_orderSelect)
         .eq('id', id)
         .single();
     return Order.fromJson(data);
@@ -843,7 +1509,7 @@ class SupabaseService {
   Future<List<Product>> getVendorProducts(String shopId) async {
     final data = await _client
         .from('products')
-        .select('*, categories(name)')
+        .select('*, categories(name), subcategories(name), product_variants(*)')
         .eq('shop_id', shopId)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Product.fromJson(e)).toList();
@@ -853,19 +1519,46 @@ class SupabaseService {
     String shopId,
     Map<String, dynamic> data,
   ) async {
+    final variants = List<Map<String, dynamic>>.from(
+      (data.remove('variants') as List?)?.map(
+            (entry) => Map<String, dynamic>.from(entry as Map),
+          ) ??
+          const [],
+    );
+    final productPayload = _productSummaryFromVariants(
+      variants,
+      Map<String, dynamic>.from(data),
+    );
     final row = await _client
         .from('products')
-        .insert({'shop_id': shopId, ...data})
-        .select('*, categories(name)')
+        .insert({'shop_id': shopId, ...productPayload})
+        .select('*, categories(name), subcategories(name), product_variants(*)')
         .single();
-    return Product.fromJson(row);
+    final product = Product.fromJson(row);
+    if (variants.isNotEmpty) {
+      await _replaceProductVariants(product.id, variants);
+      return getProduct(product.id);
+    }
+    return product;
   }
 
   Future<void> updateProduct(
     String productId,
     Map<String, dynamic> updates,
   ) async {
-    await _client.from('products').update(updates).eq('id', productId);
+    final mutableUpdates = Map<String, dynamic>.from(updates);
+    final variants = List<Map<String, dynamic>>.from(
+      (mutableUpdates.remove('variants') as List?)?.map(
+            (entry) => Map<String, dynamic>.from(entry as Map),
+          ) ??
+          const [],
+    );
+    final productPayload = _productSummaryFromVariants(
+      variants,
+      mutableUpdates,
+    );
+    await _client.from('products').update(productPayload).eq('id', productId);
+    await _replaceProductVariants(productId, variants);
   }
 
   Future<void> deleteProduct(String productId) async {
@@ -876,7 +1569,7 @@ class SupabaseService {
   Future<List<Order>> getShopOrders(String shopId) async {
     final data = await _client
         .from('orders')
-        .select('*, order_items(*, products(title, images))')
+        .select(_orderSelect)
         .eq('shop_id', shopId)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Order.fromJson(e)).toList();
@@ -976,6 +1669,7 @@ class SupabaseService {
     required String businessName,
     String? motivation,
     String? portfolioUrl,
+    List<String>? proofImageUrls,
     String? location,
     String? deliveryInfo,
     String? turnaroundTime,
@@ -987,6 +1681,7 @@ class SupabaseService {
           'business_name': businessName,
           'motivation': motivation,
           'portfolio_url': portfolioUrl,
+          'proof_image_urls': proofImageUrls ?? const [],
           'location': location,
           'delivery_info': deliveryInfo,
           'turnaround_time': turnaroundTime,
@@ -1003,6 +1698,7 @@ class SupabaseService {
     required String businessName,
     String? motivation,
     String? portfolioUrl,
+    List<String>? proofImageUrls,
     String? location,
     String? deliveryInfo,
     String? turnaroundTime,
@@ -1014,6 +1710,7 @@ class SupabaseService {
           'business_name': businessName,
           'motivation': motivation,
           'portfolio_url': portfolioUrl,
+          'proof_image_urls': proofImageUrls ?? const [],
           'location': location,
           'delivery_info': deliveryInfo,
           'turnaround_time': turnaroundTime,

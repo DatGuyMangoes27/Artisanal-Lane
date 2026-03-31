@@ -36,15 +36,31 @@ class Category {
         'sort_order': sortOrder,
       };
 
-  // Line art icon mapping – outlined Flutter icons for each category slug
   static const Map<String, IconData> categoryIcons = {
+    'home': Icons.home_outlined,
     'art-design': Icons.palette_outlined,
-    'clothing': Icons.checkroom_outlined,
-    'beauty': Icons.spa_outlined,
     'jewellery': Icons.diamond_outlined,
-    'home-living': Icons.home_outlined,
+    'clothing': Icons.checkroom_outlined,
+    'accessories': Icons.shopping_bag_outlined,
     'baby-kids': Icons.child_care_outlined,
+    'self-care': Icons.spa_outlined,
+    'pantry': Icons.local_dining_outlined,
+    'pets': Icons.pets_outlined,
+    // legacy slugs
+    'home-living': Icons.home_outlined,
+    'beauty': Icons.spa_outlined,
+  };
+
+  /// Category-specific filter tags (excluding universal on-sale/featured).
+  static const Map<String, List<String>> filterTags = {
+    'home': ['pottery', 'woodwork', 'textile', 'metal work'],
+    'jewellery': ['silver', 'gold', 'beaded'],
+    'clothing': ['men', 'women', 'unisex'],
+    'baby-kids': ['boy', 'girl', 'unisex'],
+    'pets': ['cats', 'dogs', 'other'],
   };
 
   IconData get icon => categoryIcons[slug] ?? Icons.category_outlined;
+
+  List<String> get availableFilterTags => filterTags[slug] ?? [];
 }

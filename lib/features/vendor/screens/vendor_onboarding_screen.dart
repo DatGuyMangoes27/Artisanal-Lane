@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
@@ -18,6 +21,23 @@ class VendorOnboardingScreen extends ConsumerStatefulWidget {
 
 class _VendorOnboardingScreenState
     extends ConsumerState<VendorOnboardingScreen> {
+  static const _fulfillmentOptions = <String>[
+    'Courier',
+    'Self-delivery',
+    'Click & collect',
+    'Market pickup',
+    'Locker pickup',
+  ];
+
+  static const _turnaroundOptions = <String>[
+    '1-3 business days',
+    '3-5 business days',
+    '5-7 business days',
+    '7-10 business days',
+    '10-14 business days',
+    '14+ days / made to order',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _businessNameController = TextEditingController();
   final _motivationController = TextEditingController();
@@ -25,9 +45,14 @@ class _VendorOnboardingScreenState
   final _portfolioController = TextEditingController();
   final _deliveryController = TextEditingController();
   final _turnaroundController = TextEditingController();
+  final List<String> _proofImageUrls = [];
+  final List<File> _proofPendingFiles = [];
+  final Set<String> _selectedFulfillmentMethods = {};
+  final ImagePicker _picker = ImagePicker();
   bool _acceptedTcs = false;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _selectedTurnaroundOption;
 
   @override
   void dispose() {
@@ -40,8 +65,79 @@ class _VendorOnboardingScreenState
     super.dispose();
   }
 
+  Future<void> _pickProofImages() async {
+    try {
+      final remainingSlots =
+          3 - (_proofImageUrls.length + _proofPendingFiles.length);
+      if (remainingSlots <= 0) {
+        setState(() {
+          _errorMessage = 'You can upload up to 3 proof photos.';
+        });
+        return;
+      }
+
+      final images = await _picker.pickMultiImage(
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+
+      if (images.isEmpty) {
+        return;
+      }
+
+      setState(() {
+        _proofPendingFiles.addAll(
+          images.take(remainingSlots).map((image) => File(image.path)),
+        );
+        _errorMessage = null;
+      });
+    } catch (error) {
+      setState(() {
+        _errorMessage = 'Could not add proof photos: $error';
+      });
+    }
+  }
+
+  Future<void> _uploadProofImages(String userId) async {
+    if (_proofPendingFiles.isEmpty) {
+      return;
+    }
+
+    final service = ref.read(supabaseServiceProvider);
+    for (final file in _proofPendingFiles) {
+      final url = await service.uploadVendorApplicationImage(userId, file);
+      _proofImageUrls.add(url);
+    }
+    _proofPendingFiles.clear();
+  }
+
+  String? _validateApplicationExtras() {
+    if (_portfolioController.text.trim().isEmpty &&
+        _proofImageUrls.isEmpty &&
+        _proofPendingFiles.isEmpty) {
+      return 'Add a social link or upload up to 3 photos of your work.';
+    }
+
+    if (_selectedFulfillmentMethods.isEmpty) {
+      return 'Please select at least one fulfilment method.';
+    }
+
+    if (_selectedTurnaroundOption == null ||
+        _selectedTurnaroundOption!.isEmpty) {
+      return 'Please select a typical turnaround time.';
+    }
+
+    return null;
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    final extraValidationError = _validateApplicationExtras();
+    if (extraValidationError != null) {
+      setState(() => _errorMessage = extraValidationError);
+      return;
+    }
     if (!_acceptedTcs) {
       setState(
         () =>
@@ -57,6 +153,19 @@ class _VendorOnboardingScreenState
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
       final service = ref.read(supabaseServiceProvider);
+      await _uploadProofImages(userId);
+
+      final deliveryInfo = [
+        _selectedFulfillmentMethods.join(', '),
+        if (_deliveryController.text.trim().isNotEmpty)
+          _deliveryController.text.trim(),
+      ].join(' | ');
+
+      final turnaroundTime = [
+        _selectedTurnaroundOption,
+        if (_turnaroundController.text.trim().isNotEmpty)
+          _turnaroundController.text.trim(),
+      ].whereType<String>().join(' | ');
 
       await service.submitVendorOnboarding(
         userId: userId,
@@ -67,17 +176,62 @@ class _VendorOnboardingScreenState
         portfolioUrl: _portfolioController.text.trim().isNotEmpty
             ? _portfolioController.text.trim()
             : null,
+        proofImageUrls: _proofImageUrls,
         location: _locationController.text.trim().isNotEmpty
             ? _locationController.text.trim()
             : null,
-        deliveryInfo: _deliveryController.text.trim().isNotEmpty
-            ? _deliveryController.text.trim()
-            : null,
-        turnaroundTime: _turnaroundController.text.trim().isNotEmpty
-            ? _turnaroundController.text.trim()
-            : null,
+        deliveryInfo: deliveryInfo.isNotEmpty ? deliveryInfo : null,
+        turnaroundTime: turnaroundTime.isNotEmpty ? turnaroundTime : null,
       );
       ref.invalidate(vendorApplicationProvider);
+      ref.invalidate(vendorApplicationStreamProvider);
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: AppTheme.baobab,
+                  size: 28,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Submitted!',
+                  style: GoogleFonts.playfairDisplay(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Thank you. Your application has been submitted and our team is now reviewing it.',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  'OK',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.terracotta,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (e) {
       setState(
         () => _errorMessage = e.toString().replaceAll('Exception: ', ''),
@@ -241,7 +395,16 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 20),
 
-            _buildLabel('What do you make?'),
+            _buildLabel('What handmade products do you make?'),
+            const SizedBox(height: 4),
+            Text(
+              'Tell us what you make, where it is made, and anything that helps us understand it is handmade.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppTheme.textHint,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _motivationController,
@@ -249,7 +412,7 @@ class _VendorOnboardingScreenState
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
                 hintText:
-                    'Tell us about your craft, what inspires you, and what you plan to sell...',
+                    'e.g. I hand-build ceramic tableware in Cape Town and finish each piece myself in small batches...',
               ),
             ),
             const SizedBox(height: 20),
@@ -270,6 +433,15 @@ class _VendorOnboardingScreenState
             const SizedBox(height: 20),
 
             _buildLabel('Portfolio / Social Link (optional)'),
+            const SizedBox(height: 4),
+            Text(
+              'If you do not have a social link yet, upload up to 3 photos of your work instead.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                color: AppTheme.textHint,
+                height: 1.4,
+              ),
+            ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _portfolioController,
@@ -279,12 +451,14 @@ class _VendorOnboardingScreenState
                 prefixIcon: Icon(Icons.link, color: AppTheme.textHint),
               ),
             ),
+            const SizedBox(height: 12),
+            _buildProofPhotosCard(),
             const SizedBox(height: 20),
 
             _buildLabel('How will you fulfil orders?'),
             const SizedBox(height: 4),
             Text(
-              'Courier, self-delivery, click & collect — tell us how you\'ll get orders to buyers.',
+              'Select all that apply.',
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 color: AppTheme.textHint,
@@ -292,16 +466,51 @@ class _VendorOnboardingScreenState
               ),
             ),
             const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _fulfillmentOptions.map((option) {
+                final selected = _selectedFulfillmentMethods.contains(option);
+                return FilterChip(
+                  label: Text(
+                    option,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: selected ? Colors.white : AppTheme.textPrimary,
+                    ),
+                  ),
+                  selected: selected,
+                  onSelected: (value) {
+                    setState(() {
+                      if (value) {
+                        _selectedFulfillmentMethods.add(option);
+                      } else {
+                        _selectedFulfillmentMethods.remove(option);
+                      }
+                    });
+                  },
+                  selectedColor: AppTheme.terracotta,
+                  checkmarkColor: Colors.white,
+                  backgroundColor: Colors.white,
+                  side: BorderSide(
+                    color: selected
+                        ? AppTheme.terracotta
+                        : AppTheme.sand.withValues(alpha: 0.5),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _deliveryController,
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
-              validator: (v) => v == null || v.trim().isEmpty
-                  ? 'Please describe your fulfilment method'
-                  : null,
               decoration: const InputDecoration(
                 hintText:
-                    'e.g. Courier Guy nationwide, or local drop-offs in Cape Town',
+                    'Optional details, e.g. Courier Guy nationwide, local drop-offs in Cape Town, or locker collection areas',
               ),
             ),
             const SizedBox(height: 20),
@@ -317,19 +526,37 @@ class _VendorOnboardingScreenState
               ),
             ),
             const SizedBox(height: 8),
-            TextFormField(
-              controller: _turnaroundController,
-              textCapitalization: TextCapitalization.sentences,
-              validator: (v) => v == null || v.trim().isEmpty
-                  ? 'Please provide your turnaround time'
-                  : null,
+            DropdownButtonFormField<String>(
+              initialValue: _selectedTurnaroundOption,
+              onChanged: (value) {
+                setState(() => _selectedTurnaroundOption = value);
+              },
               decoration: const InputDecoration(
-                hintText:
-                    'e.g. 3–5 business days, or 10–14 days for custom orders',
+                hintText: 'Select typical turnaround',
                 prefixIcon: Icon(
                   Icons.schedule_outlined,
                   color: AppTheme.textHint,
                 ),
+              ),
+              items: _turnaroundOptions
+                  .map(
+                    (option) => DropdownMenuItem<String>(
+                      value: option,
+                      child: Text(
+                        option,
+                        style: GoogleFonts.poppins(fontSize: 14),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _turnaroundController,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                hintText:
+                    'Optional notes, e.g. custom work takes longer during peak seasons',
               ),
             ),
             const SizedBox(height: 28),
@@ -547,7 +774,7 @@ class _VendorOnboardingScreenState
               onPressed: () => ref.invalidate(vendorApplicationProvider),
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: Text(
-                'Check Status',
+                'Refresh Status',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -561,6 +788,16 @@ class _VendorOnboardingScreenState
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'This just refreshes this page to check whether your application status has changed.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppTheme.textHint,
+              height: 1.5,
             ),
           ),
           const SizedBox(height: 12),
@@ -858,6 +1095,107 @@ class _VendorOnboardingScreenState
     );
   }
 
+  Widget _buildProofPhotosCard() {
+    final totalImages = _proofImageUrls.length + _proofPendingFiles.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.photo_library_outlined,
+                size: 18,
+                color: AppTheme.textHint,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Work photos',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '$totalImages/3',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (totalImages > 0)
+            SizedBox(
+              height: 84,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ..._proofImageUrls.asMap().entries.map(
+                    (entry) => _ProofImageTile(
+                      key: ValueKey('proof-url-${entry.key}'),
+                      onRemove: () {
+                        setState(() => _proofImageUrls.removeAt(entry.key));
+                      },
+                      child: Image.network(entry.value, fit: BoxFit.cover),
+                    ),
+                  ),
+                  ..._proofPendingFiles.asMap().entries.map(
+                    (entry) => _ProofImageTile(
+                      key: ValueKey('proof-file-${entry.key}'),
+                      onRemove: () {
+                        setState(() => _proofPendingFiles.removeAt(entry.key));
+                      },
+                      isPending: true,
+                      child: Image.file(entry.value, fit: BoxFit.cover),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Text(
+              'Upload clear photos of your handmade work if you do not have a social link yet.',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+                height: 1.45,
+              ),
+            ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: totalImages >= 3 ? null : _pickProofImages,
+            icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+            label: Text(
+              totalImages == 0 ? 'Upload Photos' : 'Add More Photos',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.terracotta,
+              side: BorderSide(
+                color: AppTheme.terracotta.withValues(alpha: 0.4),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLabel(String text) {
     return Text(
       text,
@@ -865,6 +1203,72 @@ class _VendorOnboardingScreenState
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+}
+
+class _ProofImageTile extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onRemove;
+  final bool isPending;
+
+  const _ProofImageTile({
+    super.key,
+    required this.child,
+    required this.onRemove,
+    this.isPending = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 84,
+      height: 84,
+      margin: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox.expand(child: child),
+          ),
+          if (isPending)
+            Positioned(
+              left: 6,
+              bottom: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'New',
+                  style: GoogleFonts.poppins(
+                    fontSize: 9,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, size: 12, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

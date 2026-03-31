@@ -403,3 +403,31 @@ insert into disputes (id, order_id, raised_by, reason, status, resolution, resol
    'Item arrived damaged - the salad bowl had a crack along the rim. Photos attached in correspondence.',
    'open', null, null, null)
 on conflict (id) do nothing;
+
+-- ============================================================
+-- 12. Upcoming Market Events
+-- ============================================================
+insert into shop_market_events (id, shop_id, market_name, location, event_date, time_label, notes, is_active) values
+  ('64000000-0000-0000-0000-000000000001', 's0000000-0000-0000-0000-000000000001', 'I Heart Market', 'Northlands Corner, Durban', current_date + 12, '09:00 - 15:00', 'Fresh tableware and small-batch ceramics available in person.', true),
+  ('64000000-0000-0000-0000-000000000002', 's0000000-0000-0000-0000-000000000002', 'Neighbourgoods Market', 'Woodstock, Cape Town', current_date + 18, '10:00 - 16:00', 'Bringing new woven runners, throws, and cushion covers.', true),
+  ('64000000-0000-0000-0000-000000000003', 's0000000-0000-0000-0000-000000000004', 'Hazel Food Market', 'Menlo Park, Pretoria', current_date + 9, '08:00 - 14:00', 'Limited-edition beadwork and custom colour combinations.', true),
+  ('64000000-0000-0000-0000-000000000004', 's0000000-0000-0000-0000-000000000005', 'Root44 Makers Market', 'Stellenbosch, WC', current_date + 24, '09:00 - 15:30', 'Leather gifting range and monogram samples available.', true)
+on conflict (id) do nothing;
+
+-- ============================================================
+-- 13. Shop Reviews
+-- ============================================================
+insert into shop_reviews (id, shop_id, buyer_id, order_id, rating, review_text, created_at) values
+  ('62000000-0000-0000-0000-000000000001', 's0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000001', 5, 'Beautiful craftsmanship and thoughtful packaging. The ceramics looked even better in person and arrived in perfect condition.', now() - interval '28 days'),
+  ('62000000-0000-0000-0000-000000000002', 's0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000002', 4, 'The beadwork is vibrant and detailed. Delivery was smooth and the pieces feel special and handmade.', now() - interval '11 days')
+on conflict (id) do nothing;
+
+-- ============================================================
+-- 14. Product Reviews
+-- ============================================================
+insert into product_reviews (id, product_id, shop_id, buyer_id, order_id, order_item_id, rating, review_text, created_at) values
+  ('63000000-0000-0000-0000-000000000001', 'p0000000-0000-0000-0000-000000000001', 's0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000001', 'oi000000-0000-0000-0000-000000000001', 5, 'A stunning statement vase. The glaze and shape are gorgeous and it feels incredibly well made.', now() - interval '28 days'),
+  ('63000000-0000-0000-0000-000000000002', 'p0000000-0000-0000-0000-000000000002', 's0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000001', 'oi000000-0000-0000-0000-000000000002', 5, 'These mugs have become our everyday favourites. They are solid, comfortable to hold, and beautifully finished.', now() - interval '26 days'),
+  ('63000000-0000-0000-0000-000000000003', 'p0000000-0000-0000-0000-000000000016', 's0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000002', 'oi000000-0000-0000-0000-000000000003', 4, 'A beautiful necklace with meaningful colour work. It sits nicely and has lots of character.', now() - interval '10 days'),
+  ('63000000-0000-0000-0000-000000000004', 'p0000000-0000-0000-0000-000000000017', 's0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000001', 'o0000000-0000-0000-0000-000000000002', 'oi000000-0000-0000-0000-000000000004', 4, 'The cuff feels unique and the beadwork is neat and even. I would happily order another piece from this studio.', now() - interval '8 days')
+on conflict (id) do nothing;

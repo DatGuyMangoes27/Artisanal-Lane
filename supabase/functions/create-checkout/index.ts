@@ -59,7 +59,9 @@ Deno.serve(async (request) => {
 
     const { data: cartItems, error: cartError } = await admin
       .from("cart_items")
-      .select("id, product_id, quantity, products(id, title, price, shop_id)")
+      .select(
+        "id, product_id, variant_id, quantity, products(id, title, price, shop_id), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
+      )
       .eq("cart_id", cartRow.id);
 
     if (cartError || !cartItems || cartItems.length === 0) {
@@ -69,6 +71,7 @@ Deno.serve(async (request) => {
     const items = cartItems.map((item) => ({
       id: item.id as string,
       productId: item.product_id as string,
+      variantId: item.variant_id as string | null,
       quantity: item.quantity as number,
       product: item.products as {
         id: string;
@@ -76,6 +79,17 @@ Deno.serve(async (request) => {
         price: number;
         shop_id: string;
       },
+      variant: item.product_variants as
+        | {
+            id: string;
+            color_name: string;
+            display_name: string | null;
+            option_values: string[] | null;
+            price: number;
+            stock_qty: number;
+            images: string[] | null;
+          }
+        | null,
     }));
 
     const shopIds = new Set(items.map((item) => item.product.shop_id));
@@ -92,10 +106,22 @@ Deno.serve(async (request) => {
     const shopId = Array.from(shopIds)[0];
     const shippingCost = Number(body.shippingCost ?? 0);
     const subtotal = items.reduce(
-      (sum, item) => sum + Number(item.product.price) * item.quantity,
+      (sum, item) =>
+        sum + Number(item.variant?.price ?? item.product.price) * item.quantity,
       0,
     );
     const grandTotal = subtotal + shippingCost;
+
+    for (const item of items) {
+      if (item.variant && item.quantity > Number(item.variant.stock_qty ?? 0)) {
+        return jsonResponse(
+          {
+            error: `${item.variant.display_name ?? item.variant.color_name} is low on stock. Please update your basket and try again.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     const [{ data: buyerProfile }, { data: shop }] = await Promise.all([
       admin
@@ -203,15 +229,30 @@ Deno.serve(async (request) => {
       items.map((item) => ({
         order_id: orderId,
         product_id: item.productId,
+        variant_id: item.variantId,
+        variant_name: item.variant?.display_name ?? item.variant?.color_name ?? null,
+        variant_image:
+          item.variant?.images && item.variant.images.length > 0
+            ? item.variant.images[0]
+            : null,
         quantity: item.quantity,
-        unit_price: item.product.price,
+        unit_price: item.variant?.price ?? item.product.price,
       })),
     );
+
+    for (const item of items) {
+      if (item.variantId) {
+        await admin.rpc("decrement_variant_stock", {
+          variant_id_input: item.variantId,
+          qty_input: item.quantity,
+        });
+      }
+    }
 
     await admin.from("escrow_transactions").insert({
       order_id: orderId,
       amount: grandTotal,
-      platform_fee: grandTotal * 0.05,
+      platform_fee: 0,
       status: "pending",
       provider: "tradesafe",
       provider_transaction_id: transaction.transactionId,

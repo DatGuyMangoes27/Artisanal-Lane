@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
+import '../widgets/review_widgets.dart';
+import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -22,17 +24,33 @@ class ShopProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
-  int _selectedTab = 0; // 0 = Products, 1 = Posts
+  int _selectedTab = 0; // 0 = Products, 1 = Posts, 2 = Reviews
 
   @override
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(shopDetailProvider(widget.shopId));
     final productsAsync = ref.watch(shopProductsProvider(widget.shopId));
     final postsAsync = ref.watch(shopPostsProvider(widget.shopId));
+    final reviewsAsync = ref.watch(shopReviewsProvider(widget.shopId));
+    final reviewSummaryAsync = ref.watch(
+      shopReviewSummaryProvider(widget.shopId),
+    );
+    final canReviewAsync = ref.watch(canReviewShopProvider(widget.shopId));
     final marketEventsAsync = ref.watch(
       shopMarketEventsProvider(widget.shopId),
     );
     final isFollowingAsync = ref.watch(isFollowingProvider(widget.shopId));
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final loadedReviews = reviewsAsync.value ?? const <ShopReview>[];
+    ShopReview? myReview;
+    if (currentUserId != null) {
+      for (final review in loadedReviews) {
+        if (review.buyerId == currentUserId) {
+          myReview = review;
+          break;
+        }
+      }
+    }
 
     return shopAsync.when(
       data: (shop) => Scaffold(
@@ -46,6 +64,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                 ref.invalidate(shopDetailProvider(widget.shopId));
                 ref.invalidate(shopProductsProvider(widget.shopId));
                 ref.invalidate(shopPostsProvider(widget.shopId));
+                ref.invalidate(shopReviewsProvider(widget.shopId));
+                ref.invalidate(shopReviewSummaryProvider(widget.shopId));
+                ref.invalidate(canReviewShopProvider(widget.shopId));
                 ref.invalidate(shopMarketEventsProvider(widget.shopId));
                 ref.invalidate(isFollowingProvider(widget.shopId));
               },
@@ -71,12 +92,13 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                             onFollowToggle: () => _toggleFollow(
                               isFollowingAsync.asData?.value ?? false,
                             ),
+                            onMessageTap: () => _contactArtisan(shop),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 84)),
 
                   // Offline banner
                   if (shop.isOffline)
@@ -91,17 +113,22 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                   ),
 
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                      child: marketEventsAsync.when(
-                        data: (events) => _UpcomingMarketsCard(events: events),
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
+                    child: marketEventsAsync.when(
+                      data: (events) {
+                        if (events.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                          child: _UpcomingMarketsCard(events: events),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
                     ),
                   ),
 
-                  const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
                   // Tab selector: Products / Posts
                   SliverToBoxAdapter(
@@ -113,6 +140,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
                   // ── Products tab content ──────────────────
                   if (_selectedTab == 0) ...[
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     SliverToBoxAdapter(
                       child: _ShopSectionHeader(
                         title: 'Collection',
@@ -179,7 +207,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
                   // ── Posts tab content ─────────────────────
                   if (_selectedTab == 1) ...[
-                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
                     postsAsync.when(
                       data: (posts) {
                         if (posts.isEmpty) {
@@ -220,6 +248,122 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                           padding: EdgeInsets.symmetric(vertical: 24),
                           child: _InlineError(
                             message: 'Could not load posts right now.',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+
+                  if (_selectedTab == 2) ...[
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const _ShopSectionHeader(
+                              title: 'Reviews',
+                              subtitle: 'What buyers are saying',
+                            ),
+                            reviewSummaryAsync.when(
+                              data: (summary) => ReviewSummaryCard(
+                                summary: summary,
+                                emptyLabel: 'No reviews yet',
+                              ),
+                              loading: () => const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 24),
+                                child: Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              ),
+                              error: (_, __) => const SizedBox.shrink(),
+                            ),
+                            const SizedBox(height: 16),
+                            if (currentUserId == null)
+                              _ReviewActionCard(
+                                title: 'Sign in to leave a review',
+                                subtitle:
+                                    'Delivered orders unlock buyer reviews for this shop.',
+                                buttonLabel: 'Sign In To Review',
+                                onTap: () => _openShopReviewSheet(shop),
+                              )
+                            else if (myReview != null ||
+                                (canReviewAsync.value ?? false))
+                              _ReviewActionCard(
+                                title: myReview != null
+                                    ? 'Update your review'
+                                    : 'Share your experience',
+                                subtitle: myReview != null
+                                    ? 'You can update your thoughts anytime.'
+                                    : 'Tell other buyers about the quality, service, and packaging.',
+                                buttonLabel: myReview != null
+                                    ? 'Edit Review'
+                                    : 'Write Review',
+                                onTap: () => _openShopReviewSheet(
+                                  shop,
+                                  existingReview: myReview,
+                                ),
+                              )
+                            else if (canReviewAsync.isLoading)
+                              const SizedBox.shrink()
+                            else
+                              const _ReviewStatusNote(
+                                message:
+                                    'Reviews unlock after a delivered or completed order from this shop.',
+                              ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    reviewsAsync.when(
+                      data: (reviews) {
+                        if (reviews.isEmpty) {
+                          return const SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.fromLTRB(20, 0, 20, 32),
+                              child: EmptyReviewsCard(
+                                title: 'No reviews yet',
+                                subtitle:
+                                    'Once buyers receive their orders, their reviews will appear here.',
+                              ),
+                            ),
+                          );
+                        }
+
+                        return SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                          sliver: SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (context, index) => Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: BuyerReviewCard(
+                                  avatarUrl: reviews[index].buyerAvatarUrl,
+                                  authorName:
+                                      reviews[index].buyerDisplayName ??
+                                      'Verified buyer',
+                                  rating: reviews[index].rating,
+                                  reviewText: reviews[index].reviewText,
+                                  createdAt: reviews[index].createdAt,
+                                ),
+                              ),
+                              childCount: reviews.length,
+                            ),
+                          ),
+                        );
+                      },
+                      loading: () => const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 30),
+                          child: Center(child: CircularProgressIndicator()),
+                        ),
+                      ),
+                      error: (e, _) => const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: _InlineError(
+                            message: 'Could not load reviews right now.',
                           ),
                         ),
                       ),
@@ -286,22 +430,147 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
   }
 
   Future<void> _toggleFollow(bool currentlyFollowing) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to follow makers',
+        message:
+            'Create an account or sign in to follow this maker and keep up with new pieces.',
+      );
+      return;
+    }
+
     final service = ref.read(supabaseServiceProvider);
     if (currentlyFollowing) {
-      await service.unfollowShop(
-        Supabase.instance.client.auth.currentUser!.id,
-        widget.shopId,
-      );
+      await service.unfollowShop(user.id, widget.shopId);
     } else {
-      await service.followShop(
-        Supabase.instance.client.auth.currentUser!.id,
-        widget.shopId,
-      );
+      await service.followShop(user.id, widget.shopId);
     }
     ref.invalidate(isFollowingProvider(widget.shopId));
     ref.invalidate(followedShopIdsProvider);
     ref.invalidate(followerCountProvider(widget.shopId));
     ref.invalidate(followingFeedProvider);
+  }
+
+  Future<void> _contactArtisan(Shop shop) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to message artisans',
+        message:
+            'Create an account or sign in to start a conversation with ${shop.name}.',
+      );
+      return;
+    }
+
+    try {
+      final thread = await ref
+          .read(supabaseServiceProvider)
+          .getOrCreateThread(shopId: shop.id, buyerId: user.id);
+      if (mounted) {
+        context.push('/profile/messages/${thread.id}');
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not open chat: $error',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openShopReviewSheet(
+    Shop shop, {
+    ShopReview? existingReview,
+  }) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to leave a review',
+        message:
+            'Create an account or sign in to review ${shop.name} after your order is delivered.',
+      );
+      return;
+    }
+
+    final isEligible = await ref.read(canReviewShopProvider(shop.id).future);
+    if (!isEligible && existingReview == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Reviews unlock after a delivered or completed order.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final draft = await showReviewComposerSheet(
+      context,
+      title: existingReview != null ? 'Edit shop review' : 'Review this shop',
+      subtitle: shop.name,
+      initialRating: existingReview?.rating ?? 5,
+      initialReviewText: existingReview?.reviewText ?? '',
+    );
+
+    if (draft == null) {
+      return;
+    }
+
+    try {
+      await ref
+          .read(supabaseServiceProvider)
+          .submitShopReview(
+            shopId: shop.id,
+            buyerId: user.id,
+            rating: draft.rating,
+            reviewText: draft.reviewText,
+          );
+
+      ref.invalidate(shopReviewsProvider(shop.id));
+      ref.invalidate(shopReviewSummaryProvider(shop.id));
+      ref.invalidate(canReviewShopProvider(shop.id));
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            existingReview != null
+                ? 'Your review was updated.'
+                : 'Thanks for sharing your review.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not save review: $error',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
@@ -392,11 +661,13 @@ class _MakerIdentityCard extends StatelessWidget {
   final Shop shop;
   final bool isFollowing;
   final VoidCallback onFollowToggle;
+  final VoidCallback onMessageTap;
 
   const _MakerIdentityCard({
     required this.shop,
     required this.isFollowing,
     required this.onFollowToggle,
+    required this.onMessageTap,
   });
 
   @override
@@ -495,6 +766,11 @@ class _MakerIdentityCard extends StatelessWidget {
               _FollowButton(isFollowing: isFollowing, onTap: onFollowToggle),
             ],
           ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: _MessageButton(onTap: onMessageTap),
+          ),
         ],
       ),
     );
@@ -513,7 +789,7 @@ class _FollowButton extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isFollowing ? AppTheme.terracotta : Colors.white,
           borderRadius: BorderRadius.circular(24),
@@ -534,6 +810,46 @@ class _FollowButton extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: isFollowing ? Colors.white : AppTheme.terracotta,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _MessageButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.bone,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 16,
+              color: AppTheme.terracotta,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Message',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.terracotta,
               ),
             ),
           ],
@@ -596,6 +912,8 @@ class _TabSelector extends StatelessWidget {
           _buildTab(0, Icons.storefront_outlined, 'Products'),
           const SizedBox(width: 4),
           _buildTab(1, Icons.article_outlined, 'Posts'),
+          const SizedBox(width: 4),
+          _buildTab(2, Icons.reviews_outlined, 'Reviews'),
         ],
       ),
     );
@@ -641,6 +959,106 @@ class _TabSelector extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewActionCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String buttonLabel;
+  final VoidCallback onTap;
+
+  const _ReviewActionCard({
+    required this.title,
+    required this.subtitle,
+    required this.buttonLabel,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.bone,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          ElevatedButton(
+            onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.terracotta,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: Text(
+              buttonLabel,
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewStatusNote extends StatelessWidget {
+  final String message;
+
+  const _ReviewStatusNote({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.bone,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Text(
+        message,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: AppTheme.textSecondary,
+          height: 1.5,
         ),
       ),
     );

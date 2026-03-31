@@ -33,7 +33,9 @@ class BuyerHomeScreen extends ConsumerWidget {
           ref.invalidate(followingFeedProvider);
         },
         child: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
           slivers: [
             // ── Minimalist Header ─────────────────────────────────────────
             SliverAppBar(
@@ -74,7 +76,10 @@ class BuyerHomeScreen extends ConsumerWidget {
                 child: GestureDetector(
                   onTap: () => context.go('/search'),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(30),
@@ -85,11 +90,17 @@ class BuyerHomeScreen extends ConsumerWidget {
                           offset: const Offset(0, 4),
                         ),
                       ],
-                      border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppTheme.sand.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.search_rounded, color: AppTheme.terracotta, size: 22),
+                        const Icon(
+                          Icons.search_rounded,
+                          color: AppTheme.terracotta,
+                          size: 22,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           'Search for ceramics, textiles...',
@@ -110,7 +121,9 @@ class BuyerHomeScreen extends ConsumerWidget {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _ElegantHero(onExplore: () => context.push('/home/categories')),
+                child: _ElegantHero(
+                  onExplore: () => context.push('/home/categories'),
+                ),
               ),
             ),
 
@@ -129,7 +142,9 @@ class BuyerHomeScreen extends ConsumerWidget {
                     itemBuilder: (context, index) {
                       final cat = cats[index];
                       return GestureDetector(
-                        onTap: () => context.push('/home/category/${cat.id}?name=${cat.name}'),
+                        onTap: () => context.push(
+                          '/home/category/${cat.id}?name=${cat.name}',
+                        ),
                         child: Column(
                           children: [
                             Container(
@@ -138,10 +153,16 @@ class BuyerHomeScreen extends ConsumerWidget {
                               decoration: BoxDecoration(
                                 color: AppTheme.bone,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+                                border: Border.all(
+                                  color: AppTheme.sand.withValues(alpha: 0.5),
+                                ),
                               ),
                               child: Center(
-                                child: Icon(cat.icon, color: AppTheme.terracotta, size: 26),
+                                child: Icon(
+                                  cat.icon,
+                                  color: AppTheme.terracotta,
+                                  size: 26,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -186,7 +207,8 @@ class BuyerHomeScreen extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           itemCount: posts.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 14),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 14),
                           itemBuilder: (_, i) => _FeedPostCard(post: posts[i]),
                         ),
                       ),
@@ -222,8 +244,10 @@ class BuyerHomeScreen extends ConsumerWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           scrollDirection: Axis.horizontal,
                           itemCount: products.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 16),
-                          itemBuilder: (_, i) => _ElegantProductCard(product: products[i]),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (_, i) =>
+                              _ElegantProductCard(product: products[i]),
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -239,10 +263,7 @@ class BuyerHomeScreen extends ConsumerWidget {
                       onTap: () => context.push('/home/categories'),
                     ),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      height: 310,
-                      child: _shimmerRow(3, 200, 300),
-                    ),
+                    SizedBox(height: 310, child: _shimmerRow(3, 200, 300)),
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -285,10 +306,7 @@ class BuyerHomeScreen extends ConsumerWidget {
                 loading: () => Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
-                    children: [
-                      _shimmerCard(200),
-                      const SizedBox(height: 32),
-                    ],
+                    children: [_shimmerCard(200), const SizedBox(height: 32)],
                   ),
                 ),
                 error: (_, __) => const SizedBox.shrink(),
@@ -333,11 +351,12 @@ class BuyerHomeScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+              error: (_, __) =>
+                  const SliverToBoxAdapter(child: SizedBox.shrink()),
             ),
 
             const SliverToBoxAdapter(child: SizedBox(height: 40)),
-            
+
             // ── Footer ───────────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
@@ -372,117 +391,150 @@ class _ElegantHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 200,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppTheme.terracotta, AppTheme.baobab],
-        ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onExplore,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.terracotta.withValues(alpha: 0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          // Decorative circle top-right
-          Positioned(
-            right: -50,
-            top: -50,
-            child: Opacity(
-              opacity: 0.15,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 40),
-                ),
-              ),
+        child: Ink(
+          height: 200,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [AppTheme.terracotta, AppTheme.baobab],
             ),
-          ),
-          // Decorative circle bottom-left
-          Positioned(
-            left: -30,
-            bottom: -30,
-            child: Opacity(
-              opacity: 0.1,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white,
-                ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.terracotta.withValues(alpha: 0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
               ),
-            ),
+            ],
           ),
-
-          // Text content
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Stack(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
-                  ),
-                  child: Text(
-                    'FEATURED COLLECTION',
-                    style: GoogleFonts.poppins(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
+                Positioned(
+                  right: -50,
+                  top: -50,
+                  child: Opacity(
+                    opacity: 0.15,
+                    child: Container(
+                      width: 200,
+                      height: 200,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 40),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  'The Art of\nHandcraft',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 32,
-                    height: 1.1,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
+                Positioned(
+                  left: -30,
+                  bottom: -30,
+                  child: Opacity(
+                    opacity: 0.1,
+                    child: Container(
+                      width: 150,
+                      height: 150,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: onExplore,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        'Explore Now',
-                        style: GoogleFonts.poppins(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(
+                          'EXPLORE CATEGORIES',
+                          style: GoogleFonts.poppins(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.arrow_forward, color: Colors.white, size: 16),
+                      const SizedBox(height: 12),
+                      Text(
+                        'The Art of\nHandcraft',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 32,
+                          height: 1.1,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Browse all artisan categories',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.16),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Browse Categories',
+                              style: GoogleFonts.poppins(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(
+                              Icons.arrow_forward_rounded,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -512,9 +564,8 @@ class _SectionHeader extends StatelessWidget {
             const Divider(color: AppTheme.sand, thickness: 0.5),
             const SizedBox(height: 24),
           ],
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -537,17 +588,29 @@ class _SectionHeader extends StatelessWidget {
                   ),
                 ],
               ),
-              GestureDetector(
-                onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    'View All',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.terracotta,
-                    ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onTap,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppTheme.terracotta,
+                  side: BorderSide(
+                    color: AppTheme.terracotta.withValues(alpha: 0.45),
+                  ),
+                  minimumSize: const Size(0, 44),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                label: Text(
+                  'View All',
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -585,7 +648,9 @@ class _ElegantProductCard extends StatelessWidget {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -593,7 +658,8 @@ class _ElegantProductCard extends StatelessWidget {
                       imageUrl: product.primaryImage,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: AppTheme.bone),
-                      errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
+                      errorWidget: (_, __, ___) =>
+                          Container(color: AppTheme.bone),
                     ),
                     Positioned(
                       top: 12,
@@ -623,13 +689,13 @@ class _ElegantProductCard extends StatelessWidget {
                   if (product.shopName != null)
                     Text(
                       product.shopName!.toUpperCase(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textHint,
-                      letterSpacing: 0.5,
+                      style: GoogleFonts.poppins(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textHint,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 4),
                   Text(
                     product.title,
@@ -707,21 +773,33 @@ class _BarSectionTitle extends StatelessWidget {
                     color: AppTheme.textHint,
                   ),
                 ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'See all',
-                style: GoogleFonts.poppins(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.terracotta,
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.terracotta,
+                    side: BorderSide(
+                      color: AppTheme.terracotta.withValues(alpha: 0.45),
+                    ),
+                    minimumSize: const Size(0, 44),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  label: Text(
+                    'See All',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
@@ -750,7 +828,9 @@ class _FeedPostCard extends StatelessWidget {
           children: [
             // Image with maker avatar pill overlay
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(15),
+              ),
               child: SizedBox(
                 height: 140,
                 width: double.infinity,
@@ -761,14 +841,18 @@ class _FeedPostCard extends StatelessWidget {
                       imageUrl: post.primaryImage,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: AppTheme.bone),
-                      errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
+                      errorWidget: (_, __, ___) =>
+                          Container(color: AppTheme.bone),
                     ),
                     // Maker pill overlaid on the image
                     Positioned(
                       left: 8,
                       bottom: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(20),
@@ -780,7 +864,9 @@ class _FeedPostCard extends StatelessWidget {
                               radius: 10,
                               backgroundColor: AppTheme.bone,
                               backgroundImage: post.shopLogoUrl != null
-                                  ? CachedNetworkImageProvider(post.shopLogoUrl!)
+                                  ? CachedNetworkImageProvider(
+                                      post.shopLogoUrl!,
+                                    )
                                   : null,
                               child: post.shopLogoUrl == null
                                   ? Text(
@@ -880,7 +966,9 @@ class _ElegantMakerSpotlight extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(19)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(19),
+              ),
               child: SizedBox(
                 height: 180,
                 width: double.infinity,
@@ -890,7 +978,8 @@ class _ElegantMakerSpotlight extends StatelessWidget {
                         imageUrl: imageUrl!,
                         fit: BoxFit.cover,
                         placeholder: (_, __) => Container(color: AppTheme.bone),
-                        errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
+                        errorWidget: (_, __, ___) =>
+                            Container(color: AppTheme.bone),
                       ),
               ),
             ),
@@ -904,7 +993,9 @@ class _ElegantMakerSpotlight extends StatelessWidget {
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: AppTheme.bone,
-                        backgroundImage: logoUrl == null ? null : CachedNetworkImageProvider(logoUrl!),
+                        backgroundImage: logoUrl == null
+                            ? null
+                            : CachedNetworkImageProvider(logoUrl!),
                         child: logoUrl == null
                             ? Text(
                                 shopName.isEmpty ? '?' : shopName[0],
@@ -963,7 +1054,12 @@ class _ElegantMakerSpotlight extends StatelessWidget {
   }
 }
 
-Widget _shimmerRow(int count, double width, double height, {bool isCircle = false}) {
+Widget _shimmerRow(
+  int count,
+  double width,
+  double height, {
+  bool isCircle = false,
+}) {
   return ListView.separated(
     padding: const EdgeInsets.symmetric(horizontal: 20),
     scrollDirection: Axis.horizontal,

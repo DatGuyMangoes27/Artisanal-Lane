@@ -195,6 +195,7 @@ export async function createTradeSafeTransaction(input: {
       title: input.title,
       description: input.description,
       total: input.amount,
+      feeAllocation: "BUYER",
       buyer: {
         token: input.buyerTokenId,
       },

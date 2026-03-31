@@ -32,7 +32,10 @@ class VendorEarningsScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Your sales and payout overview',
-                  style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 28),
 
@@ -69,7 +72,7 @@ class VendorEarningsScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
 
                 _buildMetricCard(
-                  'Platform Fees',
+                  'TradeSafe Fees',
                   'R${(earnings['fees'] ?? 0).toStringAsFixed(2)}',
                   Icons.receipt_outlined,
                   AppTheme.textSecondary,
@@ -82,12 +85,18 @@ class VendorEarningsScreen extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: AppTheme.bone.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: AppTheme.sand.withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.info_outline, size: 20, color: AppTheme.ochre),
+                      const Icon(
+                        Icons.info_outline,
+                        size: 20,
+                        color: AppTheme.ochre,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -103,7 +112,7 @@ class VendorEarningsScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Funds are held in escrow until the buyer confirms receipt of their order. A 5% platform fee is deducted when funds are released to your account.',
+                              'Funds are held in escrow until the buyer confirms receipt of the order. In this checkout flow, TradeSafe\'s escrow processing fee is charged at checkout rather than shown as an Artisan Lane commission taken from your payout. TradeSafe publishes integrated checkout fees as payment-method based charges, so the final fee can vary by how the buyer pays.',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: AppTheme.textSecondary,
@@ -120,7 +129,10 @@ class VendorEarningsScreen extends ConsumerWidget {
             ),
           ),
           loading: () => const Center(
-            child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2),
+            child: CircularProgressIndicator(
+              color: AppTheme.terracotta,
+              strokeWidth: 2,
+            ),
           ),
           error: (e, _) => Center(child: Text('Error: $e')),
         ),
@@ -128,7 +140,12 @@ class VendorEarningsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildHighlightCard(String label, String value, IconData icon, Color color) {
+  Widget _buildHighlightCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -172,7 +189,12 @@ class VendorEarningsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildMetricCard(String label, String value, IconData icon, Color color) {
+  Widget _buildMetricCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),

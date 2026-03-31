@@ -26,6 +26,8 @@ import '../features/buyer/screens/order_detail_screen.dart';
 import '../features/buyer/screens/confirm_receipt_screen.dart';
 import '../features/buyer/screens/raise_dispute_screen.dart';
 import '../features/buyer/screens/buyer_profile_screen.dart';
+import '../features/buyer/screens/buyer_messages_screen.dart';
+import '../features/buyer/screens/buyer_chat_thread_screen.dart';
 import '../features/buyer/screens/settings_screen.dart';
 import '../features/buyer/screens/notifications_screen.dart';
 import '../features/buyer/screens/saved_addresses_screen.dart';
@@ -41,6 +43,8 @@ import '../features/vendor/screens/vendor_orders_screen.dart';
 import '../features/vendor/screens/vendor_order_detail_screen.dart';
 import '../features/vendor/screens/vendor_earnings_screen.dart';
 import '../features/vendor/screens/vendor_profile_screen.dart';
+import '../features/vendor/screens/vendor_messages_screen.dart';
+import '../features/vendor/screens/vendor_chat_thread_screen.dart';
 import '../features/vendor/screens/vendor_shop_settings_screen.dart';
 import '../features/vendor/screens/vendor_settings_screen.dart';
 import '../features/vendor/screens/vendor_posts_screen.dart';
@@ -239,6 +243,18 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ],
               ),
               GoRoute(
+                path: 'messages',
+                builder: (context, state) => const BuyerMessagesScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':threadId',
+                    builder: (context, state) => BuyerChatThreadScreen(
+                      threadId: state.pathParameters['threadId']!,
+                    ),
+                  ),
+                ],
+              ),
+              GoRoute(
                 path: 'notifications',
                 builder: (context, state) => const NotificationsScreen(),
               ),
@@ -329,6 +345,19 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/vendor/earnings',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: VendorEarningsScreen()),
+          ),
+          GoRoute(
+            path: '/vendor/messages',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: VendorMessagesScreen()),
+            routes: [
+              GoRoute(
+                path: ':threadId',
+                builder: (context, state) => VendorChatThreadScreen(
+                  threadId: state.pathParameters['threadId']!,
+                ),
+              ),
+            ],
           ),
           GoRoute(
             path: '/vendor/profile',

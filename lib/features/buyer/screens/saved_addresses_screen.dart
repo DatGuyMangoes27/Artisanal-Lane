@@ -12,10 +12,23 @@ class SavedAddressesScreen extends ConsumerStatefulWidget {
   const SavedAddressesScreen({super.key});
 
   @override
-  ConsumerState<SavedAddressesScreen> createState() => _SavedAddressesScreenState();
+  ConsumerState<SavedAddressesScreen> createState() =>
+      _SavedAddressesScreenState();
 }
 
 class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
+  static const _saProvinces = <String>[
+    'Eastern Cape',
+    'Free State',
+    'Gauteng',
+    'KwaZulu-Natal',
+    'Limpopo',
+    'Mpumalanga',
+    'Northern Cape',
+    'North West',
+    'Western Cape',
+  ];
+
   List<Map<String, dynamic>> _addresses = [];
   bool _loading = true;
 
@@ -28,16 +41,28 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
   Future<void> _loadAddresses() async {
     try {
       final service = ref.read(supabaseServiceProvider);
-      final addresses = await service.getSavedAddresses(Supabase.instance.client.auth.currentUser!.id);
-      if (mounted) setState(() { _addresses = addresses; _loading = false; });
+      final addresses = await service.getSavedAddresses(
+        Supabase.instance.client.auth.currentUser!.id,
+      );
+      if (mounted) {
+        setState(() {
+          _addresses = addresses;
+          _loading = false;
+        });
+      }
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _saveAddresses() async {
     final service = ref.read(supabaseServiceProvider);
-    await service.saveAddresses(Supabase.instance.client.auth.currentUser!.id, _addresses);
+    await service.saveAddresses(
+      Supabase.instance.client.auth.currentUser!.id,
+      _addresses,
+    );
   }
 
   void _showAddressSheet({Map<String, dynamic>? existing, int? index}) {
@@ -45,9 +70,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     final streetC = TextEditingController(text: existing?['street'] ?? '');
     final cityC = TextEditingController(text: existing?['city'] ?? '');
     final postalC = TextEditingController(text: existing?['postal_code'] ?? '');
-    final provinceC = TextEditingController(text: existing?['province'] ?? '');
     final phoneC = TextEditingController(text: existing?['phone'] ?? '');
     final formKey = GlobalKey<FormState>();
+    String? selectedProvince = existing?['province'] as String?;
 
     showModalBottomSheet(
       context: context,
@@ -64,61 +89,101 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
             padding: const EdgeInsets.all(24),
             child: Form(
               key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40, height: 4,
-                      decoration: BoxDecoration(color: AppTheme.sand, borderRadius: BorderRadius.circular(2)),
+              child: StatefulBuilder(
+                builder: (context, setSheetState) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppTheme.sand,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    existing != null ? 'Edit Address' : 'Add Address',
-                    style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-                  ),
-                  const SizedBox(height: 24),
-                  _field('Full Name', nameC),
-                  _field('Street Address', streetC),
-                  Row(children: [
-                    Expanded(child: _field('City', cityC)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _field('Postal Code', postalC, type: TextInputType.number)),
-                  ]),
-                  _field('Province', provinceC),
-                  _field('Phone', phoneC, type: TextInputType.phone),
-                  const SizedBox(height: 8),
-                  GradientButton(
-                    label: 'Save Address',
-                    verticalPadding: 16,
-                    borderRadius: 14,
-                    fontSize: 15,
-                    onPressed: () {
-                      if (!formKey.currentState!.validate()) return;
-                      final addr = {
-                        'name': nameC.text,
-                        'street': streetC.text,
-                        'city': cityC.text,
-                        'postal_code': postalC.text,
-                        'province': provinceC.text,
-                        'phone': phoneC.text,
-                        'is_default': existing?['is_default'] ?? _addresses.isEmpty,
-                      };
-                      setState(() {
-                        if (index != null) {
-                          _addresses[index] = addr;
-                        } else {
-                          _addresses.add(addr);
+                    const SizedBox(height: 20),
+                    Text(
+                      existing != null ? 'Edit Address' : 'Add Address',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _infoNote(
+                      'Buyers can order from abroad, but saved delivery addresses must be within South Africa.',
+                    ),
+                    const SizedBox(height: 24),
+                    _field('Full Name', nameC),
+                    _field('Street Address', streetC),
+                    Row(
+                      children: [
+                        Expanded(child: _field('City', cityC)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _field(
+                            'Postal Code',
+                            postalC,
+                            type: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+                    _provinceDropdown(
+                      value: selectedProvince,
+                      onChanged: (value) =>
+                          setSheetState(() => selectedProvince = value),
+                    ),
+                    _staticField('Country', 'South Africa'),
+                    _field(
+                      'Delivery Phone Number',
+                      phoneC,
+                      type: TextInputType.phone,
+                      hintText: 'Include country code if needed',
+                    ),
+                    const SizedBox(height: 8),
+                    GradientButton(
+                      label: 'Save Address',
+                      verticalPadding: 16,
+                      borderRadius: 14,
+                      fontSize: 15,
+                      onPressed: () {
+                        if (!formKey.currentState!.validate()) {
+                          return;
                         }
-                      });
-                      _saveAddresses();
-                      Navigator.pop(ctx);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                        if (selectedProvince == null ||
+                            selectedProvince!.isEmpty) {
+                          return;
+                        }
+                        final addr = {
+                          'name': nameC.text,
+                          'street': streetC.text,
+                          'city': cityC.text,
+                          'postal_code': postalC.text,
+                          'province': selectedProvince,
+                          'country': 'South Africa',
+                          'phone': phoneC.text,
+                          'is_default':
+                              existing?['is_default'] ?? _addresses.isEmpty,
+                        };
+                        setState(() {
+                          if (index != null) {
+                            _addresses[index] = addr;
+                          } else {
+                            _addresses.add(addr);
+                          }
+                        });
+                        _saveAddresses();
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
             ),
           ),
@@ -127,7 +192,12 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     );
   }
 
-  Widget _field(String label, TextEditingController controller, {TextInputType type = TextInputType.text}) {
+  Widget _field(
+    String label,
+    TextEditingController controller, {
+    TextInputType type = TextInputType.text,
+    String? hintText,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
@@ -137,17 +207,27 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textPrimary),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.poppins(color: AppTheme.textHint, fontSize: 13),
+          hintText: hintText,
+          labelStyle: GoogleFonts.poppins(
+            color: AppTheme.textHint,
+            fontSize: 13,
+          ),
           filled: true,
           fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: AppTheme.sand.withValues(alpha: 0.5)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppTheme.terracotta, width: 1.5),
+            borderSide: const BorderSide(
+              color: AppTheme.terracotta,
+              width: 1.5,
+            ),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
@@ -162,6 +242,128 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     );
   }
 
+  Widget _provinceDropdown({
+    required String? value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        onChanged: onChanged,
+        validator: (selected) =>
+            (selected == null || selected.isEmpty) ? 'Required' : null,
+        style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textPrimary),
+        decoration: InputDecoration(
+          labelText: 'Province',
+          labelStyle: GoogleFonts.poppins(
+            color: AppTheme.textHint,
+            fontSize: 13,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: AppTheme.sand.withValues(alpha: 0.5)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(
+              color: AppTheme.terracotta,
+              width: 1.5,
+            ),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppTheme.error),
+          ),
+          focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: AppTheme.error, width: 1.5),
+          ),
+        ),
+        items: _saProvinces
+            .map(
+              (province) => DropdownMenuItem<String>(
+                value: province,
+                child: Text(province, style: GoogleFonts.poppins(fontSize: 14)),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _staticField(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          labelStyle: GoogleFonts.poppins(
+            color: AppTheme.textHint,
+            fontSize: 13,
+          ),
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: AppTheme.sand.withValues(alpha: 0.5)),
+          ),
+        ),
+        child: Text(
+          value,
+          style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textPrimary),
+        ),
+      ),
+    );
+  }
+
+  Widget _infoNote(String text) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.bone,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.info_outline_rounded,
+              size: 17,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                color: AppTheme.textSecondary,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -170,12 +372,19 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
           'Saved Addresses',
-          style: GoogleFonts.playfairDisplay(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 24),
+          style: GoogleFonts.playfairDisplay(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
         ),
         centerTitle: true,
       ),
@@ -184,15 +393,20 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         onTap: () => _showAddressSheet(),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.terracotta, strokeWidth: 2))
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: AppTheme.terracotta,
+                strokeWidth: 2,
+              ),
+            )
           : _addresses.isEmpty
-              ? _emptyState()
-              : ListView.separated(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: _addresses.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 16),
-                  itemBuilder: (context, index) => _addressCard(index),
-                ),
+          ? _emptyState()
+          : ListView.separated(
+              padding: const EdgeInsets.all(24),
+              itemCount: _addresses.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 16),
+              itemBuilder: (context, index) => _addressCard(index),
+            ),
     );
   }
 
@@ -204,14 +418,37 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 88, height: 88,
-              decoration: BoxDecoration(color: AppTheme.bone.withValues(alpha: 0.5), shape: BoxShape.circle),
-              child: const Icon(Icons.location_on_outlined, size: 40, color: AppTheme.textHint),
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: AppTheme.bone.withValues(alpha: 0.5),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.location_on_outlined,
+                size: 40,
+                color: AppTheme.textHint,
+              ),
             ),
             const SizedBox(height: 24),
-            Text('No Saved Addresses', style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+            Text(
+              'No Saved Addresses',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
             const SizedBox(height: 12),
-            Text('Add a shipping address to speed up checkout.', style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary, height: 1.6), textAlign: TextAlign.center),
+            Text(
+              'Add a shipping address to speed up checkout.',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.6,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),
@@ -227,8 +464,18 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDefault ? AppTheme.terracotta.withValues(alpha: 0.3) : AppTheme.sand.withValues(alpha: 0.3)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(
+          color: isDefault
+              ? AppTheme.terracotta.withValues(alpha: 0.3)
+              : AppTheme.sand.withValues(alpha: 0.3),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,21 +485,63 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
               Expanded(
                 child: Text(
                   addr['name'] ?? '',
-                  style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
                 ),
               ),
               if (isDefault)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: AppTheme.terracotta.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-                  child: Text('Default', style: GoogleFonts.poppins(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.terracotta)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Default',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.terracotta,
+                    ),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 8),
-          Text('${addr['street']}', style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary)),
-          Text('${addr['city']}, ${addr['province']} ${addr['postal_code']}', style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary)),
-          Text('${addr['phone']}', style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary)),
+          Text(
+            '${addr['street']}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          Text(
+            '${addr['city']}, ${addr['province']} ${addr['postal_code']}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          Text(
+            '${addr['country'] ?? 'South Africa'}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          Text(
+            '${addr['phone']}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -261,20 +550,39 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                   onPressed: () {
                     setState(() {
                       for (int i = 0; i < _addresses.length; i++) {
-                        _addresses[i] = {..._addresses[i], 'is_default': i == index};
+                        _addresses[i] = {
+                          ..._addresses[i],
+                          'is_default': i == index,
+                        };
                       }
                     });
                     _saveAddresses();
                   },
-                  child: Text('Set as Default', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.terracotta)),
+                  child: Text(
+                    'Set as Default',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.terracotta,
+                    ),
+                  ),
                 ),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.edit_outlined, size: 18, color: AppTheme.textHint),
-                onPressed: () => _showAddressSheet(existing: addr, index: index),
+                icon: const Icon(
+                  Icons.edit_outlined,
+                  size: 18,
+                  color: AppTheme.textHint,
+                ),
+                onPressed: () =>
+                    _showAddressSheet(existing: addr, index: index),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppTheme.error),
+                icon: const Icon(
+                  Icons.delete_outline_rounded,
+                  size: 18,
+                  color: AppTheme.error,
+                ),
                 onPressed: () {
                   setState(() => _addresses.removeAt(index));
                   _saveAddresses();

@@ -103,8 +103,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 shape: BoxShape.circle,
               ),
               child: const Center(
-                child: Icon(Icons.shopping_bag_outlined,
-                    size: 32, color: AppTheme.textHint),
+                child: Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 32,
+                  color: AppTheme.textHint,
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -120,7 +123,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             Text(
               'Add handcrafted items to get started',
               style: GoogleFonts.poppins(
-                  fontSize: 14, color: AppTheme.textSecondary),
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+              ),
             ),
             const SizedBox(height: 32),
             OutlinedButton(
@@ -128,15 +133,20 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.terracotta,
                 side: const BorderSide(color: AppTheme.terracotta),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: Text(
                 'Start Shopping',
                 style: GoogleFonts.poppins(
-                    fontSize: 14, fontWeight: FontWeight.w600),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -147,8 +157,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   // ── Cart Content ────────────────────────────────────────────────
   Widget _buildCartContent(BuildContext context, List<CartItem> items) {
-    final subtotal =
-        items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+    final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final expiringSoonCount = items.where((i) => i.isExpiringSoon).length;
 
     return SafeArea(
@@ -234,11 +243,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 width: 80,
                 height: 80,
                 child: CachedNetworkImage(
-                  imageUrl: product?.primaryImage ?? '',
+                  imageUrl: item.displayImage,
                   fit: BoxFit.cover,
                   placeholder: (_, __) => Container(color: AppTheme.bone),
-                  errorWidget: (_, __, ___) =>
-                      Container(color: AppTheme.bone),
+                  errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
                 ),
               ),
             ),
@@ -267,8 +275,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                         onTap: () => _removeItem(item.id),
                         child: Padding(
                           padding: const EdgeInsets.only(left: 8, bottom: 8),
-                          child: const Icon(Icons.close_rounded,
-                              size: 18, color: AppTheme.textHint),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppTheme.textHint,
+                          ),
                         ),
                       ),
                     ],
@@ -276,8 +287,21 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   Text(
                     product?.shopName ?? '',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: AppTheme.textHint),
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
                   ),
+                  if (item.variantName != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Option: ${item.variantName}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   _ExpiryChip(item: item),
                   const SizedBox(height: 8),
@@ -285,7 +309,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'R${(product?.price ?? 0).toStringAsFixed(0)}',
+                        'R${((item.variant?.price ?? product?.price) ?? 0).toStringAsFixed(0)}',
                         style: GoogleFonts.poppins(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
@@ -297,7 +321,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           color: AppTheme.scaffoldBg,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: AppTheme.sand.withValues(alpha: 0.5)),
+                            color: AppTheme.sand.withValues(alpha: 0.5),
+                          ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -306,23 +331,27 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                               icon: Icons.remove_rounded,
                               onTap: item.quantity > 1
                                   ? () => _updateQuantity(
-                                      item.id, item.quantity - 1)
+                                      item.id,
+                                      item.quantity - 1,
+                                    )
                                   : null,
                             ),
                             Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               child: Text(
                                 '${item.quantity}',
                                 style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                             _StepperButton(
                               icon: Icons.add_rounded,
-                              onTap: () => _updateQuantity(
-                                  item.id, item.quantity + 1),
+                              onTap: () =>
+                                  _updateQuantity(item.id, item.quantity + 1),
                             ),
                           ],
                         ),
@@ -416,12 +445,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     value: _isGift,
                     onChanged: (val) {
                       setState(() => _isGift = val);
-                      ref.read(giftOptionsProvider.notifier).update(
-                          ref.read(giftOptionsProvider).copyWith(isGift: val));
+                      ref
+                          .read(giftOptionsProvider.notifier)
+                          .update(
+                            ref.read(giftOptionsProvider).copyWith(isGift: val),
+                          );
                     },
-                    activeColor: AppTheme.terracotta,
-                    activeTrackColor:
-                        AppTheme.terracotta.withValues(alpha: 0.2),
+                    activeThumbColor: AppTheme.terracotta,
+                    activeTrackColor: AppTheme.terracotta.withValues(
+                      alpha: 0.2,
+                    ),
                     inactiveThumbColor: AppTheme.textHint,
                     inactiveTrackColor: AppTheme.bone,
                   ),
@@ -439,25 +472,41 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               secondChild: Column(
                 children: [
                   Divider(
-                      height: 1, color: AppTheme.sand.withValues(alpha: 0.5)),
+                    height: 1,
+                    color: AppTheme.sand.withValues(alpha: 0.5),
+                  ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                     child: TextField(
                       controller: _recipientController,
-                      onChanged: (v) => ref.read(giftOptionsProvider.notifier).update(
-                          ref.read(giftOptionsProvider).copyWith(recipient: v)),
+                      onChanged: (v) => ref
+                          .read(giftOptionsProvider.notifier)
+                          .update(
+                            ref
+                                .read(giftOptionsProvider)
+                                .copyWith(recipient: v),
+                          ),
                       style: GoogleFonts.poppins(
-                          fontSize: 14, color: AppTheme.textPrimary),
+                        fontSize: 14,
+                        color: AppTheme.textPrimary,
+                      ),
                       decoration: InputDecoration(
                         labelText: "Recipient's name",
                         labelStyle: GoogleFonts.poppins(
-                            fontSize: 13, color: AppTheme.textHint),
-                        prefixIcon: const Icon(Icons.person_outline_rounded,
-                            size: 20, color: AppTheme.textHint),
+                          fontSize: 13,
+                          color: AppTheme.textHint,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.person_outline_rounded,
+                          size: 20,
+                          color: AppTheme.textHint,
+                        ),
                         filled: true,
                         fillColor: AppTheme.scaffoldBg,
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -465,7 +514,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(
-                              color: AppTheme.terracotta.withValues(alpha: 0.5)),
+                            color: AppTheme.terracotta.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                     ),
@@ -474,29 +524,46 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                     child: TextField(
                       controller: _messageController,
-                      onChanged: (v) => ref.read(giftOptionsProvider.notifier).update(
-                          ref.read(giftOptionsProvider).copyWith(message: v)),
+                      onChanged: (v) => ref
+                          .read(giftOptionsProvider.notifier)
+                          .update(
+                            ref.read(giftOptionsProvider).copyWith(message: v),
+                          ),
                       maxLines: 4,
                       maxLength: 200,
                       style: GoogleFonts.poppins(
-                          fontSize: 14, color: AppTheme.textPrimary),
+                        fontSize: 14,
+                        color: AppTheme.textPrimary,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Gift message',
                         alignLabelWithHint: true,
                         labelStyle: GoogleFonts.poppins(
-                            fontSize: 13, color: AppTheme.textHint),
+                          fontSize: 13,
+                          color: AppTheme.textHint,
+                        ),
                         hintText:
                             'Write something meaningful for the recipient…',
                         hintStyle: GoogleFonts.poppins(
-                            fontSize: 13, color: AppTheme.textHint),
+                          fontSize: 13,
+                          color: AppTheme.textHint,
+                        ),
                         prefixIcon: const Padding(
                           padding: EdgeInsets.only(bottom: 60),
-                          child: Icon(Icons.edit_note_rounded,
-                              size: 20, color: AppTheme.textHint),
+                          child: Icon(
+                            Icons.edit_note_rounded,
+                            size: 20,
+                            color: AppTheme.textHint,
+                          ),
                         ),
                         filled: true,
                         fillColor: AppTheme.scaffoldBg,
-                        contentPadding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                        contentPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          14,
+                          16,
+                          14,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -504,10 +571,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(
-                              color: AppTheme.terracotta.withValues(alpha: 0.5)),
+                            color: AppTheme.terracotta.withValues(alpha: 0.5),
+                          ),
                         ),
                         counterStyle: GoogleFonts.poppins(
-                            fontSize: 11, color: AppTheme.textHint),
+                          fontSize: 11,
+                          color: AppTheme.textHint,
+                        ),
                       ),
                     ),
                   ),
@@ -542,9 +612,13 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Subtotal',
-                    style: GoogleFonts.poppins(
-                        fontSize: 14, color: AppTheme.textSecondary)),
+                Text(
+                  'Subtotal',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
                 Text(
                   'R${subtotal.toStringAsFixed(0)}',
                   style: GoogleFonts.poppins(
@@ -559,12 +633,20 @@ class _CartScreenState extends ConsumerState<CartScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Shipping',
-                    style: GoogleFonts.poppins(
-                        fontSize: 14, color: AppTheme.textSecondary)),
-                Text('Calculated at checkout',
-                    style: GoogleFonts.poppins(
-                        fontSize: 12, color: AppTheme.textHint)),
+                Text(
+                  'Shipping',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                Text(
+                  'Calculated at checkout',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),

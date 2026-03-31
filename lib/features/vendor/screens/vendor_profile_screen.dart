@@ -13,6 +13,7 @@ class VendorProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final shopAsync = ref.watch(vendorShopProvider);
     final profileAsync = ref.watch(currentProfileProvider);
+    final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -87,6 +88,16 @@ class VendorProfileScreen extends ConsumerWidget {
               // Menu items
               _buildMenuItem(
                 context,
+                Icons.chat_bubble_outline_rounded,
+                'Messages',
+                unreadMessages > 0
+                    ? '$unreadMessages unread conversation${unreadMessages == 1 ? '' : 's'}'
+                    : 'Reply to buyers in one place',
+                () => context.push('/vendor/messages'),
+                badgeCount: unreadMessages,
+              ),
+              _buildMenuItem(
+                context,
                 Icons.store_outlined,
                 'Shop Settings',
                 'Edit your shop profile and branding',
@@ -126,6 +137,7 @@ class VendorProfileScreen extends ConsumerWidget {
     String title,
     String subtitle,
     VoidCallback onTap,
+    {int badgeCount = 0}
   ) {
     return GestureDetector(
       onTap: onTap,
@@ -171,6 +183,24 @@ class VendorProfileScreen extends ConsumerWidget {
                 ],
               ),
             ),
+            if (badgeCount > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: const BoxDecoration(
+                  color: AppTheme.terracotta,
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                ),
+                child: Text(
+                  badgeCount > 9 ? '9+' : '$badgeCount',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
             const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
           ],
         ),

@@ -60,6 +60,7 @@ class _DashboardContent extends ConsumerWidget {
     final ordersAsync = ref.watch(vendorOrdersProvider);
     final productsAsync = ref.watch(vendorProductsProvider);
     final earningsAsync = ref.watch(vendorEarningsProvider);
+    final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -71,6 +72,8 @@ class _DashboardContent extends ConsumerWidget {
             ref.invalidate(vendorOrdersProvider);
             ref.invalidate(vendorProductsProvider);
             ref.invalidate(vendorEarningsProvider);
+            ref.invalidate(vendorThreadsProvider);
+            ref.invalidate(vendorThreadsStreamProvider);
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -105,12 +108,13 @@ class _DashboardContent extends ConsumerWidget {
                 // Stats cards
                 earningsAsync.when(
                   data: (earnings) => _buildStatsRow(
+                    context,
                     productsAsync.value?.length ?? 0,
                     ordersAsync.value?.length ?? 0,
                     earnings['totalSales'] ?? 0,
                   ),
-                  loading: () => _buildStatsRow(0, 0, 0),
-                  error: (_, __) => _buildStatsRow(0, 0, 0),
+                  loading: () => _buildStatsRow(context, 0, 0, 0),
+                  error: (_, __) => _buildStatsRow(context, 0, 0, 0),
                 ),
                 const SizedBox(height: 28),
 
@@ -199,6 +203,8 @@ class _DashboardContent extends ConsumerWidget {
                   AppTheme.terracotta,
                   () => context.push('/vendor/profile/stationery'),
                 ),
+                const SizedBox(height: 12),
+                _buildMessagesActionCard(context, unreadMessages),
                 const SizedBox(height: 32),
               ],
             ),
@@ -208,7 +214,12 @@ class _DashboardContent extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatsRow(int products, int orders, double revenue) {
+  Widget _buildStatsRow(
+    BuildContext context,
+    int products,
+    int orders,
+    double revenue,
+  ) {
     return Row(
       children: [
         Expanded(
@@ -217,6 +228,7 @@ class _DashboardContent extends ConsumerWidget {
             'Products',
             Icons.inventory_2_outlined,
             AppTheme.baobab,
+            onTap: () => context.go('/vendor/products'),
           ),
         ),
         const SizedBox(width: 10),
@@ -226,6 +238,7 @@ class _DashboardContent extends ConsumerWidget {
             'Orders',
             Icons.receipt_long_outlined,
             AppTheme.ochre,
+            onTap: () => context.go('/vendor/orders'),
           ),
         ),
         const SizedBox(width: 10),
@@ -235,6 +248,7 @@ class _DashboardContent extends ConsumerWidget {
             'Revenue',
             Icons.account_balance_wallet_outlined,
             AppTheme.terracotta,
+            onTap: () => context.go('/vendor/earnings'),
           ),
         ),
       ],
@@ -245,40 +259,51 @@ class _DashboardContent extends ConsumerWidget {
     String value,
     String label,
     IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    Color color, {
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(height: 10),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  color: AppTheme.textHint,
+                ),
+              ),
+            ],
           ),
-          Text(
-            label,
-            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -352,7 +377,7 @@ class _DashboardContent extends ConsumerWidget {
                 ),
                 const SizedBox(width: 10),
                 _buildEarningsPill(
-                  'Fees',
+                  'TradeSafe',
                   'R${(earnings['fees'] ?? 0).toStringAsFixed(0)}',
                 ),
               ],
@@ -586,6 +611,80 @@ class _DashboardContent extends ConsumerWidget {
     );
   }
 
+  Widget _buildMessagesActionCard(BuildContext context, int unreadMessages) {
+    return GestureDetector(
+      onTap: () => context.push('/vendor/messages'),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppTheme.baobab.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(
+                Icons.chat_bubble_outline_rounded,
+                color: AppTheme.baobab,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Customer Messages',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    unreadMessages > 0
+                        ? '$unreadMessages unread conversation${unreadMessages == 1 ? '' : 's'}'
+                        : 'Reply to buyers and manage chats',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (unreadMessages > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: const BoxDecoration(
+                  color: AppTheme.terracotta,
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                ),
+                child: Text(
+                  unreadMessages > 9 ? '9+' : '$unreadMessages',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildContactActionCard(BuildContext context) {
     return GestureDetector(
       onTap: () => _showContactSheet(context),
@@ -746,33 +845,21 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
 
   final List<_StationeryItem> _items = [
     _StationeryItem(
-      key: 'gift_card',
-      name: 'Gift Cards',
-      description: 'Folded A6 branded cards',
+      key: 'gift_tag',
+      name: 'Gift Tag',
+      description: '50 x 80 mm branded tag — R7 each',
       icon: Icons.style_outlined,
     ),
     _StationeryItem(
-      key: 'ribbon',
-      name: 'Ribbon',
-      description: 'Per roll — branded satin ribbon',
-      icon: Icons.horizontal_rule_rounded,
-    ),
-    _StationeryItem(
-      key: 'wrapping_paper',
-      name: 'Wrapping Paper',
-      description: 'Per sheet — branded design',
+      key: 'wrap_sheet',
+      name: 'Wrap Sheet',
+      description: '500 x 700 mm branded wrap sheet — R15 each',
       icon: Icons.inventory_2_outlined,
     ),
     _StationeryItem(
-      key: 'tissue_paper',
-      name: 'Tissue Paper',
-      description: 'Per sheet — branded colour',
-      icon: Icons.layers_outlined,
-    ),
-    _StationeryItem(
-      key: 'sticker_sheet',
-      name: 'Sticker / Label Sheet',
-      description: 'Sheet of 10 branded labels',
+      key: 'sticker',
+      name: 'Sticker',
+      description: 'Branded sticker — R4 each',
       icon: Icons.local_offer_outlined,
     ),
   ];

@@ -80,10 +80,10 @@ final recentSearchesProvider =
       RecentSearchesNotifier.new,
     );
 
-// ── Trending Searches (from Supabase) ───────────────────────────
-final trendingSearchesProvider = FutureProvider<List<String>>((ref) async {
+// ── Trending Searches (live from Supabase) ──────────────────────
+final trendingSearchesProvider = StreamProvider<List<String>>((ref) {
   final service = ref.read(supabaseServiceProvider);
-  return service.getTrendingSearches();
+  return service.watchTrendingSearches();
 });
 
 // ── Categories ──────────────────────────────────────────────────
@@ -91,6 +91,54 @@ final categoriesProvider = FutureProvider<List<Category>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
   return service.getCategories();
 });
+
+// ── Subcategories ───────────────────────────────────────────────
+final subcategoriesProvider = FutureProvider.family<List<Subcategory>, String>((
+  ref,
+  categoryId,
+) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getSubcategories(categoryId);
+});
+
+// ── Chat ────────────────────────────────────────────────────────
+final buyerThreadsProvider = FutureProvider<List<ChatThread>>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return [];
+  final service = ref.read(supabaseServiceProvider);
+  return service.getBuyerThreads(userId);
+});
+
+final buyerThreadsStreamProvider = StreamProvider<List<ChatThread>>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return Stream.value(const <ChatThread>[]);
+  }
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchBuyerThreads(userId);
+});
+
+final buyerUnreadThreadsCountProvider = Provider<int>((ref) {
+  final streamThreads = ref.watch(buyerThreadsStreamProvider).value;
+  final threads = streamThreads ?? ref.watch(buyerThreadsProvider).value ?? [];
+  return threads.where((thread) => thread.unreadCount > 0).length;
+});
+
+final buyerChatThreadProvider = FutureProvider.family<ChatThread, String>((
+  ref,
+  threadId,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) throw Exception('Not authenticated');
+  final service = ref.read(supabaseServiceProvider);
+  return service.getThread(threadId, userId);
+});
+
+final buyerThreadMessagesProvider =
+    StreamProvider.family<List<ChatMessage>, String>((ref, threadId) {
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchThreadMessages(threadId);
+    });
 
 // ── Products ────────────────────────────────────────────────────
 final featuredProductsProvider = FutureProvider<List<Product>>((ref) async {
@@ -103,13 +151,75 @@ final onSaleProductsProvider = FutureProvider<List<Product>>((ref) async {
   return service.getOnSaleProducts(limit: 10);
 });
 
-final categoryProductsProvider = FutureProvider.family<List<Product>, String>((
-  ref,
-  categoryId,
-) async {
-  final service = ref.read(supabaseServiceProvider);
-  return service.getProducts(categoryId: categoryId);
-});
+/// Filter parameters for category product browsing.
+class CategoryProductFilter {
+  final String categoryId;
+  final String? subcategoryId;
+  final List<String> tags;
+  final bool onSale;
+  final bool featured;
+  final String sortBy;
+  final bool ascending;
+
+  const CategoryProductFilter({
+    required this.categoryId,
+    this.subcategoryId,
+    this.tags = const [],
+    this.onSale = false,
+    this.featured = false,
+    this.sortBy = 'created_at',
+    this.ascending = false,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CategoryProductFilter &&
+          other.categoryId == categoryId &&
+          other.subcategoryId == subcategoryId &&
+          _listEq(other.tags, tags) &&
+          other.onSale == onSale &&
+          other.featured == featured &&
+          other.sortBy == sortBy &&
+          other.ascending == ascending;
+
+  @override
+  int get hashCode => Object.hash(
+    categoryId,
+    subcategoryId,
+    Object.hashAll(tags),
+    onSale,
+    featured,
+    sortBy,
+    ascending,
+  );
+
+  static bool _listEq(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+}
+
+final categoryProductsProvider =
+    FutureProvider.family<List<Product>, CategoryProductFilter>((
+      ref,
+      filter,
+    ) async {
+      final service = ref.read(supabaseServiceProvider);
+      return service.getProducts(
+        categoryId: filter.categoryId,
+        subcategoryId: filter.subcategoryId,
+        tags: filter.tags.isNotEmpty ? filter.tags : null,
+        onSale: filter.onSale ? true : null,
+        featured: filter.featured ? true : null,
+        sortBy: filter.sortBy,
+        ascending: filter.ascending,
+        limit: 60,
+      );
+    });
 
 final shopProductsProvider = FutureProvider.family<List<Product>, String>((
   ref,
@@ -165,6 +275,54 @@ final shopMarketEventsProvider =
       final service = ref.read(supabaseServiceProvider);
       return service.getShopMarketEvents(shopId);
     });
+
+final shopReviewsProvider = FutureProvider.family<List<ShopReview>, String>((
+  ref,
+  shopId,
+) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getShopReviews(shopId);
+});
+
+final shopReviewSummaryProvider = FutureProvider.family<ReviewSummary, String>((
+  ref,
+  shopId,
+) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getShopReviewSummary(shopId);
+});
+
+final canReviewShopProvider = FutureProvider.family<bool, String>((
+  ref,
+  shopId,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return false;
+  final service = ref.read(supabaseServiceProvider);
+  return service.canReviewShop(shopId, userId);
+});
+
+final productReviewsProvider =
+    FutureProvider.family<List<ProductReview>, String>((ref, productId) async {
+      final service = ref.read(supabaseServiceProvider);
+      return service.getProductReviews(productId);
+    });
+
+final productReviewSummaryProvider =
+    FutureProvider.family<ReviewSummary, String>((ref, productId) async {
+      final service = ref.read(supabaseServiceProvider);
+      return service.getProductReviewSummary(productId);
+    });
+
+final canReviewProductProvider = FutureProvider.family<bool, String>((
+  ref,
+  productId,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return false;
+  final service = ref.read(supabaseServiceProvider);
+  return service.canReviewProduct(productId, userId);
+});
 
 // ── Favourites ──────────────────────────────────────────────────
 final favouriteProductsProvider = FutureProvider<List<Product>>((ref) async {

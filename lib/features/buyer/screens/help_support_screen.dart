@@ -17,38 +17,45 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
   static const _faqs = [
     {
       'q': 'How does the escrow payment work?',
-      'a': 'When you place an order, your payment is held securely in escrow. '
+      'a':
+          'When you place an order, your payment is held securely in escrow. '
           'The artisan is notified and ships your item. Once you receive it and '
           'confirm delivery, the funds are released to the maker. This protects '
-          'both buyers and sellers.',
+          'both buyers and sellers. TradeSafe may also charge an escrow processing fee during checkout, and its integrated checkout fees can vary depending on the payment method selected.',
     },
     {
       'q': 'What shipping options are available?',
-      'a': 'We offer The Courier Guy (door-to-door, 2-4 days), Pargo pick-up points, '
+      'a':
+          'We offer The Courier Guy (door-to-door or locker-to-locker, 2-4 days), Pargo pick-up points, '
           'PAXI (collect at PEP stores), and Market Pickup where you collect directly '
           'from the artisan.',
     },
     {
       'q': 'How do I return or exchange an item?',
-      'a': 'Since every item is handcrafted and unique, returns are handled on a '
+      'a':
+          'Since every item is handcrafted and unique, returns are handled on a '
           'case-by-case basis. If your item arrives damaged or significantly different '
           'from the listing, you can raise a dispute from your order details page.',
     },
     {
       'q': 'How do I raise a dispute?',
-      'a': 'Go to My Orders, tap the order in question, then select "Raise Dispute". '
+      'a':
+          'Go to My Orders, tap the order in question, then select "Raise Dispute". '
           'Describe the issue and our team will investigate. While a dispute is open, '
           'funds remain in escrow.',
     },
     {
       'q': 'How long does shipping take?',
-      'a': 'Delivery times depend on the shipping method chosen at checkout. '
+      'a':
+          'Delivery times depend on the shipping method chosen at checkout. '
           'The Courier Guy typically delivers in 2-4 business days, Pargo in 3-5 days, '
-          'and PAXI in 4-7 days. Market Pickup depends on the next available market date.',
+          'and PAXI in 4-7 days. Market Pickup depends on the next available market date. '
+          'Some made-to-order or special-order items may also have an additional lead time before dispatch.',
     },
     {
       'q': 'Are all products handmade?',
-      'a': 'Yes! Every product on Artisan Lane is crafted by verified South African artisans. '
+      'a':
+          'Yes! Every product on Artisan Lane is crafted by verified South African artisans. '
           'We vet each maker through our application process to ensure authenticity.',
     },
   ];
@@ -61,12 +68,19 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
           'Help & Support',
-          style: GoogleFonts.playfairDisplay(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 24),
+          style: GoogleFonts.playfairDisplay(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
         ),
         centerTitle: true,
       ),
@@ -76,17 +90,32 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Frequently Asked Questions', style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+              Text(
+                'Frequently Asked Questions',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
               const SizedBox(height: 20),
               ...List.generate(_faqs.length, (i) => _faqTile(i)),
               const SizedBox(height: 40),
-              Text('Contact Us', style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+              Text(
+                'Contact Us',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
               const SizedBox(height: 20),
               _contactTile(
                 icon: Icons.email_outlined,
                 title: 'Email Support',
                 subtitle: 'support@artisanallane.co.za',
-                onTap: () => launchUrl(Uri.parse('mailto:support@artisanallane.co.za')),
+                onTap: () =>
+                    launchUrl(Uri.parse('mailto:support@artisanallane.co.za')),
               ),
               const SizedBox(height: 16),
               _contactTile(
@@ -116,8 +145,18 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: isExpanded ? AppTheme.terracotta.withValues(alpha: 0.3) : AppTheme.sand.withValues(alpha: 0.3)),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            border: Border.all(
+              color: isExpanded
+                  ? AppTheme.terracotta.withValues(alpha: 0.3)
+                  : AppTheme.sand.withValues(alpha: 0.3),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,11 +166,17 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                   Expanded(
                     child: Text(
                       faq['q']!,
-                      style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
                   ),
                   Icon(
-                    isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                    isExpanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
                     color: AppTheme.textHint,
                     size: 22,
                   ),
@@ -141,7 +186,11 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 const SizedBox(height: 12),
                 Text(
                   faq['a']!,
-                  style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary, height: 1.6),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    height: 1.6,
+                  ),
                 ),
               ],
             ],
@@ -165,13 +214,22 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppTheme.terracotta.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: AppTheme.terracotta.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(icon, color: AppTheme.terracotta, size: 22),
             ),
             const SizedBox(width: 16),
@@ -179,13 +237,30 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary)),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppTheme.textHint),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppTheme.textHint,
+            ),
           ],
         ),
       ),

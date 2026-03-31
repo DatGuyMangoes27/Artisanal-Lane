@@ -14,19 +14,20 @@ class BuyerProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
+    final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       body: profileAsync.when(
-        data: (profile) => _buildBody(context, profile),
+        data: (profile) => _buildBody(context, profile, unreadMessages),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _buildErrorBody(context),
+        error: (error, _) => _buildErrorBody(context, unreadMessages),
       ),
     );
   }
 
   // ── Data-loaded body ──────────────────────────────────────────
-  Widget _buildBody(BuildContext context, dynamic profile) {
+  Widget _buildBody(BuildContext context, dynamic profile, int unreadMessages) {
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -34,7 +35,7 @@ class BuyerProfileScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           _buildStatsRow(),
           const SizedBox(height: 32),
-          _buildMenuSection(context),
+          _buildMenuSection(context, unreadMessages),
           const SizedBox(height: 40),
           const TripleDot(),
           const SizedBox(height: 32),
@@ -44,7 +45,7 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Error / demo body ─────────────────────────────────────────
-  Widget _buildErrorBody(BuildContext context) {
+  Widget _buildErrorBody(BuildContext context, int unreadMessages) {
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -52,7 +53,7 @@ class BuyerProfileScreen extends ConsumerWidget {
           const SizedBox(height: 32),
           _buildStatsRow(),
           const SizedBox(height: 32),
-          _buildMenuSection(context),
+          _buildMenuSection(context, unreadMessages),
           const SizedBox(height: 40),
           const TripleDot(),
           const SizedBox(height: 32),
@@ -314,7 +315,7 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Menu section ──────────────────────────────────────────────
-  Widget _buildMenuSection(BuildContext context) {
+  Widget _buildMenuSection(BuildContext context, int unreadMessages) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -335,6 +336,13 @@ class BuyerProfileScreen extends ConsumerWidget {
             icon: Icons.payment_outlined,
             title: 'Payment Methods',
             onTap: () => context.push('/profile/payment-methods'),
+          ),
+          const SizedBox(height: 16),
+          _MenuItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            title: 'Messages',
+            badgeCount: unreadMessages,
+            onTap: () => context.push('/profile/messages'),
           ),
           const SizedBox(height: 16),
           _MenuItem(
@@ -367,11 +375,13 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _MenuItem({
     required this.icon,
     required this.title,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -418,6 +428,24 @@ class _MenuItem extends StatelessWidget {
                 ),
               ),
             ),
+            if (badgeCount > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: const BoxDecoration(
+                  color: AppTheme.terracotta,
+                  borderRadius: BorderRadius.all(Radius.circular(999)),
+                ),
+                child: Text(
+                  badgeCount > 9 ? '9+' : '$badgeCount',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
             const Icon(
               Icons.chevron_right,
               size: 20,

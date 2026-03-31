@@ -415,6 +415,17 @@ class _ItemCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
+                if (item.variantName != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Option: ${item.variantName}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',

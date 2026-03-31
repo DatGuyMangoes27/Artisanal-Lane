@@ -24,6 +24,45 @@ final vendorMarketEventsProvider = FutureProvider<List<ShopMarketEvent>>((
   );
 });
 
+// ── Chat ────────────────────────────────────────────────────────
+final vendorThreadsProvider = FutureProvider<List<ChatThread>>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return [];
+  final service = ref.read(supabaseServiceProvider);
+  return service.getVendorThreads(userId);
+});
+
+final vendorThreadsStreamProvider = StreamProvider<List<ChatThread>>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return Stream.value(const <ChatThread>[]);
+  }
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchVendorThreads(userId);
+});
+
+final vendorUnreadThreadsCountProvider = Provider<int>((ref) {
+  final streamThreads = ref.watch(vendorThreadsStreamProvider).value;
+  final threads = streamThreads ?? ref.watch(vendorThreadsProvider).value ?? [];
+  return threads.where((thread) => thread.unreadCount > 0).length;
+});
+
+final vendorChatThreadProvider = FutureProvider.family<ChatThread, String>((
+  ref,
+  threadId,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) throw Exception('Not authenticated');
+  final service = ref.read(supabaseServiceProvider);
+  return service.getThread(threadId, userId);
+});
+
+final vendorThreadMessagesProvider =
+    StreamProvider.family<List<ChatMessage>, String>((ref, threadId) {
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchThreadMessages(threadId);
+    });
+
 // ── Vendor Products ─────────────────────────────────────────────
 final vendorProductsProvider = FutureProvider<List<Product>>((ref) async {
   final shop = await ref.watch(vendorShopProvider.future);
@@ -128,3 +167,10 @@ final vendorCategoriesProvider = FutureProvider<List<Category>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
   return service.getCategories();
 });
+
+// ── Subcategories (for product form, keyed by categoryId) ─────
+final vendorSubcategoriesProvider =
+    FutureProvider.family<List<Subcategory>, String>((ref, categoryId) async {
+      final service = ref.read(supabaseServiceProvider);
+      return service.getSubcategories(categoryId);
+    });
