@@ -19,3 +19,4 @@ export 'shop_review.dart';
 export 'stationery_request.dart';
 export 'product_review.dart';
 export 'vendor_application.dart';
+export 'vendor_payout_profile.dart';

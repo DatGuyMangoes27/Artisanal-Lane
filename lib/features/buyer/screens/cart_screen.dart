@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
 import '../providers/buyer_providers.dart';
 
@@ -18,6 +19,15 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _isGift = false;
   final _recipientController = TextEditingController();
   final _messageController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final giftOptions = ref.read(giftOptionsProvider);
+    _isGift = giftOptions.isGift;
+    _recipientController.text = giftOptions.recipient;
+    _messageController.text = giftOptions.message;
+  }
 
   @override
   void dispose() {
@@ -158,6 +168,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   // ── Cart Content ────────────────────────────────────────────────
   Widget _buildCartContent(BuildContext context, List<CartItem> items) {
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
+    final giftFee = giftFeeForSelection(isGift: _isGift);
     final expiringSoonCount = items.where((i) => i.isExpiringSoon).length;
 
     return SafeArea(
@@ -178,7 +189,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
               },
             ),
           ),
-          _buildSummaryBar(context, subtotal),
+          _buildSummaryBar(context, subtotal, giftFee),
         ],
       ),
     );
@@ -591,7 +602,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   // ── Bottom Summary Bar ──────────────────────────────────────────
-  Widget _buildSummaryBar(BuildContext context, double subtotal) {
+  Widget _buildSummaryBar(BuildContext context, double subtotal, double giftFee) {
+    final total = subtotal + giftFee;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -629,6 +641,29 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 ),
               ],
             ),
+            if (giftFee > 0) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Gift service',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    'R${giftFee.toStringAsFixed(0)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -649,6 +684,30 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 ),
               ],
             ),
+            if (giftFee > 0) ...[
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total before shipping',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    'R${total.toStringAsFixed(0)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 24),
             // Gradient checkout button
             SizedBox(

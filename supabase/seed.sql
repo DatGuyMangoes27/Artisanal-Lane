@@ -27,7 +27,8 @@ insert into categories (id, name, slug, icon_url, sort_order) values
   ('c0000000-0000-0000-0000-000000000003', 'Beauty', 'beauty', null, 3),
   ('c0000000-0000-0000-0000-000000000004', 'Jewellery', 'jewellery', null, 4),
   ('c0000000-0000-0000-0000-000000000005', 'Home & Living', 'home-living', null, 5),
-  ('c0000000-0000-0000-0000-000000000006', 'Baby & Kids', 'baby-kids', null, 6)
+  ('c0000000-0000-0000-0000-000000000006', 'Baby & Kids', 'baby-kids', null, 6),
+  ('c0000000-0000-0000-0000-000000000010', 'Other', 'other', null, 10)
 on conflict (id) do update set name = excluded.name, slug = excluded.slug, sort_order = excluded.sort_order;
 
 -- ============================================================

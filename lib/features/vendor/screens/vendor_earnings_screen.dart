@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_onboarding_flow.dart';
 
 class VendorEarningsScreen extends ConsumerWidget {
   const VendorEarningsScreen({super.key});
@@ -10,6 +12,10 @@ class VendorEarningsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final earningsAsync = ref.watch(vendorEarningsProvider);
+    final payoutProfile =
+        ref.watch(vendorPayoutProfileStreamProvider).value ??
+        ref.watch(vendorPayoutProfileProvider).value;
+    final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -17,7 +23,11 @@ class VendorEarningsScreen extends ConsumerWidget {
         child: earningsAsync.when(
           data: (earnings) => RefreshIndicator(
             color: AppTheme.terracotta,
-            onRefresh: () async => ref.invalidate(vendorEarningsProvider),
+            onRefresh: () async {
+              ref.invalidate(vendorEarningsProvider);
+              ref.invalidate(vendorPayoutProfileProvider);
+              ref.invalidate(vendorPayoutProfileStreamProvider);
+            },
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -38,6 +48,47 @@ class VendorEarningsScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
+                if (payoutStatus != 'verified') ...[
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: AppTheme.sand.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TradeSafe payout status',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          vendorPayoutBannerMessage(payoutStatus),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppTheme.textSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: () => context.push('/vendor/profile/payouts'),
+                          icon: const Icon(Icons.account_balance_outlined),
+                          label: const Text('Open payout details'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
 
                 // Total sales card
                 _buildHighlightCard(
@@ -112,7 +163,7 @@ class VendorEarningsScreen extends ConsumerWidget {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Funds are held in escrow until the buyer confirms receipt of the order. In this checkout flow, TradeSafe\'s escrow processing fee is charged at checkout rather than shown as an Artisan Lane commission taken from your payout. TradeSafe publishes integrated checkout fees as payment-method based charges, so the final fee can vary by how the buyer pays.',
+                              'Funds are held in escrow until the buyer confirms receipt of the order. Once released, payouts follow your TradeSafe-linked payout setup in Artisan Lane. In this checkout flow, TradeSafe\'s escrow processing fee is charged at checkout rather than shown as an Artisan Lane commission taken from your payout. TradeSafe publishes integrated checkout fees as payment-method based charges, so the final fee can vary by how the buyer pays.',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: AppTheme.textSecondary,

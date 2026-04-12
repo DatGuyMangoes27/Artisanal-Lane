@@ -568,7 +568,7 @@ class _VendorApplicationScreenState
           _buildLabel('How will you fulfil orders?'),
           const SizedBox(height: 4),
           Text(
-            'Tell us about your delivery method — courier, self-delivery, click & collect, etc.',
+              'Tell us about your delivery method — courier, click & collect, market pickup, etc.',
             style: GoogleFonts.poppins(
               fontSize: 11,
               color: AppTheme.textHint,
@@ -585,7 +585,7 @@ class _VendorApplicationScreenState
                 : null,
             decoration: const InputDecoration(
               hintText:
-                  'e.g. I use Courier Guy for deliveries, or can do local drop-offs in Cape Town',
+                  'e.g. I use Courier Guy for deliveries, or offer locker collection options',
             ),
           ),
           const SizedBox(height: 20),

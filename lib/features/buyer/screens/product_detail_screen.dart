@@ -9,6 +9,7 @@ import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../models/models.dart';
+import '../utils/product_detail_actions.dart';
 import '../widgets/review_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
@@ -166,11 +167,22 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   Future<void> _addToCart(Product product, {ProductVariant? variant}) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (requiresSignInForCart(userId)) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to add to basket',
+        message:
+            'Create an account or sign in to add this item to your basket and continue to checkout.',
+      );
+      return;
+    }
+
     setState(() => _isAddingToCart = true);
     try {
       final service = ref.read(supabaseServiceProvider);
       await service.addToCart(
-        Supabase.instance.client.auth.currentUser!.id,
+        userId!,
         product.id,
         variantId: variant?.id,
       );
@@ -211,30 +223,85 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
   }
 
-  void _shareProduct(Product product, {ProductVariant? variant}) {
+  Future<void> _shareProduct(Product product, {ProductVariant? variant}) async {
     final sharePrice = variant?.price ?? product.price;
-    Share.share(
-      'Check out ${product.title} on Artisan Lane! R${sharePrice.toStringAsFixed(0)}',
-    );
+    try {
+      await Share.share(
+        buildProductShareText(
+          title: product.title,
+          price: sharePrice,
+        ),
+        subject: 'Artisan Lane product share',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not open the share sheet right now.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _toggleFavourite(String productId, bool currentlyFav) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (requiresSignInForFavourite(userId)) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to save favourites',
+        message:
+            'Create an account or sign in to save this item to your favourites.',
+      );
+      return;
+    }
+
     final service = ref.read(supabaseServiceProvider);
     try {
       if (currentlyFav) {
-        await service.removeFavourite(
-          Supabase.instance.client.auth.currentUser!.id,
-          productId,
-        );
+        await service.removeFavourite(userId!, productId);
       } else {
-        await service.addFavourite(
-          Supabase.instance.client.auth.currentUser!.id,
-          productId,
-        );
+        await service.addFavourite(userId!, productId);
       }
       ref.invalidate(favouriteIdsProvider);
       ref.invalidate(favouriteProductsProvider);
-    } catch (_) {}
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            currentlyFav ? 'Removed from favourites' : 'Saved to favourites',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update favourites right now.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _contactArtisan(Product product) async {

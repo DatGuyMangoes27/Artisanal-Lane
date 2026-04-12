@@ -11,6 +11,7 @@ import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/buyer/screens/buyer_home_screen.dart';
 import '../features/buyer/screens/categories_screen.dart';
 import '../features/buyer/screens/category_products_screen.dart';
+import '../features/buyer/screens/curated_collection_screen.dart';
 import '../features/buyer/screens/search_screen.dart';
 import '../features/buyer/screens/search_results_screen.dart';
 import '../features/buyer/screens/product_detail_screen.dart';
@@ -50,6 +51,7 @@ import '../features/vendor/screens/vendor_settings_screen.dart';
 import '../features/vendor/screens/vendor_posts_screen.dart';
 import '../features/vendor/screens/post_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
+import '../features/vendor/screens/vendor_payout_details_screen.dart';
 import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
 
 import '../widgets/buyer_shell.dart';
@@ -138,6 +140,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'categories',
                 builder: (context, state) => const CategoriesScreen(),
+              ),
+              GoRoute(
+                path: 'curated',
+                builder: (context, state) => const CuratedCollectionScreen(),
               ),
               GoRoute(
                 path: 'category/:categoryId',
@@ -368,6 +374,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 path: 'stationery',
                 builder: (context, state) =>
                     const VendorStationeryRequestsScreen(),
+              ),
+              GoRoute(
+                path: 'payouts',
+                builder: (context, state) => const VendorPayoutDetailsScreen(),
               ),
               GoRoute(
                 path: 'shop',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +9,9 @@ import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../utils/curated_collection_carousel.dart';
+import '../utils/curated_collection_destination.dart';
 import '../providers/buyer_providers.dart';
 
 class BuyerHomeScreen extends ConsumerWidget {
@@ -19,6 +24,7 @@ class BuyerHomeScreen extends ConsumerWidget {
     final onSale = ref.watch(onSaleProductsProvider);
     final spotlightShop = ref.watch(spotlightShopProvider);
     final followingFeed = ref.watch(followingFeedProvider);
+    final profile = ref.watch(currentProfileProvider).value;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -67,6 +73,37 @@ class BuyerHomeScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
               ],
+            ),
+
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                child: profile == null
+                    ? const SizedBox.shrink()
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome back',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            profile.displayName?.trim().isNotEmpty == true
+                                ? profile.displayName!.trim()
+                                : 'Ready to discover something beautiful today?',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
 
             // ── Search Bar ────────────────────────────────────────────────
@@ -233,21 +270,15 @@ class BuyerHomeScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _SectionHeader(
-                        title: 'Curated Collection',
-                        subtitle: 'Handpicked for their exceptional craft',
-                        onTap: () => context.push('/home/categories'),
+                        title: curatedCollectionTitle,
+                        subtitle: curatedCollectionSubtitle,
+                        onTap: () => context.push(curatedCollectionRoute),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
                         height: 310,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          scrollDirection: Axis.horizontal,
-                          itemCount: products.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 16),
-                          itemBuilder: (_, i) =>
-                              _ElegantProductCard(product: products[i]),
+                        child: _AutoScrollingCuratedCollection(
+                          products: products,
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -258,9 +289,9 @@ class BuyerHomeScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _SectionHeader(
-                      title: 'Curated Collection',
-                      subtitle: 'Handpicked for their exceptional craft',
-                      onTap: () => context.push('/home/categories'),
+                      title: curatedCollectionTitle,
+                      subtitle: curatedCollectionSubtitle,
+                      onTap: () => context.push(curatedCollectionRoute),
                     ),
                     const SizedBox(height: 16),
                     SizedBox(height: 310, child: _shimmerRow(3, 200, 300)),
@@ -720,6 +751,115 @@ class _ElegantProductCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoScrollingCuratedCollection extends StatefulWidget {
+  final List<Product> products;
+
+  const _AutoScrollingCuratedCollection({required this.products});
+
+  @override
+  State<_AutoScrollingCuratedCollection> createState() =>
+      _AutoScrollingCuratedCollectionState();
+}
+
+class _AutoScrollingCuratedCollectionState
+    extends State<_AutoScrollingCuratedCollection> {
+  late final ScrollController _controller;
+  Timer? _scrollTimer;
+  Timer? _resumeTimer;
+  bool _isPaused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoScroll());
+  }
+
+  @override
+  void didUpdateWidget(covariant _AutoScrollingCuratedCollection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.products.length != widget.products.length) {
+      _stopTimers();
+      _isPaused = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _startAutoScroll());
+    }
+  }
+
+  void _startAutoScroll() {
+    if (!mounted || !shouldAutoScrollCuratedCollection(widget.products.length)) {
+      return;
+    }
+
+    _scrollTimer?.cancel();
+    _scrollTimer = Timer.periodic(curatedCollectionTick, (_) {
+      if (!mounted || _isPaused || !_controller.hasClients) return;
+
+      final position = _controller.position;
+      final maxScrollExtent = position.maxScrollExtent;
+      if (maxScrollExtent <= 0) return;
+
+      final nextOffset = _controller.offset + curatedCollectionScrollStep;
+      if (nextOffset >= maxScrollExtent) {
+        _controller.jumpTo(0);
+      } else {
+        _controller.jumpTo(nextOffset);
+      }
+    });
+  }
+
+  void _pauseAutoScroll() {
+    _isPaused = true;
+    _resumeTimer?.cancel();
+  }
+
+  void _scheduleResume() {
+    if (!shouldAutoScrollCuratedCollection(widget.products.length)) return;
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(curatedCollectionResumeDelay, () {
+      _isPaused = false;
+    });
+  }
+
+  void _stopTimers() {
+    _scrollTimer?.cancel();
+    _resumeTimer?.cancel();
+  }
+
+  @override
+  void dispose() {
+    _stopTimers();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _pauseAutoScroll(),
+      onPointerUp: (_) => _scheduleResume(),
+      onPointerCancel: (_) => _scheduleResume(),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollStartNotification) {
+            _pauseAutoScroll();
+          } else if (notification is ScrollEndNotification) {
+            _scheduleResume();
+          }
+          return false;
+        },
+        child: ListView.separated(
+          controller: _controller,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          scrollDirection: Axis.horizontal,
+          itemCount: widget.products.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 16),
+          itemBuilder: (_, i) => _ElegantProductCard(product: widget.products[i]),
         ),
       ),
     );

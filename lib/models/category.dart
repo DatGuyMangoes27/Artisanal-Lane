@@ -46,6 +46,7 @@ class Category {
     'self-care': Icons.spa_outlined,
     'pantry': Icons.local_dining_outlined,
     'pets': Icons.pets_outlined,
+    'other': Icons.more_horiz_rounded,
     // legacy slugs
     'home-living': Icons.home_outlined,
     'beauty': Icons.spa_outlined,
@@ -58,6 +59,7 @@ class Category {
     'clothing': ['men', 'women', 'unisex'],
     'baby-kids': ['boy', 'girl', 'unisex'],
     'pets': ['cats', 'dogs', 'other'],
+    'other': ['misc', 'gift', 'seasonal'],
   };
 
   IconData get icon => categoryIcons[slug] ?? Icons.category_outlined;

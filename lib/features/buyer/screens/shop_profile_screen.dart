@@ -13,6 +13,7 @@ import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/shop_profile_actions.dart';
 
 class ShopProfileScreen extends ConsumerStatefulWidget {
   final String shopId;
@@ -455,7 +456,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
 
   Future<void> _contactArtisan(Shop shop) async {
     final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
+    final userId = user?.id;
+    if (requiresSignInToMessageShop(userId)) {
       await showSignInPromptSheet(
         context,
         title: 'Sign in to message artisans',
@@ -468,9 +470,9 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     try {
       final thread = await ref
           .read(supabaseServiceProvider)
-          .getOrCreateThread(shopId: shop.id, buyerId: user.id);
+          .getOrCreateThread(shopId: shop.id, buyerId: userId!);
       if (mounted) {
-        context.push('/profile/messages/${thread.id}');
+        context.push(buyerShopMessageRoute(thread.id));
       }
     } catch (error) {
       if (!mounted) return;
@@ -762,11 +764,17 @@ class _MakerIdentityCard extends StatelessWidget {
                 icon: Icons.auto_awesome_outlined,
                 text: 'Since $founded',
               ),
-              const Spacer(),
-              _FollowButton(isFollowing: isFollowing, onTap: onFollowToggle),
             ],
           ),
           const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: _FollowButton(
+              isFollowing: isFollowing,
+              onTap: onFollowToggle,
+            ),
+          ),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: _MessageButton(onTap: onMessageTap),
@@ -785,34 +793,40 @@ class _FollowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isFollowing ? AppTheme.terracotta : Colors.white,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
+        color: isFollowing ? AppTheme.terracotta : Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppTheme.terracotta, width: 1.5),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.terracotta, width: 1.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isFollowing ? Icons.check_rounded : Icons.add_rounded,
-              size: 16,
-              color: isFollowing ? Colors.white : AppTheme.terracotta,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isFollowing ? Icons.check_rounded : Icons.add_rounded,
+                  size: 16,
+                  color: isFollowing ? Colors.white : AppTheme.terracotta,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isFollowing ? 'Following' : 'Follow',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isFollowing ? Colors.white : AppTheme.terracotta,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Text(
-              isFollowing ? 'Following' : 'Follow',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: isFollowing ? Colors.white : AppTheme.terracotta,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -826,33 +840,37 @@ class _MessageButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.bone,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.chat_bubble_outline_rounded,
-              size: 16,
-              color: AppTheme.terracotta,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Message',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
+    return Material(
+      color: AppTheme.bone,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 16,
                 color: AppTheme.terracotta,
               ),
-            ),
-          ],
+              const SizedBox(width: 6),
+              Text(
+                'Message',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.terracotta,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -90,6 +90,52 @@ class _VendorStationeryRequestsScreenState
               ),
             ),
             const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Stationery payment details',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Artisan Lane\nStandard Bank\nAccount number: 10271380908\nSwift: SBZA ZA JJ\nElectronic payment code: 051001',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        height: 1.7,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Stationery requests are processed once payment reflects. Use a recognisable payment reference so our team can match your request quickly.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textHint,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             TabBar(
               controller: _tabController,
               isScrollable: true,

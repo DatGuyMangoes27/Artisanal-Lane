@@ -8,6 +8,7 @@ import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_onboarding_flow.dart';
 
 class VendorDashboardScreen extends ConsumerWidget {
   const VendorDashboardScreen({super.key});
@@ -15,6 +16,7 @@ class VendorDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shopAsync = ref.watch(vendorShopProvider);
+    final profile = ref.watch(currentProfileProvider).value;
 
     return shopAsync.when(
       loading: () => Scaffold(
@@ -32,21 +34,95 @@ class VendorDashboardScreen extends ConsumerWidget {
       ),
       data: (shop) {
         if (shop == null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) GoRouter.of(context).go('/vendor/onboarding');
-          });
-          return Scaffold(
-            backgroundColor: AppTheme.scaffoldBg,
-            body: const Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.terracotta,
-                strokeWidth: 2,
+          if (profile?.hasSeenVendorApproval != true) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) GoRouter.of(context).go('/vendor/onboarding');
+            });
+            return Scaffold(
+              backgroundColor: AppTheme.scaffoldBg,
+              body: const Center(
+                child: CircularProgressIndicator(
+                  color: AppTheme.terracotta,
+                  strokeWidth: 2,
+                ),
               ),
-            ),
-          );
+            );
+          }
+          return const _VendorSetupContent();
         }
         return _DashboardContent(shop: shop);
       },
+    );
+  }
+}
+
+class _VendorSetupContent extends ConsumerWidget {
+  const _VendorSetupContent();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(currentProfileProvider);
+    final payoutProfile =
+        ref.watch(vendorPayoutProfileStreamProvider).value ??
+        ref.watch(vendorPayoutProfileProvider).value;
+    final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
+
+    return Scaffold(
+      backgroundColor: AppTheme.scaffoldBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              profileAsync.when(
+                data: (profile) => Text(
+                  'Welcome back, Artisan',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                loading: () => Text(
+                  'Welcome back, Artisan',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                error: (_, __) => Text(
+                  'Welcome back, Artisan',
+                  style: GoogleFonts.playfairDisplay(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Finish your vendor setup so payouts and fulfilment run smoothly from the start.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _PayoutBanner(status: payoutStatus),
+              const SizedBox(height: 20),
+              _SetupChecklistCard(
+                payoutStatus: payoutStatus,
+                onOpenPayouts: () => context.push('/vendor/profile/payouts'),
+                onOpenShop: () => context.push('/vendor/profile/shop'),
+                onOpenStationery: () => context.push('/vendor/profile/stationery'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -61,6 +137,10 @@ class _DashboardContent extends ConsumerWidget {
     final productsAsync = ref.watch(vendorProductsProvider);
     final earningsAsync = ref.watch(vendorEarningsProvider);
     final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
+    final payoutProfile =
+        ref.watch(vendorPayoutProfileStreamProvider).value ??
+        ref.watch(vendorPayoutProfileProvider).value;
+    final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -74,6 +154,8 @@ class _DashboardContent extends ConsumerWidget {
             ref.invalidate(vendorEarningsProvider);
             ref.invalidate(vendorThreadsProvider);
             ref.invalidate(vendorThreadsStreamProvider);
+            ref.invalidate(vendorPayoutProfileProvider);
+            ref.invalidate(vendorPayoutProfileStreamProvider);
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -86,7 +168,7 @@ class _DashboardContent extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Hello, Maker',
+                      'Welcome back, Artisan',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         color: AppTheme.textSecondary,
@@ -104,6 +186,10 @@ class _DashboardContent extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
+                if (payoutStatus != 'verified') ...[
+                  _PayoutBanner(status: payoutStatus),
+                  const SizedBox(height: 20),
+                ],
 
                 // Stats cards
                 earningsAsync.when(
@@ -1523,6 +1609,188 @@ class _ContactSheetState extends ConsumerState<_ContactSheet> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PayoutBanner extends StatelessWidget {
+  final String status;
+
+  const _PayoutBanner({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.shield_outlined,
+            size: 20,
+            color: AppTheme.ochre,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TradeSafe payout status',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  vendorPayoutBannerMessage(status),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupChecklistCard extends StatelessWidget {
+  final String payoutStatus;
+  final VoidCallback onOpenPayouts;
+  final VoidCallback onOpenShop;
+  final VoidCallback onOpenStationery;
+
+  const _SetupChecklistCard({
+    required this.payoutStatus,
+    required this.onOpenPayouts,
+    required this.onOpenShop,
+    required this.onOpenStationery,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Setup checklist',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _ChecklistRow(
+            title: 'Payout details',
+            subtitle: payoutStatus == 'verified'
+                ? 'TradeSafe payouts are active.'
+                : vendorPayoutBannerMessage(payoutStatus),
+            isComplete: payoutStatus == 'verified',
+            onTap: onOpenPayouts,
+          ),
+          const SizedBox(height: 12),
+          _ChecklistRow(
+            title: 'Shop details',
+            subtitle: 'Add your shop branding and profile details.',
+            isComplete: false,
+            onTap: onOpenShop,
+          ),
+          const SizedBox(height: 12),
+          _ChecklistRow(
+            title: 'Stationery information',
+            subtitle: 'Review bank details and packaging-request updates.',
+            isComplete: false,
+            onTap: onOpenStationery,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChecklistRow extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isComplete;
+  final VoidCallback onTap;
+
+  const _ChecklistRow({
+    required this.title,
+    required this.subtitle,
+    required this.isComplete,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.bone.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              isComplete ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              color: isComplete ? AppTheme.baobab : AppTheme.ochre,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
+          ],
         ),
       ),
     );

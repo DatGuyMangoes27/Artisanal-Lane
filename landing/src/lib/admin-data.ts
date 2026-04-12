@@ -99,6 +99,13 @@ type ShopNoteRecord = {
   created_at: string;
 };
 
+type VendorPayoutProfileRecord = {
+  vendor_id: string;
+  verification_status: string;
+  status_notes: string | null;
+  reviewed_at: string | null;
+};
+
 type StationeryRequestRecord = {
   id: string;
   shop_id: string;
@@ -198,6 +205,21 @@ async function getCategoriesMap(ids: string[]) {
     .in("id", uniqueIds);
 
   return new Map((data ?? []).map((category) => [category.id, category]));
+}
+
+async function getVendorPayoutProfilesMap(vendorIds: string[]) {
+  const uniqueIds = Array.from(new Set(vendorIds.filter(Boolean)));
+  if (uniqueIds.length === 0) {
+    return new Map<string, VendorPayoutProfileRecord>();
+  }
+
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("vendor_payout_profiles")
+    .select("vendor_id, verification_status, status_notes, reviewed_at")
+    .in("vendor_id", uniqueIds);
+
+  return new Map((data ?? []).map((profile) => [profile.vendor_id, profile]));
 }
 
 export async function getDashboardStats() {
@@ -542,11 +564,18 @@ export async function listOrders(options: OrderListOptions = {}) {
     getProfilesMap(orders.map((row) => row.buyer_id ?? "")),
     getShopsMap(orders.map((row) => row.shop_id ?? "")),
   ]);
+  const payoutProfiles = await getVendorPayoutProfilesMap(
+    Array.from(shops.values()).map((shop) => shop.vendor_id ?? ""),
+  );
 
   const rows = orders.map((order) => ({
     ...order,
     buyer: order.buyer_id ? profiles.get(order.buyer_id) ?? null : null,
     shop: order.shop_id ? shops.get(order.shop_id) ?? null : null,
+    payout_profile:
+      order.shop_id && shops.get(order.shop_id)?.vendor_id
+        ? payoutProfiles.get(shops.get(order.shop_id)!.vendor_id ?? "") ?? null
+        : null,
     grand_total: Number(order.total ?? 0) + Number(order.shipping_cost ?? 0),
   }));
 

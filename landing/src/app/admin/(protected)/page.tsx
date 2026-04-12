@@ -146,19 +146,33 @@ export default async function AdminDashboardPage() {
                 key={order.id}
                 className="flex flex-col gap-3 rounded-2xl border border-artisan-clay bg-white p-4 md:flex-row md:items-center md:justify-between"
               >
-                <div>
-                  <p className="font-medium text-artisan-sienna">
-                    {order.shop?.name ?? "Unknown shop"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Buyer: {order.buyer?.display_name ?? "Unknown"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <StatusBadge value={order.status} />
-                  <span className="text-sm font-medium text-artisan-sienna">
-                    {formatCurrency(order.grand_total)}
-                  </span>
+                <div className="flex-1">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-medium text-artisan-sienna">
+                        {order.shop?.name ?? "Unknown shop"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Buyer: {order.buyer?.display_name ?? "Unknown"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <StatusBadge value={order.status} />
+                      <StatusBadge
+                        value={order.payout_profile?.verification_status ?? "not_started"}
+                      />
+                      <span className="text-sm font-medium text-artisan-sienna">
+                        {formatCurrency(order.grand_total)}
+                      </span>
+                    </div>
+                  </div>
+                  {(order.payout_profile?.verification_status ?? "not_started") !==
+                  "verified" ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Vendor payout setup still needs attention before funds can settle
+                      cleanly.
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ))}

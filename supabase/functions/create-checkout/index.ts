@@ -8,6 +8,8 @@ import {
   normalizeMobile,
 } from "../_shared/tradesafe.ts";
 
+const GIFT_SERVICE_FEE = 7;
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -105,12 +107,13 @@ Deno.serve(async (request) => {
 
     const shopId = Array.from(shopIds)[0];
     const shippingCost = Number(body.shippingCost ?? 0);
+    const giftFee = body.isGift === true ? GIFT_SERVICE_FEE : 0;
     const subtotal = items.reduce(
       (sum, item) =>
         sum + Number(item.variant?.price ?? item.product.price) * item.quantity,
       0,
     );
-    const grandTotal = subtotal + shippingCost;
+    const grandTotal = subtotal + shippingCost + giftFee;
 
     for (const item of items) {
       if (item.variant && item.quantity > Number(item.variant.stock_qty ?? 0)) {

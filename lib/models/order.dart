@@ -1,3 +1,5 @@
+import '../core/pricing/pricing.dart';
+
 class Order {
   final String id;
   final String buyerId;
@@ -84,7 +86,8 @@ class Order {
   }
 
   String get shortId => id.substring(0, 8).toUpperCase();
-  double get grandTotal => total + shippingCost;
+  double get giftFee => giftFeeForSelection(isGift: isGift);
+  double get grandTotal => total + shippingCost + giftFee;
 
   String get shippingMethodDisplay {
     switch (shippingMethod) {

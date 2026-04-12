@@ -10,6 +10,8 @@ import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_fulfillment_options.dart';
+import '../utils/vendor_onboarding_flow.dart';
 
 class VendorOnboardingScreen extends ConsumerStatefulWidget {
   const VendorOnboardingScreen({super.key});
@@ -21,14 +23,6 @@ class VendorOnboardingScreen extends ConsumerStatefulWidget {
 
 class _VendorOnboardingScreenState
     extends ConsumerState<VendorOnboardingScreen> {
-  static const _fulfillmentOptions = <String>[
-    'Courier',
-    'Self-delivery',
-    'Click & collect',
-    'Market pickup',
-    'Locker pickup',
-  ];
-
   static const _turnaroundOptions = <String>[
     '1-3 business days',
     '3-5 business days',
@@ -246,6 +240,8 @@ class _VendorOnboardingScreenState
     try {
       final userId = Supabase.instance.client.auth.currentUser!.id;
       final service = ref.read(supabaseServiceProvider);
+      await service.markVendorApprovalSeen(userId);
+      ref.invalidate(currentProfileProvider);
       final profile = await service.getProfile(userId);
       if (profile.role == 'vendor') {
         ref.invalidate(vendorShopProvider);
@@ -283,17 +279,44 @@ class _VendorOnboardingScreenState
   @override
   Widget build(BuildContext context) {
     final appAsync = ref.watch(vendorApplicationStreamProvider);
+    final profileAsync = ref.watch(currentProfileProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       body: SafeArea(
-        child: appAsync.when(
-          data: (application) {
-            if (application == null) return _buildApplicationForm();
-            if (application.isApproved) return _buildApproved(application);
-            if (application.isPending) return _buildPending(application);
-            return _buildRejected(application);
-          },
+        child: profileAsync.when(
+          data: (profile) => appAsync.when(
+            data: (application) {
+              if (application == null) return _buildApplicationForm();
+              if (application.isApproved &&
+                  shouldShowVendorApprovalCelebration(
+                    isApproved: true,
+                    hasSeenVendorApproval: profile?.hasSeenVendorApproval ?? false,
+                  )) {
+                return _buildApproved(application);
+              }
+              if (application.isApproved) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) GoRouter.of(context).go('/vendor');
+                });
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.terracotta,
+                    strokeWidth: 2,
+                  ),
+                );
+              }
+              if (application.isPending) return _buildPending(application);
+              return _buildRejected(application);
+            },
+            loading: () => const Center(
+              child: CircularProgressIndicator(
+                color: AppTheme.terracotta,
+                strokeWidth: 2,
+              ),
+            ),
+            error: (_, __) => _buildApplicationForm(),
+          ),
           loading: () => const Center(
             child: CircularProgressIndicator(
               color: AppTheme.terracotta,
@@ -458,7 +481,7 @@ class _VendorOnboardingScreenState
             _buildLabel('How will you fulfil orders?'),
             const SizedBox(height: 4),
             Text(
-              'Select all that apply.',
+              vendorFulfillmentDescription,
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 color: AppTheme.textHint,
@@ -469,7 +492,7 @@ class _VendorOnboardingScreenState
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _fulfillmentOptions.map((option) {
+              children: vendorFulfillmentOptions.map((option) {
                 final selected = _selectedFulfillmentMethods.contains(option);
                 return FilterChip(
                   label: Text(
@@ -509,8 +532,7 @@ class _VendorOnboardingScreenState
               maxLines: 2,
               textCapitalization: TextCapitalization.sentences,
               decoration: const InputDecoration(
-                hintText:
-                    'Optional details, e.g. Courier Guy nationwide, local drop-offs in Cape Town, or locker collection areas',
+                hintText: vendorFulfillmentDetailsHint,
               ),
             ),
             const SizedBox(height: 20),

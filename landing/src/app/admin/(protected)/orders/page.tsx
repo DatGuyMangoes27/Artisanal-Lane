@@ -108,6 +108,7 @@ export default async function AdminOrdersPage({
                   <th className="px-4 py-3 font-semibold">Buyer</th>
                   <th className="px-4 py-3 font-semibold">Shop</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Payout</th>
                   <th className="px-4 py-3 font-semibold">Shipping</th>
                   <th className="px-4 py-3 font-semibold">Timeline</th>
                   <th className="px-4 py-3 font-semibold">Total</th>
@@ -116,7 +117,7 @@ export default async function AdminOrdersPage({
               <tbody>
                 {orders.length === 0 ? (
                   <tr className="border-t border-artisan-clay/70 text-muted-foreground">
-                    <td className="px-4 py-8 text-center" colSpan={7}>
+                    <td className="px-4 py-8 text-center" colSpan={8}>
                       No orders match the current filters.
                     </td>
                   </tr>
@@ -137,6 +138,17 @@ export default async function AdminOrdersPage({
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge value={order.status} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge
+                        value={order.payout_profile?.verification_status ?? "not_started"}
+                      />
+                      {(order.payout_profile?.verification_status ?? "not_started") !==
+                      "verified" ? (
+                        <div className="mt-1 text-xs">
+                          Payout setup incomplete
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <div>{order.shipping_method ?? "Unknown"}</div>

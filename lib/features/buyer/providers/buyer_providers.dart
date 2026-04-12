@@ -146,6 +146,13 @@ final featuredProductsProvider = FutureProvider<List<Product>>((ref) async {
   return service.getFeaturedProducts(limit: 10);
 });
 
+final curatedCollectionProductsProvider = FutureProvider<List<Product>>((
+  ref,
+) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getFeaturedProducts(limit: 60);
+});
+
 final onSaleProductsProvider = FutureProvider<List<Product>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
   return service.getOnSaleProducts(limit: 10);

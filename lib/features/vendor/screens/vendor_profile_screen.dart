@@ -98,6 +98,13 @@ class VendorProfileScreen extends ConsumerWidget {
               ),
               _buildMenuItem(
                 context,
+                Icons.account_balance_outlined,
+                'Payout Details',
+                'Manage your TradeSafe-linked bank details',
+                () => context.push('/vendor/profile/payouts'),
+              ),
+              _buildMenuItem(
+                context,
                 Icons.store_outlined,
                 'Shop Settings',
                 'Edit your shop profile and branding',

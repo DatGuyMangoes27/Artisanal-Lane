@@ -170,6 +170,7 @@ class OrderDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   _PaymentCard(
                     subtotal: order.total,
+                    giftFee: order.giftFee,
                     shippingCost: order.shippingCost,
                     grandTotal: order.grandTotal,
                   ),
@@ -483,11 +484,13 @@ class _ShippingInfoRow extends StatelessWidget {
 
 class _PaymentCard extends StatelessWidget {
   final double subtotal;
+  final double giftFee;
   final double shippingCost;
   final double grandTotal;
 
   const _PaymentCard({
     required this.subtotal,
+    required this.giftFee,
     required this.shippingCost,
     required this.grandTotal,
   });
@@ -511,6 +514,10 @@ class _PaymentCard extends StatelessWidget {
       child: Column(
         children: [
           _row('Subtotal', 'R${subtotal.toStringAsFixed(0)}'),
+          if (giftFee > 0) ...[
+            const SizedBox(height: 12),
+            _row('Gift service', 'R${giftFee.toStringAsFixed(0)}'),
+          ],
           const SizedBox(height: 12),
           _row('Shipping', 'R${shippingCost.toStringAsFixed(0)}'),
           Padding(

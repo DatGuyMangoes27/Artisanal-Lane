@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/pricing/pricing.dart';
 import '../../../models/shipping_option.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
@@ -130,8 +131,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 0,
                 (sum, item) => sum + item.lineTotal,
               );
+              final giftFee = giftFeeForSelection(isGift: isGift);
               final shippingCost = _selectedShippingCost(enabledOptions);
-              final total = subtotal + shippingCost;
+              final total = calculateCheckoutTotal(
+                subtotal: subtotal,
+                shippingCost: shippingCost,
+                isGift: isGift,
+              );
 
               return SafeArea(
                 child: SingleChildScrollView(
@@ -250,6 +256,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                 'Subtotal (${items.length} items)',
                                 'R${subtotal.toStringAsFixed(0)}',
                               ),
+                              if (giftFee > 0) ...[
+                                const SizedBox(height: 12),
+                                _summaryRow(
+                                  'Gift service',
+                                  'R${giftFee.toStringAsFixed(0)}',
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               _summaryRow(
                                 'Shipping',
@@ -290,6 +303,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                   final checkoutData = {
                                     'items': items,
                                     'subtotal': subtotal,
+                                    'giftFee': giftFee,
                                     'shippingCost': shippingCost,
                                     'shippingMethod': _selectedShipping,
                                     'total': total,

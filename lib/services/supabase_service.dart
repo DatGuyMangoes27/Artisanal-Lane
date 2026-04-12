@@ -1313,6 +1313,67 @@ class SupabaseService {
     return Profile.fromJson(data);
   }
 
+  Future<void> markVendorApprovalSeen(String userId) async {
+    await _client.from('profiles').update({
+      'vendor_approved_seen_at': DateTime.now().toUtc().toIso8601String(),
+    }).eq('id', userId);
+  }
+
+  Future<VendorPayoutProfile?> getVendorPayoutProfile(String vendorId) async {
+    final data = await _client
+        .from('vendor_payout_profiles')
+        .select()
+        .eq('vendor_id', vendorId)
+        .maybeSingle();
+    if (data == null) return null;
+    return VendorPayoutProfile.fromJson(data);
+  }
+
+  Stream<VendorPayoutProfile?> watchVendorPayoutProfile(String vendorId) {
+    return _client
+        .from('vendor_payout_profiles')
+        .stream(primaryKey: ['vendor_id'])
+        .eq('vendor_id', vendorId)
+        .limit(1)
+        .asyncMap((_) => getVendorPayoutProfile(vendorId));
+  }
+
+  Future<VendorPayoutProfile> saveVendorPayoutProfile({
+    required String vendorId,
+    required String accountHolderName,
+    required String bankName,
+    required String accountNumber,
+    required String branchCode,
+    required String accountType,
+    required String registeredPhone,
+    required String registeredEmail,
+    String? identityNumber,
+    String? businessRegistrationNumber,
+  }) async {
+    final payload = {
+      'vendor_id': vendorId,
+      'account_holder_name': accountHolderName,
+      'bank_name': bankName,
+      'account_number': accountNumber,
+      'branch_code': branchCode,
+      'account_type': accountType,
+      'registered_phone': registeredPhone,
+      'registered_email': registeredEmail,
+      'identity_number': identityNumber,
+      'business_registration_number': businessRegistrationNumber,
+      'verification_status': 'submitted',
+      'status_notes': null,
+    };
+
+    final data = await _client
+        .from('vendor_payout_profiles')
+        .upsert(payload)
+        .select()
+        .single();
+
+    return VendorPayoutProfile.fromJson(data);
+  }
+
   Future<void> updateProfile(
     String userId,
     Map<String, dynamic> updates,

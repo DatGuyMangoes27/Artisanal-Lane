@@ -115,6 +115,23 @@ final vendorEarningsProvider = FutureProvider<Map<String, double>>((ref) async {
   return service.getShopEarnings(shop.id);
 });
 
+final vendorPayoutProfileProvider = FutureProvider<VendorPayoutProfile?>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return null;
+  final service = ref.read(supabaseServiceProvider);
+  return service.getVendorPayoutProfile(userId);
+});
+
+final vendorPayoutProfileStreamProvider =
+    StreamProvider<VendorPayoutProfile?>((ref) {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) {
+        return Stream.value(null);
+      }
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchVendorPayoutProfile(userId);
+    });
+
 // ── Vendor Application ──────────────────────────────────────────
 final vendorApplicationProvider = FutureProvider<VendorApplication?>((
   ref,
