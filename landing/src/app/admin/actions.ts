@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function slugify(value: string): string {
   return value
@@ -27,6 +28,39 @@ function createErrorState(error: unknown, fallback: string): AdminActionState {
     message: error instanceof Error ? error.message : fallback,
     savedAt: null,
   };
+}
+
+async function appendDisputeResolutionMessage({
+  admin,
+  disputeId,
+  senderId,
+  body,
+}: {
+  admin: ReturnType<typeof createAdminClient>;
+  disputeId: string;
+  senderId: string;
+  body: string;
+}) {
+  const { data: conversation } = await admin
+    .from("dispute_conversations")
+    .select("id")
+    .eq("dispute_id", disputeId)
+    .maybeSingle();
+
+  if (conversation?.id == null) {
+    return;
+  }
+
+  const { error } = await admin.from("dispute_conversation_messages").insert({
+    conversation_id: conversation.id,
+    sender_id: senderId,
+    body,
+    message_type: "text",
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function approveApplication(
@@ -343,15 +377,19 @@ export async function resolveDisputeRelease(
     const resolution = String(formData.get("resolution"));
 
     const admin = createAdminClient();
+    const supabase = await createServerClient();
     const now = new Date().toISOString();
 
-    await admin.functions.invoke("release-escrow", {
+    const releaseResult = await supabase.functions.invoke("release-escrow", {
       body: {
         orderId,
       },
     });
+    if (releaseResult.error) {
+      throw new Error(releaseResult.error.message);
+    }
 
-    await admin
+    const disputeUpdate = await admin
       .from("disputes")
       .update({
         status: "resolved",
@@ -360,6 +398,16 @@ export async function resolveDisputeRelease(
         resolved_at: now,
       })
       .eq("id", disputeId);
+    if (disputeUpdate.error) {
+      throw new Error(disputeUpdate.error.message);
+    }
+
+    await appendDisputeResolutionMessage({
+      admin,
+      disputeId,
+      senderId: session.user.id,
+      body: `Admin resolution: funds released to the seller.\n\n${resolution}`,
+    });
 
     revalidatePath("/admin");
     revalidatePath("/admin/disputes");
@@ -382,16 +430,20 @@ export async function resolveDisputeRefund(
     const resolution = String(formData.get("resolution"));
 
     const admin = createAdminClient();
+    const supabase = await createServerClient();
     const now = new Date().toISOString();
 
-    await admin.functions.invoke("process-refund", {
+    const refundResult = await supabase.functions.invoke("process-refund", {
       body: {
         orderId,
         reason: resolution,
       },
     });
+    if (refundResult.error) {
+      throw new Error(refundResult.error.message);
+    }
 
-    await admin
+    const disputeUpdate = await admin
       .from("disputes")
       .update({
         status: "resolved",
@@ -400,6 +452,16 @@ export async function resolveDisputeRefund(
         resolved_at: now,
       })
       .eq("id", disputeId);
+    if (disputeUpdate.error) {
+      throw new Error(disputeUpdate.error.message);
+    }
+
+    await appendDisputeResolutionMessage({
+      admin,
+      disputeId,
+      senderId: session.user.id,
+      body: `Admin resolution: buyer refunded.\n\n${resolution}`,
+    });
 
     revalidatePath("/admin");
     revalidatePath("/admin/disputes");

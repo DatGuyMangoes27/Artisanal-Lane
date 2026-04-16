@@ -1,4 +1,5 @@
-const double giftServiceFee = 7;
+const double giftServiceFee = 30;
+const String giftServiceLabel = 'Gift wrap & card';
 
 double giftFeeForSelection({required bool isGift}) {
   return isGift ? giftServiceFee : 0;

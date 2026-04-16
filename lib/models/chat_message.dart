@@ -27,7 +27,7 @@ class ChatMessage {
 
     return ChatMessage(
       id: json['id'] as String,
-      threadId: json['thread_id'] as String,
+      threadId: (json['thread_id'] ?? json['conversation_id']) as String,
       senderId: json['sender_id'] as String,
       body: (json['body'] as String?)?.trim().isEmpty == true
           ? null

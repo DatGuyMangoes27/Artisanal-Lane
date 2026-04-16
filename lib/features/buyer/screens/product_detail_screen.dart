@@ -10,6 +10,7 @@ import '../../../widgets/gradient_button.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../models/models.dart';
 import '../utils/product_detail_actions.dart';
+import '../utils/cart_stock_guard.dart';
 import '../widgets/review_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
@@ -204,10 +205,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final message = e is StateError
+            ? e.message.toString()
+            : 'Failed to add to basket';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to add to basket',
+              message,
               style: GoogleFonts.poppins(color: Colors.white),
             ),
             backgroundColor: AppTheme.error,
@@ -432,6 +436,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final productAsync = ref.watch(productDetailProvider(widget.productId));
     final screenWidth = MediaQuery.of(context).size.width;
+    final cartItems = ref.watch(cartItemsProvider).value ?? const <CartItem>[];
 
     final favIdsAsync = ref.watch(favouriteIdsProvider);
     final favIds = favIdsAsync.value ?? [];
@@ -467,9 +472,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final displayStock = previewVariant?.stockQty ?? product.stockQty;
         final requiresVariantSelection =
             product.hasVariants && optionGroups.isNotEmpty;
+        final canEvaluateCartStock =
+            !requiresVariantSelection || selectedVariant != null;
+        final hasReachedCartStockLimit =
+            canEvaluateCartStock &&
+            !canAddSelectionToCart(
+              cartItems,
+              product,
+              variant: selectedVariant,
+            );
         final canPurchase =
             displayStock > 0 &&
             !_isAddingToCart &&
+            !hasReachedCartStockLimit &&
             (!requiresVariantSelection || selectedVariant != null);
         final imageCount = displayImages.isEmpty ? 1 : displayImages.length;
         final loadedReviews =
@@ -1205,6 +1220,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     child: GradientButton(
                       label: displayStock <= 0
                           ? 'Sold Out'
+                          : hasReachedCartStockLimit
+                          ? 'Max In Basket'
                           : requiresVariantSelection && selectedVariant == null
                           ? (optionGroups.length > 1
                                 ? 'Choose Options'

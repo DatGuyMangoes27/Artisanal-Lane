@@ -34,6 +34,105 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 
+type FreedomDayCountdownParts = {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+};
+
+function getFreedomDayLaunchDate(now: Date) {
+  return new Date(now.getFullYear(), 3, 27, 0, 0, 0, 0);
+}
+
+function getFreedomDayCountdownParts(now: Date): FreedomDayCountdownParts {
+  const launchDate = getFreedomDayLaunchDate(now);
+  const remainingMs = Math.max(launchDate.getTime() - now.getTime(), 0);
+  const totalSeconds = Math.floor(remainingMs / 1000);
+
+  return {
+    days: Math.floor(totalSeconds / 86400),
+    hours: Math.floor((totalSeconds % 86400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
+  };
+}
+
+function isFreedomDayLaunchDay(now: Date) {
+  const launchDate = getFreedomDayLaunchDate(now);
+
+  return (
+    now.getFullYear() === launchDate.getFullYear() &&
+    now.getMonth() === launchDate.getMonth() &&
+    now.getDate() === launchDate.getDate()
+  );
+}
+
+function FreedomDayCountdownCard() {
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const countdown = getFreedomDayCountdownParts(now);
+  const launchDay = isFreedomDayLaunchDay(now);
+
+  return (
+    <Card className="mb-10 max-w-xl overflow-hidden rounded-[28px] border-[#7A0000]/15 bg-white/75 shadow-xl shadow-[#7A0000]/5 backdrop-blur-sm">
+      <CardContent className="p-6 sm:p-7">
+        <div className="space-y-6">
+          <div className="text-left">
+            <Badge className="mb-4 bg-[#7A0000]/10 text-[#7A0000] hover:bg-[#7A0000]/10">
+              Freedom Day Launch
+            </Badge>
+            <h3 className="text-2xl font-bold text-[#3A1F10] sm:text-3xl">
+              Launching on 27 April
+            </h3>
+            <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground sm:text-base">
+              Artisan Lane goes live on South Africa&apos;s Freedom Day.
+            </p>
+          </div>
+
+          {launchDay ? (
+            <div className="rounded-3xl bg-[#7A0000] px-6 py-6 text-center text-white shadow-lg">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
+                Status
+              </p>
+              <p className="mt-2 text-2xl font-bold">Launching today</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+              {[
+                { label: "Days", value: countdown.days },
+                { label: "Hours", value: countdown.hours },
+                { label: "Minutes", value: countdown.minutes },
+                { label: "Seconds", value: countdown.seconds },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-2xl bg-[#FDF5EC] px-4 py-4 text-center ring-1 ring-[#EDD5BE]"
+                >
+                  <p className="text-2xl font-bold text-[#3A1F10] sm:text-3xl">
+                    {String(item.value).padStart(2, "0")}
+                  </p>
+                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                    {item.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PhoneFrame({
   src,
   alt,
@@ -183,6 +282,8 @@ function HeroSection() {
               artisans. Every product on Artisan Lane tells a story of
               passion, tradition, and extraordinary craftsmanship.
             </p>
+
+            <FreedomDayCountdownCard />
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
               <Link href="#" target="_blank" rel="noopener noreferrer">

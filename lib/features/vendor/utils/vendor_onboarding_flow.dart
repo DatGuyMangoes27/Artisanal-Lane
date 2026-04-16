@@ -9,13 +9,13 @@ String vendorPayoutBannerMessage(String? status) {
   switch (status) {
     case 'under_review':
     case 'submitted':
-      return 'Your payout details have been submitted and are under review.';
+      return 'Your payout details are saved and ready to use.';
     case 'verified':
       return 'TradeSafe payouts are active.';
     case 'action_required':
-      return 'Action required: update your payout details to continue receiving payouts.';
+      return 'Update your payout details to continue adding products and receiving payouts.';
     case 'not_started':
     default:
-      return 'Payout details required before payouts can be completed.';
+      return 'Complete your payout details before adding products and receiving payouts.';
   }
 }

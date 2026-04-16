@@ -62,7 +62,6 @@ class ChatInboxList extends StatelessWidget {
 }
 
 class ChatThreadScaffold extends StatelessWidget {
-  final ChatThread thread;
   final AsyncValue<List<ChatMessage>> messagesAsync;
   final String currentUserId;
   final String title;
@@ -70,10 +69,10 @@ class ChatThreadScaffold extends StatelessWidget {
   final String? avatarUrl;
   final String avatarFallback;
   final Widget composer;
+  final String? Function(String senderId)? senderLabelResolver;
 
   const ChatThreadScaffold({
     super.key,
-    required this.thread,
     required this.messagesAsync,
     required this.currentUserId,
     required this.title,
@@ -81,6 +80,7 @@ class ChatThreadScaffold extends StatelessWidget {
     required this.composer,
     this.subtitle,
     this.avatarUrl,
+    this.senderLabelResolver,
   });
 
   @override
@@ -164,6 +164,9 @@ class ChatThreadScaffold extends StatelessWidget {
                       child: _MessageBubble(
                         message: message,
                         isMine: isMine,
+                        senderLabel: isMine
+                            ? null
+                            : senderLabelResolver?.call(message.senderId),
                       ),
                     );
                   },
@@ -215,6 +218,8 @@ class PendingChatAttachmentCard extends StatelessWidget {
           Icon(
             attachment.isImage
                 ? Icons.image_outlined
+                : attachment.isVideo
+                ? Icons.videocam_outlined
                 : Icons.attach_file_rounded,
             color: AppTheme.terracotta,
           ),
@@ -403,8 +408,13 @@ class _InboxTile extends StatelessWidget {
 class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool isMine;
+  final String? senderLabel;
 
-  const _MessageBubble({required this.message, required this.isMine});
+  const _MessageBubble({
+    required this.message,
+    required this.isMine,
+    this.senderLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -435,6 +445,19 @@ class _MessageBubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (senderLabel != null && senderLabel!.trim().isNotEmpty) ...[
+              Text(
+                senderLabel!,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: isMine
+                      ? Colors.white.withValues(alpha: 0.85)
+                      : AppTheme.terracotta,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             if (attachment != null)
               _AttachmentBubble(
                 attachment: attachment,
@@ -549,7 +572,9 @@ class _AttachmentBubble extends StatelessWidget {
             : Row(
                 children: [
                   Icon(
-                    Icons.attach_file_rounded,
+                    attachment.isVideo
+                        ? Icons.videocam_outlined
+                        : Icons.attach_file_rounded,
                     color: textColor,
                   ),
                   const SizedBox(width: 8),

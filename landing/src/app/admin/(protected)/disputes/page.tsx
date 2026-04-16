@@ -8,6 +8,26 @@ import { DisputeResolutionForm } from "@/components/admin/dispute-resolution-for
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { listDisputes } from "@/lib/admin-data";
 
+function isImageAttachment(message: {
+  attachment_mime?: string | null;
+  attachment_name?: string | null;
+}) {
+  return (
+    message.attachment_mime?.startsWith("image/") ??
+    /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(message.attachment_name ?? "")
+  );
+}
+
+function isVideoAttachment(message: {
+  attachment_mime?: string | null;
+  attachment_name?: string | null;
+}) {
+  return (
+    message.attachment_mime?.startsWith("video/") ??
+    /\.(mp4|mov|webm|m4v|avi)$/i.test(message.attachment_name ?? "")
+  );
+}
+
 export default async function AdminDisputesPage() {
   const disputes = await listDisputes();
 
@@ -56,6 +76,97 @@ export default async function AdminDisputesPage() {
                     <span className="font-medium text-artisan-sienna">Reason:</span>{" "}
                     {dispute.reason}
                   </p>
+                  {dispute.conversation ? (
+                    <div className="space-y-3 rounded-2xl border border-artisan-clay bg-artisan-bone/30 p-4">
+                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <p>
+                          <span className="font-medium text-artisan-sienna">Buyer:</span>{" "}
+                          {dispute.conversation.buyerProfile?.display_name ?? "Unknown"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-artisan-sienna">Seller:</span>{" "}
+                          {dispute.conversation.sellerProfile?.display_name ??
+                            dispute.shop?.name ??
+                            "Unknown"}
+                        </p>
+                      </div>
+                      <div className="max-h-80 space-y-3 overflow-y-auto pr-2">
+                        {dispute.conversation.messages.length > 0 ? (
+                          dispute.conversation.messages.map((message) => (
+                            <div
+                              key={message.id}
+                              className="rounded-2xl border border-artisan-clay bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                                <span className="font-medium text-artisan-sienna">
+                                  {message.senderProfile?.display_name ?? "Unknown participant"}
+                                </span>
+                                <span>
+                                  {new Date(message.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              {message.body ? (
+                                <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+                                  {message.body}
+                                </p>
+                              ) : null}
+                              {message.attachment_name ? (
+                                <div className="mt-3 space-y-2">
+                                  {message.attachment_url ? (
+                                    <>
+                                      {isImageAttachment(message) ? (
+                                        <a
+                                          href={message.attachment_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block overflow-hidden rounded-2xl border border-artisan-clay"
+                                        >
+                                          {/* Signed dispute evidence is rendered with a plain img to avoid Next remote-image allowlist setup. */}
+                                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                                          <img
+                                            src={message.attachment_url}
+                                            alt={message.attachment_name}
+                                            className="max-h-72 w-full object-contain bg-artisan-bone/30"
+                                          />
+                                        </a>
+                                      ) : null}
+                                      {isVideoAttachment(message) ? (
+                                        <video
+                                          controls
+                                          className="max-h-72 w-full rounded-2xl border border-artisan-clay bg-black"
+                                          src={message.attachment_url}
+                                        />
+                                      ) : null}
+                                      <a
+                                        href={message.attachment_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex text-xs font-medium text-artisan-sienna underline underline-offset-2"
+                                      >
+                                        Open attachment: {message.attachment_name}
+                                      </a>
+                                    </>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">
+                                      Attachment uploaded: {message.attachment_name}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))
+                        ) : (
+                          <p className="rounded-2xl border border-artisan-clay bg-white p-3 text-sm text-muted-foreground">
+                            No dispute messages yet.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="rounded-2xl border border-artisan-clay bg-artisan-bone/30 p-3 text-sm text-muted-foreground">
+                      No dispute conversation has been created yet.
+                    </p>
+                  )}
                   {dispute.resolution ? (
                     <p className="text-sm text-muted-foreground">
                       <span className="font-medium text-artisan-sienna">Resolution:</span>{" "}

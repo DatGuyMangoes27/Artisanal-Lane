@@ -67,11 +67,15 @@ class ShippingOption {
         const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
       ];
 
-  /// Parses the JSONB array from Supabase; falls back to defaults if null/empty.
-  static List<ShippingOption> listFromJson(dynamic json) {
-    if (json == null) return defaults();
+  /// Parses the JSONB array from Supabase; falls back to [fallback] if null/empty.
+  static List<ShippingOption> listFromJson(
+    dynamic json, {
+    List<ShippingOption>? fallback,
+  }) {
+    final fallbackValue = fallback ?? defaults();
+    if (json == null) return fallbackValue;
     final list = json as List;
-    if (list.isEmpty) return defaults();
+    if (list.isEmpty) return fallbackValue;
     return list.map((e) => ShippingOption.fromJson(e as Map<String, dynamic>)).toList();
   }
 }

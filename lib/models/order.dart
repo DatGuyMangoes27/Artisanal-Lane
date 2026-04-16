@@ -10,6 +10,7 @@ class Order {
   final String? shippingMethod;
   final Map<String, dynamic>? shippingAddress;
   final String? trackingNumber;
+  final String? trackingUrl;
   final String paymentState;
   final String? paymentProvider;
   final String? paymentUrl;
@@ -36,6 +37,7 @@ class Order {
     this.shippingMethod,
     this.shippingAddress,
     this.trackingNumber,
+    this.trackingUrl,
     this.paymentState = 'created',
     this.paymentProvider,
     this.paymentUrl,
@@ -65,6 +67,7 @@ class Order {
       shippingMethod: json['shipping_method'] as String?,
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       trackingNumber: json['tracking_number'] as String?,
+      trackingUrl: json['tracking_url'] as String?,
       paymentState: json['payment_state'] as String? ?? 'created',
       paymentProvider: json['payment_provider'] as String?,
       paymentUrl: json['payment_url'] as String?,

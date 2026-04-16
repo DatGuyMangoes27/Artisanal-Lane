@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
+import '../features/buyer/utils/cart_stock_guard.dart';
 import '../models/models.dart';
 
 class SupabaseService {
@@ -11,12 +12,38 @@ class SupabaseService {
   static const _pendingRequestedRoleKey = 'pending_auth_requested_role';
   static const _pendingDisplayNameKey = 'pending_auth_display_name';
   static const _chatAttachmentBucket = 'chat-attachments';
+  static const _disputeAttachmentBucket = 'dispute-attachments';
   static const _chatThreadSelect =
       '*, shops(name, logo_url), buyer:profiles!chat_threads_buyer_id_fkey(display_name, avatar_url), vendor:profiles!chat_threads_vendor_id_fkey(display_name, avatar_url), chat_thread_reads(participant_id, last_read_at, last_read_message_id)';
   static const _shopReviewSelect = '*, profiles(display_name, avatar_url)';
   static const _productReviewSelect = '*, profiles(display_name, avatar_url)';
 
   SupabaseService(this._client);
+
+  Future<Map<String, String>> _authorizedFunctionHeaders() async {
+    final currentSession = _client.auth.currentSession;
+    if (currentSession?.refreshToken != null) {
+      try {
+        final refreshed = await _client.auth.refreshSession();
+        final refreshedToken = refreshed.session?.accessToken;
+        if (refreshedToken != null && refreshedToken.isNotEmpty) {
+          return {'Authorization': 'Bearer $refreshedToken'};
+        }
+      } on AuthException {
+        // Fall back to the currently cached session below so callers get a
+        // consistent auth error if the refresh token is no longer valid.
+      }
+    }
+
+    final accessToken = currentSession?.accessToken;
+    if (accessToken == null || accessToken.isEmpty) {
+      throw const AuthException(
+        'Your session expired. Please sign in again and retry checkout.',
+      );
+    }
+
+    return {'Authorization': 'Bearer $accessToken'};
+  }
 
   Future<void> savePendingAuthIntent({
     required String requestedRole,
@@ -118,6 +145,12 @@ class SupabaseService {
         return 'image/webp';
       case 'gif':
         return 'image/gif';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      case 'webm':
+        return 'video/webm';
       case 'pdf':
         return 'application/pdf';
       case 'doc':
@@ -144,15 +177,24 @@ class SupabaseService {
     return input.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
   }
 
-  Future<String?> _createSignedChatAttachmentUrl(String? path) async {
+  Future<String?> _createSignedAttachmentUrl(
+    String bucket,
+    String? path,
+  ) async {
     if (path == null || path.isEmpty) return null;
     try {
-      return await _client.storage
-          .from(_chatAttachmentBucket)
-          .createSignedUrl(path, 60 * 60);
+      return await _client.storage.from(bucket).createSignedUrl(path, 60 * 60);
     } catch (_) {
       return null;
     }
+  }
+
+  Future<String?> _createSignedChatAttachmentUrl(String? path) async {
+    return _createSignedAttachmentUrl(_chatAttachmentBucket, path);
+  }
+
+  Future<String?> _createSignedDisputeAttachmentUrl(String? path) async {
+    return _createSignedAttachmentUrl(_disputeAttachmentBucket, path);
   }
 
   Future<ChatMessage> _hydrateChatMessage(ChatMessage message) async {
@@ -164,6 +206,18 @@ class SupabaseService {
 
     final signedUrl =
         attachment.url ?? await _createSignedChatAttachmentUrl(path);
+    return message.copyWith(attachment: attachment.copyWith(url: signedUrl));
+  }
+
+  Future<ChatMessage> _hydrateDisputeMessage(ChatMessage message) async {
+    final attachment = message.attachment;
+    final path = attachment?.path;
+    if (attachment == null || path == null || path.isEmpty) {
+      return message;
+    }
+
+    final signedUrl =
+        attachment.url ?? await _createSignedDisputeAttachmentUrl(path);
     return message.copyWith(attachment: attachment.copyWith(url: signedUrl));
   }
 
@@ -442,6 +496,252 @@ class SupabaseService {
         .eq('thread_id', threadId)
         .order('created_at')
         .asyncMap((_) => getThreadMessages(threadId));
+  }
+
+  Future<DisputeCase?> getActiveDisputeForOrder(
+    String orderId,
+    String currentUserId,
+  ) async {
+    print(
+      '[dispute-debug] getActiveDisputeForOrder start orderId=$orderId currentUserId=$currentUserId',
+    );
+    try {
+      final dispute = await _client
+          .from('disputes')
+          .select(
+            'id, order_id, raised_by, reason, status, resolution, dispute_conversations(id, buyer_id, seller_id)',
+          )
+          .eq('order_id', orderId)
+          .inFilter('status', ['open', 'investigating', 'resolved'])
+          .order('created_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      if (dispute == null) {
+        print(
+          '[dispute-debug] getActiveDisputeForOrder no dispute row orderId=$orderId',
+        );
+        return null;
+      }
+
+      print(
+        '[dispute-debug] dispute row found id=${dispute['id']} status=${dispute['status']} conversationNodeType=${dispute['dispute_conversations']?.runtimeType}',
+      );
+
+      Map<String, dynamic>? conversationData;
+      final conversationNode = dispute['dispute_conversations'];
+      if (conversationNode is List && conversationNode.isNotEmpty) {
+        conversationData = Map<String, dynamic>.from(
+          conversationNode.first as Map,
+        );
+      } else if (conversationNode is Map) {
+        conversationData = Map<String, dynamic>.from(conversationNode);
+      }
+      if (conversationData == null) {
+        print(
+          '[dispute-debug] dispute row missing conversation data disputeId=${dispute['id']}',
+        );
+        return null;
+      }
+
+      print(
+        '[dispute-debug] conversation resolved conversationId=${conversationData['id']} buyerId=${conversationData['buyer_id']} sellerId=${conversationData['seller_id']}',
+      );
+
+      final participantRows = await _client
+          .from('dispute_conversation_participants')
+          .select(
+            'participant_id, role_in_case, profiles(display_name, avatar_url)',
+          )
+          .eq('conversation_id', conversationData['id'] as String);
+
+      print(
+        '[dispute-debug] participant rows loaded conversationId=${conversationData['id']} count=${(participantRows as List).length}',
+      );
+
+      return DisputeCase(
+        id: dispute['id'] as String,
+        orderId: dispute['order_id'] as String,
+        raisedBy: dispute['raised_by'] as String,
+        reason: dispute['reason'] as String,
+        status: dispute['status'] as String,
+        resolution: dispute['resolution'] as String?,
+        conversationId: conversationData['id'] as String,
+        buyerId: conversationData['buyer_id'] as String,
+        sellerId: conversationData['seller_id'] as String,
+        participants: (participantRows)
+            .map(
+              (row) =>
+                  DisputeParticipant.fromJson(Map<String, dynamic>.from(row)),
+            )
+            .toList(),
+      );
+    } catch (error) {
+      print(
+        '[dispute-debug] getActiveDisputeForOrder failed orderId=$orderId currentUserId=$currentUserId error=$error',
+      );
+      rethrow;
+    }
+  }
+
+  Stream<DisputeCase?> watchActiveDisputeForOrder(
+    String orderId,
+    String currentUserId,
+  ) async* {
+    print(
+      '[dispute-debug] watchActiveDisputeForOrder subscribe orderId=$orderId currentUserId=$currentUserId',
+    );
+    yield await getActiveDisputeForOrder(orderId, currentUserId);
+    yield* _client
+        .from('dispute_conversations')
+        .stream(primaryKey: ['id'])
+        .eq('order_id', orderId)
+        .asyncMap((rows) async {
+          print(
+            '[dispute-debug] watchActiveDisputeForOrder realtime event orderId=$orderId rows=${rows.length}',
+          );
+          return getActiveDisputeForOrder(orderId, currentUserId);
+        });
+  }
+
+  Future<List<ChatMessage>> getDisputeMessages(String conversationId) async {
+    print(
+      '[dispute-debug] getDisputeMessages start conversationId=$conversationId',
+    );
+    try {
+      final rows = await _client
+          .from('dispute_conversation_messages')
+          .select()
+          .eq('conversation_id', conversationId)
+          .order('created_at', ascending: true);
+
+      print(
+        '[dispute-debug] getDisputeMessages rows loaded conversationId=$conversationId count=${(rows as List).length}',
+      );
+
+      return Future.wait(
+        (rows)
+            .map((row) => ChatMessage.fromJson(Map<String, dynamic>.from(row)))
+            .map(_hydrateDisputeMessage),
+      );
+    } catch (error) {
+      print(
+        '[dispute-debug] getDisputeMessages failed conversationId=$conversationId error=$error',
+      );
+      rethrow;
+    }
+  }
+
+  Stream<List<ChatMessage>> watchDisputeMessages(String conversationId) async* {
+    print(
+      '[dispute-debug] watchDisputeMessages subscribe conversationId=$conversationId',
+    );
+    yield await getDisputeMessages(conversationId);
+    yield* _client
+        .from('dispute_conversation_messages')
+        .stream(primaryKey: ['id'])
+        .eq('conversation_id', conversationId)
+        .order('created_at')
+        .asyncMap((rows) async {
+          print(
+            '[dispute-debug] watchDisputeMessages realtime event conversationId=$conversationId rows=${rows.length}',
+          );
+          return getDisputeMessages(conversationId);
+        });
+  }
+
+  Future<ChatAttachment> uploadDisputeAttachment(
+    String conversationId,
+    File file,
+  ) async {
+    final ext = file.path.split('.').last.toLowerCase();
+    final originalName = _fileNameFromPath(file.path);
+    final safeName = _sanitizeFileName(originalName);
+    final storagePath =
+        '$conversationId/${DateTime.now().millisecondsSinceEpoch}_$safeName';
+    final sizeBytes = await file.length();
+
+    await _client.storage
+        .from(_disputeAttachmentBucket)
+        .upload(
+          storagePath,
+          file,
+          fileOptions: FileOptions(contentType: _mimeType(ext)),
+        );
+
+    final signedUrl = await _createSignedDisputeAttachmentUrl(storagePath);
+
+    return ChatAttachment(
+      url: signedUrl,
+      path: storagePath,
+      name: originalName,
+      mimeType: _mimeType(ext),
+      sizeBytes: sizeBytes,
+    );
+  }
+
+  Future<ChatMessage> sendDisputeMessage({
+    required String conversationId,
+    required String senderId,
+    String? body,
+    ChatAttachment? attachment,
+  }) async {
+    final trimmedBody = body?.trim();
+    final hasText = trimmedBody != null && trimmedBody.isNotEmpty;
+    final hasAttachment = attachment != null;
+
+    if (!hasText && !hasAttachment) {
+      throw Exception('A message needs text or an attachment.');
+    }
+
+    final messageType = hasText && hasAttachment
+        ? 'text_with_attachment'
+        : hasAttachment
+        ? 'attachment'
+        : 'text';
+
+    final row = await _client
+        .from('dispute_conversation_messages')
+        .insert({
+          'conversation_id': conversationId,
+          'sender_id': senderId,
+          'body': hasText ? trimmedBody : null,
+          'message_type': messageType,
+          'attachment_path': attachment?.path,
+          'attachment_name': attachment?.name,
+          'attachment_mime': attachment?.mimeType,
+          'attachment_size_bytes': attachment?.sizeBytes,
+        })
+        .select()
+        .single();
+
+    return _hydrateDisputeMessage(
+      ChatMessage.fromJson(Map<String, dynamic>.from(row)),
+    );
+  }
+
+  Future<void> markDisputeConversationRead(
+    String conversationId,
+    String participantId,
+  ) async {
+    final latestMessage = await _client
+        .from('dispute_conversation_messages')
+        .select('id, created_at')
+        .eq('conversation_id', conversationId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    await _client
+        .from('dispute_conversation_participants')
+        .update({
+          'last_read_message_id': latestMessage?['id'],
+          'last_read_at':
+              latestMessage?['created_at'] ??
+              DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('conversation_id', conversationId)
+        .eq('participant_id', participantId);
   }
 
   Future<ChatAttachment> uploadChatAttachment(
@@ -1128,6 +1428,41 @@ class SupabaseService {
     return (items as List).map((e) => CartItem.fromJson(e)).toList();
   }
 
+  Future<int> _getAvailableCartStock(
+    String productId, {
+    String? variantId,
+  }) async {
+    if (variantId != null) {
+      final variant = await _client
+          .from('product_variants')
+          .select('stock_qty')
+          .eq('id', variantId)
+          .maybeSingle();
+      return (variant?['stock_qty'] as num?)?.toInt() ?? 0;
+    }
+
+    final product = await _client
+        .from('products')
+        .select('stock_qty')
+        .eq('id', productId)
+        .single();
+    return (product['stock_qty'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> _ensureCartQuantityWithinStock({
+    required String productId,
+    String? variantId,
+    required int desiredQuantity,
+  }) async {
+    final availableStock = await _getAvailableCartStock(
+      productId,
+      variantId: variantId,
+    );
+    if (desiredQuantity > availableStock) {
+      throw StateError(stockLimitMessage(availableStock));
+    }
+  }
+
   Future<void> addToCart(
     String userId,
     String productId, {
@@ -1164,11 +1499,21 @@ class SupabaseService {
 
     if (existing != null) {
       final newQty = (existing['quantity'] as int) + quantity;
+      await _ensureCartQuantityWithinStock(
+        productId: productId,
+        variantId: variantId,
+        desiredQuantity: newQty,
+      );
       await _client
           .from('cart_items')
           .update({'quantity': newQty})
           .eq('id', existing['id'] as String);
     } else {
+      await _ensureCartQuantityWithinStock(
+        productId: productId,
+        variantId: variantId,
+        desiredQuantity: quantity,
+      );
       await _client.from('cart_items').insert({
         'cart_id': cartId,
         'product_id': productId,
@@ -1179,6 +1524,18 @@ class SupabaseService {
   }
 
   Future<void> updateCartItemQuantity(String cartItemId, int quantity) async {
+    final cartItem = await _client
+        .from('cart_items')
+        .select('product_id, variant_id')
+        .eq('id', cartItemId)
+        .single();
+
+    await _ensureCartQuantityWithinStock(
+      productId: cartItem['product_id'] as String,
+      variantId: cartItem['variant_id'] as String?,
+      desiredQuantity: quantity,
+    );
+
     await _client
         .from('cart_items')
         .update({'quantity': quantity})
@@ -1314,9 +1671,12 @@ class SupabaseService {
   }
 
   Future<void> markVendorApprovalSeen(String userId) async {
-    await _client.from('profiles').update({
-      'vendor_approved_seen_at': DateTime.now().toUtc().toIso8601String(),
-    }).eq('id', userId);
+    await _client
+        .from('profiles')
+        .update({
+          'vendor_approved_seen_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('id', userId);
   }
 
   Future<VendorPayoutProfile?> getVendorPayoutProfile(String vendorId) async {
@@ -1347,8 +1707,6 @@ class SupabaseService {
     required String accountType,
     required String registeredPhone,
     required String registeredEmail,
-    String? identityNumber,
-    String? businessRegistrationNumber,
   }) async {
     final payload = {
       'vendor_id': vendorId,
@@ -1359,9 +1717,9 @@ class SupabaseService {
       'account_type': accountType,
       'registered_phone': registeredPhone,
       'registered_email': registeredEmail,
-      'identity_number': identityNumber,
-      'business_registration_number': businessRegistrationNumber,
-      'verification_status': 'submitted',
+      'identity_number': null,
+      'business_registration_number': null,
+      'verification_status': 'verified',
       'status_notes': null,
     };
 
@@ -1475,9 +1833,30 @@ class SupabaseService {
     String? giftRecipient,
     String? giftMessage,
   }) async {
+    final userId = _client.auth.currentUser?.id;
+    final session = _client.auth.currentSession;
+    print(
+      '[checkout-debug] createCheckout start userId=$userId sessionUser=${session?.user.id} accessTokenPresent=${(session?.accessToken.isNotEmpty ?? false)} refreshTokenPresent=${(session?.refreshToken?.isNotEmpty ?? false)}',
+    );
+    if (userId == null || userId.isEmpty) {
+      throw const AuthException(
+        'Please sign in again before starting checkout.',
+      );
+    }
+
+    final headers = await _authorizedFunctionHeaders();
+    print(
+      '[checkout-debug] invoking create-checkout userId=$userId authHeaderPresent=${headers['Authorization']?.isNotEmpty ?? false} shippingMethod=$shippingMethod shippingCost=$shippingCost isGift=$isGift',
+    );
+    print(
+      '[checkout-debug] shippingAddress keys=${shippingAddress.keys.toList()}',
+    );
+
     final response = await _client.functions.invoke(
       'create-checkout',
+      headers: headers,
       body: {
+        'userId': userId,
         'shippingAddress': shippingAddress,
         'shippingMethod': shippingMethod,
         'shippingCost': shippingCost,
@@ -1485,6 +1864,10 @@ class SupabaseService {
         'giftRecipient': giftRecipient,
         'giftMessage': giftMessage,
       },
+    );
+
+    print(
+      '[checkout-debug] create-checkout response status=${response.status} dataType=${response.data.runtimeType} data=${response.data}',
     );
 
     return CheckoutSession.fromJson(
@@ -1508,20 +1891,31 @@ class SupabaseService {
   }
 
   Future<void> confirmReceipt(String orderId) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      throw const AuthException(
+        'Please sign in again before confirming receipt.',
+      );
+    }
     await _client.functions.invoke(
       'release-escrow',
-      body: {'orderId': orderId},
+      headers: await _authorizedFunctionHeaders(),
+      body: {'orderId': orderId, 'userId': userId},
     );
   }
 
-  Future<void> createDispute(
+  Future<DisputeOpenResult> createDispute(
     String orderId,
     String raisedBy,
     String reason,
   ) async {
-    await _client.functions.invoke(
+    final response = await _client.functions.invoke(
       'open-dispute',
-      body: {'orderId': orderId, 'raisedBy': raisedBy, 'reason': reason},
+      headers: await _authorizedFunctionHeaders(),
+      body: {'orderId': orderId, 'userId': raisedBy, 'reason': reason},
+    );
+    return DisputeOpenResult.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
     );
   }
 
@@ -1649,11 +2043,24 @@ class SupabaseService {
     String orderId,
     String status, {
     String? trackingNumber,
+    String? trackingUrl,
   }) async {
     if (status == 'shipped') {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        throw const AuthException(
+          'Please sign in again before updating the order.',
+        );
+      }
       await _client.functions.invoke(
         'mark-order-shipped',
-        body: {'orderId': orderId, 'trackingNumber': trackingNumber},
+        headers: await _authorizedFunctionHeaders(),
+        body: {
+          'orderId': orderId,
+          'trackingNumber': trackingNumber,
+          'trackingUrl': trackingUrl,
+          'userId': userId,
+        },
       );
       return;
     }
@@ -1661,6 +2068,9 @@ class SupabaseService {
     final updates = <String, dynamic>{'status': status};
     if (trackingNumber != null) {
       updates['tracking_number'] = trackingNumber;
+    }
+    if (trackingUrl != null) {
+      updates['tracking_url'] = trackingUrl;
     }
     await _client.from('orders').update(updates).eq('id', orderId);
   }

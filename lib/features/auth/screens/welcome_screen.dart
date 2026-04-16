@@ -52,7 +52,11 @@ class WelcomeScreen extends StatelessWidget {
                   Expanded(child: Container(height: 1, color: AppTheme.sand)),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Icon(Icons.diamond_outlined, size: 14, color: AppTheme.ochre),
+                    child: Icon(
+                      Icons.diamond_outlined,
+                      size: 14,
+                      color: AppTheme.ochre,
+                    ),
                   ),
                   Expanded(child: Container(height: 1, color: AppTheme.sand)),
                 ],
@@ -69,7 +73,10 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () => context.push('/register'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.terracotta,
-                    side: const BorderSide(color: AppTheme.terracotta, width: 1.5),
+                    side: const BorderSide(
+                      color: AppTheme.terracotta,
+                      width: 1.5,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 18),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),

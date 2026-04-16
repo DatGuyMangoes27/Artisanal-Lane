@@ -54,7 +54,7 @@ class Category {
 
   /// Category-specific filter tags (excluding universal on-sale/featured).
   static const Map<String, List<String>> filterTags = {
-    'home': ['pottery', 'woodwork', 'textile', 'metal work'],
+    'home': ['pottery', 'woodwork', 'textile', 'metal work', 'candle'],
     'jewellery': ['silver', 'gold', 'beaded'],
     'clothing': ['men', 'women', 'unisex'],
     'baby-kids': ['boy', 'girl', 'unisex'],

@@ -1,3 +1,5 @@
+import { buildAllocationDisputeDeliveryRequest } from "./tradesafe-dispute.mjs";
+
 type TradeSafeGraphQlResponse<T> = {
   data?: T;
   errors?: Array<{ message: string }>;
@@ -8,14 +10,61 @@ type TokenInput = {
   displayName: string;
   email: string;
   mobile: string;
+  idNumber?: string | null;
+  idType?: "NATIONAL" | "PASSPORT";
+  idCountry?: string | null;
+  organization?: {
+    name: string;
+    tradeName?: string | null;
+    type: "PRIVATE";
+    registrationNumber?: string | null;
+  } | null;
+  bankAccount?: {
+    bank: string;
+    accountNumber: string;
+    accountType: "CHEQUE" | "SAVINGS" | "TRANSMISSION" | "BOND";
+  } | null;
 };
 
 const TRADE_SAFE_AUTH_URL =
   Deno.env.get("TRADESAFE_AUTH_URL") ??
   "https://auth.tradesafe.co.za/oauth/token";
+const TRADE_SAFE_API_URL = Deno.env.get("TRADESAFE_API_URL");
 const TRADE_SAFE_GRAPHQL_URL =
   Deno.env.get("TRADESAFE_GRAPHQL_URL") ??
   "https://api.tradesafe.co.za/graphql";
+
+function buildTradeSafeAuthCandidates() {
+  const raw = TRADE_SAFE_AUTH_URL.trim().replace(/\/+$/, "");
+  const candidates = new Set<string>();
+  candidates.add(
+    raw.endsWith("/oauth/token") ? raw : `${raw}/oauth/token`,
+  );
+  candidates.add("https://auth.tradesafe.co.za/oauth/token");
+  return Array.from(candidates);
+}
+
+function normalizeTradeSafeGraphqlUrl(value: string) {
+  const raw = value.trim().replace(/\/+$/, "");
+  return raw.endsWith("/graphql") ? raw : `${raw}/graphql`;
+}
+
+function resolveTradeSafeGraphqlCandidates() {
+  const configuredGraphqlUrl = Deno.env.get("TRADESAFE_GRAPHQL_URL");
+  if (configuredGraphqlUrl != null && configuredGraphqlUrl.trim().length > 0) {
+    return [normalizeTradeSafeGraphqlUrl(configuredGraphqlUrl)];
+  }
+
+  const configuredApiUrl = TRADE_SAFE_API_URL?.trim();
+  if (configuredApiUrl != null && configuredApiUrl.length > 0) {
+    return [normalizeTradeSafeGraphqlUrl(configuredApiUrl)];
+  }
+
+  return [
+    normalizeTradeSafeGraphqlUrl(TRADE_SAFE_GRAPHQL_URL),
+    "https://api-developer.tradesafe.dev/graphql",
+  ];
+}
 
 function requireEnv(name: string) {
   const value = Deno.env.get(name);
@@ -31,6 +80,33 @@ function splitDisplayName(displayName: string) {
   const givenName = parts[0] ?? "Artisan";
   const familyName = parts.length > 1 ? parts.slice(1).join(" ") : "Lane";
   return { givenName, familyName };
+}
+
+function trimToNull(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed != null && trimmed.length > 0 ? trimmed : null;
+}
+
+function buildTokenInput(input: TokenInput) {
+  const { givenName, familyName } = splitDisplayName(input.displayName);
+
+  return {
+    user: {
+      givenName,
+      familyName,
+      email: input.email,
+      mobile: input.mobile,
+      ...(input.idNumber != null
+          ? {
+              idNumber: input.idNumber,
+              idType: input.idType ?? "NATIONAL",
+              idCountry: input.idCountry ?? "ZAF",
+            }
+          : {}),
+    },
+    ...(input.organization != null ? { organization: input.organization } : {}),
+    ...(input.bankAccount != null ? { bankAccount: input.bankAccount } : {}),
+  };
 }
 
 export function normalizeMobile(value: string | null | undefined) {
@@ -57,61 +133,119 @@ async function getAccessToken() {
     client_secret: requireEnv("TRADESAFE_CLIENT_SECRET"),
   });
 
-  const response = await fetch(TRADE_SAFE_AUTH_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body,
-  });
+  let lastError: string | null = null;
 
-  if (!response.ok) {
-    throw new Error(`TradeSafe auth failed with status ${response.status}`);
+  for (const authUrl of buildTradeSafeAuthCandidates()) {
+    try {
+      console.log(`[checkout-debug] TradeSafe auth request url=${authUrl}`);
+      const response = await fetch(authUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        lastError =
+          `status=${response.status} url=${authUrl} body=${errorBody}`;
+        console.log(`[checkout-debug] TradeSafe auth failed ${lastError}`);
+        continue;
+      }
+
+      const payload = await response.json();
+      const accessToken = payload.access_token as string | undefined;
+      if (accessToken == null || accessToken.length === 0) {
+        lastError = `missing access_token url=${authUrl}`;
+        console.log(`[checkout-debug] TradeSafe auth failed ${lastError}`);
+        continue;
+      }
+
+      console.log(`[checkout-debug] TradeSafe auth succeeded url=${authUrl}`);
+      return accessToken;
+    } catch (error) {
+      lastError = `url=${authUrl} error=${error instanceof Error ? error.message : String(error)}`;
+      console.log(`[checkout-debug] TradeSafe auth threw ${lastError}`);
+    }
   }
 
-  const payload = await response.json();
-  return payload.access_token as string;
+  throw new Error(`TradeSafe auth failed. ${lastError ?? "Unknown error."}`);
 }
 
 export async function tradeSafeRequest<T>(
+  operationName: string,
   query: string,
   variables: Record<string, unknown> = {},
 ) {
   const accessToken = await getAccessToken();
+  const graphqlCandidates = resolveTradeSafeGraphqlCandidates();
+  let lastError: string | null = null;
 
-  const response = await fetch(TRADE_SAFE_GRAPHQL_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-  });
+  for (const [index, graphqlUrl] of graphqlCandidates.entries()) {
+    console.log(
+      `[checkout-debug] TradeSafe ${operationName} request url=${graphqlUrl}`,
+    );
 
-  if (!response.ok) {
-    throw new Error(`TradeSafe request failed with status ${response.status}`);
+    const response = await fetch(graphqlUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        variables,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      lastError =
+        `url=${graphqlUrl} status=${response.status} body=${errorBody}`;
+      console.log(
+        `[checkout-debug] TradeSafe ${operationName} http failure ${lastError}`,
+      );
+      continue;
+    }
+
+    const payload =
+      (await response.json()) as TradeSafeGraphQlResponse<T>;
+
+    if (payload.errors?.length) {
+      const errorMessage = payload.errors.map((error) => error.message).join("; ");
+      lastError = `url=${graphqlUrl} errors=${errorMessage}`;
+      console.log(
+        `[checkout-debug] TradeSafe ${operationName} graphql failure ${lastError}`,
+      );
+
+      if (
+        /Unauthenticated/i.test(errorMessage) &&
+        index < graphqlCandidates.length - 1
+      ) {
+        continue;
+      }
+
+      throw new Error(`TradeSafe ${operationName} failed: ${lastError}`);
+    }
+
+    if (!payload.data) {
+      lastError = `url=${graphqlUrl} empty response`;
+      console.log(
+        `[checkout-debug] TradeSafe ${operationName} empty response ${lastError}`,
+      );
+      continue;
+    }
+
+    return payload.data;
   }
 
-  const payload =
-    (await response.json()) as TradeSafeGraphQlResponse<T>;
-
-  if (payload.errors?.length) {
-    throw new Error(payload.errors.map((error) => error.message).join("; "));
-  }
-
-  if (!payload.data) {
-    throw new Error("TradeSafe returned an empty response.");
-  }
-
-  return payload.data;
+  throw new Error(
+    `TradeSafe ${operationName} failed: ${lastError ?? "Unknown error."}`,
+  );
 }
 
 export async function ensureTradeSafeToken(input: TokenInput) {
-  const { givenName, familyName } = splitDisplayName(input.displayName);
-
   if (input.existingTokenId) {
     const updateMutation = `
       mutation UpdateToken($id: ID!, $input: TokenInput!) {
@@ -123,16 +257,9 @@ export async function ensureTradeSafeToken(input: TokenInput) {
 
     const updated = await tradeSafeRequest<{
       tokenUpdate: { id: string };
-    }>(updateMutation, {
+    }>("tokenUpdate", updateMutation, {
       id: input.existingTokenId,
-      input: {
-        user: {
-          givenName,
-          familyName,
-          email: input.email,
-          mobile: input.mobile,
-        },
-      },
+      input: buildTokenInput(input),
     });
 
     return updated.tokenUpdate.id;
@@ -148,18 +275,76 @@ export async function ensureTradeSafeToken(input: TokenInput) {
 
   const created = await tradeSafeRequest<{
     tokenCreate: { id: string };
-  }>(createMutation, {
-    input: {
-      user: {
-        givenName,
-        familyName,
-        email: input.email,
-        mobile: input.mobile,
-      },
-    },
+  }>("tokenCreate", createMutation, {
+    input: buildTokenInput(input),
   });
 
   return created.tokenCreate.id;
+}
+
+export function mapTradeSafeBankAccountType(value: string | null | undefined) {
+  const normalized = trimToNull(value)?.toLowerCase();
+  switch (normalized) {
+    case "cheque":
+    case "checking":
+    case "current":
+      return "CHEQUE" as const;
+    case "savings":
+    case "saving":
+      return "SAVINGS" as const;
+    case "transmission":
+      return "TRANSMISSION" as const;
+    case "bond":
+      return "BOND" as const;
+    default:
+      return null;
+  }
+}
+
+export function mapTradeSafeBank(value: string | null | undefined) {
+  const normalized = trimToNull(value)?.toLowerCase();
+  switch (normalized) {
+    case "absa":
+    case "absa bank":
+      return "ABSA" as const;
+    case "african":
+    case "african bank":
+      return "AFRICAN" as const;
+    case "capitec":
+    case "capitec bank":
+      return "CAPITEC" as const;
+    case "discovery":
+    case "discovery bank":
+      return "DISCOVERY" as const;
+    case "fnb":
+    case "first national bank":
+      return "FNB" as const;
+    case "investec":
+    case "investec bank":
+      return "INVESTEC" as const;
+    case "mtn":
+    case "mtn banking":
+      return "MTN" as const;
+    case "nedbank":
+      return "NEDBANK" as const;
+    case "postbank":
+    case "south african post office":
+    case "sapo":
+      return "SAPO" as const;
+    case "sasfin":
+    case "sasfin bank":
+      return "SASFIN" as const;
+    case "standard":
+    case "standard bank":
+    case "sbsa":
+      return "SBSA" as const;
+    case "tyme":
+    case "tymebank":
+    case "tyme bank":
+      return "TYME" as const;
+    default:
+      return "OTHER" as const;
+  }
 }
 
 export async function createTradeSafeTransaction(input: {
@@ -171,12 +356,14 @@ export async function createTradeSafeTransaction(input: {
   amount: number;
 }) {
   const mutation = `
-    mutation CreateTransaction($input: TransactionCreateInput!) {
+    mutation CreateTransaction($input: CreateTransactionInput!) {
       transactionCreate(input: $input) {
         id
         state
         allocations {
           id
+          title
+          value
           state
         }
       }
@@ -187,27 +374,40 @@ export async function createTradeSafeTransaction(input: {
     transactionCreate: {
       id: string;
       state: string;
-      allocations: Array<{ id: string; state: string }>;
+      allocations: Array<{ id: string; title: string; value: number; state: string }>;
     };
-  }>(mutation, {
+  }>("transactionCreate", mutation, {
     input: {
       reference: input.reference,
       title: input.title,
       description: input.description,
-      total: input.amount,
+      industry: "GENERAL_GOODS_SERVICES",
+      currency: "ZAR",
+      workflow: "STANDARD",
       feeAllocation: "BUYER",
-      buyer: {
-        token: input.buyerTokenId,
+      allocations: {
+        create: [
+          {
+            title: "Order Payment",
+            description: input.description,
+            value: input.amount,
+            daysToDeliver: 7,
+            daysToInspect: 7,
+          },
+        ],
       },
-      seller: {
-        token: input.sellerTokenId,
+      parties: {
+        create: [
+          {
+            token: input.buyerTokenId,
+            role: "BUYER",
+          },
+          {
+            token: input.sellerTokenId,
+            role: "SELLER",
+          },
+        ],
       },
-      allocations: [
-        {
-          token: input.sellerTokenId,
-          value: input.amount,
-        },
-      ],
     },
   });
 
@@ -234,7 +434,7 @@ export async function createCheckoutLink(transactionId: string) {
 
   const result = await tradeSafeRequest<{
     checkoutLink: string;
-  }>(mutation, {
+  }>("checkoutLink", mutation, {
     transactionId,
   });
 
@@ -253,7 +453,7 @@ export async function startAllocationDelivery(allocationId: string) {
 
   return tradeSafeRequest<{
     allocationStartDelivery: { id: string; state: string };
-  }>(mutation, {
+  }>("allocationStartDelivery", mutation, {
     id: allocationId,
   });
 }
@@ -270,26 +470,19 @@ export async function acceptAllocationDelivery(allocationId: string) {
 
   return tradeSafeRequest<{
     allocationAcceptDelivery: { id: string; state: string };
-  }>(mutation, {
+  }>("allocationAcceptDelivery", mutation, {
     id: allocationId,
   });
 }
 
-export async function disputeAllocationDelivery(allocationId: string) {
-  const mutation = `
-    mutation DisputeDelivery($id: ID!) {
-      allocationDisputeDelivery(id: $id) {
-        id
-        state
-      }
-    }
-  `;
-
+export async function disputeAllocationDelivery(allocationId: string, comment: string) {
+  const request = buildAllocationDisputeDeliveryRequest({
+    allocationId,
+    comment,
+  });
   return tradeSafeRequest<{
     allocationDisputeDelivery: { id: string; state: string };
-  }>(mutation, {
-    id: allocationId,
-  });
+  }>("allocationDisputeDelivery", request.mutation, request.variables);
 }
 
 export async function cancelTradeSafeTransaction(
@@ -306,7 +499,7 @@ export async function cancelTradeSafeTransaction(
 
   return tradeSafeRequest<{
     transactionCancel: { state: string };
-  }>(mutation, {
+  }>("transactionCancel", mutation, {
     id: transactionId,
     comment,
   });

@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../app/theme.dart';
 
-class BuyerShell extends StatelessWidget {
+import '../app/theme.dart';
+import '../features/buyer/providers/buyer_providers.dart';
+import '../models/cart_item.dart';
+import 'cart_nav_icon.dart';
+
+class BuyerShell extends ConsumerWidget {
   final Widget child;
 
   const BuyerShell({super.key, required this.child});
@@ -160,8 +165,11 @@ class BuyerShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final guest = _isGuest;
+    final cartItems = ref.watch(cartItemsProvider).value ?? const <CartItem>[];
+    final cartCount = cartBadgeCount(cartItems);
+
     return Scaffold(
       body: child,
       bottomNavigationBar: BottomNavigationBar(
@@ -184,8 +192,8 @@ class BuyerShell extends StatelessWidget {
             label: 'Favourites',
           ),
           BottomNavigationBarItem(
-            icon: Icon(guest ? Icons.shopping_bag_outlined : Icons.shopping_bag_outlined),
-            activeIcon: const Icon(Icons.shopping_bag),
+            icon: CartNavIcon(count: cartCount, isActive: false),
+            activeIcon: CartNavIcon(count: cartCount, isActive: true),
             label: 'Cart',
           ),
           BottomNavigationBarItem(

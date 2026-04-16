@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
+import '../utils/vendor_payout_setup.dart';
 
 class VendorEarningsScreen extends ConsumerWidget {
   const VendorEarningsScreen({super.key});
@@ -16,6 +17,7 @@ class VendorEarningsScreen extends ConsumerWidget {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
+    final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -48,7 +50,7 @@ class VendorEarningsScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 28),
-                if (payoutStatus != 'verified') ...[
+                if (!payoutReady) ...[
                   Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(

@@ -63,6 +63,28 @@ final vendorThreadMessagesProvider =
       return service.watchThreadMessages(threadId);
     });
 
+final vendorActiveDisputeProvider =
+    FutureProvider.family<DisputeCase?, String>((ref, orderId) async {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) return null;
+      final service = ref.read(supabaseServiceProvider);
+      return service.getActiveDisputeForOrder(orderId, userId);
+    });
+
+final vendorActiveDisputeStreamProvider =
+    StreamProvider.family<DisputeCase?, String>((ref, orderId) {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) return Stream.value(null);
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchActiveDisputeForOrder(orderId, userId);
+    });
+
+final vendorDisputeMessagesProvider =
+    StreamProvider.family<List<ChatMessage>, String>((ref, conversationId) {
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchDisputeMessages(conversationId);
+    });
+
 // ── Vendor Products ─────────────────────────────────────────────
 final vendorProductsProvider = FutureProvider<List<Product>>((ref) async {
   final shop = await ref.watch(vendorShopProvider.future);

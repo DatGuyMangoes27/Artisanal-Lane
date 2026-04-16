@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/cart_stock_guard.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -44,8 +45,25 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   Future<void> _updateQuantity(String cartItemId, int newQty) async {
     final service = ref.read(supabaseServiceProvider);
-    await service.updateCartItemQuantity(cartItemId, newQty);
-    ref.invalidate(cartItemsProvider);
+    try {
+      await service.updateCartItemQuantity(cartItemId, newQty);
+      ref.invalidate(cartItemsProvider);
+    } catch (error) {
+      if (!mounted) return;
+      final message = error is StateError
+          ? error.message.toString()
+          : 'Could not update quantity';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message,
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   @override
@@ -224,6 +242,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   // ── Cart Item Card ──────────────────────────────────────────────
   Widget _buildCartItem(CartItem item) {
     final product = item.product;
+    final availableStock = availableStockForCartItem(item);
+    final hasReachedStockLimit = item.quantity >= availableStock;
     final expiringSoon = item.isExpiringSoon;
     final borderColor = expiringSoon
         ? AppTheme.ochre.withValues(alpha: 0.6)
@@ -316,6 +336,17 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   const SizedBox(height: 8),
                   _ExpiryChip(item: item),
                   const SizedBox(height: 8),
+                  if (hasReachedStockLimit) ...[
+                    Text(
+                      stockLimitMessage(availableStock),
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.ochre,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -361,8 +392,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                             ),
                             _StepperButton(
                               icon: Icons.add_rounded,
-                              onTap: () =>
-                                  _updateQuantity(item.id, item.quantity + 1),
+                              onTap: canIncreaseCartItemQuantity(item)
+                                  ? () => _updateQuantity(
+                                      item.id,
+                                      item.quantity + 1,
+                                    )
+                                  : null,
                             ),
                           ],
                         ),
@@ -647,7 +682,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Gift service',
+                    giftServiceLabel,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: AppTheme.textSecondary,

@@ -140,6 +140,30 @@ final buyerThreadMessagesProvider =
       return service.watchThreadMessages(threadId);
     });
 
+final buyerActiveDisputeProvider = FutureProvider.family<DisputeCase?, String>((
+  ref,
+  orderId,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return null;
+  final service = ref.read(supabaseServiceProvider);
+  return service.getActiveDisputeForOrder(orderId, userId);
+});
+
+final buyerActiveDisputeStreamProvider =
+    StreamProvider.family<DisputeCase?, String>((ref, orderId) {
+      final userId = ref.watch(currentUserIdProvider);
+      if (userId == null) return Stream.value(null);
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchActiveDisputeForOrder(orderId, userId);
+    });
+
+final buyerDisputeMessagesProvider =
+    StreamProvider.family<List<ChatMessage>, String>((ref, conversationId) {
+      final service = ref.read(supabaseServiceProvider);
+      return service.watchDisputeMessages(conversationId);
+    });
+
 // ── Products ────────────────────────────────────────────────────
 final featuredProductsProvider = FutureProvider<List<Product>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
@@ -367,6 +391,13 @@ final ordersStreamProvider = StreamProvider<List<Order>>((ref) {
   if (userId == null) return Stream.value(const <Order>[]);
   final service = ref.read(supabaseServiceProvider);
   return service.watchOrders(userId);
+});
+
+final buyerDisputedOrdersProvider = Provider<List<Order>>((ref) {
+  final streamOrders = ref.watch(ordersStreamProvider).value;
+  final orders =
+      streamOrders ?? ref.watch(ordersProvider).value ?? const <Order>[];
+  return orders.where((order) => order.status == 'disputed').toList();
 });
 
 final orderDetailProvider = FutureProvider.family<Order, String>((

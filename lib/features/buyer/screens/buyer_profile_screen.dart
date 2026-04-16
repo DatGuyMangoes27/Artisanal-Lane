@@ -15,27 +15,61 @@ class BuyerProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileProvider);
     final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
+    final disputedOrders = ref.watch(buyerDisputedOrdersProvider);
+    final orders = ref.watch(ordersProvider).value ?? const [];
+    final favouriteIds =
+        ref.watch(favouriteIdsProvider).value ?? const <String>[];
+    final cartItems = ref.watch(cartItemsProvider).value ?? const [];
+    final orderCount = orders.length;
+    final favouriteCount = favouriteIds.length;
+    final cartCount = cartItems.fold<int>(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       body: profileAsync.when(
-        data: (profile) => _buildBody(context, profile, unreadMessages),
+        data: (profile) => _buildBody(
+          context,
+          profile,
+          unreadMessages,
+          disputedOrders.length,
+          orderCount,
+          favouriteCount,
+          cartCount,
+        ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _buildErrorBody(context, unreadMessages),
+        error: (error, _) => _buildErrorBody(
+          context,
+          unreadMessages,
+          disputedOrders.length,
+          orderCount,
+          favouriteCount,
+          cartCount,
+        ),
       ),
     );
   }
 
   // ── Data-loaded body ──────────────────────────────────────────
-  Widget _buildBody(BuildContext context, dynamic profile, int unreadMessages) {
+  Widget _buildBody(
+    BuildContext context,
+    dynamic profile,
+    int unreadMessages,
+    int disputeCount,
+    int orderCount,
+    int favouriteCount,
+    int cartCount,
+  ) {
     return SingleChildScrollView(
       child: Column(
         children: [
           _buildHeader(context, profile),
           const SizedBox(height: 32),
-          _buildStatsRow(),
+          _buildStatsRow(orderCount, favouriteCount, cartCount),
           const SizedBox(height: 32),
-          _buildMenuSection(context, unreadMessages),
+          _buildMenuSection(context, unreadMessages, disputeCount),
           const SizedBox(height: 40),
           const TripleDot(),
           const SizedBox(height: 32),
@@ -45,15 +79,22 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Error / demo body ─────────────────────────────────────────
-  Widget _buildErrorBody(BuildContext context, int unreadMessages) {
+  Widget _buildErrorBody(
+    BuildContext context,
+    int unreadMessages,
+    int disputeCount,
+    int orderCount,
+    int favouriteCount,
+    int cartCount,
+  ) {
     return SingleChildScrollView(
       child: Column(
         children: [
           _buildPlaceholderHeader(context),
           const SizedBox(height: 32),
-          _buildStatsRow(),
+          _buildStatsRow(orderCount, favouriteCount, cartCount),
           const SizedBox(height: 32),
-          _buildMenuSection(context, unreadMessages),
+          _buildMenuSection(context, unreadMessages, disputeCount),
           const SizedBox(height: 40),
           const TripleDot(),
           const SizedBox(height: 32),
@@ -163,7 +204,10 @@ class BuyerProfileScreen extends ConsumerWidget {
           top: MediaQuery.of(context).padding.top + 12,
           right: 20,
           child: IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppTheme.textPrimary),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppTheme.textPrimary,
+            ),
             onPressed: () => context.push('/profile/settings'),
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
@@ -237,7 +281,10 @@ class BuyerProfileScreen extends ConsumerWidget {
           top: MediaQuery.of(context).padding.top + 12,
           right: 20,
           child: IconButton(
-            icon: const Icon(Icons.settings_outlined, color: AppTheme.textPrimary),
+            icon: const Icon(
+              Icons.settings_outlined,
+              color: AppTheme.textPrimary,
+            ),
             onPressed: () => context.push('/profile/settings'),
             style: IconButton.styleFrom(
               backgroundColor: Colors.white,
@@ -251,7 +298,7 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Stats row ─────────────────────────────────────────────────
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(int orderCount, int favouriteCount, int cartCount) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
@@ -271,11 +318,11 @@ class BuyerProfileScreen extends ConsumerWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _statItem('5', 'Orders'),
+            _statItem('$orderCount', 'Orders'),
             _verticalDivider(),
-            _statItem('3', 'Favourites'),
+            _statItem('$favouriteCount', 'Favourites'),
             _verticalDivider(),
-            _statItem('3', 'In Cart'),
+            _statItem('$cartCount', 'In Cart'),
           ],
         ),
       ),
@@ -315,7 +362,11 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Menu section ──────────────────────────────────────────────
-  Widget _buildMenuSection(BuildContext context, int unreadMessages) {
+  Widget _buildMenuSection(
+    BuildContext context,
+    int unreadMessages,
+    int disputeCount,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -333,16 +384,17 @@ class BuyerProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           _MenuItem(
-            icon: Icons.payment_outlined,
-            title: 'Payment Methods',
-            onTap: () => context.push('/profile/payment-methods'),
-          ),
-          const SizedBox(height: 16),
-          _MenuItem(
             icon: Icons.chat_bubble_outline_rounded,
             title: 'Messages',
             badgeCount: unreadMessages,
             onTap: () => context.push('/profile/messages'),
+          ),
+          const SizedBox(height: 16),
+          _MenuItem(
+            icon: Icons.gavel_rounded,
+            title: 'Disputes',
+            badgeCount: disputeCount,
+            onTap: () => context.push('/profile/disputes'),
           ),
           const SizedBox(height: 16),
           _MenuItem(
@@ -411,11 +463,7 @@ class _MenuItem extends StatelessWidget {
                 color: const Color(0xFFFAFAFA),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                size: 22,
-                color: AppTheme.terracotta,
-              ),
+              child: Icon(icon, size: 22, color: AppTheme.terracotta),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -446,11 +494,7 @@ class _MenuItem extends StatelessWidget {
               ),
               const SizedBox(width: 10),
             ],
-            const Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: AppTheme.textHint,
-            ),
+            const Icon(Icons.chevron_right, size: 20, color: AppTheme.textHint),
           ],
         ),
       ),

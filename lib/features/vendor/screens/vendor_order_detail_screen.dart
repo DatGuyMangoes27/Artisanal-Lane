@@ -20,11 +20,13 @@ class VendorOrderDetailScreen extends ConsumerStatefulWidget {
 class _VendorOrderDetailScreenState
     extends ConsumerState<VendorOrderDetailScreen> {
   final _trackingController = TextEditingController();
+  final _trackingUrlController = TextEditingController();
   bool _isShipping = false;
 
   @override
   void dispose() {
     _trackingController.dispose();
+    _trackingUrlController.dispose();
     super.dispose();
   }
 
@@ -38,9 +40,14 @@ class _VendorOrderDetailScreenState
         trackingNumber: _trackingController.text.trim().isNotEmpty
             ? _trackingController.text.trim()
             : null,
+        trackingUrl: _trackingUrlController.text.trim().isNotEmpty
+            ? _trackingUrlController.text.trim()
+            : null,
       );
       ref.invalidate(vendorOrdersProvider);
+      ref.invalidate(vendorOrdersStreamProvider);
       ref.invalidate(vendorOrderDetailProvider(widget.orderId));
+      ref.invalidate(vendorOrderDetailStreamProvider(widget.orderId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -116,6 +123,9 @@ class _VendorOrderDetailScreenState
                   _infoRow('Shipping', order.shippingMethodDisplay),
                   if (order.trackingNumber != null)
                     _infoRow('Tracking', order.trackingNumber!),
+                  if (order.trackingUrl != null &&
+                      order.trackingUrl!.isNotEmpty)
+                    _infoRow('Tracking URL', order.trackingUrl!),
                 ],
               ),
             ),
@@ -382,6 +392,23 @@ class _VendorOrderDetailScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Text(
+                      'Tracking URL (optional)',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _trackingUrlController,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        hintText: 'Paste tracking link',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     GradientButton(
                       label: 'Mark as Shipped',
                       icon: Icons.local_shipping_outlined,
@@ -392,6 +419,16 @@ class _VendorOrderDetailScreenState
                     ),
                   ],
                 ),
+              ),
+            ],
+            if (order.status == 'disputed') ...[
+              GradientButton(
+                label: 'Open Dispute Conversation',
+                icon: Icons.forum_outlined,
+                onPressed: () =>
+                    context.push('/vendor/orders/${order.id}/dispute'),
+                verticalPadding: 16,
+                borderRadius: 14,
               ),
             ],
             const SizedBox(height: 32),

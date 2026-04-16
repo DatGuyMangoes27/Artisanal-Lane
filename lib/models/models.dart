@@ -2,6 +2,7 @@ export 'category.dart';
 export 'chat_attachment.dart';
 export 'chat_message.dart';
 export 'chat_thread.dart';
+export 'dispute_case.dart';
 export 'subcategory.dart';
 export 'shop.dart';
 export 'shop_market_event.dart';

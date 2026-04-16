@@ -7,8 +7,10 @@ import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../widgets/stationery_sheet_header.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
+import '../utils/vendor_payout_setup.dart';
 
 class VendorDashboardScreen extends ConsumerWidget {
   const VendorDashboardScreen({super.key});
@@ -66,6 +68,7 @@ class _VendorSetupContent extends ConsumerWidget {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
+    final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -115,6 +118,7 @@ class _VendorSetupContent extends ConsumerWidget {
               const SizedBox(height: 20),
               _SetupChecklistCard(
                 payoutStatus: payoutStatus,
+                payoutReady: payoutReady,
                 onOpenPayouts: () => context.push('/vendor/profile/payouts'),
                 onOpenShop: () => context.push('/vendor/profile/shop'),
                 onOpenStationery: () => context.push('/vendor/profile/stationery'),
@@ -131,6 +135,43 @@ class _DashboardContent extends ConsumerWidget {
   final Shop shop;
   const _DashboardContent({required this.shop});
 
+  void _showPayoutRequiredDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Complete payout details',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          vendorPayoutGateMessage,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.push('/vendor/profile/payouts');
+            },
+            child: const Text('Open payout details'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleAddProductTap(BuildContext context, bool payoutReady) {
+    if (payoutReady) {
+      context.push('/vendor/products/new');
+      return;
+    }
+    _showPayoutRequiredDialog(context);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(vendorOrdersProvider);
@@ -141,6 +182,7 @@ class _DashboardContent extends ConsumerWidget {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
+    final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -186,7 +228,7 @@ class _DashboardContent extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
-                if (payoutStatus != 'verified') ...[
+                if (!payoutReady) ...[
                   _PayoutBanner(status: payoutStatus),
                   const SizedBox(height: 20),
                 ],
@@ -257,7 +299,7 @@ class _DashboardContent extends ConsumerWidget {
                         Icons.add_circle_outline,
                         'Add Product',
                         AppTheme.baobab,
-                        () => context.push('/vendor/products/new'),
+                        () => _handleAddProductTap(context, payoutReady),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1046,47 +1088,10 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
               ),
 
               // Header
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.terracotta, AppTheme.baobab],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.card_giftcard_outlined,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Order Stationery',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        Text(
-                          'Artisan Lane branded materials',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textHint,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              StationerySheetHeader(
+                title: 'Order Stationery',
+                subtitle: 'Artisan Lane branded materials',
+                onBackTap: () => Navigator.of(context).pop(),
               ),
               const SizedBox(height: 24),
 
@@ -1671,12 +1676,14 @@ class _PayoutBanner extends StatelessWidget {
 
 class _SetupChecklistCard extends StatelessWidget {
   final String payoutStatus;
+  final bool payoutReady;
   final VoidCallback onOpenPayouts;
   final VoidCallback onOpenShop;
   final VoidCallback onOpenStationery;
 
   const _SetupChecklistCard({
     required this.payoutStatus,
+    required this.payoutReady,
     required this.onOpenPayouts,
     required this.onOpenShop,
     required this.onOpenStationery,
@@ -1706,10 +1713,10 @@ class _SetupChecklistCard extends StatelessWidget {
           const SizedBox(height: 14),
           _ChecklistRow(
             title: 'Payout details',
-            subtitle: payoutStatus == 'verified'
+            subtitle: payoutReady
                 ? 'TradeSafe payouts are active.'
                 : vendorPayoutBannerMessage(payoutStatus),
-            isComplete: payoutStatus == 'verified',
+            isComplete: payoutReady,
             onTap: onOpenPayouts,
           ),
           const SizedBox(height: 12),

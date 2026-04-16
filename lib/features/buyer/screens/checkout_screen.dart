@@ -4,9 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
+import '../../../models/cart_item.dart';
 import '../../../models/shipping_option.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/checkout_validation.dart';
+import '../utils/product_shipping_checkout.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -31,15 +34,36 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String? _selectedShipping;
   String? _selectedProvince;
   final _formKey = GlobalKey<FormState>();
+  final _scrollController = ScrollController();
+  final _fullNameFieldKey = GlobalKey();
+  final _streetFieldKey = GlobalKey();
+  final _cityFieldKey = GlobalKey();
+  final _postalFieldKey = GlobalKey();
+  final _provinceFieldKey = GlobalKey();
+  final _phoneFieldKey = GlobalKey();
+  final _shippingSectionKey = GlobalKey();
+  final _nameFocusNode = FocusNode();
+  final _streetFocusNode = FocusNode();
+  final _cityFocusNode = FocusNode();
+  final _postalFocusNode = FocusNode();
+  final _phoneFocusNode = FocusNode();
 
   final _nameController = TextEditingController(text: '');
   final _streetController = TextEditingController(text: '');
   final _cityController = TextEditingController(text: '');
   final _postalController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
+  bool _submitAttempted = false;
+  bool _isSubmittingPayment = false;
 
   @override
   void dispose() {
+    _scrollController.dispose();
+    _nameFocusNode.dispose();
+    _streetFocusNode.dispose();
+    _cityFocusNode.dispose();
+    _postalFocusNode.dispose();
+    _phoneFocusNode.dispose();
     _nameController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -48,19 +72,169 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     super.dispose();
   }
 
-  double _selectedShippingCost(List<ShippingOption> options) {
+  double _selectedShippingCost({
+    required List<CartItem> items,
+    required List<List<ShippingOption>> productShippingOptions,
+  }) {
     if (_selectedShipping == null) return 0;
-    final match = options.where((o) => o.key == _selectedShipping).toList();
-    return match.isNotEmpty ? match.first.price : 0;
+    return calculateProductShippingTotal(
+      methodKey: _selectedShipping!,
+      itemQuantities: items.map((item) => item.quantity).toList(growable: false),
+      productShippingOptions: productShippingOptions,
+    );
   }
 
   void _initSelection(List<ShippingOption> options) {
-    if (_selectedShipping == null && options.isNotEmpty) {
-      final enabled = options.where((o) => o.enabled).toList();
-      if (enabled.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) setState(() => _selectedShipping = enabled.first.key);
-        });
+    final validSelection =
+        _selectedShipping != null &&
+        options.any((option) => option.key == _selectedShipping);
+    if (validSelection) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _selectedShipping = options.isNotEmpty ? options.first.key : null);
+    });
+  }
+
+  String _shippingUnavailableMessage(int itemCount) {
+    if (itemCount <= 1) {
+      return 'This product does not have any shipping options available yet.';
+    }
+    return 'The products in this basket do not share an available shipping option yet.';
+  }
+
+  CheckoutFormSnapshot _checkoutSnapshot(List<ShippingOption> enabledOptions) {
+    return CheckoutFormSnapshot(
+      fullName: _nameController.text,
+      streetAddress: _streetController.text,
+      city: _cityController.text,
+      postalCode: _postalController.text,
+      province: _selectedProvince,
+      phoneNumber: _phoneController.text,
+      selectedShippingMethod: _selectedShipping,
+      hasAvailableShippingMethods: enabledOptions.isNotEmpty,
+    );
+  }
+
+  Future<void> _ensureFieldVisible(CheckoutField field) async {
+    final context = switch (field) {
+      CheckoutField.fullName => _fullNameFieldKey.currentContext,
+      CheckoutField.streetAddress => _streetFieldKey.currentContext,
+      CheckoutField.city => _cityFieldKey.currentContext,
+      CheckoutField.postalCode => _postalFieldKey.currentContext,
+      CheckoutField.province => _provinceFieldKey.currentContext,
+      CheckoutField.phoneNumber => _phoneFieldKey.currentContext,
+      CheckoutField.shippingMethod => _shippingSectionKey.currentContext,
+    };
+
+    if (context != null) {
+      await Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+        alignment: 0.1,
+      );
+    } else if (_scrollController.hasClients) {
+      await _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+
+    if (!mounted) return;
+
+    switch (field) {
+      case CheckoutField.fullName:
+        _nameFocusNode.requestFocus();
+        break;
+      case CheckoutField.streetAddress:
+        _streetFocusNode.requestFocus();
+        break;
+      case CheckoutField.city:
+        _cityFocusNode.requestFocus();
+        break;
+      case CheckoutField.postalCode:
+        _postalFocusNode.requestFocus();
+        break;
+      case CheckoutField.phoneNumber:
+        _phoneFocusNode.requestFocus();
+        break;
+      case CheckoutField.province:
+      case CheckoutField.shippingMethod:
+        FocusScope.of(this.context).unfocus();
+        break;
+    }
+  }
+
+  Future<void> _showBlockingFeedback(CheckoutField field) async {
+    if (mounted) {
+      setState(() => _submitAttempted = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            checkoutBlockingMessage(field),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    await _ensureFieldVisible(field);
+  }
+
+  Future<void> _submitCheckout({
+    required List<dynamic> items,
+    required double subtotal,
+    required double giftFee,
+    required double shippingCost,
+    required double total,
+    required List<ShippingOption> enabledOptions,
+  }) async {
+    if (_isSubmittingPayment) return;
+
+    final incompleteField = firstIncompleteCheckoutField(
+      _checkoutSnapshot(enabledOptions),
+    );
+    if (incompleteField != null) {
+      await _showBlockingFeedback(incompleteField);
+      return;
+    }
+
+    if (!_formKey.currentState!.validate()) {
+      setState(() => _submitAttempted = true);
+      return;
+    }
+
+    setState(() {
+      _submitAttempted = true;
+      _isSubmittingPayment = true;
+    });
+
+    final checkoutData = {
+      'items': items,
+      'subtotal': subtotal,
+      'giftFee': giftFee,
+      'shippingCost': shippingCost,
+      'shippingMethod': _selectedShipping,
+      'total': total,
+      'address': {
+        'name': _nameController.text,
+        'street': _streetController.text,
+        'city': _cityController.text,
+        'postal_code': _postalController.text,
+        'province': _selectedProvince,
+        'country': 'South Africa',
+        'phone': _phoneController.text,
+      },
+    };
+
+    try {
+      await context.push('/cart/payment', extra: checkoutData);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingPayment = false);
       }
     }
   }
@@ -109,44 +283,40 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             );
           }
 
-          // Derive shop ID from cart items
-          final shopId = items
-              .map((i) => i.product?.shopId)
-              .whereType<String>()
-              .toSet()
-              .firstOrNull;
+          final productShippingOptions = items
+              .map((item) => item.product?.shippingOptions ?? const <ShippingOption>[])
+              .toList(growable: false);
+          final enabledOptions =
+              availableShippingOptionsForProducts(productShippingOptions);
+          _initSelection(enabledOptions);
 
-          final shippingAsync = shopId != null
-              ? ref.watch(shopShippingOptionsProvider(shopId))
-              : const AsyncData(<ShippingOption>[]);
+          final subtotal = items.fold<double>(
+            0,
+            (sum, item) => sum + item.lineTotal,
+          );
+          final giftFee = giftFeeForSelection(isGift: isGift);
+          final shippingCost = _selectedShippingCost(
+            items: items,
+            productShippingOptions: productShippingOptions,
+          );
+          final total = calculateCheckoutTotal(
+            subtotal: subtotal,
+            shippingCost: shippingCost,
+            isGift: isGift,
+          );
 
-          return shippingAsync.when(
-            data: (shippingOptions) {
-              final enabledOptions = shippingOptions
-                  .where((o) => o.enabled)
-                  .toList();
-              _initSelection(enabledOptions);
-
-              final subtotal = items.fold<double>(
-                0,
-                (sum, item) => sum + item.lineTotal,
-              );
-              final giftFee = giftFeeForSelection(isGift: isGift);
-              final shippingCost = _selectedShippingCost(enabledOptions);
-              final total = calculateCheckoutTotal(
-                subtotal: subtotal,
-                shippingCost: shippingCost,
-                isGift: isGift,
-              );
-
-              return SafeArea(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+          return SafeArea(
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                autovalidateMode: _submitAttempted
+                    ? AutovalidateMode.onUserInteraction
+                    : AutovalidateMode.disabled,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                         _buildSectionTitle(addressTitle),
                         const SizedBox(height: 12),
                         _buildInfoNote(
@@ -155,35 +325,44 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         const SizedBox(height: 24),
 
                         _buildTextField(
+                          key: _fullNameFieldKey,
                           label: nameLabel,
                           controller: _nameController,
+                          focusNode: _nameFocusNode,
                         ),
                         const SizedBox(height: 16),
                         _buildTextField(
+                          key: _streetFieldKey,
                           label: 'Street Address',
                           controller: _streetController,
+                          focusNode: _streetFocusNode,
                         ),
                         const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
                               child: _buildTextField(
+                                key: _cityFieldKey,
                                 label: 'City',
                                 controller: _cityController,
+                                focusNode: _cityFocusNode,
                               ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: _buildTextField(
+                                key: _postalFieldKey,
                                 label: 'Postal Code',
                                 controller: _postalController,
                                 keyboardType: TextInputType.number,
+                                focusNode: _postalFocusNode,
                               ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 16),
                         _buildDropdownField(
+                          key: _provinceFieldKey,
                           label: 'Province',
                           value: _selectedProvince,
                           items: _saProvinces,
@@ -197,24 +376,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                         const SizedBox(height: 16),
                         _buildTextField(
+                          key: _phoneFieldKey,
                           label: phoneLabel,
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
                           prefixIcon: Icons.phone_outlined,
                           hintText: 'Include country code if needed',
+                          focusNode: _phoneFocusNode,
                         ),
 
                         const SizedBox(height: 32),
                         const Divider(height: 1, color: Color(0xFFEEEEEE)),
                         const SizedBox(height: 32),
 
-                        _buildSectionTitle('Shipping Method'),
+                        Container(
+                          key: _shippingSectionKey,
+                          child: _buildSectionTitle('Shipping Method'),
+                        ),
                         const SizedBox(height: 8),
                         if (enabledOptions.isEmpty)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 16),
                             child: Text(
-                              'This shop has not configured shipping options yet.',
+                              _shippingUnavailableMessage(items.length),
                               style: GoogleFonts.poppins(
                                 fontSize: 13,
                                 color: AppTheme.textHint,
@@ -259,7 +443,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               if (giftFee > 0) ...[
                                 const SizedBox(height: 12),
                                 _summaryRow(
-                                  'Gift service',
+                                  giftServiceLabel,
                                   'R${giftFee.toStringAsFixed(0)}',
                                 ),
                               ],
@@ -292,54 +476,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                         GradientButton(
                           label: 'Pay Now',
-                          onPressed:
-                              enabledOptions.isEmpty ||
-                                  _selectedShipping == null
-                              ? null
-                              : () {
-                                  if (!_formKey.currentState!.validate()) {
-                                    return;
-                                  }
-                                  final checkoutData = {
-                                    'items': items,
-                                    'subtotal': subtotal,
-                                    'giftFee': giftFee,
-                                    'shippingCost': shippingCost,
-                                    'shippingMethod': _selectedShipping,
-                                    'total': total,
-                                    'address': {
-                                      'name': _nameController.text,
-                                      'street': _streetController.text,
-                                      'city': _cityController.text,
-                                      'postal_code': _postalController.text,
-                                      'province': _selectedProvince,
-                                      'country': 'South Africa',
-                                      'phone': _phoneController.text,
-                                    },
-                                  };
-                                  context.push(
-                                    '/cart/payment',
-                                    extra: checkoutData,
-                                  );
-                                },
+                          isLoading: _isSubmittingPayment,
+                          onPressed: () => _submitCheckout(
+                            items: items,
+                            subtotal: subtotal,
+                            giftFee: giftFee,
+                            shippingCost: shippingCost,
+                            total: total,
+                            enabledOptions: enabledOptions,
+                          ),
                         ),
                         const SizedBox(height: 32),
-                      ],
-                    ),
-                  ),
+                  ],
                 ),
-              );
-            },
-            loading: () => const Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.terracotta,
-                strokeWidth: 2,
-              ),
-            ),
-            error: (_, __) => Center(
-              child: Text(
-                'Could not load shipping options',
-                style: GoogleFonts.poppins(color: AppTheme.textSecondary),
               ),
             ),
           );
@@ -367,15 +516,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Widget _buildTextField({
+    Key? key,
     required String label,
     required TextEditingController controller,
+    FocusNode? focusNode,
     TextInputType? keyboardType,
     IconData? prefixIcon,
     String? hintText,
     bool readOnly = false,
   }) {
     return TextFormField(
+      key: key,
       controller: controller,
+      focusNode: focusNode,
       keyboardType: keyboardType,
       readOnly: readOnly,
       validator: (value) =>
@@ -415,12 +568,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Widget _buildDropdownField({
+    Key? key,
     required String label,
     required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
+      key: key,
       initialValue: value,
       onChanged: onChanged,
       validator: (selected) =>

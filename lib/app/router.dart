@@ -25,7 +25,8 @@ import '../features/buyer/screens/order_confirmation_screen.dart';
 import '../features/buyer/screens/orders_history_screen.dart';
 import '../features/buyer/screens/order_detail_screen.dart';
 import '../features/buyer/screens/confirm_receipt_screen.dart';
-import '../features/buyer/screens/raise_dispute_screen.dart';
+import '../features/buyer/screens/buyer_dispute_screen.dart';
+import '../features/buyer/screens/buyer_disputes_screen.dart';
 import '../features/buyer/screens/buyer_profile_screen.dart';
 import '../features/buyer/screens/buyer_messages_screen.dart';
 import '../features/buyer/screens/buyer_chat_thread_screen.dart';
@@ -52,6 +53,7 @@ import '../features/vendor/screens/vendor_posts_screen.dart';
 import '../features/vendor/screens/post_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_payout_details_screen.dart';
+import '../features/vendor/screens/vendor_dispute_screen.dart';
 import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
 
 import '../widgets/buyer_shell.dart';
@@ -240,13 +242,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                       ),
                       GoRoute(
                         path: 'dispute',
-                        builder: (context, state) => RaiseDisputeScreen(
+                        builder: (context, state) => BuyerDisputeScreen(
                           orderId: state.pathParameters['orderId']!,
                         ),
                       ),
                     ],
                   ),
                 ],
+              ),
+              GoRoute(
+                path: 'disputes',
+                builder: (context, state) => const BuyerDisputesScreen(),
               ),
               GoRoute(
                 path: 'messages',
@@ -344,6 +350,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => VendorOrderDetailScreen(
                   orderId: state.pathParameters['orderId']!,
                 ),
+                routes: [
+                  GoRoute(
+                    path: 'dispute',
+                    builder: (context, state) => VendorDisputeScreen(
+                      orderId: state.pathParameters['orderId']!,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

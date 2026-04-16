@@ -457,23 +457,26 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
   Future<void> _contactArtisan(Shop shop) async {
     final user = Supabase.instance.client.auth.currentUser;
     final userId = user?.id;
-    if (requiresSignInToMessageShop(userId)) {
-      await showSignInPromptSheet(
-        context,
-        title: 'Sign in to message artisans',
-        message:
-            'Create an account or sign in to start a conversation with ${shop.name}.',
-      );
-      return;
-    }
-
     try {
-      final thread = await ref
-          .read(supabaseServiceProvider)
-          .getOrCreateThread(shopId: shop.id, buyerId: userId!);
-      if (mounted) {
-        context.push(buyerShopMessageRoute(thread.id));
-      }
+      await handleShopMessageTap(
+        userId: userId,
+        promptSignIn: () => showSignInPromptSheet(
+          context,
+          title: 'Sign in to message artisans',
+          message:
+              'Create an account or sign in to start a conversation with ${shop.name}.',
+        ),
+        createOrGetThreadId: (buyerId) async {
+          final thread = await ref
+              .read(supabaseServiceProvider)
+              .getOrCreateThread(shopId: shop.id, buyerId: buyerId);
+          return thread.id;
+        },
+        openChat: (route) async {
+          if (!mounted) return;
+          await context.push(route);
+        },
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -676,9 +679,7 @@ class _MakerIdentityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final founded = shop.createdAt.year.toString();
     final location = shop.location ?? 'South Africa';
-    final countLabel = shop.productCount != null
-        ? '${shop.productCount} pieces'
-        : 'Collection';
+    final countLabel = shopCollectionMetaLabel(shop.productCount);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -758,8 +759,10 @@ class _MakerIdentityCard extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _MetaPill(icon: Icons.storefront_outlined, text: countLabel),
-              const SizedBox(width: 8),
+              if (countLabel != null) ...[
+                _MetaPill(icon: Icons.storefront_outlined, text: countLabel),
+                const SizedBox(width: 8),
+              ],
               _MetaPill(
                 icon: Icons.auto_awesome_outlined,
                 text: 'Since $founded',

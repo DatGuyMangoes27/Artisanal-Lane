@@ -91,6 +91,30 @@ type DisputeRecord = {
   resolved_at: string | null;
 };
 
+type DisputeConversationRecord = {
+  id: string;
+  dispute_id: string;
+  order_id: string;
+  buyer_id: string;
+  seller_id: string;
+  last_message_preview: string | null;
+  last_message_at: string | null;
+};
+
+type DisputeConversationMessageRecord = {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  body: string | null;
+  message_type: string;
+  attachment_name: string | null;
+  attachment_path: string | null;
+  attachment_mime: string | null;
+  attachment_size_bytes: number | null;
+  attachment_url: string | null;
+  created_at: string;
+};
+
 type ShopNoteRecord = {
   id: string;
   shop_id: string;
@@ -160,6 +184,37 @@ function parseStringArray(value: unknown): string[] {
 
 function normalizeQuery(value: string | undefined) {
   return value?.trim().toLowerCase() ?? "";
+}
+
+const disputeAttachmentBucket = "dispute-attachments";
+
+async function withSignedDisputeAttachmentUrls(
+  admin: ReturnType<typeof createAdminClient>,
+  messages: DisputeConversationMessageRecord[],
+) {
+  const signedUrls = await Promise.all(
+    messages.map(async (message) => {
+      if (message.attachment_url || !message.attachment_path) {
+        return [message.id, message.attachment_url] as const;
+      }
+
+      const { data, error } = await admin.storage
+        .from(disputeAttachmentBucket)
+        .createSignedUrl(message.attachment_path, 60 * 60);
+
+      if (error) {
+        return [message.id, null] as const;
+      }
+
+      return [message.id, data.signedUrl] as const;
+    }),
+  );
+
+  const signedUrlMap = new Map(signedUrls);
+  return messages.map((message) => ({
+    ...message,
+    attachment_url: signedUrlMap.get(message.id) ?? message.attachment_url,
+  }));
 }
 
 async function getProfilesMap(ids: string[]) {
@@ -635,7 +690,8 @@ export async function listDisputes() {
     .limit(100);
 
   const disputes = (data ?? []) as DisputeRecord[];
-  const [profiles, orders] = await Promise.all([
+  const disputeIds = disputes.map((row) => row.id);
+  const [profiles, orders, conversations] = await Promise.all([
     getProfilesMap(disputes.map((row) => row.raised_by ?? "")),
     admin
       .from("orders")
@@ -643,17 +699,77 @@ export async function listDisputes() {
         "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, shipped_at, received_at, created_at",
       )
       .in("id", disputes.map((row) => row.order_id)),
+    disputeIds.length === 0
+      ? Promise.resolve({ data: [] as DisputeConversationRecord[] })
+      : admin
+          .from("dispute_conversations")
+          .select(
+            "id, dispute_id, order_id, buyer_id, seller_id, last_message_preview, last_message_at",
+          )
+          .in("dispute_id", disputeIds),
   ]);
 
   const ordersMap = new Map<string, OrderRecord>(
     ((orders.data ?? []) as OrderRecord[]).map((order) => [order.id, order]),
   );
+  const conversationRows = (conversations.data ?? []) as DisputeConversationRecord[];
+  const conversationIds = conversationRows.map((conversation) => conversation.id);
+  const [
+    participantProfiles,
+    messageSenderProfiles,
+    messageRowsResult,
+  ] = await Promise.all([
+    getProfilesMap(
+      conversationRows.flatMap((conversation) => [
+        conversation.buyer_id,
+        conversation.seller_id,
+      ]),
+    ),
+    conversationIds.length === 0
+      ? Promise.resolve(new Map<string, ProfileRecord>())
+      : admin
+          .from("dispute_conversation_messages")
+          .select("sender_id")
+          .in("conversation_id", conversationIds)
+          .then((result) =>
+            getProfilesMap(
+              ((result.data ?? []) as Array<{ sender_id: string | null }>).map(
+                (message) => message.sender_id ?? "",
+              ),
+            )
+          ),
+    conversationIds.length === 0
+      ? Promise.resolve({ data: [] as DisputeConversationMessageRecord[] })
+      : admin
+          .from("dispute_conversation_messages")
+          .select(
+            "id, conversation_id, sender_id, body, message_type, attachment_name, attachment_path, attachment_mime, attachment_size_bytes, attachment_url, created_at",
+          )
+          .in("conversation_id", conversationIds)
+          .order("created_at", { ascending: true }),
+  ]);
+
+  const messageRows = await withSignedDisputeAttachmentUrls(
+    admin,
+    (messageRowsResult.data ?? []) as DisputeConversationMessageRecord[],
+  );
+
+  const conversationMap = new Map<string, DisputeConversationRecord>(
+    conversationRows.map((conversation) => [conversation.dispute_id, conversation]),
+  );
+  const messagesByConversation = new Map<string, DisputeConversationMessageRecord[]>();
+  for (const message of messageRows) {
+    const bucket = messagesByConversation.get(message.conversation_id) ?? [];
+    bucket.push(message);
+    messagesByConversation.set(message.conversation_id, bucket);
+  }
   const shops = await getShopsMap(
     Array.from(ordersMap.values()).map((order) => order.shop_id ?? ""),
   );
 
   return disputes.map((dispute) => {
     const order = ordersMap.get(dispute.order_id) ?? null;
+    const conversation = conversationMap.get(dispute.id) ?? null;
     return {
       ...dispute,
       raisedByProfile: dispute.raised_by
@@ -661,6 +777,19 @@ export async function listDisputes() {
         : null,
       order,
       shop: order?.shop_id ? shops.get(order.shop_id) ?? null : null,
+      conversation: conversation == null
+        ? null
+        : {
+            ...conversation,
+            buyerProfile: participantProfiles.get(conversation.buyer_id) ?? null,
+            sellerProfile: participantProfiles.get(conversation.seller_id) ?? null,
+            messages: (messagesByConversation.get(conversation.id) ?? []).map((message) => ({
+              ...message,
+              senderProfile: message.sender_id
+                ? messageSenderProfiles.get(message.sender_id) ?? null
+                : null,
+            })),
+          },
     };
   });
 }

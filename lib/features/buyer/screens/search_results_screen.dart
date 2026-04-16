@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/product_card.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/search_results_layout.dart';
 
 class SearchResultsScreen extends ConsumerStatefulWidget {
   final String query;
@@ -245,10 +246,14 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   // ═══════════════════════════════════════════════════════════════
   Widget _buildFilterChips() {
     return SizedBox(
-      height: 44,
+      height: searchResultsChipRailHeight,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: searchResultsChipRailVerticalPadding,
+        ),
         scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
         itemCount: _filterLabels.length,
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {

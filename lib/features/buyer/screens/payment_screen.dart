@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
+import 'tradesafe_checkout_screen.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic>? checkoutData;
@@ -28,6 +28,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final service = ref.read(supabaseServiceProvider);
       final data = widget.checkoutData!;
       final gift = ref.read(giftOptionsProvider);
+      debugPrint(
+        '[checkout-debug] PaymentScreen._processPayment total=$_total shippingMethod=${data['shippingMethod']} shippingCost=${data['shippingCost']} addressKeys=${(data['address'] as Map<String, dynamic>).keys.toList()} isGift=${gift.isGift}',
+      );
 
       final checkoutSession = await service.createCheckout(
         shippingAddress: data['address'] as Map<String, dynamic>,
@@ -47,16 +50,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       if (checkoutUri == null) {
         throw Exception('TradeSafe returned an invalid checkout URL.');
       }
-
-      await launchUrl(checkoutUri, mode: LaunchMode.externalApplication);
+      debugPrint(
+        '[checkout-debug] checkout created orderId=${checkoutSession.orderId} checkoutUrl=${checkoutSession.checkoutUrl}',
+      );
 
       if (mounted) {
-        context.go(
-          '/cart/confirmation',
-          extra: {'orderId': checkoutSession.orderId},
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => TradeSafeCheckoutScreen(
+              checkoutUri: checkoutUri,
+              orderId: checkoutSession.orderId,
+            ),
+          ),
         );
       }
     } catch (e) {
+      debugPrint('[checkout-debug] PaymentScreen._processPayment error=$e');
       if (mounted) {
         setState(() => _processing = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -254,7 +263,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'You will be redirected to TradeSafe to complete your secure escrow checkout. TradeSafe may add its own escrow processing fee at checkout depending on the payment method used.',
+            'TradeSafe checkout will open securely inside Artisan Lane so you can complete your escrow payment without leaving the app. TradeSafe may add its own escrow processing fee at checkout depending on the payment method used.',
             style: GoogleFonts.poppins(
               fontSize: 14,
               color: AppTheme.textSecondary,

@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
+import 'tradesafe_checkout_screen.dart';
 
 class OrderConfirmationScreen extends ConsumerWidget {
   final String? orderId;
@@ -184,7 +184,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           isAwaitingPayment
-                              ? 'If the checkout page expired, reopen it below. The order will move to paid once TradeSafe confirms the deposit.'
+                              ? 'If the checkout page expired, reopen it below inside the app. The order will move to paid once TradeSafe confirms the deposit.'
                               : 'Your payment is held safely in escrow until you confirm receipt of your order.',
                           style: GoogleFonts.poppins(
                             fontSize: 13,
@@ -204,10 +204,14 @@ class OrderConfirmationScreen extends ConsumerWidget {
                     label: 'Open TradeSafe Checkout',
                     onPressed: () async {
                       final uri = Uri.tryParse(order.paymentUrl as String);
-                      if (uri != null) {
-                        await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
+                      if (uri != null && context.mounted) {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => TradeSafeCheckoutScreen(
+                              checkoutUri: uri,
+                              orderId: order.id as String,
+                            ),
+                          ),
                         );
                       }
                     },

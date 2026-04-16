@@ -7,6 +7,7 @@ import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
+import '../utils/vendor_payout_setup.dart';
 
 class VendorPayoutDetailsScreen extends ConsumerStatefulWidget {
   const VendorPayoutDetailsScreen({super.key});
@@ -18,36 +19,23 @@ class VendorPayoutDetailsScreen extends ConsumerStatefulWidget {
 
 class _VendorPayoutDetailsScreenState
     extends ConsumerState<VendorPayoutDetailsScreen> {
-  static const _accountTypes = <String>[
-    'cheque',
-    'savings',
-    'business',
-  ];
-
   final _formKey = GlobalKey<FormState>();
   final _accountHolderController = TextEditingController();
-  final _bankNameController = TextEditingController(text: 'Standard Bank');
   final _accountNumberController = TextEditingController();
   final _branchCodeController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _identityNumberController = TextEditingController();
-  final _businessRegistrationController = TextEditingController();
 
-  String _accountType = _accountTypes.first;
+  String? _selectedBankName;
+  String? _accountType;
   bool _didHydrate = false;
   bool _isSaving = false;
 
   @override
   void dispose() {
     _accountHolderController.dispose();
-    _bankNameController.dispose();
     _accountNumberController.dispose();
     _branchCodeController.dispose();
     _phoneController.dispose();
-    _emailController.dispose();
-    _identityNumberController.dispose();
-    _businessRegistrationController.dispose();
     super.dispose();
   }
 
@@ -61,52 +49,82 @@ class _VendorPayoutDetailsScreenState
         payoutProfile?.accountHolderName as String? ??
         profile?.displayName as String? ??
         '';
-    _bankNameController.text = payoutProfile?.bankName as String? ?? 'Standard Bank';
+    final savedBankName = payoutProfile?.bankName as String?;
+    _selectedBankName = supportedTradeSafeBanks.contains(savedBankName)
+        ? savedBankName
+        : (savedBankName?.trim().isNotEmpty == true ? 'Other' : null);
     _accountNumberController.text = payoutProfile?.accountNumber as String? ?? '';
     _branchCodeController.text = payoutProfile?.branchCode as String? ?? '';
-    _accountType = payoutProfile?.accountType as String? ?? _accountTypes.first;
+    final savedAccountType = payoutProfile?.accountType as String?;
+    _accountType = supportedTradeSafeAccountTypes.any(
+      (option) => option.value == savedAccountType,
+    )
+        ? savedAccountType
+        : null;
     _phoneController.text =
         payoutProfile?.registeredPhone as String? ?? profile?.phone as String? ?? '';
-    _emailController.text =
-        payoutProfile?.registeredEmail as String? ?? profile?.email as String? ?? '';
-    _identityNumberController.text =
-        payoutProfile?.identityNumber as String? ?? '';
-    _businessRegistrationController.text =
-        payoutProfile?.businessRegistrationNumber as String? ?? '';
 
     _didHydrate = true;
   }
 
-  Future<void> _save(String userId) async {
+  Future<bool> _confirmSave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Confirm payout details',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Please make sure every payout detail is correct. Artisan Lane will use these details for your payouts.',
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirm & save'),
+          ),
+        ],
+      ),
+    );
+    return confirmed ?? false;
+  }
+
+  Future<void> _save({
+    required String userId,
+    required String registeredEmail,
+  }) async {
     if (!_formKey.currentState!.validate()) return;
+    if (!await _confirmSave()) return;
 
     setState(() => _isSaving = true);
     try {
       final service = ref.read(supabaseServiceProvider);
+      final phone = _phoneController.text.trim();
+
+      await service.updateProfile(userId, {'phone': phone});
       await service.saveVendorPayoutProfile(
         vendorId: userId,
         accountHolderName: _accountHolderController.text.trim(),
-        bankName: _bankNameController.text.trim(),
+        bankName: _selectedBankName!,
         accountNumber: _accountNumberController.text.trim(),
         branchCode: _branchCodeController.text.trim(),
-        accountType: _accountType,
-        registeredPhone: _phoneController.text.trim(),
-        registeredEmail: _emailController.text.trim(),
-        identityNumber: _identityNumberController.text.trim().isEmpty
-            ? null
-            : _identityNumberController.text.trim(),
-        businessRegistrationNumber:
-            _businessRegistrationController.text.trim().isEmpty
-            ? null
-            : _businessRegistrationController.text.trim(),
+        accountType: _accountType!,
+        registeredPhone: phone,
+        registeredEmail: registeredEmail,
       );
+      ref.invalidate(currentProfileProvider);
       ref.invalidate(vendorPayoutProfileProvider);
       ref.invalidate(vendorPayoutProfileStreamProvider);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Payout details submitted for TradeSafe review.'),
+          content: Text('Payout details saved. You can now add products.'),
           backgroundColor: AppTheme.baobab,
         ),
       );
@@ -154,7 +172,7 @@ class _VendorPayoutDetailsScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'TradeSafe payout setup',
+                            'Payout details',
                             style: GoogleFonts.playfairDisplay(
                               fontSize: 28,
                               fontWeight: FontWeight.w700,
@@ -163,7 +181,7 @@ class _VendorPayoutDetailsScreenState
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Enter the bank details Artisan Lane should use for your TradeSafe-linked payouts. You can manage the details here without leaving the app.',
+                            'Complete the bank details Artisan Lane should use for your TradeSafe-linked payouts. We use your registered email automatically, and your phone number can be updated here if needed.',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               color: AppTheme.textSecondary,
@@ -185,11 +203,6 @@ class _VendorPayoutDetailsScreenState
                             validator: _requiredField,
                           ),
                           _buildTextField(
-                            controller: _bankNameController,
-                            label: 'Bank name',
-                            validator: _requiredField,
-                          ),
-                          _buildTextField(
                             controller: _accountNumberController,
                             label: 'Account number',
                             keyboardType: TextInputType.number,
@@ -202,18 +215,9 @@ class _VendorPayoutDetailsScreenState
                             validator: _requiredField,
                           ),
                           const SizedBox(height: 12),
-                          Text(
-                            'Account type',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            initialValue: _accountType,
-                            items: _accountTypes
+                            initialValue: _selectedBankName,
+                            items: supportedTradeSafeBanks
                                 .map(
                                   (value) => DropdownMenuItem(
                                     value: value,
@@ -222,33 +226,45 @@ class _VendorPayoutDetailsScreenState
                                 )
                                 .toList(),
                             onChanged: (value) {
+                              setState(() => _selectedBankName = value);
+                            },
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Select your bank.'
+                                : null,
+                            decoration: _inputDecoration(label: 'Bank'),
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: _accountType,
+                            items: supportedTradeSafeAccountTypes
+                                .map(
+                                  (option) => DropdownMenuItem(
+                                    value: option.value,
+                                    child: Text(option.label),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
                               if (value == null) return;
                               setState(() => _accountType = value);
                             },
-                            decoration: _inputDecoration(),
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Select the account type.'
+                                : null,
+                            decoration: _inputDecoration(label: 'Account type'),
                           ),
                           const SizedBox(height: 24),
-                          _buildSectionTitle('Verification details'),
+                          _buildSectionTitle('Contact details'),
                           const SizedBox(height: 12),
+                          _buildReadOnlyField(
+                            label: 'Registered email address',
+                            value: profile?.email ?? 'No email available',
+                          ),
                           _buildTextField(
                             controller: _phoneController,
-                            label: 'Registered phone number',
+                            label: 'Phone number for payouts',
                             keyboardType: TextInputType.phone,
                             validator: _requiredField,
-                          ),
-                          _buildTextField(
-                            controller: _emailController,
-                            label: 'Registered email address',
-                            keyboardType: TextInputType.emailAddress,
-                            validator: _requiredEmail,
-                          ),
-                          _buildTextField(
-                            controller: _identityNumberController,
-                            label: 'South African ID number',
-                          ),
-                          _buildTextField(
-                            controller: _businessRegistrationController,
-                            label: 'Business registration number',
                           ),
                           const SizedBox(height: 24),
                           Container(
@@ -262,7 +278,7 @@ class _VendorPayoutDetailsScreenState
                               ),
                             ),
                             child: Text(
-                              'Payout details required before payouts can be completed. Once submitted, our team reviews them and updates your TradeSafe payout readiness in the app.',
+                              'Confirm these payout details carefully. Incorrect details can delay or block your payouts.',
                               style: GoogleFonts.poppins(
                                 fontSize: 12,
                                 color: AppTheme.textSecondary,
@@ -277,7 +293,12 @@ class _VendorPayoutDetailsScreenState
                                 : 'Save payout details',
                             icon: Icons.account_balance_rounded,
                             isLoading: _isSaving,
-                            onPressed: _isSaving ? null : () => _save(userId),
+                            onPressed: _isSaving || profile?.email == null
+                                ? null
+                                : () => _save(
+                                      userId: userId,
+                                      registeredEmail: profile!.email!,
+                                    ),
                           ),
                         ],
                       ),
@@ -399,6 +420,20 @@ class _VendorPayoutDetailsScreenState
     );
   }
 
+  Widget _buildReadOnlyField({
+    required String label,
+    required String value,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        initialValue: value,
+        enabled: false,
+        decoration: _inputDecoration(label: label),
+      ),
+    );
+  }
+
   InputDecoration _inputDecoration({String? label}) {
     return InputDecoration(
       labelText: label,
@@ -426,16 +461,6 @@ class _VendorPayoutDetailsScreenState
   String? _requiredField(String? value) {
     if (value == null || value.trim().isEmpty) {
       return 'This field is required.';
-    }
-    return null;
-  }
-
-  String? _requiredEmail(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'This field is required.';
-    }
-    if (!value.contains('@')) {
-      return 'Enter a valid email address.';
     }
     return null;
   }

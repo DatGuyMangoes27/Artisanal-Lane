@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +8,8 @@ import 'app/theme.dart';
 import 'app/router.dart';
 import 'core/constants/app_constants.dart';
 import 'features/auth/providers/auth_providers.dart';
+import 'features/buyer/providers/buyer_providers.dart';
+import 'features/buyer/utils/payment_deep_links.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,11 +22,50 @@ Future<void> main() async {
   runApp(const ProviderScope(child: ArtisanalLaneApp()));
 }
 
-class ArtisanalLaneApp extends ConsumerWidget {
+class ArtisanalLaneApp extends ConsumerStatefulWidget {
   const ArtisanalLaneApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ArtisanalLaneApp> createState() => _ArtisanalLaneAppState();
+}
+
+class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
+  late final AppLinks _appLinks;
+  StreamSubscription<Uri>? _paymentDeepLinkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _appLinks = AppLinks();
+    _paymentDeepLinkSubscription = _appLinks.uriLinkStream.listen(
+      _handleIncomingDeepLink,
+    );
+  }
+
+  void _handleIncomingDeepLink(Uri uri) {
+    final route = resolvePaymentDeepLinkRoute(uri);
+    if (route == null) return;
+
+    ref.invalidate(cartItemsProvider);
+    ref.invalidate(ordersProvider);
+    ref.invalidate(ordersStreamProvider);
+
+    final router = ref.read(routerProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      router.go(route);
+    });
+  }
+
+  @override
+  void dispose() {
+    _paymentDeepLinkSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final router = ref.watch(routerProvider);
 
     ref.listen(authStateProvider, (_, next) {

@@ -9,9 +9,47 @@ import '../../../widgets/gradient_button.dart';
 import '../../../widgets/gradient_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_payout_setup.dart';
 
 class VendorProductsScreen extends ConsumerWidget {
   const VendorProductsScreen({super.key});
+
+  void _showPayoutRequiredDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Complete payout details',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          vendorPayoutGateMessage,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.push('/vendor/profile/payouts');
+            },
+            child: const Text('Open payout details'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleAddProductTap(BuildContext context, bool payoutReady) {
+    if (payoutReady) {
+      context.push('/vendor/products/new');
+      return;
+    }
+    _showPayoutRequiredDialog(context);
+  }
 
   Future<void> _markSoldOut(
     BuildContext context,
@@ -60,13 +98,17 @@ class VendorProductsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsAsync = ref.watch(vendorProductsProvider);
+    final payoutProfile =
+        ref.watch(vendorPayoutProfileStreamProvider).value ??
+        ref.watch(vendorPayoutProfileProvider).value;
+    final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       floatingActionButton: GradientFabExtended(
         label: 'Add Product',
         icon: Icons.add_rounded,
-        onTap: () => context.push('/vendor/products/new'),
+        onTap: () => _handleAddProductTap(context, payoutReady),
       ),
       body: SafeArea(
         child: Column(
@@ -86,7 +128,9 @@ class VendorProductsScreen extends ConsumerWidget {
             Expanded(
               child: productsAsync.when(
                 data: (products) {
-                  if (products.isEmpty) return _buildEmpty(context);
+                  if (products.isEmpty) {
+                    return _buildEmpty(context, payoutReady);
+                  }
                   return RefreshIndicator(
                     color: AppTheme.terracotta,
                     onRefresh: () async =>
@@ -273,7 +317,7 @@ class VendorProductsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmpty(BuildContext context) {
+  Widget _buildEmpty(BuildContext context, bool payoutReady) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -307,7 +351,7 @@ class VendorProductsScreen extends ConsumerWidget {
             GradientButton(
               label: 'Add Product',
               icon: Icons.add_rounded,
-              onPressed: () => context.push('/vendor/products/new'),
+              onPressed: () => _handleAddProductTap(context, payoutReady),
             ),
           ],
         ),

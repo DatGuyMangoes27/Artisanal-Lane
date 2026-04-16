@@ -1,4 +1,5 @@
 import 'product_option_group.dart';
+import 'shipping_option.dart';
 import 'product_variant.dart';
 
 class Product {
@@ -15,6 +16,7 @@ class Product {
   final List<ProductOptionGroup> optionGroups;
   final List<ProductVariant> variants;
   final List<String> tags;
+  final List<ShippingOption> shippingOptions;
   final bool isPublished;
   final bool isFeatured;
   final String? careInstructions;
@@ -42,6 +44,7 @@ class Product {
     this.optionGroups = const [],
     this.variants = const [],
     this.tags = const [],
+    this.shippingOptions = const [],
     this.isPublished = true,
     this.isFeatured = false,
     this.careInstructions,
@@ -139,6 +142,10 @@ class Product {
       optionGroups: parseOptionGroups(json['option_groups'], variants),
       variants: variants,
       tags: parseTags(json['tags']),
+      shippingOptions: ShippingOption.listFromJson(
+        json['shipping_options'],
+        fallback: const [],
+      ),
       isPublished: json['is_published'] as bool? ?? true,
       isFeatured: json['is_featured'] as bool? ?? false,
       careInstructions: json['care_instructions'] as String?,
@@ -168,6 +175,7 @@ class Product {
     'option_groups': optionGroups.map((group) => group.toJson()).toList(),
     'product_variants': variants.map((variant) => variant.toJson()).toList(),
     'tags': tags,
+    'shipping_options': shippingOptions.map((option) => option.toJson()).toList(),
     'is_published': isPublished,
     'is_featured': isFeatured,
     'care_instructions': careInstructions,

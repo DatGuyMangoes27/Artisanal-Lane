@@ -10,6 +10,7 @@ import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../utils/buyer_home_copy.dart';
 import '../utils/curated_collection_carousel.dart';
 import '../utils/curated_collection_destination.dart';
 import '../providers/buyer_providers.dart';
@@ -498,7 +499,7 @@ class _ElegantHero extends StatelessWidget {
                           ),
                         ),
                         child: Text(
-                          'EXPLORE CATEGORIES',
+                          buyerHomeCategoryHeroEyebrow,
                           style: GoogleFonts.poppins(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
@@ -509,7 +510,7 @@ class _ElegantHero extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'The Art of\nHandcraft',
+                        buyerHomeCategoryHeroTitle,
                         style: GoogleFonts.playfairDisplay(
                           fontSize: 32,
                           height: 1.1,
@@ -519,44 +520,11 @@ class _ElegantHero extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Browse all artisan categories',
+                        buyerHomeCategoryHeroSubtitle,
                         style: GoogleFonts.poppins(
                           color: Colors.white.withValues(alpha: 0.92),
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Browse Categories',
-                              style: GoogleFonts.poppins(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 18,
-                            ),
-                          ],
                         ),
                       ),
                     ],

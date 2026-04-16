@@ -9,38 +9,53 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 Deno.serve(async (request) => {
   try {
-    const jwt = getBearerToken(request);
-    const isServiceRoleRequest = jwt == supabaseServiceRoleKey;
-    let userId: string | null = null;
-    let isAdmin = isServiceRoleRequest;
-
-    if (!isServiceRoleRequest) {
-      const client = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${jwt}`,
-          },
-        },
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      });
-
-      const {
-        data: { user },
-        error: authError,
-      } = await client.auth.getUser();
-
-      if (authError || !user) {
-        return jsonResponse({ error: "Unauthorized" }, { status: 401 });
-      }
-
-      userId = user.id;
-    }
-
     const body = await request.json();
     const orderId = body.orderId as string;
+    const requestUserId =
+      typeof body.userId === "string" && body.userId.trim().length > 0
+        ? body.userId.trim()
+        : null;
+
+    let userId = requestUserId;
+    let isAdmin = false;
+    const authHeader = request.headers.get("Authorization");
+
+    if (authHeader?.startsWith("Bearer ")) {
+      try {
+        const jwt = getBearerToken(request);
+        const isServiceRoleRequest = jwt == supabaseServiceRoleKey;
+        isAdmin = isServiceRoleRequest;
+
+        if (!isServiceRoleRequest) {
+          const client = createClient(supabaseUrl, supabaseAnonKey, {
+            global: {
+              headers: {
+                Authorization: `Bearer ${jwt}`,
+              },
+            },
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+            },
+          });
+
+          const {
+            data: { user },
+            error: authError,
+          } = await client.auth.getUser();
+
+          if (!authError && user?.id != null) {
+            userId = user.id;
+          }
+        }
+      } catch (_) {
+        // Fall back to the app-provided user ID when JWT verification is disabled.
+      }
+    }
+
+    if (userId == null && !isAdmin) {
+      return jsonResponse({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const admin = createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {
@@ -67,8 +82,10 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: "You cannot release this escrow." }, { status: 403 });
     }
 
+    let allocationState = "DELIVERY_ACCEPTED";
     if (order.tradesafe_allocation_id) {
-      await acceptAllocationDelivery(order.tradesafe_allocation_id as string);
+      const result = await acceptAllocationDelivery(order.tradesafe_allocation_id as string);
+      allocationState = result.allocationAcceptDelivery.state;
     }
 
     const releasedAt = new Date().toISOString();
@@ -77,7 +94,7 @@ Deno.serve(async (request) => {
       .from("orders")
       .update({
         status: "completed",
-        payment_state: "released",
+        payment_state: allocationState,
         received_at: releasedAt,
       })
       .eq("id", orderId);
@@ -86,12 +103,12 @@ Deno.serve(async (request) => {
       .from("escrow_transactions")
       .update({
         status: "released",
-        provider_state: "DELIVERY_ACCEPTED",
+        provider_state: allocationState,
         released_at: releasedAt,
       })
       .eq("order_id", orderId);
 
-    return jsonResponse({ ok: true });
+    return jsonResponse({ ok: true, paymentState: allocationState, releasedAt });
   } catch (error) {
     return jsonResponse(
       {

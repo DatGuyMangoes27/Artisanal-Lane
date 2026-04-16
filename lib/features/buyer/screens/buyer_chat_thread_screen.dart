@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
+import '../../chat/utils/live_chat_messages.dart';
 import '../../chat/widgets/chat_widgets.dart';
 import '../providers/buyer_providers.dart';
 
@@ -20,9 +21,9 @@ class BuyerChatThreadScreen extends ConsumerStatefulWidget {
       _BuyerChatThreadScreenState();
 }
 
-class _BuyerChatThreadScreenState
-    extends ConsumerState<BuyerChatThreadScreen> {
+class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
   final _messageController = TextEditingController();
+  final List<ChatMessage> _localMessages = [];
   ChatAttachment? _pendingAttachment;
   bool _isSending = false;
   String? _lastMarkedMessageId;
@@ -55,7 +56,10 @@ class _BuyerChatThreadScreenState
 
     final file = result.files.single;
     if (file.path == null) {
-      _showSnack('That file could not be attached on this device.', isError: true);
+      _showSnack(
+        'That file could not be attached on this device.',
+        isError: true,
+      );
       return;
     }
 
@@ -91,7 +95,7 @@ class _BuyerChatThreadScreenState
         );
       }
 
-      await service.sendChatMessage(
+      final sentMessage = await service.sendChatMessage(
         threadId: thread.id,
         senderId: userId,
         body: text.isEmpty ? null : text,
@@ -100,7 +104,10 @@ class _BuyerChatThreadScreenState
 
       _messageController.clear();
       if (mounted) {
-        setState(() => _pendingAttachment = null);
+        setState(() {
+          _pendingAttachment = null;
+          _localMessages.add(sentMessage);
+        });
       }
 
       ref.invalidate(buyerThreadsProvider);
@@ -123,7 +130,9 @@ class _BuyerChatThreadScreenState
     if (_lastMarkedMessageId == latestId) return;
 
     _lastMarkedMessageId = latestId;
-    await ref.read(supabaseServiceProvider).markThreadRead(widget.threadId, userId);
+    await ref
+        .read(supabaseServiceProvider)
+        .markThreadRead(widget.threadId, userId);
     ref.invalidate(buyerThreadsProvider);
     ref.invalidate(buyerChatThreadProvider(widget.threadId));
   }
@@ -132,10 +141,7 @@ class _BuyerChatThreadScreenState
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.poppins(color: Colors.white),
-        ),
+        content: Text(message, style: GoogleFonts.poppins(color: Colors.white)),
         backgroundColor: isError ? AppTheme.error : AppTheme.baobab,
         behavior: SnackBarBehavior.floating,
       ),
@@ -146,8 +152,16 @@ class _BuyerChatThreadScreenState
   Widget build(BuildContext context) {
     final userId = ref.watch(currentUserIdProvider);
     final threadAsync = ref.watch(buyerChatThreadProvider(widget.threadId));
-    final messagesAsync = ref.watch(buyerThreadMessagesProvider(widget.threadId));
-    final messages = messagesAsync.value;
+    final messagesAsync = ref.watch(
+      buyerThreadMessagesProvider(widget.threadId),
+    );
+    final displayedMessagesAsync = messagesAsync.whenData(
+      (messages) => buildDisplayedChatMessages(
+        streamedMessages: messages,
+        localMessages: _localMessages,
+      ),
+    );
+    final messages = displayedMessagesAsync.value;
 
     if (userId != null && messages != null && messages.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -157,8 +171,7 @@ class _BuyerChatThreadScreenState
 
     return threadAsync.when(
       data: (thread) => ChatThreadScaffold(
-        thread: thread,
-        messagesAsync: messagesAsync,
+        messagesAsync: displayedMessagesAsync,
         currentUserId: userId ?? '',
         title: thread.shopName ?? 'Artisan',
         subtitle: thread.vendorDisplayName,

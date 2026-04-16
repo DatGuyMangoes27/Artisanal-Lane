@@ -52,7 +52,8 @@ class ConfirmReceiptScreen extends ConsumerWidget {
                         color: const Color(0xFFFAFAFA),
                         shape: BoxShape.circle,
                         border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.3)),
+                          color: AppTheme.sand.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Icon(
                         Icons.inventory_2_outlined,
@@ -93,7 +94,8 @@ class ConfirmReceiptScreen extends ConsumerWidget {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.3)),
+                          color: AppTheme.sand.withValues(alpha: 0.3),
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.03),
@@ -211,71 +213,112 @@ class ConfirmReceiptScreen extends ConsumerWidget {
   void _showConfirmDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          'Confirm Receipt?',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        content: Text(
-          'This will release the payment to the artisan. Are you sure?',
-          style: GoogleFonts.poppins(
-            fontSize: 15,
-            color: AppTheme.textSecondary,
-            height: 1.6,
-          ),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: TextButton.styleFrom(
-              foregroundColor: AppTheme.textSecondary,
-              textStyle: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
+      barrierDismissible: false,
+      builder: (ctx) {
+        var isSubmitting = false;
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) => AlertDialog(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Confirm Receipt?',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
               ),
             ),
-            child: const Text('Cancel'),
-          ),
-          GradientButton(
-            label: 'Confirm',
-            borderRadius: 12,
-            verticalPadding: 12,
-            fontSize: 15,
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                final service = ref.read(supabaseServiceProvider);
-                await service.confirmReceipt(orderId);
-                ref.invalidate(ordersProvider);
-                ref.invalidate(orderDetailProvider(orderId));
-              } catch (_) {}
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Receipt confirmed! Payment released.',
-                      style: GoogleFonts.poppins(fontSize: 14, color: Colors.white),
-                    ),
-                    backgroundColor: AppTheme.baobab,
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Text(
+              'This will release the payment to the artisan. Are you sure?',
+              style: GoogleFonts.poppins(
+                fontSize: 15,
+                color: AppTheme.textSecondary,
+                height: 1.6,
+              ),
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.textSecondary,
+                  textStyle: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
                   ),
-                );
-                context.pop();
-              }
-            },
+                ),
+                child: const Text('Cancel'),
+              ),
+              GradientButton(
+                label: 'Confirm',
+                borderRadius: 12,
+                verticalPadding: 12,
+                fontSize: 15,
+                isLoading: isSubmitting,
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        setDialogState(() => isSubmitting = true);
+                        try {
+                          final service = ref.read(supabaseServiceProvider);
+                          await service.confirmReceipt(orderId);
+                          ref.invalidate(ordersProvider);
+                          ref.invalidate(ordersStreamProvider);
+                          ref.invalidate(orderDetailProvider(orderId));
+                          ref.invalidate(orderDetailStreamProvider(orderId));
+                        } catch (error) {
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Could not confirm receipt: $error',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              backgroundColor: AppTheme.error,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                          return;
+                        }
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                        }
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Receipt confirmed! Payment released.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              backgroundColor: AppTheme.baobab,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          );
+                          context.pop();
+                        }
+                      },
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

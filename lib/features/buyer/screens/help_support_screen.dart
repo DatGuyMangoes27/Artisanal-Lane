@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
+import '../utils/help_support_contact.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -113,16 +114,15 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               _contactTile(
                 icon: Icons.email_outlined,
                 title: 'Email Support',
-                subtitle: 'support@artisanallane.co.za',
-                onTap: () =>
-                    launchUrl(Uri.parse('mailto:support@artisanallane.co.za')),
+                subtitle: helpSupportEmail,
+                onTap: () => launchUrl(helpSupportEmailLaunchUri),
               ),
               const SizedBox(height: 16),
               _contactTile(
                 icon: Icons.chat_outlined,
                 title: 'WhatsApp',
-                subtitle: 'Chat with us on WhatsApp',
-                onTap: () => launchUrl(Uri.parse('https://wa.me/27600000000')),
+                subtitle: helpSupportWhatsappDisplay,
+                onTap: () => launchUrl(helpSupportWhatsappLaunchUri),
               ),
             ],
           ),
