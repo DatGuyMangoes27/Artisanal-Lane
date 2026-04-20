@@ -6,6 +6,7 @@ enum CheckoutField {
   province,
   phoneNumber,
   shippingMethod,
+  pickupPoint,
 }
 
 class CheckoutFormSnapshot {
@@ -17,6 +18,8 @@ class CheckoutFormSnapshot {
   final String phoneNumber;
   final String? selectedShippingMethod;
   final bool hasAvailableShippingMethods;
+  final bool requiresPickupPoint;
+  final String pickupPoint;
 
   const CheckoutFormSnapshot({
     required this.fullName,
@@ -27,6 +30,8 @@ class CheckoutFormSnapshot {
     required this.phoneNumber,
     required this.selectedShippingMethod,
     required this.hasAvailableShippingMethods,
+    required this.requiresPickupPoint,
+    required this.pickupPoint,
   });
 }
 
@@ -41,10 +46,16 @@ CheckoutField? firstIncompleteCheckoutField(CheckoutFormSnapshot snapshot) {
       (snapshot.selectedShippingMethod ?? '').trim().isEmpty) {
     return CheckoutField.shippingMethod;
   }
+  if (snapshot.requiresPickupPoint && snapshot.pickupPoint.trim().isEmpty) {
+    return CheckoutField.pickupPoint;
+  }
   return null;
 }
 
 String checkoutBlockingMessage(CheckoutField? field) {
+  if (field == CheckoutField.pickupPoint) {
+    return 'Please enter the pickup point or drop-off location for this shipping method.';
+  }
   if (field == CheckoutField.shippingMethod) {
     return 'This product does not have any shipping options available yet.';
   }

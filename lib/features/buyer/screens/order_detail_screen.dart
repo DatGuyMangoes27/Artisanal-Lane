@@ -315,6 +315,29 @@ class OrderDetailScreen extends ConsumerWidget {
                             text:
                                 '${order.shippingAddress!['street']}, ${order.shippingAddress!['city']} ${order.shippingAddress!['postal_code']}',
                           ),
+                          if ((order.shippingAddress!['pickup_point'] ?? '')
+                              .toString()
+                              .trim()
+                              .isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            _Divider(),
+                            const SizedBox(height: 16),
+                            _ShippingInfoRow(
+                              icon: Icons.pin_drop_outlined,
+                              text:
+                                  'Pickup point: ${order.shippingAddress!['pickup_point']}',
+                            ),
+                          ],
+                        ],
+                        if (order.shippingMethod == 'market_pickup') ...[
+                          const SizedBox(height: 16),
+                          _Divider(),
+                          const SizedBox(height: 16),
+                          const _ShippingInfoRow(
+                            icon: Icons.chat_bubble_outline_rounded,
+                            text:
+                                'Message the seller to confirm which market, date, and collection time applies to this order.',
+                          ),
                         ],
                       ],
                     ),

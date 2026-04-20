@@ -42,17 +42,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _provinceFieldKey = GlobalKey();
   final _phoneFieldKey = GlobalKey();
   final _shippingSectionKey = GlobalKey();
+  final _pickupPointFieldKey = GlobalKey();
   final _nameFocusNode = FocusNode();
   final _streetFocusNode = FocusNode();
   final _cityFocusNode = FocusNode();
   final _postalFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
+  final _pickupPointFocusNode = FocusNode();
 
   final _nameController = TextEditingController(text: '');
   final _streetController = TextEditingController(text: '');
   final _cityController = TextEditingController(text: '');
   final _postalController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
+  final _pickupPointController = TextEditingController(text: '');
   bool _submitAttempted = false;
   bool _isSubmittingPayment = false;
 
@@ -64,11 +67,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _cityFocusNode.dispose();
     _postalFocusNode.dispose();
     _phoneFocusNode.dispose();
+    _pickupPointFocusNode.dispose();
     _nameController.dispose();
     _streetController.dispose();
     _cityController.dispose();
     _postalController.dispose();
     _phoneController.dispose();
+    _pickupPointController.dispose();
     super.dispose();
   }
 
@@ -103,6 +108,42 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return 'The products in this basket do not share an available shipping option yet.';
   }
 
+  bool _requiresPickupPoint(String? shippingMethod) {
+    return shippingMethod == 'courier_guy' ||
+        shippingMethod == 'pargo' ||
+        shippingMethod == 'paxi';
+  }
+
+  bool _isMarketPickup(String? shippingMethod) {
+    return shippingMethod == 'market_pickup';
+  }
+
+  String _pickupPointLabel(String? shippingMethod) {
+    switch (shippingMethod) {
+      case 'courier_guy':
+        return 'Courier Guy locker / branch / drop-off point';
+      case 'pargo':
+        return 'Pargo pickup point';
+      case 'paxi':
+        return 'PAXI point code or store name';
+      default:
+        return 'Pickup point';
+    }
+  }
+
+  String _pickupPointHint(String? shippingMethod) {
+    switch (shippingMethod) {
+      case 'courier_guy':
+        return 'Enter the locker, branch, or drop-off location the seller should use';
+      case 'pargo':
+        return 'Enter the Pargo point name, code, or branch the seller should use';
+      case 'paxi':
+        return 'Enter the PAXI point code or store name';
+      default:
+        return 'Enter the pickup point details';
+    }
+  }
+
   CheckoutFormSnapshot _checkoutSnapshot(List<ShippingOption> enabledOptions) {
     return CheckoutFormSnapshot(
       fullName: _nameController.text,
@@ -113,6 +154,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       phoneNumber: _phoneController.text,
       selectedShippingMethod: _selectedShipping,
       hasAvailableShippingMethods: enabledOptions.isNotEmpty,
+      requiresPickupPoint: _requiresPickupPoint(_selectedShipping),
+      pickupPoint: _pickupPointController.text,
     );
   }
 
@@ -125,6 +168,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       CheckoutField.province => _provinceFieldKey.currentContext,
       CheckoutField.phoneNumber => _phoneFieldKey.currentContext,
       CheckoutField.shippingMethod => _shippingSectionKey.currentContext,
+      CheckoutField.pickupPoint => _pickupPointFieldKey.currentContext,
     };
 
     if (context != null) {
@@ -159,6 +203,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         break;
       case CheckoutField.phoneNumber:
         _phoneFocusNode.requestFocus();
+        break;
+      case CheckoutField.pickupPoint:
+        _pickupPointFocusNode.requestFocus();
         break;
       case CheckoutField.province:
       case CheckoutField.shippingMethod:
@@ -227,6 +274,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'province': _selectedProvince,
         'country': 'South Africa',
         'phone': _phoneController.text,
+        if (_pickupPointController.text.trim().isNotEmpty)
+          'pickup_point': _pickupPointController.text.trim(),
       },
     };
 
@@ -410,6 +459,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ...enabledOptions.map(
                             (opt) => _buildShippingTile(opt),
                           ),
+                          if (_requiresPickupPoint(_selectedShipping)) ...[
+                            const SizedBox(height: 8),
+                            _buildInfoNote(
+                              'Please enter the pickup point or drop-off location the seller should use for this order.',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildTextField(
+                              key: _pickupPointFieldKey,
+                              label: _pickupPointLabel(_selectedShipping),
+                              controller: _pickupPointController,
+                              focusNode: _pickupPointFocusNode,
+                              prefixIcon: Icons.pin_drop_outlined,
+                              hintText: _pickupPointHint(_selectedShipping),
+                            ),
+                          ] else if (_isMarketPickup(_selectedShipping)) ...[
+                            const SizedBox(height: 8),
+                            _buildInfoNote(
+                              'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.',
+                            ),
+                          ],
                         ],
 
                         const SizedBox(height: 32),
@@ -686,7 +755,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final isFree = option.price == 0;
 
     return GestureDetector(
-      onTap: () => setState(() => _selectedShipping = option.key),
+      onTap: () => setState(() {
+        _selectedShipping = option.key;
+        if (!_requiresPickupPoint(option.key)) {
+          _pickupPointController.clear();
+        }
+      }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),

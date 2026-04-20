@@ -340,11 +340,38 @@ class _VendorOrderDetailScreenState
                         order.shippingAddress!['city'],
                         order.shippingAddress!['province'],
                         order.shippingAddress!['postal_code'],
+                        if ((order.shippingAddress!['pickup_point'] ?? '')
+                            .toString()
+                            .trim()
+                            .isNotEmpty)
+                          'Pickup point: ${order.shippingAddress!['pickup_point']}',
                       ]
                       .where((s) => s != null && s.toString().isNotEmpty)
                       .join('\n'),
                   style: GoogleFonts.poppins(
                     fontSize: 13,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+            if (order.shippingMethod == 'market_pickup') ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.bone,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  'This buyer needs to message you to confirm which market, date, and collection time applies to pickup.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
                     color: AppTheme.textSecondary,
                     height: 1.5,
                   ),
