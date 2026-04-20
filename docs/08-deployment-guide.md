@@ -119,6 +119,7 @@ Create and deploy each Edge Function:
 ```bash
 # Create function scaffolds
 supabase functions new payfast-itn
+supabase functions new create-payfast-subscription
 supabase functions new create-checkout
 supabase functions new release-escrow
 supabase functions new generate-invite
@@ -127,6 +128,7 @@ supabase functions new analytics
 
 # Deploy all functions
 supabase functions deploy payfast-itn --no-verify-jwt
+supabase functions deploy create-payfast-subscription
 supabase functions deploy create-checkout
 supabase functions deploy release-escrow
 supabase functions deploy generate-invite
@@ -141,8 +143,13 @@ Set Edge Function secrets:
 ```bash
 supabase secrets set PAYFAST_MERCHANT_ID=<your_merchant_id>
 supabase secrets set PAYFAST_MERCHANT_KEY=<your_merchant_key>
-supabase secrets set PAYFAST_PASSPHRASE=<your_passphrase>
 supabase secrets set PAYFAST_SANDBOX=true
+```
+
+If your PayFast account has a security passphrase configured, set it too:
+
+```bash
+supabase secrets set PAYFAST_PASSPHRASE=<your_passphrase>
 ```
 
 ---
@@ -156,7 +163,7 @@ supabase secrets set PAYFAST_SANDBOX=true
 3. Note your:
    - **Merchant ID**
    - **Merchant Key**
-   - **Passphrase** (set in PayFast settings under Security)
+   - **Passphrase** only if you enabled one in PayFast Security settings
 
 ### 2.2 Sandbox Testing
 
@@ -172,14 +179,18 @@ Configure the sandbox in your Edge Function environment variables:
 supabase secrets set PAYFAST_SANDBOX=true
 ```
 
-### 2.3 Configure Webhooks
+### 2.3 Configure Artisan Subscription Webhooks
 
 In your PayFast dashboard:
 
 1. Go to **Settings > Integration**.
 2. Set the **Notify URL (ITN)** to: `https://<project-ref>.supabase.co/functions/v1/payfast-itn`
-3. Set the **Return URL** to your app's deep link: `artisanallane://order-confirmation`
-4. Set the **Cancel URL** to: `artisanallane://cart`
+3. Set the **Return URL** to: `https://artisanlanesa.co.za/vendor/subscription/success`
+4. Set the **Cancel URL** to: `https://artisanlanesa.co.za/vendor/subscription/error`
+
+The mobile app recognizes those hosted web URLs and routes artisans back into the subscription screen automatically.
+
+`create-payfast-subscription` is used only for artisan billing. Buyer checkout remains on TradeSafe through `create-checkout`.
 
 ### 2.4 Production Cutover
 
@@ -190,11 +201,12 @@ When ready for production:
 ```bash
 supabase secrets set PAYFAST_MERCHANT_ID=<real_merchant_id>
 supabase secrets set PAYFAST_MERCHANT_KEY=<real_merchant_key>
-supabase secrets set PAYFAST_PASSPHRASE=<real_passphrase>
 supabase secrets set PAYFAST_SANDBOX=false
 ```
 
-2. Update the PayFast integration URL in your `create-checkout` Edge Function from sandbox to production.
+Set `PAYFAST_PASSPHRASE` only if production PayFast has a passphrase enabled.
+
+2. Confirm `PAYFAST_SANDBOX=false` for both `create-payfast-subscription` and `payfast-itn`.
 
 ---
 

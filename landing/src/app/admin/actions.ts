@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { getOrCreateAdminShopThread } from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
@@ -311,6 +312,54 @@ export async function createShopNote(
     return createSuccessState("Note saved.");
   } catch (error) {
     return createErrorState(error, "Unable to save note.");
+  }
+}
+
+export async function sendAdminShopMessage(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const session = await requireAdminSession();
+    const shopId = String(formData.get("shopId") ?? "").trim();
+    const body = String(formData.get("body") ?? "").trim();
+
+    if (!shopId) {
+      return createErrorState(null, "Missing shop id.");
+    }
+
+    if (!body) {
+      return {
+        status: "error",
+        message: "Please type a message before sending.",
+        savedAt: null,
+      };
+    }
+
+    const thread = await getOrCreateAdminShopThread(shopId, session.user.id);
+    if (!thread) {
+      return createErrorState(null, "Unable to locate that shop.");
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin.from("chat_messages").insert({
+      thread_id: thread.id,
+      sender_id: session.user.id,
+      body,
+      message_type: "text",
+    });
+
+    if (error) {
+      return createErrorState(new Error(error.message), "Unable to send message.");
+    }
+
+    revalidatePath("/admin/messages");
+    revalidatePath(`/admin/shops/${shopId}/messages`);
+    revalidatePath(`/admin/shops/${shopId}`);
+
+    return createSuccessState("Message sent.");
+  } catch (error) {
+    return createErrorState(error, "Unable to send message.");
   }
 }
 

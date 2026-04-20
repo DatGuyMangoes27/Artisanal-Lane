@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../widgets/vendor_terms.dart';
 
 class VendorApplicationScreen extends ConsumerStatefulWidget {
   const VendorApplicationScreen({super.key});
@@ -496,6 +497,9 @@ class _VendorApplicationScreenState
               ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          _VendorRequirementsCard(),
           const SizedBox(height: 24),
 
           if (_errorMessage != null) ...[
@@ -618,70 +622,14 @@ class _VendorApplicationScreenState
           ),
           const SizedBox(height: 28),
 
-          // Terms & Conditions
-          GestureDetector(
-            onTap: () => setState(() => _acceptedTcs = !_acceptedTcs),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _acceptedTcs
-                    ? AppTheme.baobab.withValues(alpha: 0.06)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: _acceptedTcs
-                      ? AppTheme.baobab.withValues(alpha: 0.4)
-                      : AppTheme.sand.withValues(alpha: 0.5),
-                ),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: Checkbox(
-                      value: _acceptedTcs,
-                      onChanged: (v) =>
-                          setState(() => _acceptedTcs = v ?? false),
-                      activeColor: AppTheme.baobab,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: RichText(
-                      text: TextSpan(
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                          height: 1.5,
-                        ),
-                        children: const [
-                          TextSpan(
-                            text: 'I have read and agree to the Artisan Lane ',
-                          ),
-                          TextSpan(
-                            text: 'Vendor Terms & Conditions',
-                            style: TextStyle(
-                              color: AppTheme.terracotta,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          TextSpan(
-                            text:
-                                ', including commission rates, listing policies, and fulfilment responsibilities.',
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          // Vendor Terms & Conditions — full-text summary vendors must accept.
+          const _VendorTermsCard(),
+          const SizedBox(height: 16),
+
+          VendorTermsAcceptance(
+            accepted: _acceptedTcs,
+            onChanged: (value) => setState(() => _acceptedTcs = value),
+            onOpenTerms: () => showVendorTermsSheet(context),
           ),
           const SizedBox(height: 28),
 
@@ -703,6 +651,313 @@ class _VendorApplicationScreenState
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+}
+
+class _VendorRequirementsCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.terracotta.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.info_outline_rounded,
+                size: 20,
+                color: AppTheme.terracotta,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'What to expect after approval',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Once your application is approved, you\'ll be prompted to complete these before your store goes live:',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _RequirementRow(
+            icon: Icons.workspace_premium_rounded,
+            title: 'Monthly subscription required',
+            body:
+                'An active monthly Artisan Lane vendor subscription is required to list products and keep your storefront live. You can cancel at any time — your shop stays active until the end of the paid period.',
+          ),
+          const SizedBox(height: 10),
+          _RequirementRow(
+            icon: Icons.account_balance_rounded,
+            title: 'Bank details for TradeSafe (compulsory)',
+            body:
+                'Payouts are processed through TradeSafe\'s escrow. You\'ll need to add a valid South African bank account after approval so buyer payments can be released to you.',
+          ),
+          const SizedBox(height: 10),
+          _RequirementRow(
+            icon: Icons.schedule_rounded,
+            title: 'Admin review: 1–3 business days',
+            body:
+                'Our team reviews every application to keep the marketplace high-quality. You\'ll be notified by email and in-app once a decision is made.',
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppTheme.ochre.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.lightbulb_outline_rounded,
+                  size: 16,
+                  color: AppTheme.ochre,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'This is informational — you\'ll only be asked to add your subscription and banking info after your application is approved.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequirementRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String body;
+
+  const _RequirementRow({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.terracotta.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: AppTheme.terracotta),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                body,
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VendorTermsCard extends StatefulWidget {
+  const _VendorTermsCard();
+
+  @override
+  State<_VendorTermsCard> createState() => _VendorTermsCardState();
+}
+
+class _VendorTermsCardState extends State<_VendorTermsCard> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.gavel_rounded,
+                    size: 20,
+                    color: AppTheme.terracotta,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Vendor Terms & Conditions',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _expanded
+                              ? 'Hide summary'
+                              : 'Tap to preview — or open the full reader below',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: AppTheme.textSecondary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            Divider(
+              color: AppTheme.sand.withValues(alpha: 0.4),
+              height: 1,
+            ),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 260),
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final section in vendorTermsSections) ...[
+                      Text(
+                        section['heading']!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        section['body']!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                          height: 1.55,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+          Divider(
+            color: AppTheme.sand.withValues(alpha: 0.4),
+            height: 1,
+          ),
+          InkWell(
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(16),
+            ),
+            onTap: () => showVendorTermsSheet(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.menu_book_rounded,
+                    size: 18,
+                    color: AppTheme.terracotta,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Read the full Vendor Terms & Conditions',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.terracotta,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: AppTheme.terracotta,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

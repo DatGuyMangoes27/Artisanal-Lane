@@ -12,6 +12,8 @@ import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/product_form_copy.dart';
 import '../utils/vendor_payout_setup.dart';
+import '../utils/vendor_subscription_setup.dart';
+import '../widgets/shipping_rates_reference.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
   final String? productId;
@@ -42,6 +44,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   bool _isLoading = false;
   bool _isInitialized = false;
   bool _isUploading = false;
+  bool _hasOptions = false;
 
   final List<String> _imageUrls = [];
   final List<File> _pendingFiles = [];
@@ -61,11 +64,32 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (_isEditing) {
       _loadProduct();
     } else {
-      _optionOneNameController.text = defaultProductOptionOneName;
-      _optionTwoNameController.text = defaultProductOptionTwoName;
-      _variants.add(_VariantDraft.empty());
+      _hasOptions = false;
       _seedShippingFromShopDefaults();
     }
+  }
+
+  void _setHasOptions(bool value) {
+    setState(() {
+      _hasOptions = value;
+      if (value) {
+        if (_variants.isEmpty) {
+          _variants.add(_VariantDraft.empty());
+        }
+        if (_optionOneNameController.text.trim().isEmpty) {
+          _optionOneNameController.text = defaultProductOptionOneName;
+        }
+      } else {
+        for (final variant in _variants) {
+          variant.dispose();
+        }
+        _variants.clear();
+        _optionOneNameController.clear();
+        _optionTwoNameController.clear();
+        _optionOneValuesController.clear();
+        _optionTwoValuesController.clear();
+      }
+    });
   }
 
   Future<void> _seedShippingFromShopDefaults() async {
@@ -148,20 +172,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _shippingPriceControllers[option.key]?.text = option.price.toStringAsFixed(2);
     }
     final optionGroups = product.optionGroups;
-    if (optionGroups.isNotEmpty) {
+    _hasOptions = optionGroups.isNotEmpty;
+    if (_hasOptions) {
       _optionOneNameController.text = optionGroups.first.name;
       _optionOneValuesController.text = optionGroups.first.values.join(', ');
       if (optionGroups.length > 1) {
         _optionTwoNameController.text = optionGroups[1].name;
         _optionTwoValuesController.text = optionGroups[1].values.join(', ');
       }
-    } else if (product.variants.isNotEmpty) {
-      _optionOneNameController.text = defaultProductOptionTwoName;
-    }
-    if (product.variants.isNotEmpty) {
-      _variants.addAll(product.variants.map(_VariantDraft.fromVariant));
-    } else {
-      _variants.add(_VariantDraft.fromLegacyProduct(product));
+      if (product.variants.isNotEmpty) {
+        _variants.addAll(product.variants.map(_VariantDraft.fromVariant));
+      } else {
+        _variants.add(_VariantDraft.empty());
+      }
     }
   }
 
@@ -686,15 +709,17 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final variantError = _validateVariants();
-    if (variantError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(variantError, style: GoogleFonts.poppins()),
-          backgroundColor: AppTheme.error,
-        ),
-      );
-      return;
+    if (_hasOptions) {
+      final variantError = _validateVariants();
+      if (variantError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(variantError, style: GoogleFonts.poppins()),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+        return;
+      }
     }
     if (_imageUrls.isEmpty &&
         _pendingFiles.isEmpty &&
@@ -746,72 +771,87 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       final shop = await ref.read(vendorShopProvider.future);
       if (shop == null) throw Exception('No shop found');
 
-      final optionOneName = _optionOneNameController.text.trim();
-      final optionTwoName = _optionTwoNameController.text.trim();
+      final List<Map<String, dynamic>> variantPayloads;
+      final List<Map<String, dynamic>> optionGroups;
+      final List<String> coverImages;
+      final double fallbackPrice;
+      final int fallbackStock;
 
-      final variantPayloads = _variants.asMap().entries.map((entry) {
-        final variant = entry.value;
-        final optionValues = <String>[
-          variant.optionOneController.text.trim(),
-          if (optionTwoName.isNotEmpty) variant.optionTwoController.text.trim(),
-        ];
-        final displayName = optionValues.join(' / ');
-        return <String, dynamic>{
-          if (variant.id != null) 'id': variant.id,
-          'display_name': displayName,
-          'color_name': optionValues.length == 1
-              ? optionValues.first
-              : displayName,
-          'option_values': optionValues,
-          'price': double.parse(variant.priceController.text.trim()),
-          'compare_at_price':
-              variant.compareAtPriceController.text.trim().isNotEmpty
-              ? double.parse(variant.compareAtPriceController.text.trim())
-              : null,
-          'stock_qty': int.parse(variant.stockController.text.trim()),
-          'images': List<String>.from(variant.imageUrls),
-          'is_active': true,
-          'sort_order': entry.key,
-        };
-      }).toList();
+      if (_hasOptions) {
+        final optionOneName = _optionOneNameController.text.trim();
+        final optionTwoName = _optionTwoNameController.text.trim();
 
-      final optionGroups = <Map<String, dynamic>>[
-        {
-          'name': optionOneName,
-          'values': _variants
-              .map((variant) => variant.optionOneController.text.trim())
-              .where((value) => value.isNotEmpty)
-              .toSet()
-              .toList(),
-        },
-        if (optionTwoName.isNotEmpty)
+        variantPayloads = _variants.asMap().entries.map((entry) {
+          final variant = entry.value;
+          final optionValues = <String>[
+            variant.optionOneController.text.trim(),
+            if (optionTwoName.isNotEmpty)
+              variant.optionTwoController.text.trim(),
+          ];
+          final displayName = optionValues.join(' / ');
+          return <String, dynamic>{
+            if (variant.id != null) 'id': variant.id,
+            'display_name': displayName,
+            'color_name': optionValues.length == 1
+                ? optionValues.first
+                : displayName,
+            'option_values': optionValues,
+            'price': double.parse(variant.priceController.text.trim()),
+            'compare_at_price':
+                variant.compareAtPriceController.text.trim().isNotEmpty
+                ? double.parse(variant.compareAtPriceController.text.trim())
+                : null,
+            'stock_qty': int.parse(variant.stockController.text.trim()),
+            'images': List<String>.from(variant.imageUrls),
+            'is_active': true,
+            'sort_order': entry.key,
+          };
+        }).toList();
+
+        optionGroups = <Map<String, dynamic>>[
           {
-            'name': optionTwoName,
+            'name': optionOneName,
             'values': _variants
-                .map((variant) => variant.optionTwoController.text.trim())
+                .map((variant) => variant.optionOneController.text.trim())
                 .where((value) => value.isNotEmpty)
                 .toSet()
                 .toList(),
           },
-      ];
+          if (optionTwoName.isNotEmpty)
+            {
+              'name': optionTwoName,
+              'values': _variants
+                  .map((variant) => variant.optionTwoController.text.trim())
+                  .where((value) => value.isNotEmpty)
+                  .toSet()
+                  .toList(),
+            },
+        ];
 
-      final coverImages = _imageUrls.isNotEmpty
-          ? _imageUrls
-          : List<String>.from(variantPayloads.first['images'] as List);
-      final fallbackPrice =
-          (_priceController.text.trim().isNotEmpty
-              ? double.tryParse(_priceController.text.trim())
-              : null) ??
-          (variantPayloads.first['price'] as double);
-      final fallbackStock =
-          (_stockController.text.trim().isNotEmpty
-              ? int.tryParse(_stockController.text.trim())
-              : null) ??
-          _variants.fold<int>(
-            0,
-            (sum, variant) =>
-                sum + int.parse(variant.stockController.text.trim()),
-          );
+        coverImages = _imageUrls.isNotEmpty
+            ? _imageUrls
+            : List<String>.from(variantPayloads.first['images'] as List);
+        fallbackPrice =
+            (_priceController.text.trim().isNotEmpty
+                ? double.tryParse(_priceController.text.trim())
+                : null) ??
+            (variantPayloads.first['price'] as double);
+        fallbackStock =
+            (_stockController.text.trim().isNotEmpty
+                ? int.tryParse(_stockController.text.trim())
+                : null) ??
+            _variants.fold<int>(
+              0,
+              (sum, variant) =>
+                  sum + int.parse(variant.stockController.text.trim()),
+            );
+      } else {
+        variantPayloads = const <Map<String, dynamic>>[];
+        optionGroups = const <Map<String, dynamic>>[];
+        coverImages = List<String>.from(_imageUrls);
+        fallbackPrice = double.parse(_priceController.text.trim());
+        fallbackStock = int.parse(_stockController.text.trim());
+      }
 
       final data = {
         'title': _titleController.text.trim(),
@@ -858,6 +898,107 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     }
   }
 
+  Future<void> _confirmDeleteProduct() async {
+    final titleRaw = _titleController.text.trim();
+    final displayTitle = titleRaw.isEmpty ? 'this product' : titleRaw;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(
+              Icons.delete_forever_rounded,
+              color: AppTheme.error,
+              size: 26,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Delete $displayTitle?',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'The listing will be removed from your store and the marketplace. Any past orders containing this product stay intact for your records.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: AppTheme.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      await service.deleteProduct(widget.productId!);
+      ref.invalidate(vendorProductsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$displayTitle deleted.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+        ),
+      );
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not delete product: $e',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
   void _removeUploadedImage(int index) {
     setState(() => _imageUrls.removeAt(index));
   }
@@ -879,6 +1020,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
+    final subscription =
+        ref.watch(vendorSubscriptionStreamProvider).value ??
+        ref.watch(vendorSubscriptionProvider).value;
+    final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     final totalImages = _imageUrls.length + _pendingFiles.length;
 
@@ -900,6 +1045,72 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           child: CircularProgressIndicator(
             color: AppTheme.terracotta,
             strokeWidth: 2,
+          ),
+        ),
+      );
+    }
+
+    if (!_isEditing && !subscriptionActive) {
+      return Scaffold(
+        backgroundColor: AppTheme.scaffoldBg,
+        appBar: AppBar(
+          backgroundColor: AppTheme.scaffoldBg,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+            onPressed: () => context.pop(),
+          ),
+          title: Text(
+            'New Product',
+            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.workspace_premium_outlined,
+                    size: 36,
+                    color: AppTheme.terracotta,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Start your artisan subscription first',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    vendorSubscriptionGateMessage,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  GradientButton(
+                    label: 'Open subscription',
+                    icon: Icons.arrow_forward_rounded,
+                    onPressed: () => context.push('/vendor/profile/subscription'),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       );
@@ -983,6 +1194,19 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           _isEditing ? 'Edit Product' : 'New Product',
           style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
         ),
+        actions: _isEditing
+            ? [
+                IconButton(
+                  tooltip: 'Delete product',
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppTheme.error,
+                  ),
+                  onPressed: _isLoading ? null : _confirmDeleteProduct,
+                ),
+                const SizedBox(width: 4),
+              ]
+            : null,
       ),
       body: Form(
         key: _formKey,
@@ -990,10 +1214,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             // ── Photos section ──────────────────────────────────
-            _buildLabel('Fallback Photos'),
+            _buildLabel(_hasOptions ? 'Fallback Photos' : 'Product Photos'),
             const SizedBox(height: 4),
             Text(
-              '$totalImages/8 photos added · used when no option photos are set',
+              _hasOptions
+                  ? '$totalImages/8 photos added · used when no option photos are set'
+                  : '$totalImages/8 photos added',
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 color: AppTheme.textHint,
@@ -1232,6 +1458,46 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ),
             ],
 
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: _hasOptions
+                      ? AppTheme.terracotta.withValues(alpha: 0.35)
+                      : AppTheme.sand.withValues(alpha: 0.4),
+                ),
+              ),
+              child: SwitchListTile(
+                value: _hasOptions,
+                onChanged: (value) => _setHasOptions(value),
+                title: Text(
+                  'This product has multiple options',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: Text(
+                  _hasOptions
+                      ? 'Set up sizes, colours or other combinations below.'
+                      : 'Off by default — turn on if this product comes in variations like size or colour.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                    height: 1.4,
+                  ),
+                ),
+                activeTrackColor: AppTheme.terracotta,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 4,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            if (_hasOptions) ...[
             _buildLabel('Product Options'),
             const SizedBox(height: 8),
             Text(
@@ -1356,6 +1622,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ),
             ),
             const SizedBox(height: 20),
+            ],
 
             Row(
               children: [
@@ -1369,13 +1636,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         controller: _priceController,
                         keyboardType: TextInputType.number,
                         validator: (v) {
-                          if (_variants.isNotEmpty) return null;
+                          if (_hasOptions) return null;
                           if (v == null || v.isEmpty) return 'Required';
                           if (double.tryParse(v) == null) return 'Invalid';
                           return null;
                         },
-                        decoration: const InputDecoration(
-                          hintText: 'Optional when variants are set',
+                        decoration: InputDecoration(
+                          hintText: _hasOptions
+                              ? 'Optional when variants are set'
+                              : 'What buyers pay',
                         ),
                       ),
                     ],
@@ -1403,19 +1672,23 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 20),
 
-            _buildLabel('Fallback Stock Quantity'),
+            _buildLabel(
+              _hasOptions ? 'Fallback Stock Quantity' : 'Stock Quantity',
+            ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _stockController,
               keyboardType: TextInputType.number,
               validator: (v) {
-                if (_variants.isNotEmpty) return null;
+                if (_hasOptions) return null;
                 if (v == null || v.isEmpty) return 'Required';
                 if (int.tryParse(v) == null) return 'Invalid';
                 return null;
               },
-              decoration: const InputDecoration(
-                hintText: 'Optional when variants are set',
+              decoration: InputDecoration(
+                hintText: _hasOptions
+                    ? 'Optional when variants are set'
+                    : 'How many you have in stock',
               ),
             ),
             const SizedBox(height: 20),
@@ -1546,6 +1819,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             height: 1.45,
           ),
         ),
+        const SizedBox(height: 12),
+        const ShippingRatesReferenceCard(),
         const SizedBox(height: 12),
         ..._shippingOptions.map(_buildProductShippingOptionCard),
       ],
@@ -2105,21 +2380,6 @@ class _VariantDraft {
       ),
       stockController: TextEditingController(text: variant.stockQty.toString()),
       imageUrls: List<String>.from(variant.images),
-    );
-  }
-
-  factory _VariantDraft.fromLegacyProduct(Product product) {
-    return _VariantDraft(
-      optionOneController: TextEditingController(),
-      optionTwoController: TextEditingController(),
-      priceController: TextEditingController(
-        text: product.price.toStringAsFixed(2),
-      ),
-      compareAtPriceController: TextEditingController(
-        text: product.compareAtPrice?.toStringAsFixed(2) ?? '',
-      ),
-      stockController: TextEditingController(text: product.stockQty.toString()),
-      imageUrls: List<String>.from(product.images),
     );
   }
 

@@ -12,6 +12,7 @@ import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_fulfillment_options.dart';
 import '../utils/vendor_onboarding_flow.dart';
+import '../widgets/vendor_terms.dart';
 
 class VendorOnboardingScreen extends ConsumerStatefulWidget {
   const VendorOnboardingScreen({super.key});
@@ -47,6 +48,13 @@ class _VendorOnboardingScreenState
   bool _isLoading = false;
   String? _errorMessage;
   String? _selectedTurnaroundOption;
+
+  final GlobalKey _errorBannerKey = GlobalKey();
+  final GlobalKey _businessNameKey = GlobalKey();
+  final GlobalKey _portfolioKey = GlobalKey();
+  final GlobalKey _fulfillmentKey = GlobalKey();
+  final GlobalKey _turnaroundKey = GlobalKey();
+  final GlobalKey _termsKey = GlobalKey();
 
   @override
   void dispose() {
@@ -106,39 +114,71 @@ class _VendorOnboardingScreenState
     _proofPendingFiles.clear();
   }
 
-  String? _validateApplicationExtras() {
+  void _scrollToSection(GlobalKey key) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx == null) return;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeOut,
+        alignment: 0.1,
+      );
+    });
+  }
+
+  bool _flagIssue(String message, GlobalKey key) {
+    setState(() => _errorMessage = message);
+    _scrollToSection(key);
+    return false;
+  }
+
+  bool _validateOnboardingForm() {
+    final formValid = _formKey.currentState?.validate() ?? false;
+    if (!formValid) {
+      // The only TextFormField with a validator is Business Name.
+      return _flagIssue(
+        'Please enter your business or brand name.',
+        _businessNameKey,
+      );
+    }
+
     if (_portfolioController.text.trim().isEmpty &&
         _proofImageUrls.isEmpty &&
         _proofPendingFiles.isEmpty) {
-      return 'Add a social link or upload up to 3 photos of your work.';
+      return _flagIssue(
+        'Either a social/portfolio link OR at least one work photo is required so we can verify your craft.',
+        _portfolioKey,
+      );
     }
 
     if (_selectedFulfillmentMethods.isEmpty) {
-      return 'Please select at least one fulfilment method.';
+      return _flagIssue(
+        'Please select at least one fulfilment method.',
+        _fulfillmentKey,
+      );
     }
 
     if (_selectedTurnaroundOption == null ||
         _selectedTurnaroundOption!.isEmpty) {
-      return 'Please select a typical turnaround time.';
+      return _flagIssue(
+        'Please select a typical turnaround time.',
+        _turnaroundKey,
+      );
     }
 
-    return null;
+    if (!_acceptedTcs) {
+      return _flagIssue(
+        'Please accept the Terms & Conditions to continue.',
+        _termsKey,
+      );
+    }
+
+    return true;
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    final extraValidationError = _validateApplicationExtras();
-    if (extraValidationError != null) {
-      setState(() => _errorMessage = extraValidationError);
-      return;
-    }
-    if (!_acceptedTcs) {
-      setState(
-        () =>
-            _errorMessage = 'Please accept the Terms & Conditions to continue.',
-      );
-      return;
-    }
+    if (!_validateOnboardingForm()) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -381,6 +421,7 @@ class _VendorOnboardingScreenState
 
             if (_errorMessage != null) ...[
               Container(
+                key: _errorBannerKey,
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
@@ -390,31 +431,51 @@ class _VendorOnboardingScreenState
                     color: AppTheme.error.withValues(alpha: 0.3),
                   ),
                 ),
-                child: Text(
-                  _errorMessage!,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: AppTheme.error,
-                  ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 18,
+                      color: AppTheme.error,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: AppTheme.error,
+                          height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
             ],
 
-            _buildLabel('Business / Brand Name'),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _businessNameController,
-              textCapitalization: TextCapitalization.words,
-              validator: (v) =>
-                  v == null || v.trim().isEmpty ? 'Required' : null,
-              decoration: const InputDecoration(
-                hintText: 'e.g. Ndlovu Ceramics',
-                prefixIcon: Icon(
-                  Icons.store_outlined,
-                  color: AppTheme.textHint,
+            Column(
+              key: _businessNameKey,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLabel('Business / Brand Name'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _businessNameController,
+                  textCapitalization: TextCapitalization.words,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Required' : null,
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. Ndlovu Ceramics',
+                    prefixIcon: Icon(
+                      Icons.store_outlined,
+                      color: AppTheme.textHint,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 20),
 
@@ -455,29 +516,73 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 20),
 
-            _buildLabel('Portfolio / Social Link (optional)'),
-            const SizedBox(height: 4),
-            Text(
-              'If you do not have a social link yet, upload up to 3 photos of your work instead.',
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                color: AppTheme.textHint,
-                height: 1.4,
-              ),
+            Column(
+              key: _portfolioKey,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _buildLabel('Proof of your work'),
+                    const SizedBox(width: 8),
+                    _buildRequiredBadge(),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppTheme.terracotta.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.verified_user_outlined,
+                        size: 16,
+                        color: AppTheme.terracotta,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'You must provide at least one of the following so our team can verify your craft: a social/portfolio link OR 1–3 photos of your work.',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppTheme.textPrimary,
+                            height: 1.45,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildSubLabel('Option 1 — Social / portfolio link'),
+                const SizedBox(height: 6),
+                TextFormField(
+                  controller: _portfolioController,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    hintText: 'Instagram, website, or portfolio link',
+                    prefixIcon: Icon(Icons.link, color: AppTheme.textHint),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _buildSubLabel('Option 2 — Upload 1–3 photos of your work'),
+                const SizedBox(height: 6),
+                _buildProofPhotosCard(),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _portfolioController,
-              keyboardType: TextInputType.url,
-              decoration: const InputDecoration(
-                hintText: 'Instagram, website, or portfolio link',
-                prefixIcon: Icon(Icons.link, color: AppTheme.textHint),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildProofPhotosCard(),
             const SizedBox(height: 20),
 
+            Container(
+              key: _fulfillmentKey,
+              width: double.infinity,
+            ),
             _buildLabel('How will you fulfil orders?'),
             const SizedBox(height: 4),
             Text(
@@ -537,6 +642,10 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 20),
 
+            Container(
+              key: _turnaroundKey,
+              width: double.infinity,
+            ),
             _buildLabel('Typical turnaround time?'),
             const SizedBox(height: 4),
             Text(
@@ -583,71 +692,11 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 28),
 
-            // Terms & Conditions
-            GestureDetector(
-              onTap: () => setState(() => _acceptedTcs = !_acceptedTcs),
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _acceptedTcs
-                      ? AppTheme.baobab.withValues(alpha: 0.06)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _acceptedTcs
-                        ? AppTheme.baobab.withValues(alpha: 0.4)
-                        : AppTheme.sand.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: Checkbox(
-                        value: _acceptedTcs,
-                        onChanged: (v) =>
-                            setState(() => _acceptedTcs = v ?? false),
-                        activeColor: AppTheme.baobab,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: RichText(
-                        text: TextSpan(
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
-                            height: 1.5,
-                          ),
-                          children: const [
-                            TextSpan(
-                              text:
-                                  'I have read and agree to the Artisan Lane ',
-                            ),
-                            TextSpan(
-                              text: 'Vendor Terms & Conditions',
-                              style: TextStyle(
-                                color: AppTheme.terracotta,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            TextSpan(
-                              text:
-                                  ', including commission rates, listing policies, and fulfilment responsibilities.',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            VendorTermsAcceptance(
+              key: _termsKey,
+              accepted: _acceptedTcs,
+              onChanged: (value) => setState(() => _acceptedTcs = value),
+              onOpenTerms: () => showVendorTermsSheet(context),
             ),
             const SizedBox(height: 28),
 
@@ -1225,6 +1274,39 @@ class _VendorOnboardingScreenState
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildSubLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.poppins(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: AppTheme.textSecondary,
+      ),
+    );
+  }
+
+  Widget _buildRequiredBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.terracotta.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppTheme.terracotta.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Text(
+        'Required',
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.terracotta,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }

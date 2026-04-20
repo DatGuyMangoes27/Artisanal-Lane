@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   LogOut,
+  MessageSquare,
   Package,
   PackageOpen,
   Receipt,
@@ -42,6 +43,11 @@ const navItems = [
     href: "/admin/orders",
     label: "Orders",
     icon: Receipt,
+  },
+  {
+    href: "/admin/messages",
+    label: "Messages",
+    icon: MessageSquare,
   },
   {
     href: "/admin/stationery",

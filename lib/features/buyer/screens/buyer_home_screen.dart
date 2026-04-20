@@ -321,6 +321,14 @@ class BuyerHomeScreen extends ConsumerWidget {
                             color: AppTheme.textPrimary,
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Text(
+                          buyerHomeMakerSpotlightSubtitle,
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
                         const SizedBox(height: 16),
                         _ElegantMakerSpotlight(
                           shopName: maker.name,

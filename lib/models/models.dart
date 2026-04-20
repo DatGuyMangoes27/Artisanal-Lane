@@ -21,3 +21,5 @@ export 'stationery_request.dart';
 export 'product_review.dart';
 export 'vendor_application.dart';
 export 'vendor_payout_profile.dart';
+export 'vendor_subscription.dart';
+export 'vendor_subscription_checkout_session.dart';

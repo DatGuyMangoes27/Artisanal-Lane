@@ -14,6 +14,8 @@ const watchedTables = [
   "shop_posts",
   "admin_shop_notes",
   "stationery_requests",
+  "chat_threads",
+  "chat_messages",
 ];
 
 export function AdminLiveRefresh() {

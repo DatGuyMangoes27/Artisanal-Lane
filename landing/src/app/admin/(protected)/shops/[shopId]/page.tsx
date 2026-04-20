@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, EyeOff, RefreshCcw, Star } from "lucide-react";
+import { ArrowLeft, EyeOff, MessageSquare, RefreshCcw, Star } from "lucide-react";
 
 import {
   toggleShopSpotlight,
@@ -45,6 +45,15 @@ export default async function AdminShopDetailPage({
               <Link href="/admin/shops">
                 <ArrowLeft className="h-4 w-4" />
                 Back to stores
+              </Link>
+            </Button>
+            <Button
+              asChild
+              className="bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+            >
+              <Link href={`/admin/shops/${shop.id}/messages`}>
+                <MessageSquare className="h-4 w-4" />
+                Message store
               </Link>
             </Button>
             <AdminActionButtonForm

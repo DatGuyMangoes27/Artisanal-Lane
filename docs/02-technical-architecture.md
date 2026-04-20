@@ -303,7 +303,7 @@ Supabase Edge Functions (Deno runtime) handle server-side logic that cannot be e
 | ----------------------- | ---------------------------------- |
 | `PAYFAST_MERCHANT_ID`   | PayFast merchant identifier        |
 | `PAYFAST_MERCHANT_KEY`  | PayFast merchant key               |
-| `PAYFAST_PASSPHRASE`    | PayFast security passphrase        |
+| `PAYFAST_PASSPHRASE`    | Optional PayFast security passphrase |
 | `PAYFAST_SANDBOX`       | `true` for sandbox, `false` for production |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role key for admin DB operations |
 

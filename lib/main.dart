@@ -10,6 +10,7 @@ import 'core/constants/app_constants.dart';
 import 'features/auth/providers/auth_providers.dart';
 import 'features/buyer/providers/buyer_providers.dart';
 import 'features/buyer/utils/payment_deep_links.dart';
+import 'features/vendor/providers/vendor_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,6 +50,8 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
     ref.invalidate(cartItemsProvider);
     ref.invalidate(ordersProvider);
     ref.invalidate(ordersStreamProvider);
+    ref.invalidate(vendorSubscriptionProvider);
+    ref.invalidate(vendorSubscriptionStreamProvider);
 
     final router = ref.read(routerProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -1,8 +1,30 @@
+/// Kinds of chat threads supported by the platform.
+///
+/// * `buyerVendor` — the default buyer<->vendor chat.
+/// * `adminVendor` — the Artisan Lane admin team messaging the shop.
+enum ChatThreadKind {
+  buyerVendor,
+  adminVendor;
+
+  static ChatThreadKind fromRaw(String? raw) {
+    switch (raw) {
+      case 'admin_vendor':
+        return ChatThreadKind.adminVendor;
+      case 'buyer_vendor':
+      default:
+        return ChatThreadKind.buyerVendor;
+    }
+  }
+
+  bool get isAdminVendor => this == ChatThreadKind.adminVendor;
+}
+
 class ChatThread {
   final String id;
   final String shopId;
   final String buyerId;
   final String vendorId;
+  final ChatThreadKind kind;
   final String? lastMessagePreview;
   final String lastMessageType;
   final String? lastMessageSenderId;
@@ -25,6 +47,7 @@ class ChatThread {
     required this.shopId,
     required this.buyerId,
     required this.vendorId,
+    this.kind = ChatThreadKind.buyerVendor,
     this.lastMessagePreview,
     this.lastMessageType = 'text',
     this.lastMessageSenderId,
@@ -69,6 +92,7 @@ class ChatThread {
       shopId: json['shop_id'] as String,
       buyerId: json['buyer_id'] as String,
       vendorId: json['vendor_id'] as String,
+      kind: ChatThreadKind.fromRaw(json['kind'] as String?),
       lastMessagePreview: json['last_message_preview'] as String?,
       lastMessageType: json['last_message_type'] as String? ?? 'text',
       lastMessageSenderId: json['last_message_sender_id'] as String?,
@@ -96,6 +120,7 @@ class ChatThread {
     String? shopId,
     String? buyerId,
     String? vendorId,
+    ChatThreadKind? kind,
     String? lastMessagePreview,
     String? lastMessageType,
     String? lastMessageSenderId,
@@ -117,6 +142,7 @@ class ChatThread {
       shopId: shopId ?? this.shopId,
       buyerId: buyerId ?? this.buyerId,
       vendorId: vendorId ?? this.vendorId,
+      kind: kind ?? this.kind,
       lastMessagePreview: lastMessagePreview ?? this.lastMessagePreview,
       lastMessageType: lastMessageType ?? this.lastMessageType,
       lastMessageSenderId: lastMessageSenderId ?? this.lastMessageSenderId,

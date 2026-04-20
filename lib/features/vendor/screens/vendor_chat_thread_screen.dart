@@ -172,22 +172,35 @@ class _VendorChatThreadScreenState
     }
 
     return threadAsync.when(
-      data: (thread) => ChatThreadScaffold(
-        messagesAsync: displayedMessagesAsync,
-        currentUserId: userId ?? '',
-        title: thread.buyerDisplayName ?? 'Buyer',
-        subtitle: thread.shopName,
-        avatarUrl: thread.buyerAvatarUrl,
-        avatarFallback: thread.buyerDisplayName ?? 'B',
-        composer: _ChatComposer(
-          controller: _messageController,
-          pendingAttachment: _pendingAttachment,
-          isSending: _isSending,
-          onAttach: _pickAttachment,
-          onRemoveAttachment: () => setState(() => _pendingAttachment = null),
-          onSend: userId == null ? null : () => _sendMessage(userId, thread),
-        ),
-      ),
+      data: (thread) {
+        final isAdminThread = thread.kind.isAdminVendor;
+        final title = isAdminThread
+            ? 'Artisan Lane Support'
+            : (thread.buyerDisplayName ?? 'Buyer');
+        final subtitle = isAdminThread
+            ? 'Platform team'
+            : thread.shopName;
+        final avatarUrl = isAdminThread ? null : thread.buyerAvatarUrl;
+        final avatarFallback = isAdminThread
+            ? 'A'
+            : (thread.buyerDisplayName ?? 'B');
+        return ChatThreadScaffold(
+          messagesAsync: displayedMessagesAsync,
+          currentUserId: userId ?? '',
+          title: title,
+          subtitle: subtitle,
+          avatarUrl: avatarUrl,
+          avatarFallback: avatarFallback,
+          composer: _ChatComposer(
+            controller: _messageController,
+            pendingAttachment: _pendingAttachment,
+            isSending: _isSending,
+            onAttach: _pickAttachment,
+            onRemoveAttachment: () => setState(() => _pendingAttachment = null),
+            onSend: userId == null ? null : () => _sendMessage(userId, thread),
+          ),
+        );
+      },
       loading: () => const Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
         body: Center(

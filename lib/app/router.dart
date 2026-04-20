@@ -53,6 +53,7 @@ import '../features/vendor/screens/vendor_posts_screen.dart';
 import '../features/vendor/screens/post_form_screen.dart';
 import '../features/vendor/screens/vendor_onboarding_screen.dart';
 import '../features/vendor/screens/vendor_payout_details_screen.dart';
+import '../features/vendor/screens/vendor_subscription_screen.dart';
 import '../features/vendor/screens/vendor_dispute_screen.dart';
 import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
 
@@ -392,6 +393,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: 'payouts',
                 builder: (context, state) => const VendorPayoutDetailsScreen(),
+              ),
+              GoRoute(
+                path: 'subscription',
+                builder: (context, state) => VendorSubscriptionScreen(
+                  paymentStatus: state.uri.queryParameters['status'],
+                ),
               ),
               GoRoute(
                 path: 'shop',

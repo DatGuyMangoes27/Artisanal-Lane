@@ -1732,6 +1732,53 @@ class SupabaseService {
     return VendorPayoutProfile.fromJson(data);
   }
 
+  Future<VendorSubscription?> getVendorSubscription(String vendorId) async {
+    final data = await _client
+        .from('vendor_subscriptions')
+        .select()
+        .eq('vendor_id', vendorId)
+        .maybeSingle();
+    if (data == null) return null;
+    return VendorSubscription.fromJson(data);
+  }
+
+  Stream<VendorSubscription?> watchVendorSubscription(String vendorId) {
+    return _client
+        .from('vendor_subscriptions')
+        .stream(primaryKey: ['vendor_id'])
+        .eq('vendor_id', vendorId)
+        .limit(1)
+        .asyncMap((_) => getVendorSubscription(vendorId));
+  }
+
+  Future<VendorSubscriptionCheckoutSession> createVendorSubscriptionCheckout() async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'create-payfast-subscription',
+      headers: headers,
+    );
+
+    return VendorSubscriptionCheckoutSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<void> cancelVendorSubscription() async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'cancel-payfast-subscription',
+      headers: headers,
+    );
+
+    final data = response.data;
+    if (data is Map) {
+      final error = data['error'];
+      if (error is String && error.isNotEmpty) {
+        throw Exception(error);
+      }
+    }
+  }
+
   Future<void> updateProfile(
     String userId,
     Map<String, dynamic> updates,
@@ -1966,6 +2013,7 @@ class SupabaseService {
         .from('products')
         .select('*, categories(name), subcategories(name), product_variants(*)')
         .eq('shop_id', shopId)
+        .filter('archived_at', 'is', null)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
@@ -2017,7 +2065,17 @@ class SupabaseService {
   }
 
   Future<void> deleteProduct(String productId) async {
-    await _client.from('products').delete().eq('id', productId);
+    // Soft delete: we can't hard-delete because order_items.product_id
+    // still references this product for historical order records.
+    // Archiving hides the product from buyers (via RLS) and from the
+    // vendor's own list, while keeping order history intact.
+    await _client
+        .from('products')
+        .update({
+          'archived_at': DateTime.now().toUtc().toIso8601String(),
+          'is_published': false,
+        })
+        .eq('id', productId);
   }
 
   // ── Vendor Orders ───────────────────────────────────────────

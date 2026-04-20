@@ -52,6 +52,7 @@ landing/node_modules/
 landing/.next/
 landing/out/
 landing/.env.local
+landing/tsconfig.tsbuildinfo
 
 # Supabase local temp files
 supabase/.temp/

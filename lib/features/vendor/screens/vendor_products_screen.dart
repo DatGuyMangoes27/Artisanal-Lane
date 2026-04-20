@@ -10,9 +10,39 @@ import '../../../widgets/gradient_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_payout_setup.dart';
+import '../utils/vendor_subscription_setup.dart';
 
 class VendorProductsScreen extends ConsumerWidget {
   const VendorProductsScreen({super.key});
+
+  void _showSubscriptionRequiredDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Start your artisan subscription',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          vendorSubscriptionGateMessage,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.push('/vendor/profile/subscription');
+            },
+            child: const Text('Open subscription'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showPayoutRequiredDialog(BuildContext context) {
     showDialog<void>(
@@ -43,12 +73,122 @@ class VendorProductsScreen extends ConsumerWidget {
     );
   }
 
-  void _handleAddProductTap(BuildContext context, bool payoutReady) {
+  void _handleAddProductTap(
+    BuildContext context,
+    bool payoutReady,
+    bool subscriptionActive,
+  ) {
+    if (!subscriptionActive) {
+      _showSubscriptionRequiredDialog(context);
+      return;
+    }
     if (payoutReady) {
       context.push('/vendor/products/new');
       return;
     }
     _showPayoutRequiredDialog(context);
+  }
+
+  Future<void> _confirmDeleteProduct(
+    BuildContext context,
+    WidgetRef ref,
+    Product product,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            const Icon(
+              Icons.delete_forever_rounded,
+              color: AppTheme.error,
+              size: 26,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Delete ${product.title}?',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'The listing will be removed from your store and the marketplace. Any past orders containing this product stay intact for your records.',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            color: AppTheme.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Delete',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      await service.deleteProduct(product.id);
+      ref.invalidate(vendorProductsProvider);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${product.title} deleted.',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+            backgroundColor: AppTheme.baobab,
+          ),
+        );
+      }
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not delete product: $error',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _markSoldOut(
@@ -102,13 +242,18 @@ class VendorProductsScreen extends ConsumerWidget {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
+    final subscription =
+        ref.watch(vendorSubscriptionStreamProvider).value ??
+        ref.watch(vendorSubscriptionProvider).value;
+    final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       floatingActionButton: GradientFabExtended(
         label: 'Add Product',
         icon: Icons.add_rounded,
-        onTap: () => _handleAddProductTap(context, payoutReady),
+        onTap: () =>
+            _handleAddProductTap(context, payoutReady, subscriptionActive),
       ),
       body: SafeArea(
         child: Column(
@@ -129,7 +274,11 @@ class VendorProductsScreen extends ConsumerWidget {
               child: productsAsync.when(
                 data: (products) {
                   if (products.isEmpty) {
-                    return _buildEmpty(context, payoutReady);
+                    return _buildEmpty(
+                      context,
+                      payoutReady,
+                      subscriptionActive,
+                    );
                   }
                   return RefreshIndicator(
                     color: AppTheme.terracotta,
@@ -165,7 +314,8 @@ class VendorProductsScreen extends ConsumerWidget {
     Product product,
   ) {
     final optionCount = product.variants.length;
-    final stockLabel = product.stockQty <= 0
+    final isSoldOut = product.stockQty <= 0;
+    final stockLabel = isSoldOut
         ? 'Sold out'
         : 'Stock: ${product.stockQty}';
 
@@ -176,24 +326,31 @@ class VendorProductsScreen extends ConsumerWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+          border: Border.all(
+            color: isSoldOut
+                ? AppTheme.error.withValues(alpha: 0.2)
+                : AppTheme.sand.withValues(alpha: 0.3),
+          ),
         ),
         child: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 64,
-                height: 64,
-                child: CachedNetworkImage(
-                  imageUrl: product.primaryImage,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: AppTheme.bone),
-                  errorWidget: (_, __, ___) => Container(
-                    color: AppTheme.bone,
-                    child: const Icon(
-                      Icons.image_outlined,
-                      color: AppTheme.textHint,
+            Opacity(
+              opacity: isSoldOut ? 0.75 : 1,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: CachedNetworkImage(
+                    imageUrl: product.primaryImage,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: AppTheme.bone),
+                    errorWidget: (_, __, ___) => Container(
+                      color: AppTheme.bone,
+                      child: const Icon(
+                        Icons.image_outlined,
+                        color: AppTheme.textHint,
+                      ),
                     ),
                   ),
                 ),
@@ -219,7 +376,8 @@ class VendorProductsScreen extends ConsumerWidget {
                     'R${product.price.toStringAsFixed(0)} · $stockLabel${optionCount > 0 ? ' · $optionCount option(s)' : ''}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
-                      color: AppTheme.textSecondary,
+                      color: isSoldOut ? AppTheme.error : AppTheme.textSecondary,
+                      fontWeight: isSoldOut ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -227,6 +385,8 @@ class VendorProductsScreen extends ConsumerWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
+                      if (isSoldOut)
+                        _productTag('Sold Out', AppTheme.error),
                       if (product.isOnSale)
                         _productTag('On Sale', AppTheme.terracotta),
                       if (optionCount > 0)
@@ -239,37 +399,108 @@ class VendorProductsScreen extends ConsumerWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: product.isPublished
-                        ? AppTheme.baobab.withValues(alpha: 0.1)
-                        : AppTheme.textHint.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    product.isPublished ? 'Live' : 'Draft',
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: product.isPublished
-                          ? AppTheme.baobab
-                          : AppTheme.textHint,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: product.isPublished
+                            ? AppTheme.baobab.withValues(alpha: 0.1)
+                            : AppTheme.textHint.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        product.isPublished ? 'Live' : 'Draft',
+                        style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: product.isPublished
+                              ? AppTheme.baobab
+                              : AppTheme.textHint,
+                        ),
+                      ),
                     ),
-                  ),
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'More actions',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.more_vert_rounded,
+                          size: 18,
+                          color: AppTheme.textSecondary,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'edit':
+                              context.push('/vendor/products/${product.id}');
+                              break;
+                            case 'delete':
+                              _confirmDeleteProduct(context, ref, product);
+                              break;
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.edit_outlined,
+                                  size: 18,
+                                  color: AppTheme.textSecondary,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Edit',
+                                  style: GoogleFonts.poppins(fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                  color: AppTheme.error,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Delete product',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    color: AppTheme.error,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 OutlinedButton(
-                  onPressed: product.stockQty <= 0
+                  onPressed: isSoldOut
                       ? null
                       : () => _markSoldOut(context, ref, product),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppTheme.terracotta,
                     side: BorderSide(
-                      color: product.stockQty <= 0
+                      color: isSoldOut
                           ? AppTheme.textHint.withValues(alpha: 0.3)
                           : AppTheme.terracotta.withValues(alpha: 0.5),
                     ),
@@ -284,7 +515,7 @@ class VendorProductsScreen extends ConsumerWidget {
                     ),
                   ),
                   child: Text(
-                    product.stockQty <= 0 ? 'Sold Out' : 'Sold',
+                    isSoldOut ? 'Sold Out' : 'Sold',
                     style: GoogleFonts.poppins(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -317,7 +548,11 @@ class VendorProductsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmpty(BuildContext context, bool payoutReady) {
+  Widget _buildEmpty(
+    BuildContext context,
+    bool payoutReady,
+    bool subscriptionActive,
+  ) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -351,7 +586,11 @@ class VendorProductsScreen extends ConsumerWidget {
             GradientButton(
               label: 'Add Product',
               icon: Icons.add_rounded,
-              onPressed: () => _handleAddProductTap(context, payoutReady),
+              onPressed: () => _handleAddProductTap(
+                context,
+                payoutReady,
+                subscriptionActive,
+              ),
             ),
           ],
         ),

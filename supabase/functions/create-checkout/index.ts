@@ -211,7 +211,11 @@ Deno.serve(async (request) => {
       );
     }
 
-    const [{ data: sellerProfile }, { data: sellerPayoutProfile }] =
+    const [
+      { data: sellerProfile },
+      { data: sellerPayoutProfile },
+      { data: sellerSubscription },
+    ] =
       await Promise.all([
         admin
           .from("profiles")
@@ -223,6 +227,11 @@ Deno.serve(async (request) => {
           .select("registered_phone, registered_email, identity_number, business_registration_number, account_holder_name, bank_name, account_number, account_type")
           .eq("vendor_id", shop.vendor_id)
           .maybeSingle(),
+        admin
+          .from("vendor_subscriptions")
+          .select("status, current_period_end")
+          .eq("vendor_id", shop.vendor_id)
+          .maybeSingle(),
       ]);
     console.log(
       `[checkout-debug] sellerProfile emailPresent=${sellerProfile?.email != null} payoutPhonePresent=${typeof sellerPayoutProfile?.registered_phone === "string" && sellerPayoutProfile.registered_phone.trim().length > 0}`,
@@ -231,6 +240,34 @@ Deno.serve(async (request) => {
     if (!sellerProfile?.email) {
       return jsonResponse(
         { error: "The seller profile is missing an email address." },
+        { status: 400 },
+      );
+    }
+
+    const sellerSubscriptionPeriodEnd = sellerSubscription?.current_period_end as
+      | string
+      | null
+      | undefined;
+    const sellerSubscriptionStatus = sellerSubscription?.status;
+    const sellerSubscriptionPeriodEndDate = sellerSubscriptionPeriodEnd != null
+      ? new Date(sellerSubscriptionPeriodEnd)
+      : null;
+    const periodStillValid = sellerSubscriptionPeriodEndDate != null &&
+      sellerSubscriptionPeriodEndDate > new Date();
+    // Active subscriptions unlock checkout. Cancelled subscriptions stay
+    // unlocked until their paid-through current_period_end so artisans keep
+    // full access during the grace window they already paid for.
+    const sellerSubscriptionActive =
+      (sellerSubscriptionStatus === "active" &&
+        (sellerSubscriptionPeriodEndDate == null || periodStillValid)) ||
+      (sellerSubscriptionStatus === "cancelled" && periodStillValid);
+
+    if (!sellerSubscriptionActive) {
+      return jsonResponse(
+        {
+          error:
+            "This artisan needs an active Artisan Lane subscription before checkout can start.",
+        },
         { status: 400 },
       );
     }

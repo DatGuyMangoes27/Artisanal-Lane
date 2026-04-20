@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_subscription_setup.dart';
 
 class VendorProfileScreen extends ConsumerWidget {
   const VendorProfileScreen({super.key});
@@ -14,6 +15,12 @@ class VendorProfileScreen extends ConsumerWidget {
     final shopAsync = ref.watch(vendorShopProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
+    final subscription =
+        ref.watch(vendorSubscriptionStreamProvider).value ??
+        ref.watch(vendorSubscriptionProvider).value;
+    final subscriptionSubtitle = isVendorSubscriptionActive(subscription)
+        ? vendorSubscriptionStatusMessage(subscription)
+        : 'Manage your R349/month PayFast artisan subscription';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -95,6 +102,13 @@ class VendorProfileScreen extends ConsumerWidget {
                     : 'Reply to buyers in one place',
                 () => context.push('/vendor/messages'),
                 badgeCount: unreadMessages,
+              ),
+              _buildMenuItem(
+                context,
+                Icons.workspace_premium_outlined,
+                'Subscription',
+                subscriptionSubtitle,
+                () => context.push('/vendor/profile/subscription'),
               ),
               _buildMenuItem(
                 context,

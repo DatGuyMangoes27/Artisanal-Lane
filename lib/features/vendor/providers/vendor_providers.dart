@@ -154,6 +154,22 @@ final vendorPayoutProfileStreamProvider =
       return service.watchVendorPayoutProfile(userId);
     });
 
+final vendorSubscriptionProvider = FutureProvider<VendorSubscription?>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return null;
+  final service = ref.read(supabaseServiceProvider);
+  return service.getVendorSubscription(userId);
+});
+
+final vendorSubscriptionStreamProvider = StreamProvider<VendorSubscription?>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return Stream.value(null);
+  }
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchVendorSubscription(userId);
+});
+
 // ── Vendor Application ──────────────────────────────────────────
 final vendorApplicationProvider = FutureProvider<VendorApplication?>((
   ref,

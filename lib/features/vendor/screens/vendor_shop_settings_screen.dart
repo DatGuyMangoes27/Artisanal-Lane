@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
 import '../../../models/shop_market_event.dart';
 import '../../../models/shipping_option.dart';
+import '../widgets/shipping_rates_reference.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
@@ -667,6 +668,8 @@ class _VendorShopSettingsScreenState
                     color: AppTheme.textHint,
                   ),
                 ),
+                const SizedBox(height: 12),
+                const ShippingRatesReferenceCard(),
                 const SizedBox(height: 12),
                 ..._shippingOptions.map((opt) => _buildShippingOptionCard(opt)),
                 const SizedBox(height: 36),

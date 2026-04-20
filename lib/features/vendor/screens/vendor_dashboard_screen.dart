@@ -11,6 +11,7 @@ import '../widgets/stationery_sheet_header.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
 import '../utils/vendor_payout_setup.dart';
+import '../utils/vendor_subscription_setup.dart';
 
 class VendorDashboardScreen extends ConsumerWidget {
   const VendorDashboardScreen({super.key});
@@ -135,6 +136,35 @@ class _DashboardContent extends ConsumerWidget {
   final Shop shop;
   const _DashboardContent({required this.shop});
 
+  void _showSubscriptionRequiredDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Start your artisan subscription',
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          vendorSubscriptionGateMessage,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.push('/vendor/profile/subscription');
+            },
+            child: const Text('Open subscription'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showPayoutRequiredDialog(BuildContext context) {
     showDialog<void>(
       context: context,
@@ -164,7 +194,15 @@ class _DashboardContent extends ConsumerWidget {
     );
   }
 
-  void _handleAddProductTap(BuildContext context, bool payoutReady) {
+  void _handleAddProductTap(
+    BuildContext context,
+    bool payoutReady,
+    bool subscriptionActive,
+  ) {
+    if (!subscriptionActive) {
+      _showSubscriptionRequiredDialog(context);
+      return;
+    }
     if (payoutReady) {
       context.push('/vendor/products/new');
       return;
@@ -183,6 +221,10 @@ class _DashboardContent extends ConsumerWidget {
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
+    final subscription =
+        ref.watch(vendorSubscriptionStreamProvider).value ??
+        ref.watch(vendorSubscriptionProvider).value;
+    final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -198,6 +240,8 @@ class _DashboardContent extends ConsumerWidget {
             ref.invalidate(vendorThreadsStreamProvider);
             ref.invalidate(vendorPayoutProfileProvider);
             ref.invalidate(vendorPayoutProfileStreamProvider);
+            ref.invalidate(vendorSubscriptionProvider);
+            ref.invalidate(vendorSubscriptionStreamProvider);
           },
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
@@ -228,6 +272,10 @@ class _DashboardContent extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
+                if (!subscriptionActive) ...[
+                  _SubscriptionBanner(subscription: subscription),
+                  const SizedBox(height: 20),
+                ],
                 if (!payoutReady) ...[
                   _PayoutBanner(status: payoutStatus),
                   const SizedBox(height: 20),
@@ -299,7 +347,11 @@ class _DashboardContent extends ConsumerWidget {
                         Icons.add_circle_outline,
                         'Add Product',
                         AppTheme.baobab,
-                        () => _handleAddProductTap(context, payoutReady),
+                        () => _handleAddProductTap(
+                          context,
+                          payoutReady,
+                          subscriptionActive,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1659,6 +1711,60 @@ class _PayoutBanner extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   vendorPayoutBannerMessage(status),
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscriptionBanner extends StatelessWidget {
+  final VendorSubscription? subscription;
+
+  const _SubscriptionBanner({required this.subscription});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.workspace_premium_outlined,
+            size: 20,
+            color: AppTheme.terracotta,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  vendorSubscriptionStatusTitle(subscription?.status ?? 'inactive'),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  vendorSubscriptionStatusMessage(subscription),
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppTheme.textSecondary,

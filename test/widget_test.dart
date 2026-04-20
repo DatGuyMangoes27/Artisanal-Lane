@@ -790,7 +790,8 @@ void main() {
   test('Curated collection routes to its own listing screen', () {
     expect(curatedCollectionRoute, '/home/curated');
     expect(curatedCollectionTitle, 'Curated Collection');
-    expect(curatedCollectionSubtitle, 'Handpicked for their exceptional craft');
+    expect(curatedCollectionSubtitle, 'Our top finds');
+    expect(buyerHomeMakerSpotlightSubtitle, 'Handpicked for their exceptional craft');
   });
 
   test('Other category uses explicit icon and filter tags', () {

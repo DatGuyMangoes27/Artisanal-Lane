@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Star, Store } from "lucide-react";
+import { ArrowRight, MessageSquare, Star, Store } from "lucide-react";
 
 import { toggleShopSpotlight, toggleShopStatus } from "@/app/admin/actions";
 import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
@@ -167,6 +167,16 @@ export default async function AdminShopsPage({
                   <Link href={`/admin/shops/${shop.id}`}>
                     View store
                     <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+
+                <Button
+                  asChild
+                  className="w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                >
+                  <Link href={`/admin/shops/${shop.id}/messages`}>
+                    <MessageSquare className="h-4 w-4" />
+                    Message store
                   </Link>
                 </Button>
 

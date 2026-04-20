@@ -273,13 +273,22 @@ class _InboxTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarUrl = showBuyerIdentity ? thread.buyerAvatarUrl : thread.shopLogoUrl;
-    final title = showBuyerIdentity
-        ? (thread.buyerDisplayName ?? 'Buyer')
-        : (thread.shopName ?? 'Artisan');
-    final subtitle = showBuyerIdentity
-        ? (thread.shopName ?? 'Shop conversation')
-        : 'Shop conversation';
+    final isAdminThread = thread.kind.isAdminVendor;
+    final avatarUrl = isAdminThread
+        ? null
+        : (showBuyerIdentity ? thread.buyerAvatarUrl : thread.shopLogoUrl);
+    final title = isAdminThread
+        ? 'Artisan Lane Support'
+        : (showBuyerIdentity
+              ? (thread.buyerDisplayName ?? 'Buyer')
+              : (thread.shopName ?? 'Artisan'));
+    final subtitle = isAdminThread
+        ? (showBuyerIdentity
+              ? 'Message from the Artisan Lane team'
+              : 'From the Artisan Lane team')
+        : (showBuyerIdentity
+              ? (thread.shopName ?? 'Shop conversation')
+              : 'Shop conversation');
 
     return Material(
       color: Colors.white,
