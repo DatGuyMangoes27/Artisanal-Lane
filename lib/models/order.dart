@@ -92,6 +92,29 @@ class Order {
   double get giftFee => giftFeeForSelection(isGift: isGift);
   double get grandTotal => total + shippingCost + giftFee;
 
+  String? get pickupPointSummary {
+    final pickupPoint = shippingAddress?['pickup_point'];
+    if (pickupPoint is String) {
+      final trimmed = pickupPoint.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (pickupPoint is Map<String, dynamic>) {
+      final parts = <String>[
+        if ((pickupPoint['name'] as String?)?.trim().isNotEmpty == true)
+          (pickupPoint['name'] as String).trim(),
+        if ((pickupPoint['code'] as String?)?.trim().isNotEmpty == true)
+          '(${(pickupPoint['code'] as String).trim()})',
+        if ((pickupPoint['address'] as String?)?.trim().isNotEmpty == true)
+          (pickupPoint['address'] as String).trim(),
+        if ((pickupPoint['province'] as String?)?.trim().isNotEmpty == true)
+          (pickupPoint['province'] as String).trim(),
+      ];
+      final summary = parts.join(' ').replaceAll(' )', ')').trim();
+      return summary.isEmpty ? null : summary;
+    }
+    return null;
+  }
+
   String get shippingMethodDisplay {
     switch (shippingMethod) {
       case 'courier_guy':

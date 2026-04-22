@@ -442,6 +442,40 @@ void main() {
     expect(currentPriceLabelForSalePrice('249.00'), 'Original Price (R)');
   });
 
+  test('Product form pricing normalizes sale prices for saving', () {
+    expect(
+      normalizeProductPricingForSave(
+        currentPriceText: '250.00',
+        salePriceText: '190.00',
+      ),
+      const ProductPricingValues(price: 190, compareAtPrice: 250),
+    );
+    expect(
+      normalizeProductPricingForSave(
+        currentPriceText: '190.00',
+        salePriceText: '',
+      ),
+      const ProductPricingValues(price: 190, compareAtPrice: null),
+    );
+  });
+
+  test('Product form pricing loads sale values into the correct fields', () {
+    expect(
+      pricingFieldsFromStoredValues(price: 190, compareAtPrice: 250),
+      const ProductPricingFieldValues(
+        currentPriceText: '250.00',
+        salePriceText: '190.00',
+      ),
+    );
+    expect(
+      pricingFieldsFromStoredValues(price: 250, compareAtPrice: 190),
+      const ProductPricingFieldValues(
+        currentPriceText: '250.00',
+        salePriceText: '190.00',
+      ),
+    );
+  });
+
   test('Checkout validation identifies the first missing field', () {
     expect(
       firstIncompleteCheckoutField(
@@ -454,6 +488,8 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: 'courier_guy',
           hasAvailableShippingMethods: true,
+          requiresPickupPoint: false,
+          pickupPoint: '',
         ),
       ),
       CheckoutField.fullName,
@@ -469,6 +505,8 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: 'courier_guy',
           hasAvailableShippingMethods: true,
+          requiresPickupPoint: false,
+          pickupPoint: '',
         ),
       ),
       CheckoutField.province,
@@ -484,9 +522,28 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: null,
           hasAvailableShippingMethods: true,
+          requiresPickupPoint: false,
+          pickupPoint: '',
         ),
       ),
       CheckoutField.shippingMethod,
+    );
+    expect(
+      firstIncompleteCheckoutField(
+        const CheckoutFormSnapshot(
+          fullName: 'Alicia',
+          streetAddress: '12 Main Road',
+          city: 'Cape Town',
+          postalCode: '8001',
+          province: 'Western Cape',
+          phoneNumber: '0820000000',
+          selectedShippingMethod: 'courier_guy',
+          hasAvailableShippingMethods: true,
+          requiresPickupPoint: true,
+          pickupPoint: '',
+        ),
+      ),
+      CheckoutField.pickupPoint,
     );
   });
 
@@ -503,6 +560,8 @@ void main() {
             phoneNumber: '0820000000',
             selectedShippingMethod: null,
             hasAvailableShippingMethods: false,
+            requiresPickupPoint: false,
+            pickupPoint: '',
           ),
         ),
       ),
@@ -511,6 +570,48 @@ void main() {
     expect(
       checkoutBlockingMessage(CheckoutField.phoneNumber),
       'Please complete your checkout details before continuing to TradeSafe.',
+    );
+    expect(
+      checkoutBlockingMessage(CheckoutField.pickupPoint),
+      'Please enter the pickup point or drop-off location for this shipping method.',
+    );
+  });
+
+  test('Order pickup point summary supports both legacy text and locker maps', () {
+    final legacyOrder = Order(
+      id: 'ord-1',
+      buyerId: 'buyer-1',
+      shopId: 'shop-1',
+      status: 'pending',
+      total: 100,
+      createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
+      updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
+      shippingAddress: const {
+        'pickup_point': 'PAXI Point CPT001',
+      },
+    );
+    expect(legacyOrder.pickupPointSummary, 'PAXI Point CPT001');
+
+    final structuredOrder = Order(
+      id: 'ord-2',
+      buyerId: 'buyer-1',
+      shopId: 'shop-1',
+      status: 'pending',
+      total: 100,
+      createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
+      updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
+      shippingAddress: const {
+        'pickup_point': {
+          'name': 'Cradlestone Mall',
+          'code': 'CG70',
+          'address': '17 Hendrik Potgieter Rd, Krugersdorp',
+          'province': 'Gauteng',
+        },
+      },
+    );
+    expect(
+      structuredOrder.pickupPointSummary,
+      'Cradlestone Mall (CG70) 17 Hendrik Potgieter Rd, Krugersdorp Gauteng',
     );
   });
 

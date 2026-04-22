@@ -387,8 +387,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: 'stationery',
-                builder: (context, state) =>
-                    const VendorStationeryRequestsScreen(),
+                builder: (context, state) => VendorStationeryRequestsScreen(
+                  paymentStatus: state.uri.queryParameters['status'],
+                ),
               ),
               GoRoute(
                 path: 'payouts',

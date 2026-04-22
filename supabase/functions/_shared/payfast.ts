@@ -53,9 +53,22 @@ function createMd5Hash(input: string) {
 }
 
 function addMonths(date: Date, months: number) {
-  const next = new Date(date);
-  next.setUTCMonth(next.getUTCMonth() + months);
-  return next;
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  const targetMonthIndex = month + months;
+  const targetYear = year + Math.floor(targetMonthIndex / 12);
+  const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+  const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, normalizedMonth + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(
+    targetYear,
+    normalizedMonth,
+    Math.min(day, lastDayOfTargetMonth),
+    date.getUTCHours(),
+    date.getUTCMinutes(),
+    date.getUTCSeconds(),
+    date.getUTCMilliseconds(),
+  ));
 }
 
 function splitDisplayName(displayName: string) {
@@ -104,7 +117,7 @@ export function buildPayFastSubscriptionCheckoutUrl(input: {
 }) {
   const config = getPayFastConfig();
   const { firstName, lastName } = splitDisplayName(input.displayName);
-  const billingDate = new Date().toISOString().slice(0, 10);
+  const billingDate = addMonths(new Date(), 1).toISOString().slice(0, 10);
   const entries: Array<[string, string]> = [
     ["merchant_id", config.merchantId],
     ["merchant_key", config.merchantKey],
@@ -125,6 +138,48 @@ export function buildPayFastSubscriptionCheckoutUrl(input: {
     ["frequency", "3"],
     ["cycles", "0"],
   ];
+
+  const payload = buildSignaturePayload(entries, config.passphrase ?? undefined);
+  const signature = createMd5Hash(payload);
+
+  return `${config.processUrl}?${payload}&signature=${signature}`;
+}
+
+export function buildPayFastOnceOffCheckoutUrl(input: {
+  amount: number;
+  itemName: string;
+  itemDescription: string;
+  reference: string;
+  email: string;
+  displayName: string;
+  returnUrl: string;
+  cancelUrl: string;
+  notifyUrl: string;
+  customStrings?: Array<string | null | undefined>;
+}) {
+  const config = getPayFastConfig();
+  const { firstName, lastName } = splitDisplayName(input.displayName);
+  const entries: Array<[string, string]> = [
+    ["merchant_id", config.merchantId],
+    ["merchant_key", config.merchantKey],
+    ["return_url", input.returnUrl],
+    ["cancel_url", input.cancelUrl],
+    ["notify_url", input.notifyUrl],
+    ["name_first", firstName],
+    ["name_last", lastName],
+    ["email_address", input.email],
+    ["m_payment_id", input.reference],
+    ["amount", input.amount.toFixed(2)],
+    ["item_name", input.itemName],
+    ["item_description", input.itemDescription],
+  ];
+
+  (input.customStrings ?? []).slice(0, 5).forEach((value, index) => {
+    const normalized = normalizeValue(value);
+    if (normalized != null) {
+      entries.push([`custom_str${index + 1}`, normalized]);
+    }
+  });
 
   const payload = buildSignaturePayload(entries, config.passphrase ?? undefined);
   const signature = createMd5Hash(payload);

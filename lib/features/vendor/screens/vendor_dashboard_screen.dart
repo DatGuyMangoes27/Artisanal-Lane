@@ -12,6 +12,7 @@ import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
 import '../utils/vendor_payout_setup.dart';
 import '../utils/vendor_subscription_setup.dart';
+import 'payfast_subscription_checkout_screen.dart';
 
 class VendorDashboardScreen extends ConsumerWidget {
   const VendorDashboardScreen({super.key});
@@ -999,6 +1000,7 @@ class _StationeryItem {
   final String name;
   final String description;
   final IconData icon;
+  final double unitPrice;
   int quantity = 0;
 
   _StationeryItem({
@@ -1006,6 +1008,7 @@ class _StationeryItem {
     required this.name,
     required this.description,
     required this.icon,
+    required this.unitPrice,
   });
 }
 
@@ -1029,18 +1032,21 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
       name: 'Gift Tag',
       description: '50 x 80 mm branded tag — R7 each',
       icon: Icons.style_outlined,
+      unitPrice: 7,
     ),
     _StationeryItem(
       key: 'wrap_sheet',
       name: 'Wrap Sheet',
       description: '500 x 700 mm branded wrap sheet — R15 each',
       icon: Icons.inventory_2_outlined,
+      unitPrice: 15,
     ),
     _StationeryItem(
       key: 'sticker',
       name: 'Sticker',
       description: 'Branded sticker — R4 each',
       icon: Icons.local_offer_outlined,
+      unitPrice: 4,
     ),
   ];
 
@@ -1053,15 +1059,16 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
 
   bool get _hasItems => _items.any((i) => i.quantity > 0);
 
+  double get _totalAmount =>
+      _items.fold(0, (sum, item) => sum + (item.quantity * item.unitPrice));
+
   Future<void> _submit() async {
     if (!_hasItems) return;
     setState(() => _isSubmitting = true);
     try {
       final service = ref.read(supabaseServiceProvider);
-      final userId = Supabase.instance.client.auth.currentUser!.id;
-      await service.submitStationeryRequest(
+      final checkoutSession = await service.createStationeryCheckout(
         shopId: widget.shop.id,
-        vendorId: userId,
         items: _items
             .where((i) => i.quantity > 0)
             .map((i) => {'key': i.key, 'name': i.name, 'quantity': i.quantity})
@@ -1073,20 +1080,17 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
             ? null
             : _addressController.text.trim(),
       );
-      ref.invalidate(vendorStationeryRequestsProvider);
-      ref.invalidate(vendorStationeryRequestsStreamProvider);
+      final checkoutUri = Uri.tryParse(checkoutSession.checkoutUrl);
+      if (checkoutUri == null) {
+        throw Exception('PayFast returned an invalid checkout URL.');
+      }
+
       if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Stationery order submitted! Artisan Lane will be in touch.',
-              style: GoogleFonts.poppins(fontSize: 13, color: Colors.white),
-            ),
-            backgroundColor: AppTheme.baobab,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => PayfastSubscriptionCheckoutScreen(
+              checkoutUri: checkoutUri,
+              title: 'Pay for Stationery',
             ),
           ),
         );
@@ -1369,7 +1373,7 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Artisan Lane will contact you to confirm pricing & delivery.',
+                      'You will pay securely with PayFast before the request is sent to fulfilment.',
                       style: GoogleFonts.poppins(
                         fontSize: 11,
                         color: AppTheme.textHint,
@@ -1379,12 +1383,45 @@ class _StationeryOrderSheetState extends ConsumerState<_StationeryOrderSheet> {
                 ],
               ),
               const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.35),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total due',
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'R${_totalAmount.toStringAsFixed(2)}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
 
               GradientButton(
-                label: 'Submit Order',
+                label: 'Continue to PayFast',
                 onPressed: _hasItems && !_isSubmitting ? _submit : null,
                 isLoading: _isSubmitting,
-                icon: Icons.send_outlined,
+                icon: Icons.lock_outline_rounded,
               ),
             ],
           ),

@@ -44,15 +44,26 @@ Deno.serve(async (request) => {
     ? verifyPayFastItnSignatureFromRaw(rawBody, config.passphrase)
     : null;
 
-  const vendorId = params.get("custom_str1")?.trim() || null;
-  const checkoutReference = params.get("custom_str2")?.trim() || null;
+  const integrationType = params.get("custom_str1")?.trim() || null;
+  const isStationeryPayment = integrationType === "stationery_request";
+  const vendorId = isStationeryPayment
+    ? params.get("custom_str3")?.trim() || null
+    : params.get("custom_str1")?.trim() || null;
+  const checkoutReference = isStationeryPayment
+    ? params.get("custom_str4")?.trim() || null
+    : params.get("custom_str2")?.trim() || null;
+  const stationeryRequestId = isStationeryPayment
+    ? params.get("custom_str2")?.trim() || null
+    : null;
   const paymentStatus = params.get("payment_status");
   const payfastPaymentId = params.get("pf_payment_id");
   const payfastToken = params.get("token");
   const payfastSubscriptionId = params.get("subscription_id");
 
   console.log("payfast-itn received", {
+    integrationType,
     vendorId,
+    stationeryRequestId,
     checkoutReference,
     paymentStatus,
     payfastPaymentId,
@@ -70,31 +81,58 @@ Deno.serve(async (request) => {
   });
 
   if (vendorId != null) {
-    await admin
-      .from("vendor_subscriptions")
-      .update({
-        last_itn_at: nowIso,
-        last_itn_payload: {
-          body: toObject(params),
-          signature_matches: signatureCheck?.matches ?? false,
-          expected_signature: signatureCheck?.expectedSignature ?? null,
-          received_at: nowIso,
-        },
-      })
-      .eq("vendor_id", vendorId);
+    if (isStationeryPayment) {
+      await admin
+        .from("stationery_requests")
+        .update({
+          last_itn_at: nowIso,
+          last_itn_payload: {
+            body: toObject(params),
+            signature_matches: signatureCheck?.matches ?? false,
+            expected_signature: signatureCheck?.expectedSignature ?? null,
+            received_at: nowIso,
+          },
+        })
+        .eq("id", stationeryRequestId ?? "")
+        .eq("vendor_id", vendorId);
+    } else {
+      await admin
+        .from("vendor_subscriptions")
+        .update({
+          last_itn_at: nowIso,
+          last_itn_payload: {
+            body: toObject(params),
+            signature_matches: signatureCheck?.matches ?? false,
+            expected_signature: signatureCheck?.expectedSignature ?? null,
+            received_at: nowIso,
+          },
+        })
+        .eq("vendor_id", vendorId);
+    }
   }
 
   if (signatureCheck == null || !signatureCheck.matches) {
     if (vendorId != null) {
-      await admin
-        .from("vendor_subscriptions")
-        .update({
-          status_reason: "PayFast ITN signature did not match.",
-        })
-        .eq("vendor_id", vendorId);
+      if (isStationeryPayment) {
+        await admin
+          .from("stationery_requests")
+          .update({
+            status_reason: "PayFast ITN signature did not match.",
+          })
+          .eq("id", stationeryRequestId ?? "")
+          .eq("vendor_id", vendorId);
+      } else {
+        await admin
+          .from("vendor_subscriptions")
+          .update({
+            status_reason: "PayFast ITN signature did not match.",
+          })
+          .eq("vendor_id", vendorId);
+      }
     }
     console.warn("payfast-itn rejected signature", {
       vendorId,
+      stationeryRequestId,
       providedSignature: signatureCheck?.providedSignature,
       expectedSignature: signatureCheck?.expectedSignature,
       signingString: signatureCheck?.signingString,
@@ -108,6 +146,49 @@ Deno.serve(async (request) => {
   }
 
   if (vendorId == null) {
+    return textResponse("OK");
+  }
+
+  if (isStationeryPayment) {
+    if (stationeryRequestId == null) {
+      return textResponse("OK");
+    }
+
+    const nextStatus = (() => {
+      switch ((paymentStatus ?? "").toUpperCase()) {
+        case "COMPLETE":
+          return "paid";
+        default:
+          return "awaiting_payment";
+      }
+    })();
+
+    const nextStatusReason = nextStatus === "paid"
+      ? null
+      : (paymentStatus ?? "").toUpperCase() === "CANCELLED"
+      ? "The PayFast payment was cancelled."
+      : "The PayFast payment did not complete.";
+
+    await admin
+      .from("stationery_requests")
+      .update({
+        status: nextStatus,
+        payfast_payment_id: payfastPaymentId,
+        payfast_email: params.get("email_address"),
+        paid_at: nextStatus === "paid" ? nowIso : null,
+        status_reason: nextStatusReason,
+        checkout_reference: checkoutReference,
+        last_itn_at: nowIso,
+        last_itn_payload: {
+          body: toObject(params),
+          signature_matches: true,
+          expected_signature: signatureCheck.expectedSignature,
+          received_at: nowIso,
+        },
+      })
+      .eq("id", stationeryRequestId)
+      .eq("vendor_id", vendorId);
+
     return textResponse("OK");
   }
 

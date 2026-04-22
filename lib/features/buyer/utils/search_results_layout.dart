@@ -1,2 +1,2 @@
-const double searchResultsChipRailHeight = 52;
-const double searchResultsChipRailVerticalPadding = 4;
+const double searchResultsChipRailHeight = 60;
+const double searchResultsChipRailVerticalPadding = 6;

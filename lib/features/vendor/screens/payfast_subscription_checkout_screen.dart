@@ -10,10 +10,12 @@ import '../providers/vendor_providers.dart';
 
 class PayfastSubscriptionCheckoutScreen extends ConsumerStatefulWidget {
   final Uri checkoutUri;
+  final String title;
 
   const PayfastSubscriptionCheckoutScreen({
     super.key,
     required this.checkoutUri,
+    this.title = 'Activate Subscription',
   });
 
   @override
@@ -95,7 +97,7 @@ class _PayfastSubscriptionCheckoutScreenState
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
-          'Activate Subscription',
+          widget.title,
           style: GoogleFonts.playfairDisplay(
             color: AppTheme.textPrimary,
             fontWeight: FontWeight.w700,

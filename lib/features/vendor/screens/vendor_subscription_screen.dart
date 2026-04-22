@@ -232,15 +232,27 @@ class _VendorSubscriptionScreenState
 
   @override
   Widget build(BuildContext context) {
+    final subscriptionStreamAsync = ref.watch(vendorSubscriptionStreamProvider);
+    final subscriptionFutureAsync = ref.watch(vendorSubscriptionProvider);
     final subscription =
-        ref.watch(vendorSubscriptionStreamProvider).value ??
-        ref.watch(vendorSubscriptionProvider).value;
+        subscriptionStreamAsync.value ?? subscriptionFutureAsync.value;
+    final subscriptionError =
+        subscriptionStreamAsync.error ?? subscriptionFutureAsync.error;
+    final isSubscriptionLoading =
+        subscription == null &&
+        subscriptionError == null &&
+        (subscriptionStreamAsync.isLoading || subscriptionFutureAsync.isLoading);
     final status = subscription?.status ?? 'inactive';
     final isActive = isVendorSubscriptionActive(subscription);
     final isCancelledButAccessible =
         isVendorSubscriptionCancelledButAccessible(subscription);
     final canCancel = status == 'active' && isActive;
     final isActivating = _isWaitingForActivation && !isActive;
+    final canStartSubscription =
+        !isSubscriptionLoading &&
+        subscriptionError == null &&
+        status != 'active' &&
+        !isActivating;
 
     if (isActive && _activationPollTimer?.isActive == true) {
       _activationPollTimer?.cancel();
@@ -287,6 +299,8 @@ class _VendorSubscriptionScreenState
                 subscription: subscription,
                 isActive: isActive,
                 isCancelledButAccessible: isCancelledButAccessible,
+                isLoading: isSubscriptionLoading,
+                errorMessage: subscriptionError?.toString(),
               ),
               const SizedBox(height: 20),
               _FeatureCard(
@@ -301,26 +315,25 @@ class _VendorSubscriptionScreenState
               _FeatureCard(
                 title: 'Billing',
                 items: const [
-                  'R349 per month',
+                  'First month free',
+                  'R349 per month after your free month',
                   'Secure recurring card billing through PayFast',
-                  'Existing artisans need an active subscription immediately',
+                  'Add your card now, with the first charge starting in one month',
                 ],
               ),
               const SizedBox(height: 24),
               GradientButton(
-                label: status == 'active'
-                    ? 'Subscription Active'
-                    : isCancelledButAccessible
-                    ? 'Resubscribe • R349/month'
-                    : isActivating
-                    ? 'Activating subscription…'
-                    : status == 'pending'
-                    ? 'Resume PayFast Checkout'
-                    : 'Start Subscription • R349/month',
-                onPressed: (status == 'active' || isActivating)
-                    ? null
-                    : _startSubscription,
-                isLoading: _startingCheckout || isActivating,
+                label: vendorSubscriptionCtaLabel(
+                  status: status,
+                  isSubscriptionLoading: isSubscriptionLoading,
+                  isActivating: isActivating,
+                  isCancelledButAccessible: isCancelledButAccessible,
+                  subscriptionError: subscriptionError,
+                ),
+                onPressed: canStartSubscription ? _startSubscription : null,
+                isLoading:
+                    (!isSubscriptionLoading && _startingCheckout) || isActivating,
+                fontSize: 15,
               ),
               if (canCancel && subscription != null) ...[
                 const SizedBox(height: 12),
@@ -388,17 +401,25 @@ class _SubscriptionHeroCard extends StatelessWidget {
   final VendorSubscription? subscription;
   final bool isActive;
   final bool isCancelledButAccessible;
+  final bool isLoading;
+  final String? errorMessage;
 
   const _SubscriptionHeroCard({
     required this.subscription,
     required this.isActive,
     this.isCancelledButAccessible = false,
+    this.isLoading = false,
+    this.errorMessage,
   });
 
   @override
   Widget build(BuildContext context) {
     final status = subscription?.status ?? 'inactive';
-    final statusColor = switch (status) {
+    final statusColor = isLoading
+        ? AppTheme.ochre
+        : errorMessage != null
+        ? AppTheme.error
+        : switch (status) {
       'active' => AppTheme.baobab,
       'pending' => AppTheme.ochre,
       'past_due' => AppTheme.error,
@@ -406,6 +427,19 @@ class _SubscriptionHeroCard extends StatelessWidget {
         isCancelledButAccessible ? AppTheme.ochre : AppTheme.textHint,
       _ => AppTheme.terracotta,
     };
+    final statusLabel = isLoading
+        ? 'Checking subscription'
+        : errorMessage != null
+        ? 'Subscription unavailable'
+        : vendorSubscriptionStatusTitle(
+            status,
+            cancelledStillAccessible: isCancelledButAccessible,
+          );
+    final statusMessage = isLoading
+        ? 'Checking your subscription status...'
+        : errorMessage != null
+        ? 'We could not load your subscription right now. Pull to refresh and try again.'
+        : vendorSubscriptionStatusMessage(subscription);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -431,10 +465,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              vendorSubscriptionStatusTitle(
-                status,
-                cancelledStillAccessible: isCancelledButAccessible,
-              ),
+              statusLabel,
               style: GoogleFonts.poppins(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -453,7 +484,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'R${artisanSubscriptionAmount.toStringAsFixed(0)} / month',
+            'First month free, then R${artisanSubscriptionAmount.toStringAsFixed(0)} / month',
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,
@@ -461,14 +492,39 @@ class _SubscriptionHeroCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            vendorSubscriptionStatusMessage(subscription),
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-              height: 1.5,
+          if (isLoading) ...[
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppTheme.ochre,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    statusMessage,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+          ] else
+            Text(
+              statusMessage,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+                height: 1.5,
+              ),
+            ),
           if (isActive && subscription?.currentPeriodEnd != null) ...[
             const SizedBox(height: 12),
             Text(

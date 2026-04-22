@@ -152,12 +152,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _isInitialized = true;
     _titleController.text = product.title;
     _descriptionController.text = product.description ?? '';
-    _priceController.text = product.price.toStringAsFixed(2);
-    if (product.compareAtPrice != null) {
-      _compareAtPriceController.text = product.compareAtPrice!.toStringAsFixed(
-        2,
-      );
-    }
+    final pricingFields = pricingFieldsFromStoredValues(
+      price: product.price,
+      compareAtPrice: product.compareAtPrice,
+    );
+    _priceController.text = pricingFields.currentPriceText;
+    _compareAtPriceController.text = pricingFields.salePriceText;
     _stockController.text = product.stockQty.toString();
     _selectedCategoryId = product.categoryId;
     _selectedSubcategoryId = product.subcategoryId;
@@ -776,6 +776,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       final List<String> coverImages;
       final double fallbackPrice;
       final int fallbackStock;
+      final formPricing = normalizeProductPricingForSave(
+        currentPriceText: _priceController.text.trim(),
+        salePriceText: _compareAtPriceController.text.trim(),
+      );
 
       if (_hasOptions) {
         final optionOneName = _optionOneNameController.text.trim();
@@ -789,6 +793,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               variant.optionTwoController.text.trim(),
           ];
           final displayName = optionValues.join(' / ');
+          final variantPricing = normalizeProductPricingForSave(
+            currentPriceText: variant.priceController.text.trim(),
+            salePriceText: variant.compareAtPriceController.text.trim(),
+          );
           return <String, dynamic>{
             if (variant.id != null) 'id': variant.id,
             'display_name': displayName,
@@ -796,11 +804,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 ? optionValues.first
                 : displayName,
             'option_values': optionValues,
-            'price': double.parse(variant.priceController.text.trim()),
-            'compare_at_price':
-                variant.compareAtPriceController.text.trim().isNotEmpty
-                ? double.parse(variant.compareAtPriceController.text.trim())
-                : null,
+            'price': variantPricing.price,
+            'compare_at_price': variantPricing.compareAtPrice,
             'stock_qty': int.parse(variant.stockController.text.trim()),
             'images': List<String>.from(variant.imageUrls),
             'is_active': true,
@@ -849,7 +854,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         variantPayloads = const <Map<String, dynamic>>[];
         optionGroups = const <Map<String, dynamic>>[];
         coverImages = List<String>.from(_imageUrls);
-        fallbackPrice = double.parse(_priceController.text.trim());
+        fallbackPrice = formPricing.price;
         fallbackStock = int.parse(_stockController.text.trim());
       }
 
@@ -868,8 +873,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'variants': variantPayloads,
         if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
         'subcategory_id': _selectedSubcategoryId,
-        if (_compareAtPriceController.text.isNotEmpty)
-          'compare_at_price': double.parse(_compareAtPriceController.text),
+        'compare_at_price': formPricing.compareAtPrice,
         if (_careController.text.trim().isNotEmpty)
           'care_instructions': _careController.text.trim(),
       };
@@ -2364,6 +2368,10 @@ class _VariantDraft {
   }
 
   factory _VariantDraft.fromVariant(ProductVariant variant) {
+    final pricingFields = pricingFieldsFromStoredValues(
+      price: variant.price,
+      compareAtPrice: variant.compareAtPrice,
+    );
     return _VariantDraft(
       id: variant.id,
       optionOneController: TextEditingController(
@@ -2373,10 +2381,10 @@ class _VariantDraft {
         text: variant.optionValueAt(1) ?? '',
       ),
       priceController: TextEditingController(
-        text: variant.price.toStringAsFixed(2),
+        text: pricingFields.currentPriceText,
       ),
       compareAtPriceController: TextEditingController(
-        text: variant.compareAtPrice?.toStringAsFixed(2) ?? '',
+        text: pricingFields.salePriceText,
       ),
       stockController: TextEditingController(text: variant.stockQty.toString()),
       imageUrls: List<String>.from(variant.images),

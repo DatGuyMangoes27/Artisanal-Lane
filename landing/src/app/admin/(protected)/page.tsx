@@ -33,7 +33,10 @@ export default async function AdminDashboardPage() {
     (dispute) => dispute.status === "open" || dispute.status === "investigating",
   );
   const openStationeryRequests = stationeryRequests.filter(
-    (request) => request.status === "pending" || request.status === "processing",
+    (request) =>
+      request.status === "awaiting_payment" ||
+      request.status === "paid" ||
+      request.status === "processing",
   );
 
   return (

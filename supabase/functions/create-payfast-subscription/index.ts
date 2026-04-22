@@ -126,7 +126,7 @@ Deno.serve(async (request) => {
     const checkoutUrl = buildPayFastSubscriptionCheckoutUrl({
       amount: artisanSubscriptionAmount,
       itemName: "Artisan Lane Subscription",
-      itemDescription: "Monthly artisan subscription",
+      itemDescription: "Artisan subscription with first month free",
       reference: paymentReference,
       vendorId: user.id,
       checkoutReference,

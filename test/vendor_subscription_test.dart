@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:artisanal_lane/features/buyer/utils/payment_deep_links.dart';
 import 'package:artisanal_lane/features/vendor/providers/vendor_providers.dart';
 import 'package:artisanal_lane/features/vendor/screens/product_form_screen.dart';
@@ -92,6 +94,76 @@ void main() {
     expect(find.text('Subscription active'), findsOneWidget);
     expect(find.textContaining('Current period ends'), findsOneWidget);
   });
+
+  test('inactive subscription copy mentions the free first month', () {
+    expect(
+      vendorSubscriptionGateMessage,
+      contains('free first month'),
+    );
+  });
+
+  test('inactive subscription CTA uses the shorter free-month label', () {
+    expect(
+      vendorSubscriptionCtaLabel(
+        status: 'inactive',
+        isSubscriptionLoading: false,
+        isActivating: false,
+        isCancelledButAccessible: false,
+      ),
+      'Start Free Month',
+    );
+  });
+
+  testWidgets('subscription screen uses the shorter free-month CTA copy', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          vendorSubscriptionProvider.overrideWith((ref) async => null),
+          vendorSubscriptionStreamProvider.overrideWith(
+            (ref) => Stream.value(null),
+          ),
+        ],
+        child: const MaterialApp(
+          home: VendorSubscriptionScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Start Subscription • R349/month'), findsNothing);
+    expect(find.textContaining('First month free'), findsWidgets);
+  });
+
+  testWidgets(
+    'subscription screen shows loading state instead of inactive fallback',
+    (tester) async {
+      final pendingFuture = Completer<VendorSubscription?>();
+      final streamController = StreamController<VendorSubscription?>();
+      addTearDown(streamController.close);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            vendorSubscriptionProvider.overrideWith((ref) => pendingFuture.future),
+            vendorSubscriptionStreamProvider.overrideWith(
+              (ref) => streamController.stream,
+            ),
+          ],
+          child: const MaterialApp(
+            home: VendorSubscriptionScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Subscription inactive'), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(find.text('Checking your subscription status...'), findsOneWidget);
+      expect(find.text('Start Subscription • R349/month'), findsNothing);
+    },
+  );
 
   testWidgets('product form blocks new listings without subscription', (
     tester,

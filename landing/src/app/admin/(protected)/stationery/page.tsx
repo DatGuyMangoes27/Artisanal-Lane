@@ -57,7 +57,8 @@ export default async function AdminStationeryPage({
             name="status"
           >
             <option value="all">All statuses</option>
-            <option value="pending">Pending</option>
+            <option value="awaiting_payment">Awaiting payment</option>
+            <option value="paid">Paid</option>
             <option value="processing">Processing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>
@@ -117,10 +118,36 @@ export default async function AdminStationeryPage({
                       <span className="font-medium text-artisan-sienna">Total units:</span>{" "}
                       {request.totalQuantity}
                     </p>
+                    <p>
+                      <span className="font-medium text-artisan-sienna">Amount:</span>{" "}
+                      {(request.currency ?? "ZAR")} {Number(request.amount ?? 0).toFixed(2)}
+                    </p>
                     <p className="md:col-span-2 xl:col-span-3">
                       <span className="font-medium text-artisan-sienna">Items:</span>{" "}
                       {formatItems(request.items)}
                     </p>
+                    {request.paid_at ? (
+                      <p>
+                        <span className="font-medium text-artisan-sienna">Paid at:</span>{" "}
+                        {new Date(request.paid_at).toLocaleString()}
+                      </p>
+                    ) : null}
+                    {request.payfast_payment_id ? (
+                      <p className="md:col-span-2 xl:col-span-3">
+                        <span className="font-medium text-artisan-sienna">
+                          PayFast payment ID:
+                        </span>{" "}
+                        {request.payfast_payment_id}
+                      </p>
+                    ) : null}
+                    {request.status_reason ? (
+                      <p className="md:col-span-2 xl:col-span-3">
+                        <span className="font-medium text-artisan-sienna">
+                          Payment note:
+                        </span>{" "}
+                        {request.status_reason}
+                      </p>
+                    ) : null}
                     <p className="md:col-span-2 xl:col-span-3">
                       <span className="font-medium text-artisan-sienna">
                         Delivery address:

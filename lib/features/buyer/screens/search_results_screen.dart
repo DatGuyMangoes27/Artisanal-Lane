@@ -262,7 +262,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             onTap: () => setState(() => _selectedFilter = index),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               decoration: BoxDecoration(
                 color: selected ? AppTheme.terracotta : Colors.white,
                 borderRadius: BorderRadius.circular(24),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
+import '../../../models/courier_guy_locker.dart';
 import '../../../models/shipping_option.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
@@ -56,8 +59,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _postalController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
   final _pickupPointController = TextEditingController(text: '');
+  final _courierGuySearchController = TextEditingController(text: '');
   bool _submitAttempted = false;
   bool _isSubmittingPayment = false;
+  String? _courierGuyLockerProvince;
+  bool _isLoadingCourierGuyLockers = false;
+  String? _courierGuyLockerError;
+  CourierGuyLocker? _selectedCourierGuyLocker;
+  List<CourierGuyLocker> _courierGuyLockers = const [];
+  Timer? _courierGuySearchDebounce;
 
   @override
   void dispose() {
@@ -68,12 +78,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _postalFocusNode.dispose();
     _phoneFocusNode.dispose();
     _pickupPointFocusNode.dispose();
+    _courierGuySearchDebounce?.cancel();
     _nameController.dispose();
     _streetController.dispose();
     _cityController.dispose();
     _postalController.dispose();
     _phoneController.dispose();
     _pickupPointController.dispose();
+    _courierGuySearchController.dispose();
     super.dispose();
   }
 
@@ -142,6 +154,78 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       default:
         return 'Enter the pickup point details';
     }
+  }
+
+  String _courierGuyLockerSummary(CourierGuyLocker locker) {
+    return [
+      locker.title,
+      if (locker.address.isNotEmpty) locker.address,
+      if (locker.province.isNotEmpty) locker.province,
+    ].join(' • ');
+  }
+
+  void _clearCourierGuyLockerSelection() {
+    _selectedCourierGuyLocker = null;
+    _pickupPointController.clear();
+  }
+
+  Future<void> _searchCourierGuyLockers() async {
+    final search = _courierGuySearchController.text.trim();
+    final province = _courierGuyLockerProvince?.trim();
+    if (search.length < 2 && (province == null || province.isEmpty)) {
+      if (!mounted) return;
+      setState(() {
+        _courierGuyLockers = const [];
+        _courierGuyLockerError = null;
+        _isLoadingCourierGuyLockers = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingCourierGuyLockers = true;
+      _courierGuyLockerError = null;
+    });
+
+    try {
+      final lockers = await ref.read(supabaseServiceProvider).searchCourierGuyLockers(
+            query: search,
+            province: province,
+          );
+      if (!mounted) return;
+      setState(() {
+        _courierGuyLockers = lockers;
+        _isLoadingCourierGuyLockers = false;
+      });
+    } catch (error, stackTrace) {
+      print(
+        '[locker-debug] checkout screen search failed query="$search" province="$province" error=$error stackTrace=$stackTrace',
+      );
+      if (!mounted) return;
+      setState(() {
+        _courierGuyLockers = const [];
+        _courierGuyLockerError =
+            'Could not load Courier Guy lockers right now. Try again in a moment.';
+        _isLoadingCourierGuyLockers = false;
+      });
+    }
+  }
+
+  void _scheduleCourierGuyLockerSearch() {
+    _courierGuySearchDebounce?.cancel();
+    _courierGuySearchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      _searchCourierGuyLockers,
+    );
+  }
+
+  void _selectCourierGuyLocker(CourierGuyLocker locker) {
+    setState(() {
+      _selectedCourierGuyLocker = locker;
+      _pickupPointController.text = _courierGuyLockerSummary(locker);
+      _courierGuyLockers = const [];
+      _courierGuyLockerError = null;
+    });
   }
 
   CheckoutFormSnapshot _checkoutSnapshot(List<ShippingOption> enabledOptions) {
@@ -274,7 +358,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'province': _selectedProvince,
         'country': 'South Africa',
         'phone': _phoneController.text,
-        if (_pickupPointController.text.trim().isNotEmpty)
+        if (_selectedShipping == 'courier_guy' && _selectedCourierGuyLocker != null)
+          'pickup_point': _selectedCourierGuyLocker!.toOrderJson()
+        else if (_pickupPointController.text.trim().isNotEmpty)
           'pickup_point': _pickupPointController.text.trim(),
       },
     };
@@ -459,7 +545,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ...enabledOptions.map(
                             (opt) => _buildShippingTile(opt),
                           ),
-                          if (_requiresPickupPoint(_selectedShipping)) ...[
+                          if (_selectedShipping == 'courier_guy') ...[
+                            const SizedBox(height: 8),
+                            _buildInfoNote(
+                              'Search and select the Courier Guy locker where you want to collect your parcel.',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildDropdownField(
+                              label: 'Locker Province',
+                              value: _courierGuyLockerProvince,
+                              items: _saProvinces,
+                              onChanged: (value) {
+                                setState(() {
+                                  _courierGuyLockerProvince = value;
+                                  _selectedCourierGuyLocker = null;
+                                  _pickupPointController.clear();
+                                });
+                                _searchCourierGuyLockers();
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            _buildTextField(
+                              key: _pickupPointFieldKey,
+                              label: 'Search Courier Guy locker',
+                              controller: _courierGuySearchController,
+                              focusNode: _pickupPointFocusNode,
+                              prefixIcon: Icons.search_rounded,
+                              hintText:
+                                  'Type a mall, suburb, town, or locker code',
+                              validator: (_) => null,
+                              onChanged: (_) {
+                                setState(() => _clearCourierGuyLockerSelection());
+                                _scheduleCourierGuyLockerSearch();
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            if (_selectedCourierGuyLocker != null)
+                              _buildSelectedCourierGuyLockerCard(),
+                            if (_courierGuyLockerError != null) ...[
+                              const SizedBox(height: 12),
+                              _buildInlineErrorCard(_courierGuyLockerError!),
+                            ],
+                            if (_isLoadingCourierGuyLockers) ...[
+                              const SizedBox(height: 12),
+                              const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 16),
+                                  child: CircularProgressIndicator(
+                                    color: AppTheme.terracotta,
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            ] else if (_courierGuyLockers.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _buildCourierGuyLockerResults(),
+                            ],
+                          ] else if (_requiresPickupPoint(_selectedShipping)) ...[
                             const SizedBox(height: 8),
                             _buildInfoNote(
                               'Please enter the pickup point or drop-off location the seller should use for this order.',
@@ -593,15 +735,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     IconData? prefixIcon,
     String? hintText,
     bool readOnly = false,
+    ValueChanged<String>? onChanged,
+    String? Function(String?)? validator,
   }) {
     return TextFormField(
       key: key,
       controller: controller,
       focusNode: focusNode,
+      onChanged: onChanged,
       keyboardType: keyboardType,
       readOnly: readOnly,
-      validator: (value) =>
-          (value == null || value.isEmpty) ? 'Required' : null,
+      validator:
+          validator ??
+          (value) => (value == null || value.isEmpty) ? 'Required' : null,
       style: GoogleFonts.poppins(fontSize: 15, color: AppTheme.textPrimary),
       decoration: InputDecoration(
         labelText: label,
@@ -750,6 +896,163 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
+  Widget _buildInlineErrorCard(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.poppins(
+          fontSize: 12,
+          color: AppTheme.error,
+          height: 1.45,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedCourierGuyLockerCard() {
+    final locker = _selectedCourierGuyLocker!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.baobab.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.baobab.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 18,
+                color: AppTheme.baobab,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      locker.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      locker.subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _clearCourierGuyLockerSelection()),
+              child: Text(
+                'Change locker',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.terracotta,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCourierGuyLockerResults() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          for (int index = 0; index < _courierGuyLockers.length; index++) ...[
+            InkWell(
+              onTap: () => _selectCourierGuyLocker(_courierGuyLockers[index]),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(index == 0 ? 12 : 0),
+                bottom: Radius.circular(
+                  index == _courierGuyLockers.length - 1 ? 12 : 0,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      size: 18,
+                      color: AppTheme.terracotta,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _courierGuyLockers[index].title,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _courierGuyLockers[index].subtitle,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (index != _courierGuyLockers.length - 1)
+              Divider(
+                height: 1,
+                color: AppTheme.sand.withValues(alpha: 0.3),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildShippingTile(ShippingOption option) {
     final isSelected = _selectedShipping == option.key;
     final isFree = option.price == 0;
@@ -757,6 +1060,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return GestureDetector(
       onTap: () => setState(() {
         _selectedShipping = option.key;
+        if (option.key != 'courier_guy') {
+          _clearCourierGuyLockerSelection();
+          _courierGuyLockers = const [];
+          _courierGuyLockerError = null;
+          _courierGuySearchController.clear();
+          _courierGuyLockerProvince = null;
+        }
         if (!_requiresPickupPoint(option.key)) {
           _pickupPointController.clear();
         }

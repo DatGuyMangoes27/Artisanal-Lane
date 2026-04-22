@@ -36,7 +36,8 @@ export function StationeryRequestForm({
             defaultValue={request.status}
             name="status"
           >
-            <option value="pending">Pending</option>
+            <option value="awaiting_payment">Awaiting payment</option>
+            <option value="paid">Paid</option>
             <option value="processing">Processing</option>
             <option value="shipped">Shipped</option>
             <option value="delivered">Delivered</option>

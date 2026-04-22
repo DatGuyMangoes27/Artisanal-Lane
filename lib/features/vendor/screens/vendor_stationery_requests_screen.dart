@@ -1,13 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
+import 'payfast_subscription_checkout_screen.dart';
 
 class VendorStationeryRequestsScreen extends ConsumerStatefulWidget {
-  const VendorStationeryRequestsScreen({super.key});
+  final String? paymentStatus;
+
+  const VendorStationeryRequestsScreen({super.key, this.paymentStatus});
 
   @override
   ConsumerState<VendorStationeryRequestsScreen> createState() =>
@@ -18,6 +24,7 @@ class _VendorStationeryRequestsScreenState
     extends ConsumerState<VendorStationeryRequestsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  Timer? _paymentRefreshTimer;
 
   static const _tabs = ['All', 'Active', 'Shipped', 'Delivered', 'Cancelled'];
 
@@ -25,12 +32,98 @@ class _VendorStationeryRequestsScreenState
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleInitialPaymentStatus();
+    });
   }
 
   @override
   void dispose() {
+    _paymentRefreshTimer?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _handleInitialPaymentStatus() {
+    if (!mounted) return;
+    if (widget.paymentStatus == 'success') {
+      _beginPaymentRefresh();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Payment received. We are confirming your stationery request now.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else if (widget.paymentStatus == 'error') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Your stationery payment was not completed.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _beginPaymentRefresh() {
+    _paymentRefreshTimer?.cancel();
+    ref.invalidate(vendorStationeryRequestsProvider);
+    ref.invalidate(vendorStationeryRequestsStreamProvider);
+
+    var ticks = 0;
+    _paymentRefreshTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      ticks += 1;
+      ref.invalidate(vendorStationeryRequestsProvider);
+      ref.invalidate(vendorStationeryRequestsStreamProvider);
+      if (ticks >= 15) {
+        timer.cancel();
+      }
+    });
+  }
+
+  Future<void> _payForRequest(StationeryRequest request) async {
+    try {
+      final session = await ref
+          .read(supabaseServiceProvider)
+          .createStationeryPaymentCheckout(request.id);
+      final checkoutUri = Uri.tryParse(session.checkoutUrl);
+      if (checkoutUri == null) {
+        throw Exception('PayFast returned an invalid checkout URL.');
+      }
+
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PayfastSubscriptionCheckoutScreen(
+            checkoutUri: checkoutUri,
+            title: 'Pay for Stationery',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$error',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   List<StationeryRequest> _filter(
@@ -82,7 +175,7 @@ class _VendorStationeryRequestsScreenState
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                'Track branded packaging requests and admin fulfilment updates.',
+                'Track branded packaging orders, payments, and fulfilment updates.',
                 style: GoogleFonts.poppins(
                   fontSize: 13,
                   color: AppTheme.textSecondary,
@@ -106,7 +199,7 @@ class _VendorStationeryRequestsScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Stationery payment details',
+                      'Secure PayFast checkout',
                       style: GoogleFonts.poppins(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -115,7 +208,7 @@ class _VendorStationeryRequestsScreenState
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Artisan Lane\nStandard Bank\nAccount number: 10271380908\nSwift: SBZA ZA JJ\nElectronic payment code: 051001',
+                      'New stationery orders are paid online through PayFast before our team starts fulfilment.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: AppTheme.textSecondary,
@@ -124,7 +217,7 @@ class _VendorStationeryRequestsScreenState
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Stationery requests are processed once payment reflects. Use a recognisable payment reference so our team can match your request quickly.',
+                      'If a payment is interrupted, open the request card and tap Pay now to complete it later.',
                       style: GoogleFonts.poppins(
                         fontSize: 12,
                         color: AppTheme.textHint,
@@ -250,11 +343,24 @@ class _VendorStationeryRequestsScreenState
           ),
           const SizedBox(height: 14),
           _buildLabeledText(
+            'Total',
+            '${request.currency} ${request.amount.toStringAsFixed(2)}',
+          ),
+          const SizedBox(height: 10),
+          _buildLabeledText(
             'Items',
             request.items
                 .map((item) => '${item.quantity} x ${item.name}')
                 .join(', '),
           ),
+          if (request.paidAt != null) ...[
+            const SizedBox(height: 10),
+            _buildLabeledText('Paid at', _formatDateTime(request.paidAt!)),
+          ],
+          if (request.statusReason?.isNotEmpty == true) ...[
+            const SizedBox(height: 10),
+            _buildLabeledText('Payment note', request.statusReason!),
+          ],
           if (request.deliveryAddress?.isNotEmpty == true) ...[
             const SizedBox(height: 10),
             _buildLabeledText('Delivery address', request.deliveryAddress!),
@@ -323,6 +429,25 @@ class _VendorStationeryRequestsScreenState
               ),
             ),
           ],
+          if (request.canRetryPayment) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => _payForRequest(request),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.terracotta,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: const Icon(Icons.lock_outline_rounded),
+                label: Text(
+                  'Pay now',
+                  style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -351,6 +476,15 @@ class _VendorStationeryRequestsScreenState
 
   Widget _buildStatusChip(String status) {
     final color = _statusColor(status);
+    final label = switch (status) {
+      'awaiting_payment' => 'Awaiting Payment',
+      'paid' => 'Paid',
+      'processing' => 'Processing',
+      'shipped' => 'Shipped',
+      'delivered' => 'Delivered',
+      'cancelled' => 'Cancelled',
+      _ => status.replaceAll('_', ' '),
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -358,7 +492,7 @@ class _VendorStationeryRequestsScreenState
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        status.toUpperCase(),
+        label,
         style: GoogleFonts.poppins(
           fontSize: 11,
           fontWeight: FontWeight.w600,
@@ -370,6 +504,8 @@ class _VendorStationeryRequestsScreenState
 
   Color _statusColor(String status) {
     switch (status) {
+      case 'paid':
+        return AppTheme.baobab;
       case 'processing':
         return AppTheme.ochre;
       case 'shipped':
@@ -378,6 +514,8 @@ class _VendorStationeryRequestsScreenState
         return AppTheme.statusDelivered;
       case 'cancelled':
         return AppTheme.statusCancelled;
+      case 'awaiting_payment':
+        return AppTheme.statusPending;
       default:
         return AppTheme.statusPending;
     }

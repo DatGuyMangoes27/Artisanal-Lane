@@ -3,7 +3,7 @@ import '../../../models/vendor_subscription.dart';
 const artisanSubscriptionAmount = 349.0;
 const artisanSubscriptionPlanLabel = 'Artisan Subscription';
 const vendorSubscriptionGateMessage =
-    'Start your R349/month artisan subscription before listing products or receiving new buyer checkouts.';
+    'Start your free first month now. After that, your artisan subscription is R349/month before listing products or receiving new buyer checkouts.';
 
 bool isVendorSubscriptionActive(VendorSubscription? subscription) {
   if (subscription == null) return false;
@@ -66,7 +66,7 @@ String vendorSubscriptionStatusMessage(VendorSubscription? subscription) {
       return 'Your artisan subscription is active through '
           '${_formatCurrentPeriodEnd(periodEnd)}.';
     case 'pending':
-      return 'We are waiting for PayFast to confirm your subscription payment.';
+      return 'We are waiting for PayFast to confirm your free-month subscription setup.';
     case 'past_due':
       return subscription?.statusReason ??
           'Your last PayFast subscription payment needs attention before new sales can continue.';
@@ -82,4 +82,32 @@ String vendorSubscriptionStatusMessage(VendorSubscription? subscription) {
     default:
       return vendorSubscriptionGateMessage;
   }
+}
+
+String vendorSubscriptionCtaLabel({
+  required String status,
+  required bool isSubscriptionLoading,
+  required bool isActivating,
+  required bool isCancelledButAccessible,
+  Object? subscriptionError,
+}) {
+  if (isSubscriptionLoading) {
+    return 'Checking subscription status…';
+  }
+  if (subscriptionError != null) {
+    return 'Could not load subscription';
+  }
+  if (status == 'active') {
+    return 'Subscription Active';
+  }
+  if (isCancelledButAccessible) {
+    return 'Start Free Month';
+  }
+  if (isActivating) {
+    return 'Activating subscription…';
+  }
+  if (status == 'pending') {
+    return 'Resume PayFast Checkout';
+  }
+  return 'Start Free Month';
 }

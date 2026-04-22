@@ -58,34 +58,48 @@ class GradientButton extends StatelessWidget {
           child: InkWell(
             onTap: isLoading ? null : onPressed,
             borderRadius: BorderRadius.circular(borderRadius),
-            child: Center(
-              child: isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: Colors.white,
-                      ),
-                    )
-                  : Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (icon != null) ...[
-                          Icon(icon, color: disabled ? AppTheme.textHint : Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                        ],
-                        Text(
-                          label,
-                          style: GoogleFonts.poppins(
-                            fontSize: fontSize,
-                            fontWeight: FontWeight.w600,
-                            color: disabled ? AppTheme.textHint : Colors.white,
-                            letterSpacing: 0.5,
-                          ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
                         ),
-                      ],
-                    ),
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (icon != null) ...[
+                            Icon(
+                              icon,
+                              color: disabled ? AppTheme.textHint : Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: fontSize,
+                                  fontWeight: FontWeight.w600,
+                                  color: disabled ? AppTheme.textHint : Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
             ),
           ),
         ),

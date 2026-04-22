@@ -340,11 +340,8 @@ class _VendorOrderDetailScreenState
                         order.shippingAddress!['city'],
                         order.shippingAddress!['province'],
                         order.shippingAddress!['postal_code'],
-                        if ((order.shippingAddress!['pickup_point'] ?? '')
-                            .toString()
-                            .trim()
-                            .isNotEmpty)
-                          'Pickup point: ${order.shippingAddress!['pickup_point']}',
+                        if ((order.pickupPointSummary ?? '').isNotEmpty)
+                          'Pickup point: ${order.pickupPointSummary}',
                       ]
                       .where((s) => s != null && s.toString().isNotEmpty)
                       .join('\n'),

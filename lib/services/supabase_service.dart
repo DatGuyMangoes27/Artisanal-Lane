@@ -1303,6 +1303,45 @@ class SupabaseService {
   }
 
   // ── Stationery Requests ───────────────────────────────────────
+  Future<StationeryCheckoutSession> createStationeryCheckout({
+    required String shopId,
+    required List<Map<String, dynamic>> items,
+    String? notes,
+    String? deliveryAddress,
+  }) async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'create-payfast-stationery-checkout',
+      headers: headers,
+      body: {
+        'shopId': shopId,
+        'items': items,
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        if (deliveryAddress != null && deliveryAddress.trim().isNotEmpty)
+          'deliveryAddress': deliveryAddress.trim(),
+      },
+    );
+
+    return StationeryCheckoutSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  Future<StationeryCheckoutSession> createStationeryPaymentCheckout(
+    String requestId,
+  ) async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'create-payfast-stationery-checkout',
+      headers: headers,
+      body: {'requestId': requestId},
+    );
+
+    return StationeryCheckoutSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
   Future<void> submitStationeryRequest({
     required String shopId,
     required String vendorId,
@@ -1920,6 +1959,53 @@ class SupabaseService {
     return CheckoutSession.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
+  }
+
+  Future<List<CourierGuyLocker>> searchCourierGuyLockers({
+    String? query,
+    String? province,
+    int? limit,
+  }) async {
+    final trimmedQuery = query?.trim();
+    final trimmedProvince = province?.trim();
+    final session = _client.auth.currentSession;
+    print(
+      '[locker-debug] search start sessionUser=${session?.user.id} accessTokenPresent=${(session?.accessToken.isNotEmpty ?? false)} refreshTokenPresent=${(session?.refreshToken?.isNotEmpty ?? false)} query="$trimmedQuery" province="$trimmedProvince" limit=$limit',
+    );
+
+    try {
+      final headers = await _authorizedFunctionHeaders();
+      print(
+        '[locker-debug] invoking get-courier-guy-lockers authHeaderPresent=${headers['Authorization']?.isNotEmpty ?? false}',
+      );
+
+      final response = await _client.functions.invoke(
+        'get-courier-guy-lockers',
+        headers: headers,
+        body: {
+          if (trimmedQuery != null && trimmedQuery.isNotEmpty) 'query': trimmedQuery,
+          if (trimmedProvince != null && trimmedProvince.isNotEmpty)
+            'province': trimmedProvince,
+          if (limit != null) 'limit': limit,
+        },
+      );
+
+      print(
+        '[locker-debug] response status=${response.status} dataType=${response.data.runtimeType} data=${response.data}',
+      );
+
+      final payload = Map<String, dynamic>.from(response.data as Map);
+      final data = (payload['lockers'] as List? ?? const [])
+          .map((entry) => CourierGuyLocker.fromJson(Map<String, dynamic>.from(entry as Map)))
+          .toList(growable: false);
+      print('[locker-debug] parsed lockers count=${data.length}');
+      return data;
+    } catch (error, stackTrace) {
+      print(
+        '[locker-debug] search failed error=$error stackTrace=$stackTrace',
+      );
+      rethrow;
+    }
   }
 
   Future<void> clearCart(String userId) async {

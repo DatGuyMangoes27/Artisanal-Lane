@@ -138,11 +138,19 @@ type StationeryRequestRecord = {
   notes: string | null;
   delivery_address: string | null;
   status: string;
+  amount: number | null;
+  currency: string | null;
+  checkout_reference: string | null;
+  payment_reference: string | null;
+  payfast_payment_id: string | null;
+  payfast_email: string | null;
+  status_reason: string | null;
   admin_notes: string | null;
   tracking_number: string | null;
   courier_name: string | null;
   fulfilled_by: string | null;
   fulfilled_at: string | null;
+  paid_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -304,7 +312,7 @@ export async function getDashboardStats() {
     admin
       .from("stationery_requests")
       .select("id", { count: "exact", head: true })
-      .in("status", ["pending", "processing"]),
+      .in("status", ["awaiting_payment", "paid", "processing"]),
     admin.from("escrow_transactions").select("amount, status, platform_fee"),
   ]);
 
@@ -801,7 +809,7 @@ export async function listStationeryRequests(
   const { data } = await admin
     .from("stationery_requests")
     .select(
-      "id, shop_id, vendor_id, items, notes, delivery_address, status, admin_notes, tracking_number, courier_name, fulfilled_by, fulfilled_at, created_at, updated_at",
+      "id, shop_id, vendor_id, items, notes, delivery_address, status, amount, currency, checkout_reference, payment_reference, payfast_payment_id, payfast_email, status_reason, admin_notes, tracking_number, courier_name, fulfilled_by, fulfilled_at, paid_at, created_at, updated_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
