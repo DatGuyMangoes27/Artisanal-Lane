@@ -122,8 +122,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   bool _requiresPickupPoint(String? shippingMethod) {
     return shippingMethod == 'courier_guy' ||
-        shippingMethod == 'pargo' ||
-        shippingMethod == 'paxi';
+        shippingMethod == 'pargo';
   }
 
   bool _isMarketPickup(String? shippingMethod) {
@@ -136,8 +135,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         return 'Courier Guy locker / branch / drop-off point';
       case 'pargo':
         return 'Pargo pickup point';
-      case 'paxi':
-        return 'PAXI point code or store name';
       default:
         return 'Pickup point';
     }
@@ -149,8 +146,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         return 'Enter the locker, branch, or drop-off location the seller should use';
       case 'pargo':
         return 'Enter the Pargo point name, code, or branch the seller should use';
-      case 'paxi':
-        return 'Enter the PAXI point code or store name';
       default:
         return 'Enter the pickup point details';
     }

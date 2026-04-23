@@ -63,7 +63,7 @@ export default function TermsPage() {
           <h3>4.2 Shipping</h3>
           <p>
             Shipping options and costs are set by each artisan. Available methods may include
-            Courier Guy (door-to-door and locker-to-locker), Pargo pickup points, PAXI at PEP stores,
+            Courier Guy (door-to-door and locker-to-locker), Pargo pickup points,
             and Market Pickup (in-person collection). Delivery times are estimates and may vary.
           </p>
           <h3>4.3 Returns &amp; Disputes</h3>

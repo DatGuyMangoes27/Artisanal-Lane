@@ -72,7 +72,7 @@ export default function PrivacyPage() {
           <ul>
             <li><strong>Artisans / Buyers:</strong> Order-related details necessary to fulfil and deliver purchases (e.g. delivery address shared with the artisan).</li>
             <li><strong>Payment Providers:</strong> TradeSafe for escrow payment processing.</li>
-            <li><strong>Delivery Partners:</strong> Courier Guy, Pargo, and PAXI for shipping and logistics.</li>
+            <li><strong>Delivery Partners:</strong> Courier Guy and Pargo for shipping and logistics.</li>
             <li><strong>Legal Requirements:</strong> When required by South African law or to protect our legal rights.</li>
           </ul>
           <p>We never sell your personal information to third parties.</p>

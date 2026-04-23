@@ -68,7 +68,7 @@ class _ShippingRatesReferenceCardState
                         Text(
                           _expanded
                               ? 'Informational only — set your own price per method below.'
-                              : 'Tap to view The Courier Guy & PAXI rates as a guide.',
+                              : 'Tap to view The Courier Guy rates as a guide.',
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             color: AppTheme.textSecondary,
@@ -130,28 +130,9 @@ class _ShippingRatesReferenceCardState
                   _note(
                     'Locker ↔ Kiosk pricing matches Locker ↔ Locker. Kiosk ↔ Door matches Door ↔ Locker. A 12% fuel surcharge applies to any shipment touching a door (effective 1 Apr 2026).',
                   ),
-                  const SizedBox(height: 22),
-
-                  _sectionHeading('PAXI'),
-                  const SizedBox(height: 8),
-                  _subHeading('Store to Store'),
-                  const SizedBox(height: 6),
-                  _simpleRow('Standard bag · 7–9 business days', 'R60'),
-                  const SizedBox(height: 4),
-                  _simpleRow('Standard bag · 3–5 business days', 'R110'),
-                  const SizedBox(height: 4),
-                  _simpleRow('Large bag · 7–9 business days', 'R110'),
-                  const SizedBox(height: 4),
-                  _simpleRow('Large bag · 3–5 business days', 'R140'),
-                  const SizedBox(height: 14),
-                  _subHeading('Store to Home · 3–5 business days'),
-                  const SizedBox(height: 6),
-                  _simpleRow('Standard bag', 'R120'),
-                  const SizedBox(height: 4),
-                  _simpleRow('Large bag', 'R150'),
                   const SizedBox(height: 14),
                   _note(
-                    'Rates sourced from The Courier Guy (effective 1 Oct 2025) and PAXI. Confirm current pricing with the carrier before quoting a buyer.',
+                    'Rates sourced from The Courier Guy (effective 1 Oct 2025). Confirm current pricing with the carrier before quoting a buyer.',
                   ),
                 ],
               ),

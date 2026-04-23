@@ -36,7 +36,6 @@ class AppConstants {
   static const Map<String, String> shippingMethods = {
     'courier_guy': 'The Courier Guy',
     'pargo': 'Pargo',
-    'paxi': 'PAXI',
     'market_pickup': 'Market Pickup',
   };
 

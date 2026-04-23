@@ -577,6 +577,21 @@ void main() {
     );
   });
 
+  test('shipping option catalogue excludes paxi from selectable methods', () {
+    expect(
+      ShippingOption.defaults().map((option) => option.key),
+      isNot(contains('paxi')),
+    );
+
+    final filtered = ShippingOption.listFromJson([
+      {'key': 'courier_guy', 'enabled': true, 'price': 99},
+      {'key': 'paxi', 'enabled': true, 'price': 45},
+      {'key': 'market_pickup', 'enabled': true, 'price': 0},
+    ]);
+
+    expect(filtered.map((option) => option.key), ['courier_guy', 'market_pickup']);
+  });
+
   test('Order pickup point summary supports both legacy text and locker maps', () {
     final legacyOrder = Order(
       id: 'ord-1',

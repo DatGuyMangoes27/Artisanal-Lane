@@ -28,7 +28,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       'q': 'What shipping options are available?',
       'a':
           'We offer The Courier Guy (door-to-door or locker-to-locker, 2-4 days), Pargo pick-up points, '
-          'PAXI (collect at PEP stores), and Market Pickup where you collect directly '
+          'and Market Pickup where you collect directly '
           'from the artisan.',
     },
     {
@@ -50,7 +50,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
       'a':
           'Delivery times depend on the shipping method chosen at checkout. '
           'The Courier Guy typically delivers in 2-4 business days, Pargo in 3-5 days, '
-          'and PAXI in 4-7 days. Market Pickup depends on the next available market date. '
+          'and Market Pickup depends on the next available market date. '
           'Some made-to-order or special-order items may also have an additional lead time before dispatch.',
     },
     {

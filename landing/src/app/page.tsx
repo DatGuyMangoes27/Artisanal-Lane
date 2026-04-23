@@ -376,7 +376,7 @@ function FeaturesSection() {
       icon: Truck,
       title: "Flexible Delivery Options",
       description:
-        "Choose from Courier Guy, Pargo, PAXI pickup points, or collect directly from the maker at a local market.",
+        "Choose from Courier Guy, Pargo pickup points, or collect directly from the maker at a local market.",
     },
     {
       icon: Sparkles,
@@ -596,7 +596,7 @@ function TrustSection() {
               {[
                 { value: "TradeSafe", label: "Secure gateway" },
                 { value: "Escrow", label: "Protected funds" },
-                { value: "4 options", label: "Shipping methods" },
+                { value: "3 options", label: "Shipping methods" },
                 { value: "14 days", label: "Buyer protection" },
               ].map((stat, i) => (
                 <Card key={i} className="p-4 text-center">
@@ -750,7 +750,7 @@ function FAQSection() {
     {
       question: "What shipping options are available?",
       answer:
-        "We support multiple South African delivery options: Courier Guy for door-to-door delivery and locker-to-locker, Pargo for nationwide pickup points, PAXI for collection at PEP stores, and Market Pickup for in-person collection from the artisan at markets or events.",
+        "We support multiple South African delivery options: Courier Guy for door-to-door delivery and locker-to-locker, Pargo for nationwide pickup points, and Market Pickup for in-person collection from the artisan at markets or events.",
     },
     {
       question: "Is Artisan Lane free to use for buyers?",

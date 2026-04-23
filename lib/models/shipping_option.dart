@@ -43,11 +43,6 @@ class ShippingOption {
       description: 'Pick up at a Pargo point near you',
       icon: Icons.store_outlined,
     ),
-    'paxi': _MethodMeta(
-      name: 'PAXI',
-      description: 'Collect at PEP stores or PAXI points',
-      icon: Icons.pin_drop_outlined,
-    ),
     'market_pickup': _MethodMeta(
       name: 'Market Pickup',
       description: 'Collect from the artisan in person',
@@ -63,7 +58,6 @@ class ShippingOption {
   static List<ShippingOption> defaults() => [
         const ShippingOption(key: 'courier_guy', enabled: true, price: 99.00),
         const ShippingOption(key: 'pargo', enabled: true, price: 65.00),
-        const ShippingOption(key: 'paxi', enabled: true, price: 45.00),
         const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
       ];
 
@@ -76,7 +70,10 @@ class ShippingOption {
     if (json == null) return fallbackValue;
     final list = json as List;
     if (list.isEmpty) return fallbackValue;
-    return list.map((e) => ShippingOption.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => ShippingOption.fromJson(e as Map<String, dynamic>))
+        .where((option) => _catalogue.containsKey(option.key))
+        .toList();
   }
 }
 

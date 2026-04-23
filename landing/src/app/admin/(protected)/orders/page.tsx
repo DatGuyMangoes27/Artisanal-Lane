@@ -74,7 +74,6 @@ export default async function AdminOrdersPage({
             <option value="all">All shipping methods</option>
             <option value="courier_guy">Courier Guy</option>
             <option value="pargo">Pargo</option>
-            <option value="paxi">Paxi</option>
             <option value="market_pickup">Market pickup</option>
             <option value="unknown">Unknown</option>
           </select>
