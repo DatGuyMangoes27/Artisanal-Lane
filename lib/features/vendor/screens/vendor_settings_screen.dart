@@ -23,6 +23,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
   bool _isOffline = false;
   DateTime? _backToWorkDate;
   bool _isSavingOffline = false;
+  bool _isDeletingAccount = false;
 
   bool _initialized = false;
 
@@ -96,6 +97,97 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
     } finally {
       if (mounted) setState(() => _isSavingOffline = false);
     }
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _isDeletingAccount = true);
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      await service.deleteAccount();
+      if (!mounted) return;
+      GoRouter.of(context).go('/welcome');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Your account has been deleted.',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$error',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDeletingAccount = false);
+    }
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Delete Account',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        content: Text(
+          'This permanently deletes your Artisan Lane account and removes your shop, products, chats, stationery requests, and payout profile. Historical orders may stay on record without your profile attached. If you still have active orders, you will need to complete or resolve them before deleting your account.',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: AppTheme.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isDeletingAccount ? null : () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _isDeletingAccount
+                ? null
+                : () async {
+                    Navigator.pop(ctx);
+                    await _deleteAccount();
+                  },
+            child: Text(
+              'Delete Account',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -244,6 +336,40 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _isDeletingAccount
+                        ? null
+                        : () => _showDeleteAccountDialog(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                            color: AppTheme.error.withValues(alpha: 0.28)),
+                      ),
+                      backgroundColor: Colors.white,
+                    ),
+                    child: _isDeletingAccount
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.error,
+                            ),
+                          )
+                        : Text(
+                            'Delete Account',
+                            style: GoogleFonts.poppins(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.error),
+                          ),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 Center(
                   child: Text(
@@ -265,7 +391,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
           ? null
           : () async {
               await _pickBackToWorkDate();
-              if (shopId != null) await _saveOfflineMode(shopId);
+              await _saveOfflineMode(shopId);
             },
       borderRadius: BorderRadius.circular(16),
       child: Padding(

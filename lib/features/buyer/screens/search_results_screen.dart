@@ -262,7 +262,13 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             onTap: () => setState(() => _selectedFilter = index),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              constraints: const BoxConstraints(
+                minHeight: searchResultsChipMinHeight,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: searchResultsChipVerticalInset,
+              ),
               decoration: BoxDecoration(
                 color: selected ? AppTheme.terracotta : Colors.white,
                 borderRadius: BorderRadius.circular(24),
@@ -297,6 +303,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
+                      height: searchResultsChipTextHeight,
                       color: selected ? Colors.white : AppTheme.textPrimary,
                     ),
                   ),

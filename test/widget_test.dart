@@ -8,6 +8,7 @@ import 'package:artisanal_lane/features/chat/utils/live_chat_messages.dart';
 import 'package:artisanal_lane/features/buyer/providers/buyer_providers.dart';
 import 'package:artisanal_lane/features/buyer/screens/buyer_profile_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/order_detail_screen.dart';
+import 'package:artisanal_lane/features/buyer/screens/settings_screen.dart';
 import 'package:artisanal_lane/core/pricing/pricing.dart';
 import 'package:artisanal_lane/features/buyer/utils/shop_profile_actions.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_destination.dart';
@@ -15,6 +16,7 @@ import 'package:artisanal_lane/features/buyer/utils/cart_stock_guard.dart';
 import 'package:artisanal_lane/features/buyer/utils/product_detail_actions.dart';
 import 'package:artisanal_lane/features/buyer/utils/buyer_home_copy.dart';
 import 'package:artisanal_lane/features/buyer/utils/checkout_validation.dart';
+import 'package:artisanal_lane/features/buyer/utils/checkout_shipping_layout.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_carousel.dart';
 import 'package:artisanal_lane/features/vendor/widgets/stationery_sheet_header.dart';
 import 'package:artisanal_lane/features/buyer/utils/search_results_layout.dart';
@@ -24,6 +26,8 @@ import 'package:artisanal_lane/features/buyer/utils/help_support_contact.dart';
 import 'package:artisanal_lane/features/disputes/utils/dispute_attachment_support.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_fulfillment_options.dart';
+import 'package:artisanal_lane/features/vendor/providers/vendor_providers.dart';
+import 'package:artisanal_lane/features/vendor/screens/vendor_settings_screen.dart';
 import 'package:artisanal_lane/features/vendor/utils/product_form_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_setup.dart';
 import 'package:artisanal_lane/models/cart_item.dart';
@@ -85,9 +89,39 @@ void main() {
     expect(wasClosed, isTrue);
   });
 
+  testWidgets('Buyer settings screen exposes delete account action', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SettingsScreen()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Account'), findsOneWidget);
+  });
+
+  testWidgets('Vendor settings screen exposes delete account action', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          vendorShopProvider.overrideWith((ref) async => null),
+        ],
+        child: const MaterialApp(home: VendorSettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Delete Account'), findsOneWidget);
+  });
+
   test('Search results chip rail leaves vertical room for rounded filters', () {
     expect(searchResultsChipRailHeight, greaterThan(44));
     expect(searchResultsChipRailVerticalPadding, greaterThan(0));
+    expect(searchResultsChipMinHeight, greaterThanOrEqualTo(48));
+    expect(searchResultsChipVerticalInset, greaterThanOrEqualTo(13));
+    expect(searchResultsChipTextHeight, greaterThan(1));
   });
 
   test('Help support contact details use the latest support channels', () {
@@ -133,6 +167,25 @@ void main() {
         Uri.parse('https://artisanlanesa.co.za/payment/error'),
       ),
       '/cart',
+    );
+  });
+
+  test('shipping methods map to the expected inline checkout details', () {
+    expect(
+      inlineDetailsForShippingMethod('courier_guy'),
+      CheckoutShippingInlineDetails.courierGuyLockerSearch,
+    );
+    expect(
+      inlineDetailsForShippingMethod('pargo'),
+      CheckoutShippingInlineDetails.pickupPointEntry,
+    );
+    expect(
+      inlineDetailsForShippingMethod('market_pickup'),
+      CheckoutShippingInlineDetails.marketPickupNote,
+    );
+    expect(
+      inlineDetailsForShippingMethod(null),
+      CheckoutShippingInlineDetails.none,
     );
   });
 

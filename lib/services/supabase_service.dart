@@ -2037,6 +2037,23 @@ class SupabaseService {
     );
   }
 
+  Future<void> deleteAccount() async {
+    final response = await _client.functions.invoke(
+      'delete-account',
+      headers: await _authorizedFunctionHeaders(),
+    );
+
+    if (response.status < 200 || response.status >= 300) {
+      final payload = response.data;
+      if (payload is Map && payload['error'] is String) {
+        throw Exception(payload['error'] as String);
+      }
+      throw Exception('Could not delete your account right now.');
+    }
+
+    await _client.auth.signOut();
+  }
+
   Future<DisputeOpenResult> createDispute(
     String orderId,
     String raisedBy,

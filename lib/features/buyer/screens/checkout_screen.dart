@@ -12,6 +12,7 @@ import '../../../models/shipping_option.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/checkout_validation.dart';
+import '../utils/checkout_shipping_layout.dart';
 import '../utils/product_shipping_checkout.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -123,10 +124,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   bool _requiresPickupPoint(String? shippingMethod) {
     return shippingMethod == 'courier_guy' ||
         shippingMethod == 'pargo';
-  }
-
-  bool _isMarketPickup(String? shippingMethod) {
-    return shippingMethod == 'market_pickup';
   }
 
   String _pickupPointLabel(String? shippingMethod) {
@@ -540,82 +537,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ...enabledOptions.map(
                             (opt) => _buildShippingTile(opt),
                           ),
-                          if (_selectedShipping == 'courier_guy') ...[
-                            const SizedBox(height: 8),
-                            _buildInfoNote(
-                              'Search and select the Courier Guy locker where you want to collect your parcel.',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildDropdownField(
-                              label: 'Locker Province',
-                              value: _courierGuyLockerProvince,
-                              items: _saProvinces,
-                              onChanged: (value) {
-                                setState(() {
-                                  _courierGuyLockerProvince = value;
-                                  _selectedCourierGuyLocker = null;
-                                  _pickupPointController.clear();
-                                });
-                                _searchCourierGuyLockers();
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              key: _pickupPointFieldKey,
-                              label: 'Search Courier Guy locker',
-                              controller: _courierGuySearchController,
-                              focusNode: _pickupPointFocusNode,
-                              prefixIcon: Icons.search_rounded,
-                              hintText:
-                                  'Type a mall, suburb, town, or locker code',
-                              validator: (_) => null,
-                              onChanged: (_) {
-                                setState(() => _clearCourierGuyLockerSelection());
-                                _scheduleCourierGuyLockerSearch();
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            if (_selectedCourierGuyLocker != null)
-                              _buildSelectedCourierGuyLockerCard(),
-                            if (_courierGuyLockerError != null) ...[
-                              const SizedBox(height: 12),
-                              _buildInlineErrorCard(_courierGuyLockerError!),
-                            ],
-                            if (_isLoadingCourierGuyLockers) ...[
-                              const SizedBox(height: 12),
-                              const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: CircularProgressIndicator(
-                                    color: AppTheme.terracotta,
-                                    strokeWidth: 2,
-                                  ),
-                                ),
-                              ),
-                            ] else if (_courierGuyLockers.isNotEmpty) ...[
-                              const SizedBox(height: 12),
-                              _buildCourierGuyLockerResults(),
-                            ],
-                          ] else if (_requiresPickupPoint(_selectedShipping)) ...[
-                            const SizedBox(height: 8),
-                            _buildInfoNote(
-                              'Please enter the pickup point or drop-off location the seller should use for this order.',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              key: _pickupPointFieldKey,
-                              label: _pickupPointLabel(_selectedShipping),
-                              controller: _pickupPointController,
-                              focusNode: _pickupPointFocusNode,
-                              prefixIcon: Icons.pin_drop_outlined,
-                              hintText: _pickupPointHint(_selectedShipping),
-                            ),
-                          ] else if (_isMarketPickup(_selectedShipping)) ...[
-                            const SizedBox(height: 8),
-                            _buildInfoNote(
-                              'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.',
-                            ),
-                          ],
                         ],
 
                         const SizedBox(height: 32),
@@ -1086,60 +1007,156 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             width: isSelected ? 1.5 : 1,
           ),
         ),
-        child: Row(
+        child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? AppTheme.terracotta.withValues(alpha: 0.05)
-                    : AppTheme.scaffoldBg,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                option.icon,
-                color: isSelected ? AppTheme.terracotta : AppTheme.textHint,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    option.name,
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isSelected
-                          ? AppTheme.terracotta
-                          : AppTheme.textPrimary,
-                    ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppTheme.terracotta.withValues(alpha: 0.05)
+                        : AppTheme.scaffoldBg,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    option.description,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
+                  child: Icon(
+                    option.icon,
+                    color: isSelected ? AppTheme.terracotta : AppTheme.textHint,
+                    size: 24,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        option.name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected
+                              ? AppTheme.terracotta
+                              : AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        option.description,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  isFree ? 'FREE' : 'R${option.price.toStringAsFixed(0)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: isFree ? AppTheme.baobab : AppTheme.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              isFree ? 'FREE' : 'R${option.price.toStringAsFixed(0)}',
-              style: GoogleFonts.poppins(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: isFree ? AppTheme.baobab : AppTheme.textPrimary,
-              ),
-            ),
+            if (isSelected) ...[
+              const SizedBox(height: 16),
+              _buildSelectedShippingInlineDetails(option.key),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildSelectedShippingInlineDetails(String shippingMethod) {
+    switch (inlineDetailsForShippingMethod(shippingMethod)) {
+      case CheckoutShippingInlineDetails.courierGuyLockerSearch:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoNote(
+              'Search and select the Courier Guy locker where you want to collect your parcel.',
+            ),
+            const SizedBox(height: 16),
+            _buildDropdownField(
+              label: 'Locker Province',
+              value: _courierGuyLockerProvince,
+              items: _saProvinces,
+              onChanged: (value) {
+                setState(() {
+                  _courierGuyLockerProvince = value;
+                  _selectedCourierGuyLocker = null;
+                  _pickupPointController.clear();
+                });
+                _searchCourierGuyLockers();
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              key: _pickupPointFieldKey,
+              label: 'Search Courier Guy locker',
+              controller: _courierGuySearchController,
+              focusNode: _pickupPointFocusNode,
+              prefixIcon: Icons.search_rounded,
+              hintText: 'Type a mall, suburb, town, or locker code',
+              validator: (_) => null,
+              onChanged: (_) {
+                setState(() => _clearCourierGuyLockerSelection());
+                _scheduleCourierGuyLockerSearch();
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_selectedCourierGuyLocker != null)
+              _buildSelectedCourierGuyLockerCard(),
+            if (_courierGuyLockerError != null) ...[
+              const SizedBox(height: 12),
+              _buildInlineErrorCard(_courierGuyLockerError!),
+            ],
+            if (_isLoadingCourierGuyLockers) ...[
+              const SizedBox(height: 12),
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: CircularProgressIndicator(
+                    color: AppTheme.terracotta,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            ] else if (_courierGuyLockers.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildCourierGuyLockerResults(),
+            ],
+          ],
+        );
+      case CheckoutShippingInlineDetails.pickupPointEntry:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoNote(
+              'Please enter the pickup point or drop-off location the seller should use for this order.',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              key: _pickupPointFieldKey,
+              label: _pickupPointLabel(shippingMethod),
+              controller: _pickupPointController,
+              focusNode: _pickupPointFocusNode,
+              prefixIcon: Icons.pin_drop_outlined,
+              hintText: _pickupPointHint(shippingMethod),
+            ),
+          ],
+        );
+      case CheckoutShippingInlineDetails.marketPickupNote:
+        return _buildInfoNote(
+          'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.',
+        );
+      case CheckoutShippingInlineDetails.none:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _summaryRow(String label, String value, {bool isTotal = false}) {

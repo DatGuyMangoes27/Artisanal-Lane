@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
+import '../../../services/supabase_service.dart';
 import '../../../widgets/african_patterns.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _darkMode = false;
   String _selectedLanguage = 'English';
   String _selectedCurrency = 'ZAR';
+  bool _isDeletingAccount = false;
 
   void _showLanguagePicker() {
     final languages = ['English', 'Afrikaans', 'isiZulu', 'isiXhosa', 'Sesotho', 'Setswana'];
@@ -77,6 +79,97 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() => _isDeletingAccount = true);
+    try {
+      final service = SupabaseService(Supabase.instance.client);
+      await service.deleteAccount();
+      if (!mounted) return;
+      GoRouter.of(context).go('/welcome');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Your account has been deleted.',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$error',
+            style: GoogleFonts.poppins(fontSize: 13),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isDeletingAccount = false);
+    }
+  }
+
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Text(
+          'Delete Account',
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        content: Text(
+          'This permanently deletes your account from Artisan Lane. Your profile, saved addresses, cart, favourites, and access to the app will be removed. Historical order records may be kept without your personal profile attached.',
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: AppTheme.textSecondary,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _isDeletingAccount ? null : () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _isDeletingAccount
+                ? null
+                : () async {
+                    Navigator.pop(ctx);
+                    await _deleteAccount();
+                  },
+            child: Text(
+              'Delete Account',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.error,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -270,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 40),
 
-              // ── Log Out Button ─────────────────────────────────────
+              // ── Account Actions ────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
@@ -349,6 +442,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: AppTheme.error,
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: _isDeletingAccount ? null : _showDeleteAccountDialog,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(
+                        color: AppTheme.error.withValues(alpha: 0.28),
+                      ),
+                    ),
+                    backgroundColor: Colors.white,
+                  ),
+                  child: _isDeletingAccount
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppTheme.error,
+                          ),
+                        )
+                      : Text(
+                          'Delete Account',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.error,
+                          ),
+                        ),
                 ),
               ),
 
