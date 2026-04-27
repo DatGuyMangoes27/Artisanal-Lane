@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Artisan Lane</string>
-    <string name="facebook_app_id">REPLACE_WITH_META_APP_ID</string>
-    <string name="facebook_client_token">REPLACE_WITH_META_CLIENT_TOKEN</string>
-    <string name="fb_login_protocol_scheme">fbREPLACE_WITH_META_APP_ID</string>
+    <string name="facebook_app_id">1723523761979472</string>
+    <string name="facebook_client_token">3515a1c0a08dd9f8d7fae113910899a0</string>
+    <string name="fb_login_protocol_scheme">fb1723523761979472</string>
 </resources>

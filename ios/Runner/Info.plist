@@ -31,7 +31,7 @@
 			<string>com.artisanallane.artisanalLane.meta</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>fbREPLACE_WITH_META_APP_ID</string>
+				<string>fb1723523761979472</string>
 			</array>
 		</dict>
 		<dict>
@@ -56,9 +56,9 @@
 		</dict>
 	</array>
 	<key>FacebookAppID</key>
-	<string>REPLACE_WITH_META_APP_ID</string>
+	<string>1723523761979472</string>
 	<key>FacebookClientToken</key>
-	<string>REPLACE_WITH_META_CLIENT_TOKEN</string>
+	<string>3515a1c0a08dd9f8d7fae113910899a0</string>
 	<key>FacebookDisplayName</key>
 	<string>Artisan Lane</string>
 	<key>FacebookAutoLogAppEventsEnabled</key>
