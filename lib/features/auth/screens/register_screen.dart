@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../services/meta_app_events_service.dart';
 import '../providers/auth_providers.dart';
 import '../../../widgets/gradient_button.dart';
 
@@ -61,6 +62,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           'display_name': _nameController.text.trim(),
           'email': _emailController.text.trim(),
         });
+        await ref
+            .read(metaAppEventsServiceProvider)
+            .logCompletedRegistration(
+              registrationMethod: 'email',
+              requestedRole: _isVendor ? 'vendor' : 'buyer',
+            );
       }
 
       if (mounted) {

@@ -50,6 +50,7 @@ dependencies:
   file_picker: ^10.3.10
   app_links: ^7.0.0
   webview_flutter: ^4.13.1
+  facebook_app_events: ^0.27.1
 
 dev_dependencies:
   flutter_test:

@@ -9,6 +9,7 @@ import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/courier_guy_locker.dart';
 import '../../../models/shipping_option.dart';
+import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/checkout_validation.dart';
@@ -358,6 +359,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     };
 
     try {
+      await ref.read(metaAppEventsServiceProvider).logInitiatedCheckout(
+            items: items.whereType<CartItem>().toList(growable: false),
+            totalPrice: total,
+            shippingMethod: _selectedShipping,
+          );
+      if (!mounted) return;
       await context.push('/cart/payment', extra: checkoutData);
     } finally {
       if (mounted) {

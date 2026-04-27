@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../services/meta_app_events_service.dart';
 import '../../../app/theme.dart';
 import '../providers/buyer_providers.dart';
 
@@ -34,6 +35,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   void _search(String query) {
     if (query.trim().isEmpty) return;
     ref.read(recentSearchesProvider.notifier).add(query.trim());
+    ref.read(metaAppEventsServiceProvider).logSearch(query: query);
     context.push('/search/results?q=${Uri.encodeComponent(query.trim())}');
   }
 

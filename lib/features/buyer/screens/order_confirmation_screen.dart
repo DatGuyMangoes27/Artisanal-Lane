@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../models/order.dart';
+import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 import 'tradesafe_checkout_screen.dart';
@@ -37,11 +39,9 @@ class OrderConfirmationScreen extends ConsumerWidget {
     return _buildContent(context, ref, null);
   }
 
-  Widget _buildContent(BuildContext context, WidgetRef ref, dynamic order) {
+  Widget _buildContent(BuildContext context, WidgetRef ref, Order? order) {
     final orderNumber = order != null ? '#${order.shortId}' : '#---';
-    final itemCount = order?.items != null
-        ? '${order.items.length} items'
-        : '--';
+    final itemCount = order?.items != null ? '${order!.items!.length} items' : '--';
     final totalPaid = order != null
         ? 'R${order.grandTotal.toStringAsFixed(2)}'
         : '--';
@@ -54,6 +54,12 @@ class OrderConfirmationScreen extends ConsumerWidget {
     final paymentSubtitle = isAwaitingPayment
         ? 'Your order has been created. Finish the secure TradeSafe checkout to lock in your purchase.'
         : 'Thank you for supporting local artisans.\nYour order has been placed successfully.';
+
+    if (order != null && !isAwaitingPayment) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(metaAppEventsServiceProvider).logPurchasedOrder(order);
+      });
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -199,17 +205,17 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 48),
-                if (isAwaitingPayment && order?.paymentUrl != null) ...[
+                if (isAwaitingPayment && order != null && order.paymentUrl != null) ...[
                   GradientButton(
                     label: 'Open TradeSafe Checkout',
                     onPressed: () async {
-                      final uri = Uri.tryParse(order.paymentUrl as String);
+                      final uri = Uri.tryParse(order.paymentUrl!);
                       if (uri != null && context.mounted) {
                         await Navigator.of(context).push(
                           MaterialPageRoute<void>(
                             builder: (_) => TradeSafeCheckoutScreen(
                               checkoutUri: uri,
-                              orderId: order.id as String,
+                              orderId: order.id,
                             ),
                           ),
                         );
@@ -220,9 +226,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => ref.invalidate(
-                        orderDetailStreamProvider(order.id as String),
-                      ),
+                      onPressed: () => ref.invalidate(orderDetailStreamProvider(order.id)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 16),

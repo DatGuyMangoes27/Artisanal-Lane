@@ -25,113 +25,15 @@ import {
   Users,
   ArrowRight,
   Gem,
-  MapPin,
   ClipboardList,
-  Package,
   Flag,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 
-type FreedomDayCountdownParts = {
-  days: number;
-  hours: number;
-  minutes: number;
-  seconds: number;
-};
-
-function getFreedomDayLaunchDate(now: Date) {
-  return new Date(now.getFullYear(), 3, 27, 0, 0, 0, 0);
-}
-
-function getFreedomDayCountdownParts(now: Date): FreedomDayCountdownParts {
-  const launchDate = getFreedomDayLaunchDate(now);
-  const remainingMs = Math.max(launchDate.getTime() - now.getTime(), 0);
-  const totalSeconds = Math.floor(remainingMs / 1000);
-
-  return {
-    days: Math.floor(totalSeconds / 86400),
-    hours: Math.floor((totalSeconds % 86400) / 3600),
-    minutes: Math.floor((totalSeconds % 3600) / 60),
-    seconds: totalSeconds % 60,
-  };
-}
-
-function isFreedomDayLaunchDay(now: Date) {
-  const launchDate = getFreedomDayLaunchDate(now);
-
-  return (
-    now.getFullYear() === launchDate.getFullYear() &&
-    now.getMonth() === launchDate.getMonth() &&
-    now.getDate() === launchDate.getDate()
-  );
-}
-
-function FreedomDayCountdownCard() {
-  const [now, setNow] = useState(() => new Date());
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
-
-  const countdown = getFreedomDayCountdownParts(now);
-  const launchDay = isFreedomDayLaunchDay(now);
-
-  return (
-    <Card className="mb-10 max-w-xl overflow-hidden rounded-[28px] border-[#7A0000]/15 bg-white/75 shadow-xl shadow-[#7A0000]/5 backdrop-blur-sm">
-      <CardContent className="p-6 sm:p-7">
-        <div className="space-y-6">
-          <div className="text-left">
-            <Badge className="mb-4 bg-[#7A0000]/10 text-[#7A0000] hover:bg-[#7A0000]/10">
-              Freedom Day Launch
-            </Badge>
-            <h3 className="text-2xl font-bold text-[#3A1F10] sm:text-3xl">
-              Launching on 27 April
-            </h3>
-            <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground sm:text-base">
-              Artisan Lane goes live on South Africa&apos;s Freedom Day.
-            </p>
-          </div>
-
-          {launchDay ? (
-            <div className="rounded-3xl bg-[#7A0000] px-6 py-6 text-center text-white shadow-lg">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/75">
-                Status
-              </p>
-              <p className="mt-2 text-2xl font-bold">Launching today</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-              {[
-                { label: "Days", value: countdown.days },
-                { label: "Hours", value: countdown.hours },
-                { label: "Minutes", value: countdown.minutes },
-                { label: "Seconds", value: countdown.seconds },
-              ].map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl bg-[#FDF5EC] px-4 py-4 text-center ring-1 ring-[#EDD5BE]"
-                >
-                  <p className="text-2xl font-bold text-[#3A1F10] sm:text-3xl">
-                    {String(item.value).padStart(2, "0")}
-                  </p>
-                  <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const IOS_APP_STORE_URL =
+  "https://apps.apple.com/za/app/artisan-lane/id6760702139";
 
 function PhoneFrame({
   src,
@@ -247,8 +149,13 @@ function Navigation() {
             </Link>
           </div>
 
-          <Button className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-6">
-            Coming Soon
+          <Button
+            asChild
+            className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-6"
+          >
+            <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+              Download on iOS
+            </Link>
           </Button>
         </div>
       </div>
@@ -283,30 +190,27 @@ function HeroSection() {
               passion, tradition, and extraordinary craftsmanship.
             </p>
 
-            <FreedomDayCountdownCard />
-
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
-              <Link href="#" target="_blank" rel="noopener noreferrer">
+              <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
                 <Button
                   size="lg"
                   className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full"
                 >
                   <Apple className="w-5 h-5 mr-2" />
-                  iOS — Coming Soon
+                  Download on the App Store
                 </Button>
               </Link>
-              <Link href="#" target="_blank" rel="noopener noreferrer">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full"
-                >
-                  <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                  </svg>
-                  Android — Coming Soon
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                variant="outline"
+                disabled
+                className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-transparent w-full opacity-100 cursor-default"
+              >
+                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                </svg>
+                Google Play — Coming Soon
+              </Button>
             </div>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-muted-foreground">
@@ -606,8 +510,14 @@ function TrustSection() {
               ))}
             </div>
 
-            <Button size="lg" className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8">
-              Coming Soon <ArrowRight className="w-4 h-4 ml-2" />
+            <Button
+              asChild
+              size="lg"
+              className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8"
+            >
+              <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+                Download on iOS <ArrowRight className="w-4 h-4 ml-2" />
+              </Link>
             </Button>
           </div>
 
@@ -816,33 +726,32 @@ function CTASection() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Link href="#" target="_blank" rel="noopener noreferrer">
+              <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
                 <Button
                   size="lg"
                   className="bg-[#3A1F10] hover:bg-[#2a1510] text-white rounded-xl px-6 h-14 w-full"
                 >
                   <Apple className="w-6 h-6 mr-3" />
                   <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Coming Soon on the</span>
+                    <span className="text-[10px] block opacity-70">Download on the</span>
                     <span className="font-semibold">App Store</span>
                   </div>
                 </Button>
               </Link>
-              <Link href="#" target="_blank" rel="noopener noreferrer">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="rounded-xl px-6 h-14 border-2 w-full"
-                >
-                  <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                  </svg>
-                  <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Coming Soon on</span>
-                    <span className="font-semibold">Google Play</span>
-                  </div>
-                </Button>
-              </Link>
+              <Button
+                size="lg"
+                variant="outline"
+                disabled
+                className="rounded-xl px-6 h-14 border-2 w-full opacity-100 cursor-default"
+              >
+                <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
+                </svg>
+                <div className="text-left">
+                  <span className="text-[10px] block opacity-70">Google Play is</span>
+                  <span className="font-semibold">Coming Soon</span>
+                </div>
+              </Button>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">

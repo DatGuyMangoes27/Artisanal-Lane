@@ -11,6 +11,7 @@ import 'features/auth/providers/auth_providers.dart';
 import 'features/buyer/providers/buyer_providers.dart';
 import 'features/buyer/utils/payment_deep_links.dart';
 import 'features/vendor/providers/vendor_providers.dart';
+import 'services/meta_app_events_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,6 +39,7 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
   void initState() {
     super.initState();
     _appLinks = AppLinks();
+    ref.read(metaAppEventsServiceProvider).initialize();
     _paymentDeepLinkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingDeepLink,
     );

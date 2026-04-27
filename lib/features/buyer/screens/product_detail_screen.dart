@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../app/theme.dart';
+import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../models/models.dart';
@@ -30,6 +31,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   bool _isAddingToCart = false;
   final Map<int, String> _selectedOptionValues = {};
   late final PageController _pageController;
+  String? _lastTrackedViewKey;
 
   @override
   void initState() {
@@ -187,6 +189,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         product.id,
         variantId: variant?.id,
       );
+      await ref.read(metaAppEventsServiceProvider).logAddToCart(
+            product,
+            variant: variant,
+          );
       ref.invalidate(cartItemsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -225,6 +231,19 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     } finally {
       if (mounted) setState(() => _isAddingToCart = false);
     }
+  }
+
+  void _trackProductView(Product product, {ProductVariant? variant}) {
+    final viewKey = '${product.id}:${variant?.id ?? 'default'}';
+    if (_lastTrackedViewKey == viewKey) return;
+    _lastTrackedViewKey = viewKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(metaAppEventsServiceProvider).logViewedProduct(
+            product,
+            variant: variant,
+          );
+    });
   }
 
   Future<void> _shareProduct(Product product, {ProductVariant? variant}) async {
@@ -463,6 +482,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final previewVariant =
             _findPreviewVariant(product, optionGroups) ??
             product.defaultVariant;
+        _trackProductView(product, variant: previewVariant);
         final displayImages = (previewVariant?.images.isNotEmpty ?? false)
             ? previewVariant!.images
             : product.images;
