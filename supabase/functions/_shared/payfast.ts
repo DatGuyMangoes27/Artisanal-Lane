@@ -104,6 +104,7 @@ export function parsePayFastFormEncoded(rawBody: string) {
 
 export function buildPayFastSubscriptionCheckoutUrl(input: {
   amount: number;
+  recurringAmount?: number;
   itemName: string;
   itemDescription: string;
   reference: string;
@@ -135,6 +136,9 @@ export function buildPayFastSubscriptionCheckoutUrl(input: {
     ["custom_str2", input.checkoutReference],
     ["subscription_type", "1"],
     ["billing_date", billingDate],
+    ...(input.recurringAmount != null
+      ? [["recurring_amount", input.recurringAmount.toFixed(2)] as [string, string]]
+      : []),
     ["frequency", "3"],
     ["cycles", "0"],
   ];
@@ -343,10 +347,8 @@ export function mapPayFastSubscriptionStatus(paymentStatus: string | null | unde
       return "cancelled";
     case "FAILED":
       return "past_due";
-    case "PENDING":
-      return "pending";
     default:
-      return "pending";
+      return "inactive";
   }
 }
 

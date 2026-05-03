@@ -2,34 +2,50 @@ import 'package:flutter/material.dart';
 
 /// Represents one shipping method a shop offers.
 /// Persisted as a JSONB array on shops.shipping_options.
+const Object _marketNameSentinel = Object();
+
 class ShippingOption {
   final String key;
   final bool enabled;
   final double price;
+  final String? marketName;
 
   const ShippingOption({
     required this.key,
     required this.enabled,
     required this.price,
+    this.marketName,
   });
 
   factory ShippingOption.fromJson(Map<String, dynamic> json) => ShippingOption(
-        key: json['key'] as String,
-        enabled: json['enabled'] as bool? ?? true,
-        price: (json['price'] as num).toDouble(),
-      );
+    key: json['key'] as String,
+    enabled: json['enabled'] as bool? ?? true,
+    price: (json['price'] as num).toDouble(),
+    marketName: (json['market_name'] as String?)?.trim().isEmpty ?? true
+        ? null
+        : (json['market_name'] as String).trim(),
+  );
 
   Map<String, dynamic> toJson() => {
-        'key': key,
-        'enabled': enabled,
-        'price': price,
-      };
+    'key': key,
+    'enabled': enabled,
+    'price': price,
+    if (marketName != null && marketName!.trim().isNotEmpty)
+      'market_name': marketName!.trim(),
+  };
 
-  ShippingOption copyWith({bool? enabled, double? price}) => ShippingOption(
-        key: key,
-        enabled: enabled ?? this.enabled,
-        price: price ?? this.price,
-      );
+  ShippingOption copyWith({
+    bool? enabled,
+    double? price,
+    Object? marketName = _marketNameSentinel,
+  }) => ShippingOption(
+    key: key,
+    enabled: enabled ?? this.enabled,
+    price: price ?? this.price,
+    marketName: identical(marketName, _marketNameSentinel)
+        ? this.marketName
+        : marketName as String?,
+  );
 
   // ── Static catalogue of all supported methods ──────────────────
   static const _catalogue = {
@@ -56,10 +72,10 @@ class ShippingOption {
 
   /// Returns the full default set of options (all enabled, default prices).
   static List<ShippingOption> defaults() => [
-        const ShippingOption(key: 'courier_guy', enabled: true, price: 99.00),
-        const ShippingOption(key: 'pargo', enabled: true, price: 65.00),
-        const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
-      ];
+    const ShippingOption(key: 'courier_guy', enabled: true, price: 99.00),
+    const ShippingOption(key: 'pargo', enabled: true, price: 65.00),
+    const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
+  ];
 
   /// Parses the JSONB array from Supabase; falls back to [fallback] if null/empty.
   static List<ShippingOption> listFromJson(
@@ -81,5 +97,9 @@ class _MethodMeta {
   final String name;
   final String description;
   final IconData icon;
-  const _MethodMeta({required this.name, required this.description, required this.icon});
+  const _MethodMeta({
+    required this.name,
+    required this.description,
+    required this.icon,
+  });
 }

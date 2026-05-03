@@ -195,12 +195,28 @@ Deno.serve(async (request) => {
   const { data: existingSubscription } = await admin
     .from("vendor_subscriptions")
     .select(
-      "vendor_id, status, current_period_start, current_period_end, payfast_payment_id, started_at, last_payment_at",
+      "vendor_id, status, current_period_start, current_period_end, payfast_payment_id, payfast_subscription_id, payfast_token, started_at, last_payment_at",
     )
     .eq("vendor_id", vendorId)
     .maybeSingle();
 
-  const nextStatus = mapPayFastSubscriptionStatus(paymentStatus);
+  let nextStatus = mapPayFastSubscriptionStatus(paymentStatus);
+  const hasProvisionedSubscription = existingSubscription != null &&
+    (
+      existingSubscription.started_at != null ||
+      existingSubscription.current_period_start != null ||
+      existingSubscription.current_period_end != null ||
+      existingSubscription.payfast_subscription_id != null ||
+      existingSubscription.payfast_token != null
+    );
+  if (!hasProvisionedSubscription && nextStatus !== "active") {
+    nextStatus = "inactive";
+  }
+
+  if (existingSubscription == null && nextStatus == "inactive") {
+    return textResponse("OK");
+  }
+
   const isDuplicatePayment = payfastPaymentId != null &&
     payfastPaymentId === existingSubscription?.payfast_payment_id;
   const nextPeriodEnd = nextStatus === "active" && !isDuplicatePayment
@@ -236,6 +252,8 @@ Deno.serve(async (request) => {
         ? "PayFast marked the subscription payment as failed."
         : nextStatus === "cancelled"
         ? "PayFast marked the subscription as cancelled."
+        : nextStatus === "inactive" && paymentStatus != null
+        ? `PayFast returned ${paymentStatus.toUpperCase()} before the subscription became active.`
         : null,
       last_itn_at: nowIso,
       last_itn_payload: {

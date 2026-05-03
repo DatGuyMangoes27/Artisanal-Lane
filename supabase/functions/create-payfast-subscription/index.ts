@@ -111,20 +111,9 @@ Deno.serve(async (request) => {
       `${user.id}@artisanlane.local`;
     const notifyUrl = `${supabaseUrl}/functions/v1/payfast-itn`;
 
-    await admin.from("vendor_subscriptions").upsert({
-      vendor_id: user.id,
-      plan_code: artisanSubscriptionPlanCode,
-      amount: artisanSubscriptionAmount,
-      currency: "ZAR",
-      status: "pending",
-      status_reason: null,
-      checkout_reference: checkoutReference,
-      payfast_email: email,
-      cancelled_at: null,
-    });
-
     const checkoutUrl = buildPayFastSubscriptionCheckoutUrl({
-      amount: artisanSubscriptionAmount,
+      amount: 0,
+      recurringAmount: artisanSubscriptionAmount,
       itemName: "Artisan Lane Subscription",
       itemDescription: "Artisan subscription with first month free",
       reference: paymentReference,
@@ -140,8 +129,8 @@ Deno.serve(async (request) => {
     return jsonResponse({
       checkoutUrl,
       checkoutReference,
-      amount: artisanSubscriptionAmount,
-      status: "pending",
+      amount: 0,
+      status: "inactive",
     });
   } catch (error) {
     return jsonResponse(

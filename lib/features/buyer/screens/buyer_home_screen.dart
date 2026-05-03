@@ -9,6 +9,7 @@ import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
+import '../../../widgets/unread_messages_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../utils/buyer_home_copy.dart';
 import '../utils/curated_collection_carousel.dart';
@@ -25,10 +26,18 @@ class BuyerHomeScreen extends ConsumerWidget {
     final onSale = ref.watch(onSaleProductsProvider);
     final spotlightShop = ref.watch(spotlightShopProvider);
     final followingFeed = ref.watch(followingFeedProvider);
+    final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
     final profile = ref.watch(currentProfileProvider).value;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      floatingActionButton: unreadMessages > 0
+          ? UnreadMessagesFab(
+              count: unreadMessages,
+              route: '/profile/messages',
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: RefreshIndicator(
         color: AppTheme.terracotta,
         backgroundColor: AppTheme.cardBg,

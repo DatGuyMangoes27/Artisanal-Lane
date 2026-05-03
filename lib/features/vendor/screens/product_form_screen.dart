@@ -32,6 +32,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _compareAtPriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _careController = TextEditingController();
+  final _marketPickupNameController = TextEditingController();
   final _optionOneNameController = TextEditingController();
   final _optionTwoNameController = TextEditingController();
   final _optionOneValuesController = TextEditingController();
@@ -99,8 +100,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       setState(() {
         _shippingOptions = shop.shippingOptions;
         for (final option in _shippingOptions) {
-          _shippingPriceControllers[option.key]?.text = option.price.toStringAsFixed(2);
+          _shippingPriceControllers[option.key]?.text = option.price
+              .toStringAsFixed(2);
         }
+        _marketPickupNameController.text =
+            _shippingOptions
+                .where((option) => option.key == 'market_pickup')
+                .firstOrNull
+                ?.marketName ??
+            '';
       });
     } catch (_) {
       // Leave the product form on built-in defaults if the shop defaults fail to load.
@@ -134,6 +142,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _compareAtPriceController.dispose();
     _stockController.dispose();
     _careController.dispose();
+    _marketPickupNameController.dispose();
     _optionOneNameController.dispose();
     _optionTwoNameController.dispose();
     _optionOneValuesController.dispose();
@@ -169,8 +178,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ? product.shippingOptions
         : ShippingOption.defaults();
     for (final option in _shippingOptions) {
-      _shippingPriceControllers[option.key]?.text = option.price.toStringAsFixed(2);
+      _shippingPriceControllers[option.key]?.text = option.price
+          .toStringAsFixed(2);
     }
+    _marketPickupNameController.text =
+        _shippingOptions
+            .where((option) => option.key == 'market_pickup')
+            .firstOrNull
+            ?.marketName ??
+        '';
     final optionGroups = product.optionGroups;
     _hasOptions = optionGroups.isNotEmpty;
     if (_hasOptions) {
@@ -910,9 +926,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(
@@ -1110,7 +1124,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   GradientButton(
                     label: 'Open subscription',
                     icon: Icons.arrow_forward_rounded,
-                    onPressed: () => context.push('/vendor/profile/subscription'),
+                    onPressed: () =>
+                        context.push('/vendor/profile/subscription'),
                   ),
                 ],
               ),
@@ -1502,130 +1517,133 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             const SizedBox(height: 20),
 
             if (_hasOptions) ...[
-            _buildLabel('Product Options'),
-            const SizedBox(height: 8),
-            Text(
-              productOptionsHelperText,
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: AppTheme.textHint,
+              _buildLabel('Product Options'),
+              const SizedBox(height: 8),
+              Text(
+                productOptionsHelperText,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _optionOneNameController,
-                    textCapitalization: TextCapitalization.words,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Primary option name',
-                      hintText: defaultProductOptionOneName,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _optionOneNameController,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Primary option name',
+                        hintText: defaultProductOptionOneName,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _optionTwoNameController,
-                    textCapitalization: TextCapitalization.words,
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      labelText: 'Second option name',
-                      hintText: defaultProductOptionTwoName,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _optionTwoNameController,
+                      textCapitalization: TextCapitalization.words,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Second option name',
+                        hintText: defaultProductOptionTwoName,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _optionOneValuesController,
-                    minLines: 2,
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(
-                      labelText: _optionOneNameController.text.trim().isEmpty
-                          ? 'Option 1 Values'
-                          : '${_optionOneNameController.text.trim()} Values',
-                      hintText: defaultProductOptionOneValuesHint,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _optionTwoValuesController,
-                    minLines: 2,
-                    maxLines: 3,
-                    textCapitalization: TextCapitalization.words,
-                    decoration: InputDecoration(
-                      labelText: _optionTwoNameController.text.trim().isEmpty
-                          ? 'Option 2 Values'
-                          : '${_optionTwoNameController.text.trim()} Values',
-                      hintText: defaultProductOptionTwoValuesHint,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter values separated by commas or new lines, then generate the combinations below. You can keep Size and Color or rename them if this product needs different options.',
-              style: GoogleFonts.poppins(
-                fontSize: 12,
-                color: AppTheme.textHint,
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                OutlinedButton.icon(
-                  onPressed: _generateCombinations,
-                  icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                  label: const Text('Generate Combinations'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppTheme.terracotta,
-                    side: BorderSide(
-                      color: AppTheme.terracotta.withValues(alpha: 0.45),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _optionOneValuesController,
+                      minLines: 2,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: _optionOneNameController.text.trim().isEmpty
+                            ? 'Option 1 Values'
+                            : '${_optionOneNameController.text.trim()} Values',
+                        hintText: defaultProductOptionOneValuesHint,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ..._variants.asMap().entries.map(
-              (entry) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: _buildVariantCard(entry.key, entry.value),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _optionTwoValuesController,
+                      minLines: 2,
+                      maxLines: 3,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: _optionTwoNameController.text.trim().isEmpty
+                            ? 'Option 2 Values'
+                            : '${_optionTwoNameController.text.trim()} Values',
+                        hintText: defaultProductOptionTwoValuesHint,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: _addVariant,
-                icon: const Icon(Icons.add_rounded, color: AppTheme.terracotta),
-                label: Text(
-                  'Add Another Combination',
-                  style: GoogleFonts.poppins(
+              const SizedBox(height: 8),
+              Text(
+                'Enter values separated by commas or new lines, then generate the combinations below. You can keep Size and Color or rename them if this product needs different options.',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _generateCombinations,
+                    icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                    label: const Text('Generate Combinations'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.terracotta,
+                      side: BorderSide(
+                        color: AppTheme.terracotta.withValues(alpha: 0.45),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ..._variants.asMap().entries.map(
+                (entry) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _buildVariantCard(entry.key, entry.value),
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _addVariant,
+                  icon: const Icon(
+                    Icons.add_rounded,
                     color: AppTheme.terracotta,
-                    fontWeight: FontWeight.w600,
+                  ),
+                  label: Text(
+                    'Add Another Combination',
+                    style: GoogleFonts.poppins(
+                      color: AppTheme.terracotta,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
             ],
 
             Row(
@@ -1802,11 +1820,20 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   }
 
   List<ShippingOption> _buildProductShippingOptions() {
-    return _shippingOptions.map((option) {
-      final rawPrice = _shippingPriceControllers[option.key]?.text.trim() ?? '';
-      final parsedPrice = double.tryParse(rawPrice);
-      return option.copyWith(price: parsedPrice ?? option.price);
-    }).toList(growable: false);
+    final marketPickupName = _marketPickupNameController.text.trim();
+    return _shippingOptions
+        .map((option) {
+          final rawPrice =
+              _shippingPriceControllers[option.key]?.text.trim() ?? '';
+          final parsedPrice = double.tryParse(rawPrice);
+          return option.copyWith(
+            price: parsedPrice ?? option.price,
+            marketName: option.key == 'market_pickup'
+                ? (marketPickupName.isEmpty ? null : marketPickupName)
+                : null,
+          );
+        })
+        .toList(growable: false);
   }
 
   Widget _buildProductShippingSection() {
@@ -1922,78 +1949,112 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.5)),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Price',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'R',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 90,
-                    child: TextFormField(
-                      controller: _shippingPriceControllers[option.key],
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                      validator: (value) {
-                        if (!isEnabled) return null;
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Required';
-                        }
-                        if (double.tryParse(value.trim()) == null) {
-                          return 'Invalid';
-                        }
-                        return null;
-                      },
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                  Row(
+                    children: [
+                      Text(
+                        'Price',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.textSecondary,
                         ),
-                        filled: true,
-                        fillColor: AppTheme.scaffoldBg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'R',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.terracotta.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 90,
+                        child: TextFormField(
+                          controller: _shippingPriceControllers[option.key],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                          validator: (value) {
+                            if (!isEnabled) return null;
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            if (double.tryParse(value.trim()) == null) {
+                              return 'Invalid';
+                            }
+                            return null;
+                          },
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            filled: true,
+                            fillColor: AppTheme.scaffoldBg,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppTheme.terracotta.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      if (option.key == 'market_pickup')
+                        Text(
+                          '(free pickup)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  if (option.key == 'market_pickup')
+                  if (option.key == 'market_pickup') ...[
+                    const SizedBox(height: 12),
                     Text(
-                      '(free pickup)',
+                      'Which market should buyers collect from?',
                       style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: AppTheme.textHint,
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _marketPickupNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) {
+                        if (!isEnabled || option.key != 'market_pickup') {
+                          return null;
+                        }
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter the market name';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. Bryanston Organic Market',
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2085,7 +2146,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     TextFormField(
                       controller: variant.priceController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(hintText: 'What buyers pay'),
+                      decoration: const InputDecoration(
+                        hintText: 'What buyers pay',
+                      ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Required';

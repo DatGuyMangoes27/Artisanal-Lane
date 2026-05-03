@@ -20,7 +20,7 @@ class VendorMessagesScreen extends ConsumerWidget {
         backgroundColor: AppTheme.scaffoldBg,
         scrolledUnderElevation: 0,
         title: Text(
-          'Customer Messages',
+          'Messages',
           style: GoogleFonts.playfairDisplay(
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
@@ -31,9 +31,9 @@ class VendorMessagesScreen extends ConsumerWidget {
         data: (threads) => ChatInboxList(
           threads: threads,
           showBuyerIdentity: true,
-          emptyTitle: 'No customer chats yet',
+          emptyTitle: 'No messages yet',
           emptySubtitle:
-              'When a buyer contacts you from your shop or a product page, the conversation will show up here.',
+              'When a buyer or the Artisan Lane team contacts you, the conversation will show up here.',
           onRefresh: () {
             ref.invalidate(vendorThreadsProvider);
             ref.invalidate(vendorThreadsStreamProvider);
@@ -47,7 +47,7 @@ class VendorMessagesScreen extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Could not load customer messages.\n$error',
+              'Could not load your messages.\n$error',
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(color: AppTheme.textSecondary),
             ),

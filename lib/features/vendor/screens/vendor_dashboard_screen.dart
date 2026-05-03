@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../../widgets/unread_messages_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../widgets/stationery_sheet_header.dart';
 import '../providers/vendor_providers.dart';
@@ -229,6 +230,13 @@ class _DashboardContent extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
+      floatingActionButton: unreadMessages > 0
+          ? UnreadMessagesFab(
+              count: unreadMessages,
+              route: '/vendor/messages',
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
         child: RefreshIndicator(
           color: AppTheme.terracotta,

@@ -1,11 +1,14 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
 import 'package:artisanal_lane/features/auth/screens/login_screen.dart';
 import 'package:artisanal_lane/features/auth/screens/welcome_screen.dart';
 import 'package:artisanal_lane/features/chat/utils/live_chat_messages.dart';
 import 'package:artisanal_lane/features/buyer/providers/buyer_providers.dart';
+import 'package:artisanal_lane/features/buyer/screens/buyer_home_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/buyer_profile_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/order_detail_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/settings_screen.dart';
@@ -27,6 +30,7 @@ import 'package:artisanal_lane/features/disputes/utils/dispute_attachment_suppor
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_fulfillment_options.dart';
 import 'package:artisanal_lane/features/vendor/providers/vendor_providers.dart';
+import 'package:artisanal_lane/features/vendor/screens/vendor_dashboard_screen.dart';
 import 'package:artisanal_lane/features/vendor/screens/vendor_settings_screen.dart';
 import 'package:artisanal_lane/features/vendor/utils/product_form_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_setup.dart';
@@ -36,10 +40,15 @@ import 'package:artisanal_lane/models/chat_message.dart';
 import 'package:artisanal_lane/models/order.dart';
 import 'package:artisanal_lane/models/product.dart';
 import 'package:artisanal_lane/models/profile.dart';
+import 'package:artisanal_lane/models/shop.dart';
 import 'package:artisanal_lane/models/shipping_option.dart';
+import 'package:artisanal_lane/models/vendor_subscription.dart';
 import 'package:artisanal_lane/models/vendor_payout_profile.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_onboarding_flow.dart';
+import 'package:artisanal_lane/widgets/buyer_shell.dart';
 import 'package:artisanal_lane/widgets/cart_nav_icon.dart';
+import 'package:artisanal_lane/widgets/unread_messages_fab.dart';
+import 'package:artisanal_lane/widgets/vendor_shell.dart';
 
 void main() {
   testWidgets('Welcome screen smoke test', (WidgetTester tester) async {
@@ -92,9 +101,7 @@ void main() {
   testWidgets('Buyer settings screen exposes delete account action', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: SettingsScreen()),
-    );
+    await tester.pumpWidget(const MaterialApp(home: SettingsScreen()));
     await tester.pumpAndSettle();
 
     expect(find.text('Delete Account'), findsOneWidget);
@@ -105,9 +112,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          vendorShopProvider.overrideWith((ref) async => null),
-        ],
+        overrides: [vendorShopProvider.overrideWith((ref) async => null)],
         child: const MaterialApp(home: VendorSettingsScreen()),
       ),
     );
@@ -239,6 +244,241 @@ void main() {
       ]);
     },
   );
+
+  testWidgets(
+    'unread messages FAB only shows when unread threads exist and routes to the target inbox',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            floatingActionButton: UnreadMessagesFab(
+              count: 0,
+              route: '/profile/messages',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byIcon(Icons.forum_rounded), findsNothing);
+
+      final router = GoRouter(
+        initialLocation: '/profile',
+        routes: [
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => Scaffold(
+              body: const Text('Profile Page'),
+              floatingActionButton: const UnreadMessagesFab(
+                count: 2,
+                route: '/profile/messages',
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/profile/messages',
+            builder: (context, state) =>
+                const Scaffold(body: Text('Messages Page')),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp.router(routerConfig: router),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.forum_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Messages Page'), findsOneWidget);
+    },
+  );
+
+  testWidgets('unread messages FAB shows the unread counter badge', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          floatingActionButton: UnreadMessagesFab(
+            count: 3,
+            route: '/vendor/messages',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+  });
+
+  testWidgets('buyer shell does not show the unread messages FAB', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/profile',
+      routes: [
+        GoRoute(
+          path: '/profile',
+          builder: (context, state) =>
+              const BuyerShell(child: Scaffold(body: Text('Profile Page'))),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          cartItemsProvider.overrideWith((ref) async => const <CartItem>[]),
+          buyerUnreadThreadsCountProvider.overrideWith((ref) => 2),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.forum_rounded), findsNothing);
+  });
+
+  testWidgets('vendor shell does not show the unread messages FAB', (tester) async {
+    final router = GoRouter(
+      initialLocation: '/vendor/profile',
+      routes: [
+        GoRoute(
+          path: '/vendor/profile',
+          builder: (context, state) =>
+              const VendorShell(child: Scaffold(body: Text('Vendor Profile'))),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          vendorUnreadThreadsCountProvider.overrideWith((ref) => 3),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.forum_rounded), findsNothing);
+  });
+
+  testWidgets('buyer home screen shows unread messages FAB', (tester) async {
+    final now = DateTime(2026, 5, 3, 18);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentProfileProvider.overrideWith(
+            (ref) async => Profile(
+              id: 'buyer-1',
+              role: 'buyer',
+              displayName: 'Buyer',
+              email: 'buyer@example.com',
+              createdAt: now,
+              updatedAt: now,
+            ),
+          ),
+          categoriesProvider.overrideWith((ref) async => const <Category>[]),
+          featuredProductsProvider.overrideWith((ref) async => const <Product>[]),
+          onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
+          spotlightShopProvider.overrideWith((ref) async => null),
+          followingFeedProvider.overrideWith((ref) async => const []),
+          buyerUnreadThreadsCountProvider.overrideWith((ref) => 2),
+        ],
+        child: const MaterialApp(home: BuyerHomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('vendor dashboard screen shows unread messages FAB', (tester) async {
+    final now = DateTime(2026, 5, 3, 18);
+    final shop = Shop(
+      id: 'shop-1',
+      vendorId: 'vendor-1',
+      name: 'Test Shop',
+      slug: 'test-shop',
+      createdAt: now,
+      updatedAt: now,
+    );
+    final payoutProfile = VendorPayoutProfile(
+      vendorId: 'vendor-1',
+      accountHolderName: 'Vendor Example',
+      bankName: 'FNB',
+      accountNumber: '1234567890',
+      branchCode: '250655',
+      accountType: 'cheque',
+      registeredPhone: '0820000000',
+      registeredEmail: 'vendor@example.com',
+      verificationStatus: 'submitted',
+      createdAt: now,
+      updatedAt: now,
+    );
+    final subscription = {
+      'vendor_id': 'vendor-1',
+      'plan_code': 'artisan-monthly',
+      'amount': 349,
+      'currency': 'ZAR',
+      'status': 'active',
+      'current_period_start': now.toIso8601String(),
+      'current_period_end': now.add(const Duration(days: 30)).toIso8601String(),
+      'started_at': now.toIso8601String(),
+      'last_payment_at': now.toIso8601String(),
+      'created_at': now.toIso8601String(),
+      'updated_at': now.toIso8601String(),
+    };
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentProfileProvider.overrideWith(
+            (ref) async => Profile(
+              id: 'vendor-1',
+              role: 'vendor',
+              displayName: 'Vendor',
+              email: 'vendor@example.com',
+              createdAt: now,
+              updatedAt: now,
+            ),
+          ),
+          vendorShopProvider.overrideWith((ref) async => shop),
+          vendorOrdersProvider.overrideWith((ref) async => const <Order>[]),
+          vendorProductsProvider.overrideWith((ref) async => const <Product>[]),
+          vendorEarningsProvider.overrideWith(
+            (ref) async => {
+              'totalSales': 0.0,
+              'held': 0.0,
+              'released': 0.0,
+              'fees': 0.0,
+            },
+          ),
+          vendorPayoutProfileProvider.overrideWith((ref) async => payoutProfile),
+          vendorPayoutProfileStreamProvider.overrideWith(
+            (ref) => Stream.value(payoutProfile),
+          ),
+          vendorSubscriptionProvider.overrideWith(
+            (ref) async => VendorSubscription.fromJson(subscription),
+          ),
+          vendorSubscriptionStreamProvider.overrideWith(
+            (ref) => Stream.value(VendorSubscription.fromJson(subscription)),
+          ),
+          vendorUnreadThreadsCountProvider.overrideWith((ref) => 3),
+        ],
+        child: const MaterialApp(home: VendorDashboardScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
+    expect(find.text('3'), findsWidgets);
+  });
 
   test('Profile parses vendor approval dismissal timestamp', () {
     final profile = Profile.fromJson({
@@ -642,46 +882,50 @@ void main() {
       {'key': 'market_pickup', 'enabled': true, 'price': 0},
     ]);
 
-    expect(filtered.map((option) => option.key), ['courier_guy', 'market_pickup']);
+    expect(filtered.map((option) => option.key), [
+      'courier_guy',
+      'market_pickup',
+    ]);
   });
 
-  test('Order pickup point summary supports both legacy text and locker maps', () {
-    final legacyOrder = Order(
-      id: 'ord-1',
-      buyerId: 'buyer-1',
-      shopId: 'shop-1',
-      status: 'pending',
-      total: 100,
-      createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
-      updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
-      shippingAddress: const {
-        'pickup_point': 'PAXI Point CPT001',
-      },
-    );
-    expect(legacyOrder.pickupPointSummary, 'PAXI Point CPT001');
+  test(
+    'Order pickup point summary supports both legacy text and locker maps',
+    () {
+      final legacyOrder = Order(
+        id: 'ord-1',
+        buyerId: 'buyer-1',
+        shopId: 'shop-1',
+        status: 'pending',
+        total: 100,
+        createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
+        updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
+        shippingAddress: const {'pickup_point': 'PAXI Point CPT001'},
+      );
+      expect(legacyOrder.pickupPointSummary, 'PAXI Point CPT001');
 
-    final structuredOrder = Order(
-      id: 'ord-2',
-      buyerId: 'buyer-1',
-      shopId: 'shop-1',
-      status: 'pending',
-      total: 100,
-      createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
-      updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
-      shippingAddress: const {
-        'pickup_point': {
-          'name': 'Cradlestone Mall',
-          'code': 'CG70',
-          'address': '17 Hendrik Potgieter Rd, Krugersdorp',
-          'province': 'Gauteng',
+      final structuredOrder = Order(
+        id: 'ord-2',
+        buyerId: 'buyer-1',
+        shopId: 'shop-1',
+        status: 'pending',
+        total: 100,
+        createdAt: DateTime.parse('2026-01-01T00:00:00Z'),
+        updatedAt: DateTime.parse('2026-01-01T00:00:00Z'),
+        shippingAddress: const {
+          'pickup_point': {
+            'name': 'Cradlestone Mall',
+            'code': 'CG70',
+            'address': '17 Hendrik Potgieter Rd, Krugersdorp',
+            'province': 'Gauteng',
+          },
         },
-      },
-    );
-    expect(
-      structuredOrder.pickupPointSummary,
-      'Cradlestone Mall (CG70) 17 Hendrik Potgieter Rd, Krugersdorp Gauteng',
-    );
-  });
+      );
+      expect(
+        structuredOrder.pickupPointSummary,
+        'Cradlestone Mall (CG70) 17 Hendrik Potgieter Rd, Krugersdorp Gauteng',
+      );
+    },
+  );
 
   test('Product form helper copy explains editable size and color defaults', () {
     expect(
@@ -960,7 +1204,10 @@ void main() {
     expect(curatedCollectionRoute, '/home/curated');
     expect(curatedCollectionTitle, 'Curated Collection');
     expect(curatedCollectionSubtitle, 'Our top finds');
-    expect(buyerHomeMakerSpotlightSubtitle, 'Handpicked for their exceptional craft');
+    expect(
+      buyerHomeMakerSpotlightSubtitle,
+      'Handpicked for their exceptional craft',
+    );
   });
 
   test('Other category uses explicit icon and filter tags', () {
@@ -1036,7 +1283,12 @@ void main() {
       'is_featured': false,
       'shipping_options': const [
         {'key': 'courier_guy', 'enabled': true, 'price': 90},
-        {'key': 'market_pickup', 'enabled': false, 'price': 0},
+        {
+          'key': 'market_pickup',
+          'enabled': false,
+          'price': 0,
+          'market_name': 'Bryanston Market',
+        },
       ],
       'created_at': '2026-04-16T12:00:00.000Z',
       'updated_at': '2026-04-16T12:00:00.000Z',
@@ -1045,9 +1297,15 @@ void main() {
     expect(product.shippingOptions.length, 2);
     expect(product.shippingOptions.first.key, 'courier_guy');
     expect(product.shippingOptions.first.price, 90);
+    expect(product.shippingOptions.last.marketName, 'Bryanston Market');
     expect(product.toJson()['shipping_options'], [
       {'key': 'courier_guy', 'enabled': true, 'price': 90.0},
-      {'key': 'market_pickup', 'enabled': false, 'price': 0.0},
+      {
+        'key': 'market_pickup',
+        'enabled': false,
+        'price': 0.0,
+        'market_name': 'Bryanston Market',
+      },
     ]);
   });
 }

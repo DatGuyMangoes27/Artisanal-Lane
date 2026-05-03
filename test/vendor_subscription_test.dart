@@ -32,19 +32,39 @@ void main() {
     );
   }
 
-  test('active subscription helper requires active status and future period', () {
-    expect(isVendorSubscriptionActive(activeSubscription()), isTrue);
-    expect(
-      isVendorSubscriptionActive(
-        activeSubscription(periodEnd: DateTime(2026, 4, 1)),
-      ),
-      isFalse,
+  VendorPayoutProfile completedPayoutProfile() {
+    final now = DateTime(2026, 4, 15);
+    return VendorPayoutProfile(
+      vendorId: 'vendor-1',
+      accountHolderName: 'Vendor Example',
+      bankName: 'FNB',
+      accountNumber: '1234567890',
+      branchCode: '250655',
+      accountType: 'cheque',
+      registeredPhone: '0820000000',
+      registeredEmail: 'vendor@example.com',
+      verificationStatus: 'submitted',
+      createdAt: now,
+      updatedAt: now,
     );
-    expect(
-      isVendorSubscriptionActive(activeSubscription(status: 'pending')),
-      isFalse,
-    );
-  });
+  }
+
+  test(
+    'active subscription helper requires active status and future period',
+    () {
+      expect(isVendorSubscriptionActive(activeSubscription()), isTrue);
+      expect(
+        isVendorSubscriptionActive(
+          activeSubscription(periodEnd: DateTime(2026, 4, 1)),
+        ),
+        isFalse,
+      );
+      expect(
+        isVendorSubscriptionActive(activeSubscription(status: 'pending')),
+        isFalse,
+      );
+    },
+  );
 
   test('cancelled subscription stays active until current_period_end', () {
     final stillInPeriod = activeSubscription(
@@ -84,9 +104,7 @@ void main() {
             (ref) => Stream.value(subscription),
           ),
         ],
-        child: const MaterialApp(
-          home: VendorSubscriptionScreen(),
-        ),
+        child: const MaterialApp(home: VendorSubscriptionScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -96,10 +114,7 @@ void main() {
   });
 
   test('inactive subscription copy mentions the free first month', () {
-    expect(
-      vendorSubscriptionGateMessage,
-      contains('free first month'),
-    );
+    expect(vendorSubscriptionGateMessage, contains('free first month'));
   });
 
   test('inactive subscription CTA uses the shorter free-month label', () {
@@ -114,6 +129,33 @@ void main() {
     );
   });
 
+  test('pending subscription helper copy falls back to inactive state', () {
+    expect(vendorSubscriptionStatusTitle('pending'), 'Subscription inactive');
+    expect(
+      vendorSubscriptionCtaLabel(
+        status: 'pending',
+        isSubscriptionLoading: false,
+        isActivating: false,
+        isCancelledButAccessible: false,
+      ),
+      'Start Free Month',
+    );
+  });
+
+  test('subscription model normalizes pending status to inactive', () {
+    final subscription = VendorSubscription.fromJson({
+      'vendor_id': 'vendor-1',
+      'plan_code': 'artisan-monthly',
+      'amount': 349,
+      'currency': 'ZAR',
+      'status': 'pending',
+      'created_at': '2026-05-03T12:00:00.000Z',
+      'updated_at': '2026-05-03T12:00:00.000Z',
+    });
+
+    expect(subscription.status, 'inactive');
+  });
+
   testWidgets('subscription screen uses the shorter free-month CTA copy', (
     tester,
   ) async {
@@ -125,9 +167,7 @@ void main() {
             (ref) => Stream.value(null),
           ),
         ],
-        child: const MaterialApp(
-          home: VendorSubscriptionScreen(),
-        ),
+        child: const MaterialApp(home: VendorSubscriptionScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -146,14 +186,14 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            vendorSubscriptionProvider.overrideWith((ref) => pendingFuture.future),
+            vendorSubscriptionProvider.overrideWith(
+              (ref) => pendingFuture.future,
+            ),
             vendorSubscriptionStreamProvider.overrideWith(
               (ref) => streamController.stream,
             ),
           ],
-          child: const MaterialApp(
-            home: VendorSubscriptionScreen(),
-          ),
+          child: const MaterialApp(home: VendorSubscriptionScreen()),
         ),
       );
       await tester.pump();
@@ -179,11 +219,11 @@ void main() {
           vendorPayoutProfileStreamProvider.overrideWith(
             (ref) => Stream.value(null),
           ),
-          vendorCategoriesProvider.overrideWith((ref) async => const <Category>[]),
+          vendorCategoriesProvider.overrideWith(
+            (ref) async => const <Category>[],
+          ),
         ],
-        child: const MaterialApp(
-          home: ProductFormScreen(),
-        ),
+        child: const MaterialApp(home: ProductFormScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -208,9 +248,7 @@ void main() {
             (ref) => Stream.value(null),
           ),
         ],
-        child: const MaterialApp(
-          home: VendorProductsScreen(),
-        ),
+        child: const MaterialApp(home: VendorProductsScreen()),
       ),
     );
     await tester.pumpAndSettle();
@@ -220,5 +258,62 @@ void main() {
 
     expect(find.text('Start your artisan subscription'), findsOneWidget);
     expect(find.text('Open subscription'), findsOneWidget);
+  });
+
+  testWidgets('product form category dropdown keeps the selected category', (
+    tester,
+  ) async {
+    final categories = [
+      Category(
+        id: 'cat-home',
+        name: 'Home',
+        slug: 'home',
+        createdAt: DateTime(2026, 4, 15),
+      ),
+      Category(
+        id: 'cat-jewellery',
+        name: 'Jewellery',
+        slug: 'jewellery',
+        createdAt: DateTime(2026, 4, 15),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          vendorSubscriptionProvider.overrideWith(
+            (ref) async => activeSubscription(),
+          ),
+          vendorSubscriptionStreamProvider.overrideWith(
+            (ref) => Stream.value(activeSubscription()),
+          ),
+          vendorPayoutProfileProvider.overrideWith(
+            (ref) async => completedPayoutProfile(),
+          ),
+          vendorPayoutProfileStreamProvider.overrideWith(
+            (ref) => Stream.value(completedPayoutProfile()),
+          ),
+          vendorCategoriesProvider.overrideWith((ref) async => categories),
+          vendorSubcategoriesProvider.overrideWith(
+            (ref, categoryId) async => const <Subcategory>[],
+          ),
+        ],
+        child: const MaterialApp(home: ProductFormScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final categoryDropdown = find.byWidgetPredicate(
+      (widget) => widget is DropdownButtonFormField<String>,
+    ).first;
+
+    await tester.ensureVisible(categoryDropdown);
+    await tester.tap(categoryDropdown);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Jewellery').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Jewellery'), findsWidgets);
+    expect(find.text('Subcategory'), findsOneWidget);
   });
 }

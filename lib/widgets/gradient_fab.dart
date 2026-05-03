@@ -6,38 +6,86 @@ import '../app/theme.dart';
 class GradientFab extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final int? badgeCount;
 
-  const GradientFab({super.key, required this.icon, required this.onTap});
+  const GradientFab({
+    super.key,
+    required this.icon,
+    required this.onTap,
+    this.badgeCount,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppTheme.terracotta, AppTheme.baobab],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.terracotta.withValues(alpha: 0.35),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+    final resolvedBadgeCount = badgeCount;
+    final badgeLabel = resolvedBadgeCount == null
+        ? null
+        : (resolvedBadgeCount > 99 ? '99+' : '$resolvedBadgeCount');
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [AppTheme.terracotta, AppTheme.baobab],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.terracotta.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Icon(icon, color: Colors.white, size: 24),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
+          ),
         ),
-      ),
+        if (resolvedBadgeCount != null && resolvedBadgeCount > 0)
+          Positioned(
+            top: -4,
+            right: -2,
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: AppTheme.terracotta, width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  badgeLabel!,
+                  style: GoogleFonts.poppins(
+                    color: AppTheme.terracotta,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

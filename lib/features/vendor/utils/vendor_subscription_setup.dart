@@ -13,8 +13,7 @@ bool isVendorSubscriptionActive(VendorSubscription? subscription) {
     return currentPeriodEnd == null || currentPeriodEnd.isAfter(DateTime.now());
   }
   if (status == 'cancelled') {
-    return currentPeriodEnd != null &&
-        currentPeriodEnd.isAfter(DateTime.now());
+    return currentPeriodEnd != null && currentPeriodEnd.isAfter(DateTime.now());
   }
   return false;
 }
@@ -35,8 +34,6 @@ String vendorSubscriptionStatusTitle(
   switch (status) {
     case 'active':
       return 'Subscription active';
-    case 'pending':
-      return 'Subscription pending';
     case 'past_due':
       return 'Payment action required';
     case 'cancelled':
@@ -65,8 +62,6 @@ String vendorSubscriptionStatusMessage(VendorSubscription? subscription) {
       }
       return 'Your artisan subscription is active through '
           '${_formatCurrentPeriodEnd(periodEnd)}.';
-    case 'pending':
-      return 'We are waiting for PayFast to confirm your free-month subscription setup.';
     case 'past_due':
       return subscription?.statusReason ??
           'Your last PayFast subscription payment needs attention before new sales can continue.';
@@ -105,9 +100,6 @@ String vendorSubscriptionCtaLabel({
   }
   if (isActivating) {
     return 'Activating subscription…';
-  }
-  if (status == 'pending') {
-    return 'Resume PayFast Checkout';
   }
   return 'Start Free Month';
 }

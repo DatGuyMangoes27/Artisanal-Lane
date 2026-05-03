@@ -42,6 +42,19 @@ class VendorSubscription {
   });
 
   factory VendorSubscription.fromJson(Map<String, dynamic> json) {
+    String normalizeStatus(String? rawStatus) {
+      switch (rawStatus) {
+        case 'active':
+        case 'past_due':
+        case 'cancelled':
+        case 'inactive':
+          return rawStatus!;
+        case 'pending':
+        default:
+          return 'inactive';
+      }
+    }
+
     DateTime? parseDate(String key) {
       final value = json[key];
       if (value == null) return null;
@@ -53,7 +66,7 @@ class VendorSubscription {
       planCode: json['plan_code'] as String? ?? 'artisan-monthly',
       amount: (json['amount'] as num?)?.toDouble() ?? 0,
       currency: json['currency'] as String? ?? 'ZAR',
-      status: json['status'] as String? ?? 'inactive',
+      status: normalizeStatus(json['status'] as String?),
       checkoutReference: json['checkout_reference'] as String?,
       payfastSubscriptionId: json['payfast_subscription_id'] as String?,
       payfastToken: json['payfast_token'] as String?,
@@ -72,22 +85,22 @@ class VendorSubscription {
   }
 
   Map<String, dynamic> toJson() => {
-        'vendor_id': vendorId,
-        'plan_code': planCode,
-        'amount': amount,
-        'currency': currency,
-        'status': status,
-        'checkout_reference': checkoutReference,
-        'payfast_subscription_id': payfastSubscriptionId,
-        'payfast_token': payfastToken,
-        'payfast_payment_id': payfastPaymentId,
-        'payfast_email': payfastEmail,
-        'current_period_start': currentPeriodStart?.toIso8601String(),
-        'current_period_end': currentPeriodEnd?.toIso8601String(),
-        'started_at': startedAt?.toIso8601String(),
-        'last_payment_at': lastPaymentAt?.toIso8601String(),
-        'cancelled_at': cancelledAt?.toIso8601String(),
-        'status_reason': statusReason,
-        'last_itn_at': lastItnAt?.toIso8601String(),
-      };
+    'vendor_id': vendorId,
+    'plan_code': planCode,
+    'amount': amount,
+    'currency': currency,
+    'status': status,
+    'checkout_reference': checkoutReference,
+    'payfast_subscription_id': payfastSubscriptionId,
+    'payfast_token': payfastToken,
+    'payfast_payment_id': payfastPaymentId,
+    'payfast_email': payfastEmail,
+    'current_period_start': currentPeriodStart?.toIso8601String(),
+    'current_period_end': currentPeriodEnd?.toIso8601String(),
+    'started_at': startedAt?.toIso8601String(),
+    'last_payment_at': lastPaymentAt?.toIso8601String(),
+    'cancelled_at': cancelledAt?.toIso8601String(),
+    'status_reason': statusReason,
+    'last_itn_at': lastItnAt?.toIso8601String(),
+  };
 }

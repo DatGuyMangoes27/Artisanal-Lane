@@ -14,8 +14,21 @@ class BuyerShell extends ConsumerWidget {
 
   const BuyerShell({super.key, required this.child});
 
-  bool get _isGuest =>
-      Supabase.instance.client.auth.currentSession == null;
+  bool get _isGuest {
+    if (!_isSupabaseInitialized) {
+      return true;
+    }
+    return Supabase.instance.client.auth.currentSession == null;
+  }
+
+  bool get _isSupabaseInitialized {
+    try {
+      Supabase.instance.client;
+      return true;
+    } on AssertionError {
+      return false;
+    }
+  }
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
