@@ -315,10 +315,10 @@ class _VendorSubscriptionScreenState
               _FeatureCard(
                 title: 'Billing',
                 items: const [
-                  'First month free',
-                  'R349 per month after your free month',
+                  'First two months free',
+                  'R349 per month after your free trial',
                   'Secure recurring card billing through PayFast',
-                  'Add your card now, with the first charge starting in one month',
+                  'Add your card now, with the first charge starting in two months',
                 ],
               ),
               const SizedBox(height: 24),

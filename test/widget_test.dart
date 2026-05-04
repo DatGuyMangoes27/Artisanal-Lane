@@ -2,8 +2,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
+import 'package:artisanal_lane/features/auth/screens/reset_password_screen.dart';
+import 'package:artisanal_lane/features/auth/utils/auth_redirects.dart';
 import 'package:artisanal_lane/features/auth/screens/login_screen.dart';
 import 'package:artisanal_lane/features/auth/screens/welcome_screen.dart';
 import 'package:artisanal_lane/features/chat/utils/live_chat_messages.dart';
@@ -71,6 +74,46 @@ void main() {
     await tester.pump();
 
     expect(find.text('Continue with Google'), findsOneWidget);
+  });
+
+  test('Auth redirect helper routes password recovery into reset password', () {
+    expect(
+      routeForAuthEvent(AuthChangeEvent.passwordRecovery),
+      '/reset-password',
+    );
+    expect(
+      routeForAuthEvent(AuthChangeEvent.signedIn, role: 'vendor'),
+      '/vendor',
+    );
+    expect(
+      routeForAuthEvent(
+        AuthChangeEvent.signedIn,
+        requestedRole: 'vendor',
+      ),
+      '/vendor/onboarding',
+    );
+    expect(
+      routeForAuthEvent(AuthChangeEvent.signedIn),
+      '/home',
+    );
+    expect(
+      routeForAuthEvent(AuthChangeEvent.signedOut),
+      '/welcome',
+    );
+  });
+
+  testWidgets('Reset password screen shows the new password form', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: ResetPasswordScreen()),
+    );
+    await tester.pump();
+
+    expect(find.text('Create\nNew Password'), findsOneWidget);
+    expect(find.text('New Password'), findsOneWidget);
+    expect(find.text('Confirm Password'), findsOneWidget);
+    expect(find.text('Update Password'), findsOneWidget);
   });
 
   testWidgets('Stationery sheet header exposes a back button', (

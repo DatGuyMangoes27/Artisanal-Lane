@@ -1038,7 +1038,7 @@ class SupabaseService {
 
   // ── Products ──────────────────────────────────────────────────
   static const _productSelect =
-      '*, shops(name, logo_url), categories(name), subcategories(name), product_variants(*)';
+      '*, shops!inner(name, logo_url), categories(name), subcategories(name), product_variants(*)';
   static const _orderSelect =
       '*, shops(name), order_items(*, products(title, images))';
 
@@ -1130,7 +1130,8 @@ class SupabaseService {
     var query = _client
         .from('products')
         .select(_productSelect)
-        .eq('is_published', true);
+        .eq('is_published', true)
+        .eq('shops.is_active', true);
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
@@ -1166,6 +1167,7 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
+        .eq('shops.is_active', true)
         .eq('is_featured', true)
         .order('featured_at', ascending: false)
         .limit(limit);
@@ -1177,6 +1179,7 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
+        .eq('shops.is_active', true)
         .not('compare_at_price', 'is', null)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -1187,8 +1190,9 @@ class SupabaseService {
     final data = await _client
         .from('products')
         .select(
-          '*, shops(name, logo_url, slug, bio, location), categories(name), subcategories(name), product_variants(*)',
+          '*, shops!inner(name, logo_url, slug, bio, location), categories(name), subcategories(name), product_variants(*)',
         )
+        .eq('shops.is_active', true)
         .eq('id', id)
         .single();
     return Product.fromJson(data);
@@ -1220,7 +1224,12 @@ class SupabaseService {
   }
 
   Future<Shop> getShop(String id) async {
-    final data = await _client.from('shops').select().eq('id', id).single();
+    final data = await _client
+        .from('shops')
+        .select()
+        .eq('id', id)
+        .eq('is_active', true)
+        .single();
     return Shop.fromJson(data);
   }
 
@@ -1790,7 +1799,8 @@ class SupabaseService {
         .asyncMap((_) => getVendorSubscription(vendorId));
   }
 
-  Future<VendorSubscriptionCheckoutSession> createVendorSubscriptionCheckout() async {
+  Future<VendorSubscriptionCheckoutSession>
+  createVendorSubscriptionCheckout() async {
     final headers = await _authorizedFunctionHeaders();
     final response = await _client.functions.invoke(
       'create-payfast-subscription',
@@ -1983,7 +1993,8 @@ class SupabaseService {
         'get-courier-guy-lockers',
         headers: headers,
         body: {
-          if (trimmedQuery != null && trimmedQuery.isNotEmpty) 'query': trimmedQuery,
+          if (trimmedQuery != null && trimmedQuery.isNotEmpty)
+            'query': trimmedQuery,
           if (trimmedProvince != null && trimmedProvince.isNotEmpty)
             'province': trimmedProvince,
           if (limit != null) 'limit': limit,
@@ -1996,14 +2007,16 @@ class SupabaseService {
 
       final payload = Map<String, dynamic>.from(response.data as Map);
       final data = (payload['lockers'] as List? ?? const [])
-          .map((entry) => CourierGuyLocker.fromJson(Map<String, dynamic>.from(entry as Map)))
+          .map(
+            (entry) => CourierGuyLocker.fromJson(
+              Map<String, dynamic>.from(entry as Map),
+            ),
+          )
           .toList(growable: false);
       print('[locker-debug] parsed lockers count=${data.length}');
       return data;
     } catch (error, stackTrace) {
-      print(
-        '[locker-debug] search failed error=$error stackTrace=$stackTrace',
-      );
+      print('[locker-debug] search failed error=$error stackTrace=$stackTrace');
       rethrow;
     }
   }

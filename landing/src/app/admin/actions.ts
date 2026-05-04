@@ -31,6 +31,12 @@ function createErrorState(error: unknown, fallback: string): AdminActionState {
   };
 }
 
+function throwIfSupabaseError(error: { message: string } | null, fallback: string) {
+  if (error) {
+    throw new Error(error.message || fallback);
+  }
+}
+
 async function appendDisputeResolutionMessage({
   admin,
   disputeId,
@@ -210,7 +216,11 @@ export async function toggleShopStatus(
     const nextValue = String(formData.get("nextValue")) === "true";
 
     const admin = createAdminClient();
-    await admin.from("shops").update({ is_active: nextValue }).eq("id", shopId);
+    const { error } = await admin
+      .from("shops")
+      .update({ is_active: nextValue })
+      .eq("id", shopId);
+    throwIfSupabaseError(error, "Unable to update shop status.");
 
     revalidatePath("/admin");
     revalidatePath("/admin/shops");
@@ -219,6 +229,28 @@ export async function toggleShopStatus(
     return createSuccessState(nextValue ? "Shop restored." : "Shop suspended.");
   } catch (error) {
     return createErrorState(error, "Unable to update shop status.");
+  }
+}
+
+export async function deleteShop(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+    const shopId = String(formData.get("shopId"));
+
+    const admin = createAdminClient();
+    const { error } = await admin.from("shops").delete().eq("id", shopId);
+    throwIfSupabaseError(error, "Unable to delete shop.");
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/shops");
+    revalidatePath(`/admin/shops/${shopId}`);
+
+    return createSuccessState("Shop deleted.");
+  } catch (error) {
+    return createErrorState(error, "Unable to delete shop.");
   }
 }
 

@@ -3,7 +3,7 @@ import '../../../models/vendor_subscription.dart';
 const artisanSubscriptionAmount = 349.0;
 const artisanSubscriptionPlanLabel = 'Artisan Subscription';
 const vendorSubscriptionGateMessage =
-    'Start your free first month now. After that, your artisan subscription is R349/month before listing products or receiving new buyer checkouts.';
+    'Start your free first two months now. After that, your artisan subscription is R349/month before listing products or receiving new buyer checkouts.';
 
 bool isVendorSubscriptionActive(VendorSubscription? subscription) {
   if (subscription == null) return false;
@@ -96,10 +96,10 @@ String vendorSubscriptionCtaLabel({
     return 'Subscription Active';
   }
   if (isCancelledButAccessible) {
-    return 'Start Free Month';
+    return 'Start 2-Month Free Trial';
   }
   if (isActivating) {
     return 'Activating subscription…';
   }
-  return 'Start Free Month';
+  return 'Start 2-Month Free Trial';
 }

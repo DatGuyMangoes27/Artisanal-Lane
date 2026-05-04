@@ -115,7 +115,7 @@ Deno.serve(async (request) => {
       amount: 0,
       recurringAmount: artisanSubscriptionAmount,
       itemName: "Artisan Lane Subscription",
-      itemDescription: "Artisan subscription with first month free",
+      itemDescription: "Artisan subscription with first two months free",
       reference: paymentReference,
       vendorId: user.id,
       checkoutReference,

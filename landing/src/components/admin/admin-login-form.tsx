@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,10 @@ import { createClient } from "@/lib/supabase/browser";
 export function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = useMemo(() => createClient(), []);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "unauthorized"
       ? "Your account is not allowed to access the admin panel."
@@ -26,6 +26,7 @@ export function AdminLoginForm() {
     setSubmitting(true);
     setError(null);
 
+    const supabase = createClient({ rememberSession: rememberMe });
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -81,6 +82,15 @@ export function AdminLoginForm() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </div>
+          <label className="flex items-center gap-3 text-sm text-artisan-sienna">
+            <input
+              className="h-4 w-4 rounded border-artisan-clay text-artisan-terracotta focus:ring-artisan-terracotta"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(event) => setRememberMe(event.target.checked)}
+            />
+            <span>Remember me on this device</span>
+          </label>
           {error ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, MessageSquare, Star, Store } from "lucide-react";
+import { ArrowRight, MessageSquare, Star, Store, Trash2 } from "lucide-react";
 
-import { toggleShopSpotlight, toggleShopStatus } from "@/app/admin/actions";
+import { deleteShop, toggleShopSpotlight, toggleShopStatus } from "@/app/admin/actions";
 import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
@@ -213,6 +213,19 @@ export default async function AdminShopsPage({
                   ]}
                   idleContent={shop.is_active ? "Suspend shop" : "Restore shop"}
                   pendingLabel="Saving..."
+                />
+                <AdminActionButtonForm
+                  action={deleteShop}
+                  buttonClassName="w-full bg-red-700 text-white hover:bg-red-800"
+                  confirmMessage="Delete this shop and all linked storefront content? Existing order history will be preserved, but products, posts, reviews, chats, and notes tied to the shop will be removed."
+                  hiddenFields={[{ name: "shopId", value: shop.id }]}
+                  idleContent={
+                    <>
+                      <Trash2 className="h-4 w-4" />
+                      Delete shop
+                    </>
+                  }
+                  pendingLabel="Deleting..."
                 />
               </div>
             </div>

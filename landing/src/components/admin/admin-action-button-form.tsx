@@ -22,6 +22,7 @@ type AdminActionButtonFormProps = {
   pendingLabel: string;
   buttonClassName: string;
   formClassName?: string;
+  confirmMessage?: string;
 };
 
 export function AdminActionButtonForm({
@@ -31,6 +32,7 @@ export function AdminActionButtonForm({
   pendingLabel,
   buttonClassName,
   formClassName,
+  confirmMessage,
 }: AdminActionButtonFormProps) {
   const [state, formAction, pending] = useActionState(
     action,
@@ -38,7 +40,19 @@ export function AdminActionButtonForm({
   );
 
   return (
-    <form action={formAction} className={formClassName ?? "space-y-2"}>
+    <form
+      action={formAction}
+      className={formClassName ?? "space-y-2"}
+      onSubmit={
+        confirmMessage
+          ? (event) => {
+              if (!window.confirm(confirmMessage)) {
+                event.preventDefault();
+              }
+            }
+          : undefined
+      }
+    >
       {hiddenFields.map((field) => (
         <input key={field.name} name={field.name} type="hidden" value={field.value} />
       ))}

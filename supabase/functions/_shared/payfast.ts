@@ -118,7 +118,7 @@ export function buildPayFastSubscriptionCheckoutUrl(input: {
 }) {
   const config = getPayFastConfig();
   const { firstName, lastName } = splitDisplayName(input.displayName);
-  const billingDate = addMonths(new Date(), 1).toISOString().slice(0, 10);
+  const billingDate = addMonths(new Date(), 2).toISOString().slice(0, 10);
   const entries: Array<[string, string]> = [
     ["merchant_id", config.merchantId],
     ["merchant_key", config.merchantKey],
@@ -192,28 +192,25 @@ export function buildPayFastOnceOffCheckoutUrl(input: {
 }
 
 export function verifyPayFastItnSignatureFromRaw(rawBody: string, passphrase?: string | null) {
-  const segments = rawBody.split("&").filter((segment) => segment.length > 0);
+  const params = parsePayFastFormEncoded(rawBody);
   let providedSignature: string | null = null;
-  const kept: string[] = [];
+  const entries: Array<[string, string]> = [];
 
-  for (const segment of segments) {
-    const eqIndex = segment.indexOf("=");
-    const key = eqIndex === -1 ? segment : segment.slice(0, eqIndex);
+  for (const [key, value] of params.entries()) {
     if (key === "signature") {
-      providedSignature = eqIndex === -1 ? "" : segment.slice(eqIndex + 1);
+      providedSignature = value;
       continue;
     }
-    kept.push(segment);
+
+    const normalizedValue = normalizeValue(value);
+    if (normalizedValue == null) {
+      continue;
+    }
+
+    entries.push([key, normalizedValue]);
   }
 
-  let signingString = kept.join("&");
-  const normalizedPassphrase = normalizeValue(passphrase ?? undefined);
-  if (normalizedPassphrase != null) {
-    signingString = signingString.length > 0
-      ? `${signingString}&passphrase=${encodePayFastValue(normalizedPassphrase)}`
-      : `passphrase=${encodePayFastValue(normalizedPassphrase)}`;
-  }
-
+  const signingString = buildSignaturePayload(entries, passphrase ?? undefined);
   const expectedSignature = createMd5Hash(signingString);
   return {
     providedSignature,

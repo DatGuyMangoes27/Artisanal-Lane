@@ -7,6 +7,8 @@ import '../features/auth/screens/welcome_screen.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/register_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
+import '../features/auth/screens/reset_password_screen.dart';
+import '../features/auth/utils/auth_redirects.dart';
 
 import '../features/buyer/screens/buyer_home_screen.dart';
 import '../features/buyer/screens/categories_screen.dart';
@@ -128,6 +130,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/forgot-password',
         builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: passwordRecoveryRoute,
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
 
       // ── Buyer Shell ────────────────────────────────────────────

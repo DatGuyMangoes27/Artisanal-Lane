@@ -113,11 +113,11 @@ void main() {
     expect(find.textContaining('Current period ends'), findsOneWidget);
   });
 
-  test('inactive subscription copy mentions the free first month', () {
-    expect(vendorSubscriptionGateMessage, contains('free first month'));
+  test('inactive subscription copy mentions the free first two months', () {
+    expect(vendorSubscriptionGateMessage, contains('free first two months'));
   });
 
-  test('inactive subscription CTA uses the shorter free-month label', () {
+  test('inactive subscription CTA uses the shorter two-month free-trial label', () {
     expect(
       vendorSubscriptionCtaLabel(
         status: 'inactive',
@@ -125,7 +125,7 @@ void main() {
         isActivating: false,
         isCancelledButAccessible: false,
       ),
-      'Start Free Month',
+      'Start 2-Month Free Trial',
     );
   });
 
@@ -138,7 +138,7 @@ void main() {
         isActivating: false,
         isCancelledButAccessible: false,
       ),
-      'Start Free Month',
+      'Start 2-Month Free Trial',
     );
   });
 
@@ -156,7 +156,7 @@ void main() {
     expect(subscription.status, 'inactive');
   });
 
-  testWidgets('subscription screen uses the shorter free-month CTA copy', (
+  testWidgets('subscription screen uses the shorter two-month free-trial CTA copy', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -173,7 +173,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Start Subscription • R349/month'), findsNothing);
-    expect(find.textContaining('First month free'), findsWidgets);
+    expect(find.textContaining('First two months free'), findsWidgets);
   });
 
   testWidgets(

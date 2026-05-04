@@ -48,6 +48,7 @@ type VendorApplicationRecord = {
   business_name: string;
   motivation: string | null;
   portfolio_url: string | null;
+  proof_image_urls: string[] | null;
   location: string | null;
   status: string;
   reviewed_by: string | null;
@@ -341,7 +342,7 @@ export async function listVendorApplications() {
   const { data } = await admin
     .from("vendor_applications")
     .select(
-      "id, user_id, business_name, motivation, portfolio_url, location, status, reviewed_by, reviewed_at, created_at, delivery_info, turnaround_time",
+      "id, user_id, business_name, motivation, portfolio_url, proof_image_urls, location, status, reviewed_by, reviewed_at, created_at, delivery_info, turnaround_time",
     )
     .order("created_at", { ascending: false })
     .limit(50);
@@ -353,6 +354,7 @@ export async function listVendorApplications() {
 
   return applications.map((application) => ({
     ...application,
+    proof_image_urls: parseStringArray(application.proof_image_urls),
     applicant: profiles.get(application.user_id) ?? null,
     reviewer: application.reviewed_by
       ? profiles.get(application.reviewed_by) ?? null

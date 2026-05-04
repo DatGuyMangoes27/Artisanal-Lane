@@ -8,6 +8,7 @@ import 'app/theme.dart';
 import 'app/router.dart';
 import 'core/constants/app_constants.dart';
 import 'features/auth/providers/auth_providers.dart';
+import 'features/auth/utils/auth_redirects.dart';
 import 'features/buyer/providers/buyer_providers.dart';
 import 'features/buyer/utils/payment_deep_links.dart';
 import 'features/vendor/providers/vendor_providers.dart';
@@ -75,15 +76,32 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
 
     ref.listen(authStateProvider, (_, next) {
       next.whenData((authState) async {
+        if (authState.event == AuthChangeEvent.passwordRecovery) {
+          router.go(passwordRecoveryRoute);
+          return;
+        }
+
         if (authState.event == AuthChangeEvent.signedIn) {
           final service = ref.read(supabaseServiceProvider);
           final profile = await service.syncCurrentUserProfile();
-          final route = await service.getPostAuthRoute(profile: profile);
+          final route =
+              routeForAuthEvent(
+                authState.event,
+                role: profile?.role,
+                requestedRole:
+                    Supabase.instance.client.auth.currentUser?.userMetadata?['requested_role']
+                        as String?,
+              ) ??
+              await service.getPostAuthRoute(profile: profile);
           router.go(route);
+          return;
         }
 
         if (authState.event == AuthChangeEvent.signedOut) {
-          router.go('/welcome');
+          final route = routeForAuthEvent(authState.event);
+          if (route != null) {
+            router.go(route);
+          }
         }
       });
     });

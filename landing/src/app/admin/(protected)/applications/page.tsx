@@ -91,6 +91,30 @@ export default async function AdminApplicationsPage() {
                       </a>
                     </p>
                   ) : null}
+                  {application.proof_image_urls.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-artisan-sienna">
+                        Work photos
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        {application.proof_image_urls.map((imageUrl: string, index: number) => (
+                          <a
+                            key={imageUrl}
+                            className="group block"
+                            href={imageUrl}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <div
+                              aria-label={`${application.business_name} proof photo ${index + 1}`}
+                              className="h-24 w-24 rounded-2xl border border-artisan-clay bg-artisan-bone bg-cover bg-center transition group-hover:opacity-90"
+                              style={{ backgroundImage: `url("${imageUrl}")` }}
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {application.status === "pending" ? (
