@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { ArrowRight, MessageSquare, Store } from "lucide-react";
 
+import { AdminBroadcastMessageForm } from "@/components/admin/admin-broadcast-message-form";
 import { AdminChatAutoRefresh } from "@/components/admin/admin-chat-auto-refresh";
 import { AdminPageHeader, PanelCard } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
-import { listAdminShopThreads } from "@/lib/admin-messaging";
+import {
+  listActiveAdminMessagingShops,
+  listAdminShopThreads,
+} from "@/lib/admin-messaging";
 
 function formatTimestamp(value: string | null) {
   if (!value) return "No messages yet";
@@ -12,7 +16,10 @@ function formatTimestamp(value: string | null) {
 }
 
 export default async function AdminMessagesPage() {
-  const threads = await listAdminShopThreads();
+  const [threads, activeShops] = await Promise.all([
+    listAdminShopThreads(),
+    listActiveAdminMessagingShops(),
+  ]);
 
   return (
     <>
@@ -33,6 +40,15 @@ export default async function AdminMessagesPage() {
           </Button>
         }
       />
+
+      <PanelCard
+        title="Broadcast"
+        description="Send one update to every active store without opening each chat individually."
+      >
+        <AdminBroadcastMessageForm storeCount={activeShops.length} />
+      </PanelCard>
+
+      <div className="mt-6" />
 
       <PanelCard
         title="Active shop chats"

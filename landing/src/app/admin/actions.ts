@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
-import { getOrCreateAdminShopThread } from "@/lib/admin-messaging";
+import {
+  getOrCreateAdminShopThread,
+  listActiveAdminMessagingShops,
+} from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
@@ -392,6 +395,58 @@ export async function sendAdminShopMessage(
     return createSuccessState("Message sent.");
   } catch (error) {
     return createErrorState(error, "Unable to send message.");
+  }
+}
+
+export async function sendAdminBroadcastMessage(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const session = await requireAdminSession();
+    const body = String(formData.get("body") ?? "").trim();
+
+    if (!body) {
+      return {
+        status: "error",
+        message: "Please type a message before sending.",
+        savedAt: null,
+      };
+    }
+
+    const shops = await listActiveAdminMessagingShops();
+    if (shops.length === 0) {
+      return createErrorState(null, "No active stores are available to message.");
+    }
+
+    const threads = await Promise.all(
+      shops.map((shop) => getOrCreateAdminShopThread(shop.id, session.user.id)),
+    );
+    const messageRows = threads
+      .filter((thread): thread is NonNullable<typeof thread> => thread != null)
+      .map((thread) => ({
+        thread_id: thread.id,
+        sender_id: session.user.id,
+        body,
+        message_type: "text",
+      }));
+
+    if (messageRows.length === 0) {
+      return createErrorState(null, "Could not locate any shop threads for this broadcast.");
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin.from("chat_messages").insert(messageRows);
+    if (error) {
+      return createErrorState(new Error(error.message), "Unable to send broadcast.");
+    }
+
+    revalidatePath("/admin/messages");
+    revalidatePath("/admin/shops");
+
+    return createSuccessState(`Message sent to ${messageRows.length} stores.`);
+  } catch (error) {
+    return createErrorState(error, "Unable to send broadcast.");
   }
 }
 

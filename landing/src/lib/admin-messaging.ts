@@ -16,6 +16,8 @@ type ShopRef = {
   logo_url: string | null;
 };
 
+export type AdminMessagingTargetShop = ShopRef;
+
 export type AdminShopThread = {
   id: string;
   shop_id: string;
@@ -79,6 +81,26 @@ async function getShopsMap(ids: string[]) {
 
   return new Map(
     (data ?? []).map((shop) => [shop.id, shop as ShopRef]),
+  );
+}
+
+export async function listActiveAdminMessagingShops(): Promise<AdminMessagingTargetShop[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("shops")
+    .select("id, name, vendor_id, logo_url")
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).filter((shop): shop is AdminMessagingTargetShop =>
+    typeof shop.id === "string" &&
+    typeof shop.name === "string" &&
+    typeof shop.vendor_id === "string" &&
+    shop.vendor_id.length > 0
   );
 }
 
