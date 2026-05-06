@@ -9,6 +9,10 @@ import {
   listActiveAdminMessagingShops,
 } from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  sendChatMessagePushNotifications,
+  sendDisputeResolvedPushNotification,
+} from "@/lib/push-notifications";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 
 function slugify(value: string): string {
@@ -377,15 +381,23 @@ export async function sendAdminShopMessage(
     }
 
     const admin = createAdminClient();
-    const { error } = await admin.from("chat_messages").insert({
-      thread_id: thread.id,
-      sender_id: session.user.id,
-      body,
-      message_type: "text",
-    });
+    const { data: message, error } = await admin
+      .from("chat_messages")
+      .insert({
+        thread_id: thread.id,
+        sender_id: session.user.id,
+        body,
+        message_type: "text",
+      })
+      .select("id")
+      .single();
 
     if (error) {
       return createErrorState(new Error(error.message), "Unable to send message.");
+    }
+
+    if (message?.id != null) {
+      await sendChatMessagePushNotifications([message.id]);
     }
 
     revalidatePath("/admin/messages");
@@ -436,10 +448,17 @@ export async function sendAdminBroadcastMessage(
     }
 
     const admin = createAdminClient();
-    const { error } = await admin.from("chat_messages").insert(messageRows);
+    const { data: messages, error } = await admin
+      .from("chat_messages")
+      .insert(messageRows)
+      .select("id");
     if (error) {
       return createErrorState(new Error(error.message), "Unable to send broadcast.");
     }
+
+    await sendChatMessagePushNotifications(
+      (messages ?? []).map((message) => message.id),
+    );
 
     revalidatePath("/admin/messages");
     revalidatePath("/admin/shops");
@@ -545,6 +564,8 @@ export async function resolveDisputeRelease(
       body: `Admin resolution: funds released to the seller.\n\n${resolution}`,
     });
 
+    await sendDisputeResolvedPushNotification({ orderId, disputeId });
+
     revalidatePath("/admin");
     revalidatePath("/admin/disputes");
     revalidatePath("/admin/orders");
@@ -598,6 +619,8 @@ export async function resolveDisputeRefund(
       senderId: session.user.id,
       body: `Admin resolution: buyer refunded.\n\n${resolution}`,
     });
+
+    await sendDisputeResolvedPushNotification({ orderId, disputeId });
 
     revalidatePath("/admin");
     revalidatePath("/admin/disputes");

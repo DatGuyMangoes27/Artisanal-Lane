@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { jsonResponse } from "../_shared/http.ts";
+import { sendInternalPushRequest } from "../_shared/push.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -48,8 +49,8 @@ Deno.serve(async (request) => {
     const state = (data.state ?? data.status ?? "UNKNOWN") as string;
     const allocationId = Array.isArray(data.allocations)
       ? (data.allocations[0] as Record<string, unknown> | undefined)?.id as
-          | string
-          | undefined
+        | string
+        | undefined
       : undefined;
 
     if (!transactionId && !reference) {
@@ -68,15 +69,15 @@ Deno.serve(async (request) => {
 
     const orderLookup = transactionId
       ? admin
-          .from("orders")
-          .select("id, buyer_id")
-          .eq("tradesafe_transaction_id", transactionId)
-          .maybeSingle()
+        .from("orders")
+        .select("id, buyer_id, status")
+        .eq("tradesafe_transaction_id", transactionId)
+        .maybeSingle()
       : admin
-          .from("orders")
-          .select("id, buyer_id")
-          .eq("payment_reference", reference ?? "")
-          .maybeSingle();
+        .from("orders")
+        .select("id, buyer_id, status")
+        .eq("payment_reference", reference ?? "")
+        .maybeSingle();
 
     const { data: order } = await orderLookup;
 
@@ -92,8 +93,9 @@ Deno.serve(async (request) => {
       .update({
         status: orderStatus,
         payment_state: state,
-        payment_url:
-          orderStatus === "paid" || orderStatus === "cancelled" ? null : undefined,
+        payment_url: orderStatus === "paid" || orderStatus === "cancelled"
+          ? null
+          : undefined,
         tradesafe_transaction_id: transactionId,
         tradesafe_allocation_id: allocationId,
         paid_at: orderStatus === "paid" ? new Date().toISOString() : null,
@@ -120,6 +122,21 @@ Deno.serve(async (request) => {
       if (cart?.id) {
         await admin.from("cart_items").delete().eq("cart_id", cart.id);
       }
+    }
+
+    if (
+      order.status !== orderStatus &&
+      (orderStatus === "paid" || orderStatus === "cancelled")
+    ) {
+      await sendInternalPushRequest({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceRoleKey,
+        body: {
+          type: "order_update",
+          orderId: order.id,
+          event: orderStatus === "paid" ? "paid" : "cancelled",
+        },
+      });
     }
 
     return jsonResponse({ ok: true });

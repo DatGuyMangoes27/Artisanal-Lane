@@ -191,7 +191,7 @@ export function buildPayFastOnceOffCheckoutUrl(input: {
   return `${config.processUrl}?${payload}&signature=${signature}`;
 }
 
-export function verifyPayFastItnSignatureFromRaw(rawBody: string, passphrase?: string | null) {
+export function verifyPayFastItnSignatureFromRaw(rawBody: string, _passphrase?: string | null) {
   const params = parsePayFastFormEncoded(rawBody);
   let providedSignature: string | null = null;
   const entries: Array<[string, string]> = [];
@@ -199,24 +199,31 @@ export function verifyPayFastItnSignatureFromRaw(rawBody: string, passphrase?: s
   for (const [key, value] of params.entries()) {
     if (key === "signature") {
       providedSignature = value;
-      continue;
+      break;
     }
 
-    const normalizedValue = normalizeValue(value);
-    if (normalizedValue == null) {
-      continue;
-    }
-
-    entries.push([key, normalizedValue]);
+    entries.push([key, value]);
   }
 
-  const signingString = buildSignaturePayload(entries, passphrase ?? undefined);
-  const expectedSignature = createMd5Hash(signingString);
+  const unsignedSigningString = buildSignaturePayload(entries);
+  const unsignedExpectedSignature = createMd5Hash(unsignedSigningString);
+  const passphraseSigningString = buildSignaturePayload(entries, _passphrase ?? undefined);
+  const passphraseExpectedSignature = createMd5Hash(passphraseSigningString);
+  const matchesUnsigned = providedSignature != null &&
+    providedSignature === unsignedExpectedSignature;
+  const matchesPassphrase = providedSignature != null &&
+    providedSignature === passphraseExpectedSignature;
+  const matchedWithPassphrase = matchesPassphrase && !matchesUnsigned;
+
   return {
     providedSignature,
-    expectedSignature,
-    matches: providedSignature != null && providedSignature === expectedSignature,
-    signingString,
+    expectedSignature: matchedWithPassphrase
+      ? passphraseExpectedSignature
+      : unsignedExpectedSignature,
+    matches: matchesUnsigned || matchesPassphrase,
+    signingString: matchedWithPassphrase
+      ? passphraseSigningString
+      : unsignedSigningString,
   };
 }
 
@@ -263,8 +270,8 @@ export async function verifyPayFastItn(rawBody: string) {
 
 const PAYFAST_API_BASE = "https://api.payfast.co.za";
 
-function payFastApiTimestamp(date: Date = new Date()) {
-  return date.toISOString().split(".")[0];
+export function payFastApiTimestamp(date: Date = new Date()) {
+  return date.toISOString().replace(/\.\d{3}Z$/, "+00:00");
 }
 
 function buildPayFastApiSignature(

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "436632974650",
+    "project_id": "artisanlane-79663",
+    "storage_bucket": "artisanlane-79663.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:436632974650:android:40bacac5eb05d6327e8c03",
+        "android_client_info": {
+          "package_name": "com.artisanallane.artisanal_lane"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKSCabUugi4TFP7oMHHq1FU9V1IlllpYM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

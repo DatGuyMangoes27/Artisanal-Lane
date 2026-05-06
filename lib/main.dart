@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,9 +15,18 @@ import 'features/buyer/providers/buyer_providers.dart';
 import 'features/buyer/utils/payment_deep_links.dart';
 import 'features/vendor/providers/vendor_providers.dart';
 import 'services/meta_app_events_service.dart';
+import 'services/push_notifications_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   await Supabase.initialize(
     url: AppConstants.supabaseUrl,
@@ -35,12 +46,33 @@ class ArtisanalLaneApp extends ConsumerStatefulWidget {
 class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _paymentDeepLinkSubscription;
+  PushNotificationsService? _pushNotificationsService;
 
   @override
   void initState() {
     super.initState();
     _appLinks = AppLinks();
     ref.read(metaAppEventsServiceProvider).initialize();
+    _pushNotificationsService = PushNotificationsService(
+      supabaseService: ref.read(supabaseServiceProvider),
+    );
+    unawaited(
+      _pushNotificationsService?.initialize(
+            onOpenRoute: (route) {
+              final router = ref.read(routerProvider);
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                router.go(route);
+              });
+            },
+          ) ??
+          Future.value(),
+    );
+    if (Supabase.instance.client.auth.currentUser != null) {
+      unawaited(
+        _pushNotificationsService?.registerCurrentDevice() ?? Future.value(),
+      );
+    }
     _paymentDeepLinkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingDeepLink,
     );
@@ -66,6 +98,7 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
   @override
   void dispose() {
     _paymentDeepLinkSubscription?.cancel();
+    unawaited(_pushNotificationsService?.dispose() ?? Future.value());
     super.dispose();
   }
 
@@ -84,12 +117,18 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
         if (authState.event == AuthChangeEvent.signedIn) {
           final service = ref.read(supabaseServiceProvider);
           final profile = await service.syncCurrentUserProfile();
+          await _pushNotificationsService?.registerCurrentDevice();
           final route =
               routeForAuthEvent(
                 authState.event,
                 role: profile?.role,
                 requestedRole:
-                    Supabase.instance.client.auth.currentUser?.userMetadata?['requested_role']
+                    Supabase
+                            .instance
+                            .client
+                            .auth
+                            .currentUser
+                            ?.userMetadata?['requested_role']
                         as String?,
               ) ??
               await service.getPostAuthRoute(profile: profile);

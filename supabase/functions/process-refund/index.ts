@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { sendInternalPushRequest } from "../_shared/push.ts";
 import { cancelTradeSafeTransaction } from "../_shared/tradesafe.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -56,19 +57,23 @@ Deno.serve(async (request) => {
         .eq("id", userId!)
         .single();
 
-      if (profile.role != "admin") {
-        return jsonResponse({ error: "Only admins can issue refunds." }, { status: 403 });
+      if (profile?.role != "admin") {
+        return jsonResponse({ error: "Only admins can issue refunds." }, {
+          status: 403,
+        });
       }
     }
 
     if (!isServiceRoleRequest && userId == null) {
-      return jsonResponse({ error: "Only admins can issue refunds." }, { status: 403 });
+      return jsonResponse({ error: "Only admins can issue refunds." }, {
+        status: 403,
+      });
     }
 
     const body = await request.json();
     const orderId = body.orderId as string;
-    const reason =
-      (body.reason as string | null) ?? "Refund approved by admin.";
+    const reason = (body.reason as string | null) ??
+      "Refund approved by admin.";
 
     const { data: order } = await admin
       .from("orders")
@@ -76,8 +81,15 @@ Deno.serve(async (request) => {
       .eq("id", orderId)
       .single();
 
+    if (order == null) {
+      return jsonResponse({ error: "Order not found." }, { status: 404 });
+    }
+
     if (order.tradesafe_transaction_id) {
-      await cancelTradeSafeTransaction(order.tradesafe_transaction_id as string, reason);
+      await cancelTradeSafeTransaction(
+        order.tradesafe_transaction_id as string,
+        reason,
+      );
     }
 
     await admin
@@ -96,6 +108,16 @@ Deno.serve(async (request) => {
         released_at: new Date().toISOString(),
       })
       .eq("order_id", orderId);
+
+    await sendInternalPushRequest({
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceRoleKey,
+      body: {
+        type: "order_update",
+        orderId,
+        event: "cancelled",
+      },
+    });
 
     return jsonResponse({ ok: true });
   } catch (error) {

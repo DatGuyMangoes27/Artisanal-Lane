@@ -809,9 +809,43 @@ class SupabaseService {
         .select()
         .single();
 
+    await _sendChatPushNotification(row['id'] as String);
+
     return _hydrateChatMessage(
       ChatMessage.fromJson(Map<String, dynamic>.from(row)),
     );
+  }
+
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+  }) async {
+    await _client.rpc(
+      'register_push_token',
+      params: {
+        'p_token': token,
+        'p_platform': platform,
+        'p_device_id': null,
+      },
+    );
+  }
+
+  Future<void> revokePushToken(String token) async {
+    await _client.rpc(
+      'revoke_push_token',
+      params: {'p_token': token},
+    );
+  }
+
+  Future<void> _sendChatPushNotification(String messageId) async {
+    try {
+      await _client.functions.invoke(
+        'send-push-notification',
+        body: {'type': 'chat_message', 'messageId': messageId},
+      );
+    } catch (_) {
+      // Push notifications should never block the in-app chat message.
+    }
   }
 
   Future<void> markThreadRead(String threadId, String participantId) async {

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { sendInternalPushRequest } from "../_shared/push.ts";
 import { startAllocationDelivery } from "../_shared/tradesafe.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -72,13 +73,21 @@ Deno.serve(async (request) => {
       .eq("id", orderId)
       .single();
 
+    if (!order) {
+      return jsonResponse({ error: "Order not found." }, { status: 404 });
+    }
+
     if (!shop || order.shop_id !== shop.id) {
-      return jsonResponse({ error: "You cannot update this order." }, { status: 403 });
+      return jsonResponse({ error: "You cannot update this order." }, {
+        status: 403,
+      });
     }
 
     let allocationState = "INITIATED";
     if (order.tradesafe_allocation_id) {
-      const result = await startAllocationDelivery(order.tradesafe_allocation_id as string);
+      const result = await startAllocationDelivery(
+        order.tradesafe_allocation_id as string,
+      );
       allocationState = result.allocationStartDelivery.state;
     }
 
@@ -103,10 +112,24 @@ Deno.serve(async (request) => {
         .eq("order_id", orderId),
     ]);
 
+    await sendInternalPushRequest({
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceRoleKey,
+      body: {
+        type: "order_update",
+        orderId,
+        event: "shipped",
+      },
+    });
+
     return jsonResponse({ ok: true, paymentState: allocationState, shippedAt });
   } catch (error) {
     return jsonResponse(
-      { error: error instanceof Error ? error.message : "Unable to update order." },
+      {
+        error: error instanceof Error
+          ? error.message
+          : "Unable to update order.",
+      },
       { status: 500 },
     );
   }

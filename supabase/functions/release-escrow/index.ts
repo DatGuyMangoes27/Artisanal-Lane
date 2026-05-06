@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { sendInternalPushRequest } from "../_shared/push.ts";
 import { acceptAllocationDelivery } from "../_shared/tradesafe.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -66,8 +67,8 @@ Deno.serve(async (request) => {
 
     const [{ data: profile }, { data: order }] = await Promise.all([
       userId != null
-          ? admin.from("profiles").select("role").eq("id", userId).single()
-          : Promise.resolve({ data: { role: "admin" } }),
+        ? admin.from("profiles").select("role").eq("id", userId).single()
+        : Promise.resolve({ data: { role: "admin" } }),
       admin
         .from("orders")
         .select("id, buyer_id, tradesafe_allocation_id")
@@ -75,16 +76,24 @@ Deno.serve(async (request) => {
         .single(),
     ]);
 
-    isAdmin = isAdmin || profile.role == "admin";
+    if (order == null) {
+      return jsonResponse({ error: "Order not found." }, { status: 404 });
+    }
+
+    isAdmin = isAdmin || profile?.role == "admin";
     const isBuyer = userId != null && order.buyer_id == userId;
 
     if (!isAdmin && !isBuyer) {
-      return jsonResponse({ error: "You cannot release this escrow." }, { status: 403 });
+      return jsonResponse({ error: "You cannot release this escrow." }, {
+        status: 403,
+      });
     }
 
     let allocationState = "DELIVERY_ACCEPTED";
     if (order.tradesafe_allocation_id) {
-      const result = await acceptAllocationDelivery(order.tradesafe_allocation_id as string);
+      const result = await acceptAllocationDelivery(
+        order.tradesafe_allocation_id as string,
+      );
       allocationState = result.allocationAcceptDelivery.state;
     }
 
@@ -108,11 +117,27 @@ Deno.serve(async (request) => {
       })
       .eq("order_id", orderId);
 
-    return jsonResponse({ ok: true, paymentState: allocationState, releasedAt });
+    await sendInternalPushRequest({
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceRoleKey,
+      body: {
+        type: "order_update",
+        orderId,
+        event: "completed",
+      },
+    });
+
+    return jsonResponse({
+      ok: true,
+      paymentState: allocationState,
+      releasedAt,
+    });
   } catch (error) {
     return jsonResponse(
       {
-        error: error instanceof Error ? error.message : "Unable to release funds.",
+        error: error instanceof Error
+          ? error.message
+          : "Unable to release funds.",
       },
       { status: 500 },
     );

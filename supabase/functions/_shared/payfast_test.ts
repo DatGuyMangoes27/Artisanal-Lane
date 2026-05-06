@@ -3,6 +3,7 @@ import { assertEquals } from "jsr:@std/assert";
 import {
   buildPayFastSignature,
   buildPayFastSubscriptionCheckoutUrl,
+  payFastApiTimestamp,
   verifyPayFastItnSignatureFromRaw,
 } from "./payfast.ts";
 
@@ -36,9 +37,9 @@ Deno.test("subscription checkout supports free-trial initial amount with recurri
   assertEquals(params.get("billing_date") != null, true);
 });
 
-Deno.test("itn signature verification ignores blank fields in the posted body", () => {
+Deno.test("itn signature verification includes blank posted fields without passphrase hashing", () => {
   const passphrase = "test-passphrase";
-  const nonBlankEntries: Array<[string, string]> = [
+  const postedEntries: Array<[string, string]> = [
     ["m_payment_id", "artisan-subscription-vendor-1"],
     ["pf_payment_id", "298756509"],
     ["payment_status", "COMPLETE"],
@@ -49,6 +50,14 @@ Deno.test("itn signature verification ignores blank fields in the posted body", 
     ["amount_net", "0.00"],
     ["custom_str1", "vendor-1"],
     ["custom_str2", "checkout-1"],
+    ["custom_str3", ""],
+    ["custom_str4", ""],
+    ["custom_str5", ""],
+    ["custom_int1", ""],
+    ["custom_int2", ""],
+    ["custom_int3", ""],
+    ["custom_int4", ""],
+    ["custom_int5", ""],
     ["name_first", "Nicky"],
     ["name_last", "Lane"],
     ["email_address", "nicky@artisanlanesa.com"],
@@ -56,7 +65,7 @@ Deno.test("itn signature verification ignores blank fields in the posted body", 
     ["token", "2ca69e37-66b8-40e9-bf75-d4bf0279c8d9"],
     ["billing_date", "2026-06-04"],
   ];
-  const signature = buildPayFastSignature(nonBlankEntries, passphrase);
+  const signature = buildPayFastSignature(postedEntries);
 
   const rawParams = new URLSearchParams();
   rawParams.append("m_payment_id", "artisan-subscription-vendor-1");
@@ -91,4 +100,54 @@ Deno.test("itn signature verification ignores blank fields in the posted body", 
   );
 
   assertEquals(verification.matches, true);
+});
+
+Deno.test("itn signature verification includes blank posted fields with passphrase hashing", () => {
+  const passphrase = "ArtisanLane1";
+  const postedEntries: Array<[string, string]> = [
+    ["m_payment_id", "artisan-subscription-vendor-2"],
+    ["pf_payment_id", "299237715"],
+    ["payment_status", "COMPLETE"],
+    ["item_name", "Artisan Lane Subscription"],
+    ["item_description", "Artisan subscription with first two months free"],
+    ["amount_gross", "0.00"],
+    ["amount_fee", "0.00"],
+    ["amount_net", "0.00"],
+    ["custom_str1", "vendor-2"],
+    ["custom_str2", "checkout-2"],
+    ["custom_str3", ""],
+    ["custom_str4", ""],
+    ["custom_str5", ""],
+    ["custom_int1", ""],
+    ["custom_int2", ""],
+    ["custom_int3", ""],
+    ["custom_int4", ""],
+    ["custom_int5", ""],
+    ["name_first", "Test"],
+    ["name_last", "Lane"],
+    ["email_address", "vendor@mail.com"],
+    ["merchant_id", "34629527"],
+    ["token", "af1b7605-cae6-4f63-88a2-b7e74aad5031"],
+    ["billing_date", "2026-07-06"],
+  ];
+  const signature = buildPayFastSignature(postedEntries, passphrase);
+
+  const rawParams = new URLSearchParams();
+  for (const [key, value] of postedEntries) {
+    rawParams.append(key, value);
+  }
+  rawParams.append("signature", signature);
+
+  const verification = verifyPayFastItnSignatureFromRaw(
+    rawParams.toString(),
+    passphrase,
+  );
+
+  assertEquals(verification.matches, true);
+});
+
+Deno.test("payfast api timestamp includes timezone", () => {
+  const timestamp = payFastApiTimestamp(new Date("2026-05-06T09:13:07.912Z"));
+
+  assertEquals(timestamp, "2026-05-06T09:13:07+00:00");
 });
