@@ -182,6 +182,11 @@ final onSaleProductsProvider = FutureProvider<List<Product>>((ref) async {
   return service.getOnSaleProducts(limit: 10);
 });
 
+final freshArrivalsProvider = FutureProvider<List<Product>>((ref) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getProducts(limit: 10);
+});
+
 /// Filter parameters for category product browsing.
 class CategoryProductFilter {
   final String categoryId;

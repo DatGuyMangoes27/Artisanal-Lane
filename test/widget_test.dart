@@ -441,6 +441,60 @@ void main() {
     expect(find.text('2'), findsOneWidget);
   });
 
+  testWidgets('buyer home fresh arrivals shows latest non-sale products', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 5, 7, 18);
+    final freshProduct = Product.fromJson({
+      'id': 'fresh-product-1',
+      'shop_id': 'shop-1',
+      'category_id': null,
+      'subcategory_id': null,
+      'title': 'Fresh Leather Jacket',
+      'description': 'Newly listed',
+      'price': 1550,
+      'compare_at_price': null,
+      'stock_qty': 1,
+      'images': const [],
+      'option_groups': const [],
+      'product_variants': const [],
+      'tags': const [],
+      'is_published': true,
+      'is_featured': false,
+      'shipping_options': const [],
+      'created_at': now.toIso8601String(),
+      'updated_at': now.toIso8601String(),
+    });
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentProfileProvider.overrideWith((ref) async => null),
+          categoriesProvider.overrideWith((ref) async => const <Category>[]),
+          featuredProductsProvider.overrideWith(
+            (ref) async => const <Product>[],
+          ),
+          onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
+          freshArrivalsProvider.overrideWith((ref) async => [freshProduct]),
+          spotlightShopProvider.overrideWith((ref) async => null),
+          followingFeedProvider.overrideWith((ref) async => const []),
+          buyerUnreadThreadsCountProvider.overrideWith((ref) => 0),
+        ],
+        child: const MaterialApp(home: BuyerHomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fresh Arrivals'), findsOneWidget);
+    await tester.drag(
+      find.byType(CustomScrollView),
+      const Offset(0, -1200),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fresh Leather Jacket'), findsOneWidget);
+  });
+
   testWidgets('vendor dashboard screen shows unread messages FAB', (tester) async {
     final now = DateTime(2026, 5, 3, 18);
     final shop = Shop(

@@ -1,8 +1,8 @@
 import { jsonResponse } from "../_shared/http.ts";
 
 const courierGuyApiKey = Deno.env.get("COURIER_GUY_API_KEY")!;
-const courierGuyApiBaseUrl =
-  Deno.env.get("COURIER_GUY_API_BASE_URL") ?? "https://sandbox.api-pudo.co.za";
+const courierGuyApiBaseUrl = Deno.env.get("COURIER_GUY_API_BASE_URL") ??
+  "https://sandbox.api-pudo.co.za";
 
 type TcgLocker = {
   code?: string;
@@ -48,6 +48,11 @@ function parseCoordinate(value: string | number | null | undefined) {
 type WeightedSearchField = {
   value: unknown;
   weight: number;
+};
+
+type LockerFetchResult = {
+  response: Response;
+  statuses: number[];
 };
 
 function bestFieldScore(token: string, field: WeightedSearchField) {
@@ -96,43 +101,91 @@ function scoreLocker(locker: TcgLocker, tokens: string[]) {
   return totalScore;
 }
 
+async function fetchLockersData(): Promise<LockerFetchResult> {
+  const baseUrl = courierGuyApiBaseUrl.replace(/\/+$/, "");
+  const attempts = [
+    {
+      path: "/api/v1/lockers-data",
+      headers: {
+        Authorization: `Bearer ${courierGuyApiKey}`,
+        Accept: "application/json",
+      },
+    },
+    {
+      path: `/api/v1/lockers-data?api_key=${
+        encodeURIComponent(courierGuyApiKey)
+      }`,
+      headers: { Accept: "application/json" },
+    },
+    {
+      path: "/api/v1/lockers-data",
+      headers: {
+        "X-Api-Key": courierGuyApiKey,
+        Accept: "application/json",
+      },
+    },
+    {
+      path: `/lockers-data?api_key=${encodeURIComponent(courierGuyApiKey)}`,
+      headers: { Accept: "application/json" },
+    },
+    {
+      path: "/lockers-data",
+      headers: {
+        Authorization: `Bearer ${courierGuyApiKey}`,
+        Accept: "application/json",
+      },
+    },
+  ];
+
+  const statuses: number[] = [];
+  let lastResponse: Response | null = null;
+
+  for (const attempt of attempts) {
+    const response = await fetch(`${baseUrl}${attempt.path}`, {
+      headers: attempt.headers,
+    });
+    statuses.push(response.status);
+    if (response.ok) return { response, statuses };
+    lastResponse = response;
+  }
+
+  return { response: lastResponse!, statuses };
+}
+
 Deno.serve(async (request) => {
   try {
-    const body =
-      request.method === "POST"
-        ? ((await request.json()) as Record<string, unknown>)
-        : {};
+    const body = request.method === "POST"
+      ? ((await request.json()) as Record<string, unknown>)
+      : {};
     const query = typeof body.query === "string" ? body.query.trim() : "";
-    const province =
-      typeof body.province === "string" ? body.province.trim() : "";
-    const limitValue =
-      body.limit == null
-        ? null
-        : typeof body.limit === "number"
-        ? body.limit
-        : Number.parseInt(String(body.limit), 10);
+    const province = typeof body.province === "string"
+      ? body.province.trim()
+      : "";
+    const limitValue = body.limit == null
+      ? null
+      : typeof body.limit === "number"
+      ? body.limit
+      : Number.parseInt(String(body.limit), 10);
     const limit =
       limitValue != null && Number.isFinite(limitValue) && limitValue > 0
         ? limitValue
         : null;
 
-    const response = await fetch(
-      `${courierGuyApiBaseUrl.replace(/\/+$/, "")}/api/v1/lockers-data`,
-      {
-        headers: {
-          Authorization: `Bearer ${courierGuyApiKey}`,
-          Accept: "application/json",
-        },
-      },
-    );
+    const { response, statuses } = await fetchLockersData();
 
     if (!response.ok) {
       const errorText = await response.text();
       console.log(
-        `[courier-guy-lockers] upstream error status=${response.status} body=${errorText.slice(0, 500)}`,
+        `[courier-guy-lockers] upstream error statuses=${
+          statuses.join(",")
+        } body=${errorText.slice(0, 500)}`,
       );
       return jsonResponse(
-        { error: "Could not load Courier Guy lockers right now." },
+        {
+          error: "Could not load Courier Guy lockers right now.",
+          upstream_status: response.status,
+          upstream_statuses: statuses,
+        },
         { status: 502 },
       );
     }
@@ -146,7 +199,8 @@ Deno.serve(async (request) => {
       .filter((locker) => normalize(locker.type?.name) === "locker")
       .filter((locker) => {
         if (!normalizedProvince) return true;
-        return normalize(locker.detailed_address?.province) === normalizedProvince;
+        return normalize(locker.detailed_address?.province) ===
+          normalizedProvince;
       })
       .map((locker) => ({
         locker,
@@ -159,9 +213,10 @@ Deno.serve(async (request) => {
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score;
 
-        const provinceCompare = normalize(a.locker.detailed_address?.province).localeCompare(
-          normalize(b.locker.detailed_address?.province),
-        );
+        const provinceCompare = normalize(a.locker.detailed_address?.province)
+          .localeCompare(
+            normalize(b.locker.detailed_address?.province),
+          );
         if (provinceCompare !== 0) return provinceCompare;
         return normalize(a.locker.name).localeCompare(normalize(b.locker.name));
       })
@@ -172,20 +227,18 @@ Deno.serve(async (request) => {
         name: locker.name ?? "",
         latitude: parseCoordinate(locker.latitude),
         longitude: parseCoordinate(locker.longitude),
-        address:
-          locker.detailed_address?.formatted_address ??
+        address: locker.detailed_address?.formatted_address ??
           locker.address ??
           "",
         landmark: locker.landmark ?? "",
         detailed_address: {
           province: locker.detailed_address?.province ?? "",
-          locality:
-            locker.detailed_address?.locality ??
+          locality: locker.detailed_address?.locality ??
             locker.detailed_address?.sublocality ??
             locker.place?.town ??
             "",
-          formatted_address:
-            locker.detailed_address?.formatted_address ?? locker.address ?? "",
+          formatted_address: locker.detailed_address?.formatted_address ??
+            locker.address ?? "",
         },
         type: {
           id: locker.type?.id ?? 2,
@@ -200,7 +253,9 @@ Deno.serve(async (request) => {
     return jsonResponse({ lockers });
   } catch (error) {
     console.log(
-      `[courier-guy-lockers] fatal ${error instanceof Error ? error.message : String(error)}`,
+      `[courier-guy-lockers] fatal ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     );
     return jsonResponse(
       { error: "Could not load Courier Guy lockers right now." },

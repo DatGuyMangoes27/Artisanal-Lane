@@ -23,7 +23,7 @@ class BuyerHomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final categories = ref.watch(categoriesProvider);
     final featured = ref.watch(featuredProductsProvider);
-    final onSale = ref.watch(onSaleProductsProvider);
+    final freshArrivals = ref.watch(freshArrivalsProvider);
     final spotlightShop = ref.watch(spotlightShopProvider);
     final followingFeed = ref.watch(followingFeedProvider);
     final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
@@ -372,7 +372,7 @@ class BuyerHomeScreen extends ConsumerWidget {
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            onSale.when(
+            freshArrivals.when(
               data: (products) => SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 sliver: SliverGrid(
