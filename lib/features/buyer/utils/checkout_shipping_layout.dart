@@ -1,6 +1,7 @@
 enum CheckoutShippingInlineDetails {
   none,
   courierGuyLockerSearch,
+  pargoPickupPointSearch,
   pickupPointEntry,
   marketPickupNote,
 }
@@ -12,7 +13,7 @@ CheckoutShippingInlineDetails inlineDetailsForShippingMethod(
     case 'courier_guy':
       return CheckoutShippingInlineDetails.courierGuyLockerSearch;
     case 'pargo':
-      return CheckoutShippingInlineDetails.pickupPointEntry;
+      return CheckoutShippingInlineDetails.pargoPickupPointSearch;
     case 'market_pickup':
       return CheckoutShippingInlineDetails.marketPickupNote;
     default:

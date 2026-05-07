@@ -822,19 +822,12 @@ class SupabaseService {
   }) async {
     await _client.rpc(
       'register_push_token',
-      params: {
-        'p_token': token,
-        'p_platform': platform,
-        'p_device_id': null,
-      },
+      params: {'p_token': token, 'p_platform': platform, 'p_device_id': null},
     );
   }
 
   Future<void> revokePushToken(String token) async {
-    await _client.rpc(
-      'revoke_push_token',
-      params: {'p_token': token},
-    );
+    await _client.rpc('revoke_push_token', params: {'p_token': token});
   }
 
   Future<void> _sendChatPushNotification(String messageId) async {
@@ -2053,6 +2046,37 @@ class SupabaseService {
       print('[locker-debug] search failed error=$error stackTrace=$stackTrace');
       rethrow;
     }
+  }
+
+  Future<List<PargoPickupPoint>> searchPargoPickupPoints({
+    String? query,
+    String? province,
+    int? limit,
+  }) async {
+    final trimmedQuery = query?.trim();
+    final trimmedProvince = province?.trim();
+
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'get-pargo-pickup-points',
+      headers: headers,
+      body: {
+        if (trimmedQuery != null && trimmedQuery.isNotEmpty)
+          'query': trimmedQuery,
+        if (trimmedProvince != null && trimmedProvince.isNotEmpty)
+          'province': trimmedProvince,
+        if (limit != null) 'limit': limit,
+      },
+    );
+
+    final payload = Map<String, dynamic>.from(response.data as Map);
+    return (payload['points'] as List? ?? const [])
+        .map(
+          (entry) => PargoPickupPoint.fromJson(
+            Map<String, dynamic>.from(entry as Map),
+          ),
+        )
+        .toList(growable: false);
   }
 
   Future<void> clearCart(String userId) async {

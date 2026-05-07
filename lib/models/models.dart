@@ -15,6 +15,7 @@ export 'order.dart';
 export 'checkout_session.dart';
 export 'cart_item.dart';
 export 'courier_guy_locker.dart';
+export 'pargo_pickup_point.dart';
 export 'profile.dart';
 export 'review_summary.dart';
 export 'shop_review.dart';

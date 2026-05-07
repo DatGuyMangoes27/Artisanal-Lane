@@ -8,6 +8,7 @@ import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/courier_guy_locker.dart';
+import '../../../models/pargo_pickup_point.dart';
 import '../../../models/shipping_option.dart';
 import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
@@ -62,6 +63,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _phoneController = TextEditingController(text: '');
   final _pickupPointController = TextEditingController(text: '');
   final _courierGuySearchController = TextEditingController(text: '');
+  final _pargoSearchController = TextEditingController(text: '');
   bool _submitAttempted = false;
   bool _isSubmittingPayment = false;
   String? _courierGuyLockerProvince;
@@ -70,6 +72,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   CourierGuyLocker? _selectedCourierGuyLocker;
   List<CourierGuyLocker> _courierGuyLockers = const [];
   Timer? _courierGuySearchDebounce;
+  String? _pargoPointProvince;
+  bool _isLoadingPargoPoints = false;
+  String? _pargoPointError;
+  PargoPickupPoint? _selectedPargoPoint;
+  List<PargoPickupPoint> _pargoPickupPoints = const [];
+  Timer? _pargoSearchDebounce;
 
   @override
   void dispose() {
@@ -81,6 +89,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phoneFocusNode.dispose();
     _pickupPointFocusNode.dispose();
     _courierGuySearchDebounce?.cancel();
+    _pargoSearchDebounce?.cancel();
     _nameController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -88,6 +97,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phoneController.dispose();
     _pickupPointController.dispose();
     _courierGuySearchController.dispose();
+    _pargoSearchController.dispose();
     super.dispose();
   }
 
@@ -98,7 +108,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     if (_selectedShipping == null) return 0;
     return calculateProductShippingTotal(
       methodKey: _selectedShipping!,
-      itemQuantities: items.map((item) => item.quantity).toList(growable: false),
+      itemQuantities: items
+          .map((item) => item.quantity)
+          .toList(growable: false),
       productShippingOptions: productShippingOptions,
     );
   }
@@ -111,7 +123,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(() => _selectedShipping = options.isNotEmpty ? options.first.key : null);
+      setState(
+        () => _selectedShipping = options.isNotEmpty ? options.first.key : null,
+      );
     });
   }
 
@@ -123,8 +137,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   bool _requiresPickupPoint(String? shippingMethod) {
-    return shippingMethod == 'courier_guy' ||
-        shippingMethod == 'pargo';
+    return shippingMethod == 'courier_guy' || shippingMethod == 'pargo';
   }
 
   String _pickupPointLabel(String? shippingMethod) {
@@ -157,8 +170,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ].join(' • ');
   }
 
+  String _pargoPointSummary(PargoPickupPoint point) {
+    return [
+      point.title,
+      if (point.address.isNotEmpty) point.address,
+      if (point.province.isNotEmpty) point.province,
+    ].join(' • ');
+  }
+
   void _clearCourierGuyLockerSelection() {
     _selectedCourierGuyLocker = null;
+    _pickupPointController.clear();
+  }
+
+  void _clearPargoPointSelection() {
+    _selectedPargoPoint = null;
     _pickupPointController.clear();
   }
 
@@ -181,10 +207,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
 
     try {
-      final lockers = await ref.read(supabaseServiceProvider).searchCourierGuyLockers(
-            query: search,
-            province: province,
-          );
+      final lockers = await ref
+          .read(supabaseServiceProvider)
+          .searchCourierGuyLockers(query: search, province: province);
       if (!mounted) return;
       setState(() {
         _courierGuyLockers = lockers;
@@ -218,6 +243,61 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _pickupPointController.text = _courierGuyLockerSummary(locker);
       _courierGuyLockers = const [];
       _courierGuyLockerError = null;
+    });
+  }
+
+  Future<void> _searchPargoPickupPoints() async {
+    final search = _pargoSearchController.text.trim();
+    final province = _pargoPointProvince?.trim();
+    if (search.length < 2 && (province == null || province.isEmpty)) {
+      if (!mounted) return;
+      setState(() {
+        _pargoPickupPoints = const [];
+        _pargoPointError = null;
+        _isLoadingPargoPoints = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoadingPargoPoints = true;
+      _pargoPointError = null;
+    });
+
+    try {
+      final points = await ref
+          .read(supabaseServiceProvider)
+          .searchPargoPickupPoints(query: search, province: province);
+      if (!mounted) return;
+      setState(() {
+        _pargoPickupPoints = points;
+        _isLoadingPargoPoints = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _pargoPickupPoints = const [];
+        _pargoPointError =
+            'Could not load Pargo pickup points right now. Try again in a moment.';
+        _isLoadingPargoPoints = false;
+      });
+    }
+  }
+
+  void _schedulePargoPickupPointSearch() {
+    _pargoSearchDebounce?.cancel();
+    _pargoSearchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      _searchPargoPickupPoints,
+    );
+  }
+
+  void _selectPargoPickupPoint(PargoPickupPoint point) {
+    setState(() {
+      _selectedPargoPoint = point;
+      _pickupPointController.text = _pargoPointSummary(point);
+      _pargoPickupPoints = const [];
+      _pargoPointError = null;
     });
   }
 
@@ -351,15 +431,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'province': _selectedProvince,
         'country': 'South Africa',
         'phone': _phoneController.text,
-        if (_selectedShipping == 'courier_guy' && _selectedCourierGuyLocker != null)
+        if (_selectedShipping == 'courier_guy' &&
+            _selectedCourierGuyLocker != null)
           'pickup_point': _selectedCourierGuyLocker!.toOrderJson()
+        else if (_selectedShipping == 'pargo' && _selectedPargoPoint != null)
+          'pickup_point': _selectedPargoPoint!.toOrderJson()
         else if (_pickupPointController.text.trim().isNotEmpty)
           'pickup_point': _pickupPointController.text.trim(),
       },
     };
 
     try {
-      await ref.read(metaAppEventsServiceProvider).logInitiatedCheckout(
+      await ref
+          .read(metaAppEventsServiceProvider)
+          .logInitiatedCheckout(
             items: items.whereType<CartItem>().toList(growable: false),
             totalPrice: total,
             shippingMethod: _selectedShipping,
@@ -418,10 +503,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           }
 
           final productShippingOptions = items
-              .map((item) => item.product?.shippingOptions ?? const <ShippingOption>[])
+              .map(
+                (item) =>
+                    item.product?.shippingOptions ?? const <ShippingOption>[],
+              )
               .toList(growable: false);
-          final enabledOptions =
-              availableShippingOptionsForProducts(productShippingOptions);
+          final enabledOptions = availableShippingOptionsForProducts(
+            productShippingOptions,
+          );
           _initSelection(enabledOptions);
 
           final subtotal = items.fold<double>(
@@ -451,176 +540,169 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                        _buildSectionTitle(addressTitle),
-                        const SizedBox(height: 12),
-                        _buildInfoNote(
-                          'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
-                        ),
-                        const SizedBox(height: 24),
+                    _buildSectionTitle(addressTitle),
+                    const SizedBox(height: 12),
+                    _buildInfoNote(
+                      'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
+                    ),
+                    const SizedBox(height: 24),
 
-                        _buildTextField(
-                          key: _fullNameFieldKey,
-                          label: nameLabel,
-                          controller: _nameController,
-                          focusNode: _nameFocusNode,
+                    _buildTextField(
+                      key: _fullNameFieldKey,
+                      label: nameLabel,
+                      controller: _nameController,
+                      focusNode: _nameFocusNode,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      key: _streetFieldKey,
+                      label: 'Street Address',
+                      controller: _streetController,
+                      focusNode: _streetFocusNode,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTextField(
+                            key: _cityFieldKey,
+                            label: 'City',
+                            controller: _cityController,
+                            focusNode: _cityFocusNode,
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        _buildTextField(
-                          key: _streetFieldKey,
-                          label: 'Street Address',
-                          controller: _streetController,
-                          focusNode: _streetFocusNode,
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _buildTextField(
+                            key: _postalFieldKey,
+                            label: 'Postal Code',
+                            controller: _postalController,
+                            keyboardType: TextInputType.number,
+                            focusNode: _postalFocusNode,
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildTextField(
-                                key: _cityFieldKey,
-                                label: 'City',
-                                controller: _cityController,
-                                focusNode: _cityFocusNode,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildTextField(
-                                key: _postalFieldKey,
-                                label: 'Postal Code',
-                                controller: _postalController,
-                                keyboardType: TextInputType.number,
-                                focusNode: _postalFocusNode,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _buildDropdownField(
-                          key: _provinceFieldKey,
-                          label: 'Province',
-                          value: _selectedProvince,
-                          items: _saProvinces,
-                          onChanged: (value) =>
-                              setState(() => _selectedProvince = value),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildStaticField(
-                          label: 'Country',
-                          value: 'South Africa',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextField(
-                          key: _phoneFieldKey,
-                          label: phoneLabel,
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          prefixIcon: Icons.phone_outlined,
-                          hintText: 'Include country code if needed',
-                          focusNode: _phoneFocusNode,
-                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDropdownField(
+                      key: _provinceFieldKey,
+                      label: 'Province',
+                      value: _selectedProvince,
+                      items: _saProvinces,
+                      onChanged: (value) =>
+                          setState(() => _selectedProvince = value),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStaticField(label: 'Country', value: 'South Africa'),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      key: _phoneFieldKey,
+                      label: phoneLabel,
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      prefixIcon: Icons.phone_outlined,
+                      hintText: 'Include country code if needed',
+                      focusNode: _phoneFocusNode,
+                    ),
 
-                        const SizedBox(height: 32),
-                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                        const SizedBox(height: 32),
+                    const SizedBox(height: 32),
+                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                    const SizedBox(height: 32),
 
-                        Container(
-                          key: _shippingSectionKey,
-                          child: _buildSectionTitle('Shipping Method'),
+                    Container(
+                      key: _shippingSectionKey,
+                      child: _buildSectionTitle('Shipping Method'),
+                    ),
+                    const SizedBox(height: 8),
+                    if (enabledOptions.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          _shippingUnavailableMessage(items.length),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppTheme.textHint,
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        if (enabledOptions.isEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
-                            child: Text(
-                              _shippingUnavailableMessage(items.length),
-                              style: GoogleFonts.poppins(
-                                fontSize: 13,
-                                color: AppTheme.textHint,
-                              ),
-                            ),
-                          )
-                        else ...[
-                          const SizedBox(height: 16),
-                          ...enabledOptions.map(
-                            (opt) => _buildShippingTile(opt),
+                      )
+                    else ...[
+                      const SizedBox(height: 16),
+                      ...enabledOptions.map((opt) => _buildShippingTile(opt)),
+                    ],
+
+                    const SizedBox(height: 32),
+                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                    const SizedBox(height: 32),
+
+                    _buildSectionTitle('Order Summary'),
+                    const SizedBox(height: 24),
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
-
-                        const SizedBox(height: 32),
-                        const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                        const SizedBox(height: 32),
-
-                        _buildSectionTitle('Order Summary'),
-                        const SizedBox(height: 24),
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                            border: Border.all(
+                        border: Border.all(
+                          color: AppTheme.sand.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          _summaryRow(
+                            'Subtotal (${items.length} items)',
+                            'R${subtotal.toStringAsFixed(0)}',
+                          ),
+                          if (giftFee > 0) ...[
+                            const SizedBox(height: 12),
+                            _summaryRow(
+                              giftServiceLabel,
+                              'R${giftFee.toStringAsFixed(0)}',
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          _summaryRow(
+                            'Shipping',
+                            shippingCost == 0
+                                ? 'FREE'
+                                : 'R${shippingCost.toStringAsFixed(0)}',
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Divider(
                               color: AppTheme.sand.withValues(alpha: 0.3),
+                              height: 1,
                             ),
                           ),
-                          child: Column(
-                            children: [
-                              _summaryRow(
-                                'Subtotal (${items.length} items)',
-                                'R${subtotal.toStringAsFixed(0)}',
-                              ),
-                              if (giftFee > 0) ...[
-                                const SizedBox(height: 12),
-                                _summaryRow(
-                                  giftServiceLabel,
-                                  'R${giftFee.toStringAsFixed(0)}',
-                                ),
-                              ],
-                              const SizedBox(height: 12),
-                              _summaryRow(
-                                'Shipping',
-                                shippingCost == 0
-                                    ? 'FREE'
-                                    : 'R${shippingCost.toStringAsFixed(0)}',
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                ),
-                                child: Divider(
-                                  color: AppTheme.sand.withValues(alpha: 0.3),
-                                  height: 1,
-                                ),
-                              ),
-                              _summaryRow(
-                                'Total',
-                                'R${total.toStringAsFixed(0)}',
-                                isTotal: true,
-                              ),
-                            ],
+                          _summaryRow(
+                            'Total',
+                            'R${total.toStringAsFixed(0)}',
+                            isTotal: true,
                           ),
-                        ),
+                        ],
+                      ),
+                    ),
 
-                        const SizedBox(height: 40),
+                    const SizedBox(height: 40),
 
-                        GradientButton(
-                          label: 'Pay Now',
-                          isLoading: _isSubmittingPayment,
-                          onPressed: () => _submitCheckout(
-                            items: items,
-                            subtotal: subtotal,
-                            giftFee: giftFee,
-                            shippingCost: shippingCost,
-                            total: total,
-                            enabledOptions: enabledOptions,
-                          ),
-                        ),
-                        const SizedBox(height: 32),
+                    GradientButton(
+                      label: 'Pay Now',
+                      isLoading: _isSubmittingPayment,
+                      onPressed: () => _submitCheckout(
+                        items: items,
+                        subtotal: subtotal,
+                        giftFee: giftFee,
+                        shippingCost: shippingCost,
+                        total: total,
+                        enabledOptions: enabledOptions,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -891,7 +973,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
-              onPressed: () => setState(() => _clearCourierGuyLockerSelection()),
+              onPressed: () =>
+                  setState(() => _clearCourierGuyLockerSelection()),
               child: Text(
                 'Change locker',
                 style: GoogleFonts.poppins(
@@ -966,10 +1049,141 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ),
             ),
             if (index != _courierGuyLockers.length - 1)
-              Divider(
-                height: 1,
-                color: AppTheme.sand.withValues(alpha: 0.3),
+              Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.3)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedPargoPointCard() {
+    final point = _selectedPargoPoint!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.baobab.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.baobab.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 18,
+                color: AppTheme.baobab,
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      point.title,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      point.subtitle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => setState(() => _clearPargoPointSelection()),
+              child: Text(
+                'Change pickup point',
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.terracotta,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPargoPickupPointResults() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          for (int index = 0; index < _pargoPickupPoints.length; index++) ...[
+            InkWell(
+              onTap: () => _selectPargoPickupPoint(_pargoPickupPoints[index]),
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(index == 0 ? 12 : 0),
+                bottom: Radius.circular(
+                  index == _pargoPickupPoints.length - 1 ? 12 : 0,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.store_mall_directory_outlined,
+                      size: 18,
+                      color: AppTheme.terracotta,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _pargoPickupPoints[index].title,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _pargoPickupPoints[index].subtitle,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (index != _pargoPickupPoints.length - 1)
+              Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.3)),
           ],
         ],
       ),
@@ -989,6 +1203,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _courierGuyLockerError = null;
           _courierGuySearchController.clear();
           _courierGuyLockerProvince = null;
+        }
+        if (option.key != 'pargo') {
+          _clearPargoPointSelection();
+          _pargoPickupPoints = const [];
+          _pargoPointError = null;
+          _pargoSearchController.clear();
+          _pargoPointProvince = null;
         }
         if (!_requiresPickupPoint(option.key)) {
           _pickupPointController.clear();
@@ -1136,6 +1357,64 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ] else if (_courierGuyLockers.isNotEmpty) ...[
               const SizedBox(height: 12),
               _buildCourierGuyLockerResults(),
+            ],
+          ],
+        );
+      case CheckoutShippingInlineDetails.pargoPickupPointSearch:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInfoNote(
+              'Search and select the Pargo pickup point where you want to collect your parcel.',
+            ),
+            const SizedBox(height: 16),
+            _buildDropdownField(
+              label: 'Pickup Point Province',
+              value: _pargoPointProvince,
+              items: _saProvinces,
+              onChanged: (value) {
+                setState(() {
+                  _pargoPointProvince = value;
+                  _selectedPargoPoint = null;
+                  _pickupPointController.clear();
+                });
+                _searchPargoPickupPoints();
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              key: _pickupPointFieldKey,
+              label: 'Search Pargo pickup point',
+              controller: _pargoSearchController,
+              focusNode: _pickupPointFocusNode,
+              prefixIcon: Icons.search_rounded,
+              hintText: 'Type a store, suburb, town, or point code',
+              validator: (_) => null,
+              onChanged: (_) {
+                setState(() => _clearPargoPointSelection());
+                _schedulePargoPickupPointSearch();
+              },
+            ),
+            const SizedBox(height: 12),
+            if (_selectedPargoPoint != null) _buildSelectedPargoPointCard(),
+            if (_pargoPointError != null) ...[
+              const SizedBox(height: 12),
+              _buildInlineErrorCard(_pargoPointError!),
+            ],
+            if (_isLoadingPargoPoints) ...[
+              const SizedBox(height: 12),
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: CircularProgressIndicator(
+                    color: AppTheme.terracotta,
+                    strokeWidth: 2,
+                  ),
+                ),
+              ),
+            ] else if (_pargoPickupPoints.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildPargoPickupPointResults(),
             ],
           ],
         );
