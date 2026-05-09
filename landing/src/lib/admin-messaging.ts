@@ -28,6 +28,10 @@ export type AdminShopThread = {
   last_message_type: string;
   last_message_sender_id: string | null;
   last_message_at: string | null;
+  admin_last_read_message_id: string | null;
+  admin_last_read_at: string | null;
+  has_unread_vendor_messages: boolean;
+  unread_vendor_message_count: number;
   created_at: string;
   updated_at: string;
   shop: ShopRef | null;
@@ -48,6 +52,18 @@ export type AdminShopMessage = {
   attachment_size_bytes: number | null;
   created_at: string;
   sender: ProfileRef | null;
+};
+
+type AdminShopThreadRow = Omit<
+  AdminShopThread,
+  "shop" | "vendor" | "admin" | "has_unread_vendor_messages" | "unread_vendor_message_count"
+>;
+
+type ChatMessageReadRow = {
+  id: string;
+  thread_id: string;
+  sender_id: string | null;
+  created_at: string;
 };
 
 async function getProfilesMap(ids: string[]) {
@@ -106,36 +122,54 @@ export async function listActiveAdminMessagingShops(): Promise<AdminMessagingTar
 
 /**
  * Fetch every admin<->shop conversation the admin team has ever started.
- * Sorted newest-activity first.
+ * Sorted by chats needing admin attention, then newest activity.
  */
 export async function listAdminShopThreads(): Promise<AdminShopThread[]> {
   const admin = createAdminClient();
   const { data } = await admin
     .from("chat_threads")
     .select(
-      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, created_at, updated_at",
+      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, admin_last_read_message_id, admin_last_read_at, created_at, updated_at",
     )
     .eq("kind", "admin_vendor")
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  const rows = (data ?? []) as Omit<AdminShopThread, "shop" | "vendor" | "admin">[];
+  const rows = (data ?? []) as AdminShopThreadRow[];
+  const unreadCounts = await getUnreadVendorMessageCounts(rows);
   const [shops, profiles] = await Promise.all([
     getShopsMap(rows.map((row) => row.shop_id)),
     getProfilesMap(rows.flatMap((row) => [row.vendor_id, row.buyer_id])),
   ]);
 
-  return rows.map((row) => ({
-    ...row,
-    shop: shops.get(row.shop_id) ?? null,
-    vendor: profiles.get(row.vendor_id) ?? null,
-    admin: profiles.get(row.buyer_id) ?? null,
-  }));
+  return rows
+    .map((row) => ({
+      ...row,
+      has_unread_vendor_messages: isUnreadForAdmin(row),
+      unread_vendor_message_count: unreadCounts.get(row.id) ?? 0,
+      shop: shops.get(row.shop_id) ?? null,
+      vendor: profiles.get(row.vendor_id) ?? null,
+      admin: profiles.get(row.buyer_id) ?? null,
+    }))
+    .sort((left, right) => {
+      if (left.has_unread_vendor_messages !== right.has_unread_vendor_messages) {
+        return left.has_unread_vendor_messages ? -1 : 1;
+      }
+
+      const leftTime = Date.parse(left.last_message_at ?? left.created_at);
+      const rightTime = Date.parse(right.last_message_at ?? right.created_at);
+      return rightTime - leftTime;
+    });
+}
+
+export async function countUnreadAdminShopThreads(): Promise<number> {
+  const threads = await listAdminShopThreads();
+  return threads.filter((thread) => thread.has_unread_vendor_messages).length;
 }
 
 /**
- * Fetch (or create) the admin<->shop thread for a specific shop + admin.
- * Every admin keeps their own thread with every shop, so we key on both.
+ * Fetch (or create) the admin<->shop thread for a specific shop.
+ * The admin team shares one conversation per shop.
  */
 export async function getOrCreateAdminShopThread(
   shopId: string,
@@ -146,15 +180,24 @@ export async function getOrCreateAdminShopThread(
   const existing = await admin
     .from("chat_threads")
     .select(
-      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, created_at, updated_at",
+      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, admin_last_read_message_id, admin_last_read_at, created_at, updated_at",
     )
     .eq("shop_id", shopId)
-    .eq("buyer_id", adminUserId)
     .eq("kind", "admin_vendor")
-    .maybeSingle();
+    .order("updated_at", { ascending: false });
 
-  if (existing.data) {
-    return hydrateThread(existing.data as Omit<AdminShopThread, "shop" | "vendor" | "admin">);
+  const existingRow = ((existing.data ?? []) as AdminShopThreadRow[]).sort(
+    (left, right) => {
+      if (isUnreadForAdmin(left) !== isUnreadForAdmin(right)) {
+        return isUnreadForAdmin(left) ? -1 : 1;
+      }
+
+      return Date.parse(right.updated_at) - Date.parse(left.updated_at);
+    },
+  )[0];
+
+  if (existingRow) {
+    return hydrateThread(existingRow);
   }
 
   const shopLookup = await admin
@@ -176,7 +219,7 @@ export async function getOrCreateAdminShopThread(
       kind: "admin_vendor",
     })
     .select(
-      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, created_at, updated_at",
+      "id, shop_id, vendor_id, buyer_id, kind, last_message_preview, last_message_type, last_message_sender_id, last_message_at, admin_last_read_message_id, admin_last_read_at, created_at, updated_at",
     )
     .maybeSingle();
 
@@ -186,11 +229,11 @@ export async function getOrCreateAdminShopThread(
     );
   }
 
-  return hydrateThread(insert.data as Omit<AdminShopThread, "shop" | "vendor" | "admin">);
+  return hydrateThread(insert.data as AdminShopThreadRow);
 }
 
 async function hydrateThread(
-  row: Omit<AdminShopThread, "shop" | "vendor" | "admin">,
+  row: AdminShopThreadRow,
 ): Promise<AdminShopThread> {
   const [shops, profiles] = await Promise.all([
     getShopsMap([row.shop_id]),
@@ -199,10 +242,88 @@ async function hydrateThread(
 
   return {
     ...row,
+    has_unread_vendor_messages: isUnreadForAdmin(row),
+    unread_vendor_message_count: isUnreadForAdmin(row) ? 1 : 0,
     shop: shops.get(row.shop_id) ?? null,
     vendor: profiles.get(row.vendor_id) ?? null,
     admin: profiles.get(row.buyer_id) ?? null,
   };
+}
+
+function isUnreadForAdmin(row: AdminShopThreadRow) {
+  if (!row.last_message_at || row.last_message_sender_id !== row.vendor_id) {
+    return false;
+  }
+
+  if (!row.admin_last_read_at) {
+    return true;
+  }
+
+  return Date.parse(row.last_message_at) > Date.parse(row.admin_last_read_at);
+}
+
+async function getUnreadVendorMessageCounts(rows: AdminShopThreadRow[]) {
+  const unreadRows = rows.filter(isUnreadForAdmin);
+  if (unreadRows.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const unreadRowsById = new Map(unreadRows.map((row) => [row.id, row]));
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("chat_messages")
+    .select("id, thread_id, sender_id, created_at")
+    .in("thread_id", unreadRows.map((row) => row.id));
+
+  const counts = new Map<string, number>();
+  for (const message of (data ?? []) as ChatMessageReadRow[]) {
+    const thread = unreadRowsById.get(message.thread_id);
+    if (!thread || message.sender_id !== thread.vendor_id) {
+      continue;
+    }
+
+    if (
+      thread.admin_last_read_at &&
+      Date.parse(message.created_at) <= Date.parse(thread.admin_last_read_at)
+    ) {
+      continue;
+    }
+
+    counts.set(message.thread_id, (counts.get(message.thread_id) ?? 0) + 1);
+  }
+
+  return counts;
+}
+
+export async function markAdminShopThreadRead(threadId: string) {
+  const admin = createAdminClient();
+  const threadLookup = await admin
+    .from("chat_threads")
+    .select("id")
+    .eq("id", threadId)
+    .eq("kind", "admin_vendor")
+    .maybeSingle();
+
+  if (!threadLookup.data) {
+    return;
+  }
+
+  const latestMessage = await admin
+    .from("chat_messages")
+    .select("id, created_at")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  await admin
+    .from("chat_threads")
+    .update({
+      admin_last_read_message_id: latestMessage.data?.id ?? null,
+      admin_last_read_at: latestMessage.data?.created_at ?? new Date().toISOString(),
+    })
+    .eq("id", threadId)
+    .eq("kind", "admin_vendor");
 }
 
 export async function getAdminShopThreadMessages(

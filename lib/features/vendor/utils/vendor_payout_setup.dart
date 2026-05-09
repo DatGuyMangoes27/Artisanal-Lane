@@ -45,6 +45,7 @@ bool isVendorPayoutSetupComplete(VendorPayoutProfile? payoutProfile) {
       payoutProfile.branchCode.trim().isNotEmpty &&
       payoutProfile.accountType.trim().isNotEmpty &&
       payoutProfile.registeredPhone.trim().isNotEmpty &&
+      (payoutProfile.identityNumber?.trim().isNotEmpty ?? false) &&
       payoutProfile.verificationStatus != 'not_started' &&
       payoutProfile.verificationStatus != 'action_required';
 }

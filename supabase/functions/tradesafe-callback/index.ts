@@ -2,36 +2,15 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { jsonResponse } from "../_shared/http.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
+import {
+  mapTradeSafeEscrowStatus,
+  mapTradeSafeOrderStatus,
+  shouldIgnoreTradeSafeCallback,
+} from "../_shared/tradesafe-order-status.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const callbackSecret = Deno.env.get("TRADESAFE_CALLBACK_SECRET");
-
-function mapOrderStatus(state: string) {
-  switch (state) {
-    case "FUNDS_RECEIVED":
-      return "paid";
-    case "CANCELLED":
-    case "FAILED":
-    case "EXPIRED":
-      return "cancelled";
-    default:
-      return "pending";
-  }
-}
-
-function mapEscrowStatus(state: string) {
-  switch (state) {
-    case "FUNDS_RECEIVED":
-      return "held";
-    case "CANCELLED":
-    case "FAILED":
-    case "EXPIRED":
-      return "cancelled";
-    default:
-      return "pending";
-  }
-}
 
 Deno.serve(async (request) => {
   try {
@@ -70,12 +49,12 @@ Deno.serve(async (request) => {
     const orderLookup = transactionId
       ? admin
         .from("orders")
-        .select("id, buyer_id, status")
+        .select("id, buyer_id, status, payment_state")
         .eq("tradesafe_transaction_id", transactionId)
         .maybeSingle()
       : admin
         .from("orders")
-        .select("id, buyer_id, status")
+        .select("id, buyer_id, status, payment_state")
         .eq("payment_reference", reference ?? "")
         .maybeSingle();
 
@@ -85,8 +64,18 @@ Deno.serve(async (request) => {
       return jsonResponse({ ok: true, ignored: true });
     }
 
-    const orderStatus = mapOrderStatus(state);
-    const escrowStatus = mapEscrowStatus(state);
+    if (
+      shouldIgnoreTradeSafeCallback({
+        currentOrderStatus: order.status,
+        currentPaymentState: order.payment_state as string | null,
+        incomingTradeSafeState: state,
+      })
+    ) {
+      return jsonResponse({ ok: true, ignored: true, reason: "stale_checkout_cancelled" });
+    }
+
+    const orderStatus = mapTradeSafeOrderStatus(state);
+    const escrowStatus = mapTradeSafeEscrowStatus(state);
 
     await admin
       .from("orders")

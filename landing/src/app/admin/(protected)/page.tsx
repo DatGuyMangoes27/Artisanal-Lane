@@ -1,6 +1,8 @@
-import { Clock3, PackageOpen, ShieldAlert, Store, Users } from "lucide-react";
+import Link from "next/link";
+import { Clock3, MessageSquare, PackageOpen, ShieldAlert, Store, Users } from "lucide-react";
 
 import { AdminPageHeader, MetricCard, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
+import { Button } from "@/components/ui/button";
 import {
   getDashboardStats,
   listDisputes,
@@ -8,6 +10,7 @@ import {
   listStationeryRequests,
   listVendorApplications,
 } from "@/lib/admin-data";
+import { listAdminShopThreads } from "@/lib/admin-messaging";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-ZA", {
@@ -18,12 +21,13 @@ function formatCurrency(value: number) {
 }
 
 export default async function AdminDashboardPage() {
-  const [stats, applications, orders, disputes, stationeryRequests] = await Promise.all([
+  const [stats, applications, orders, disputes, stationeryRequests, shopThreads] = await Promise.all([
     getDashboardStats(),
     listVendorApplications(),
     listOrders(),
     listDisputes(),
     listStationeryRequests(),
+    listAdminShopThreads(),
   ]);
 
   const pendingApplications = applications.filter(
@@ -37,6 +41,9 @@ export default async function AdminDashboardPage() {
       request.status === "awaiting_payment" ||
       request.status === "paid" ||
       request.status === "processing",
+  );
+  const shopMessagesNeedingAttention = shopThreads.filter(
+    (thread) => thread.has_unread_vendor_messages,
   );
 
   return (
@@ -108,6 +115,51 @@ export default async function AdminDashboardPage() {
           </div>
         </PanelCard>
 
+        <PanelCard
+          description="Vendor replies waiting on the admin team."
+          title="Messages Needing Attention"
+        >
+          <div className="space-y-3">
+            {shopMessagesNeedingAttention.slice(0, 5).map((thread) => (
+              <div
+                key={thread.id}
+                className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-artisan-sienna">
+                      {thread.shop?.name ?? "Unknown shop"}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                      {thread.last_message_preview ?? "New vendor message"}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                    {thread.unread_vendor_message_count}
+                  </span>
+                </div>
+                <Button
+                  asChild
+                  className="mt-3 bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+                  size="sm"
+                >
+                  <Link href={`/admin/shops/${thread.shop_id}/messages`}>
+                    <MessageSquare className="h-4 w-4" />
+                    Open chat
+                  </Link>
+                </Button>
+              </div>
+            ))}
+            {shopMessagesNeedingAttention.length === 0 ? (
+              <p className="rounded-2xl border border-artisan-clay bg-artisan-bone/40 p-4 text-sm text-muted-foreground">
+                No shop messages need an admin reply.
+              </p>
+            ) : null}
+          </div>
+        </PanelCard>
+      </section>
+
+      <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_1fr]">
         <PanelCard
           description="Open disputes that may block payouts and customer trust."
           title="Disputes"

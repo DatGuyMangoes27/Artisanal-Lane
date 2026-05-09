@@ -1,6 +1,7 @@
 import { AdminLiveRefresh } from "@/components/admin/admin-live-refresh";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { countUnreadAdminShopThreads } from "@/lib/admin-messaging";
 
 export default async function AdminProtectedLayout({
   children,
@@ -8,6 +9,7 @@ export default async function AdminProtectedLayout({
   children: React.ReactNode;
 }>) {
   const session = await requireAdminSession();
+  const unreadMessageCount = await countUnreadAdminShopThreads();
 
   return (
     <>
@@ -15,6 +17,7 @@ export default async function AdminProtectedLayout({
       <AdminShell
         displayName={session.profile.display_name ?? "Admin"}
         email={session.profile.email ?? session.user.email ?? "Unknown"}
+        unreadMessageCount={unreadMessageCount}
       >
         {children}
       </AdminShell>

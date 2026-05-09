@@ -4,6 +4,7 @@ import { ArrowRight, MessageSquare, Store } from "lucide-react";
 import { AdminBroadcastMessageForm } from "@/components/admin/admin-broadcast-message-form";
 import { AdminChatAutoRefresh } from "@/components/admin/admin-chat-auto-refresh";
 import { AdminPageHeader, PanelCard } from "@/components/admin/admin-ui";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   listActiveAdminMessagingShops,
@@ -52,7 +53,7 @@ export default async function AdminMessagesPage() {
 
       <PanelCard
         title="Active shop chats"
-        description="Newest activity first. Admin conversations appear in the shop vendor's normal inbox."
+        description="Chats needing an admin reply appear first. Opening a chat clears it for every admin."
       >
         {threads.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-artisan-clay bg-white p-10 text-center">
@@ -69,9 +70,9 @@ export default async function AdminMessagesPage() {
         ) : (
           <div className="space-y-4">
             {threads.map((thread) => {
-              const lastSender = thread.last_message_sender_id === thread.buyer_id
-                ? thread.admin?.display_name ?? "Admin"
-                : thread.vendor?.display_name ?? "Vendor";
+              const lastSender = thread.last_message_sender_id === thread.vendor_id
+                ? thread.vendor?.display_name ?? "Vendor"
+                : "Admin";
               return (
                 <div
                   key={thread.id}
@@ -92,9 +93,18 @@ export default async function AdminMessagesPage() {
                       )}
                     </div>
                     <div className="space-y-1">
-                      <h3 className="text-lg font-semibold text-artisan-sienna">
-                        {thread.shop?.name ?? "Unknown shop"}
-                      </h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-artisan-sienna">
+                          {thread.shop?.name ?? "Unknown shop"}
+                        </h3>
+                        {thread.has_unread_vendor_messages ? (
+                          <Badge className="border-amber-200 bg-amber-50 text-amber-700">
+                            {thread.unread_vendor_message_count > 1
+                              ? `${thread.unread_vendor_message_count} new messages`
+                              : "Needs reply"}
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="text-xs uppercase tracking-[0.15em] text-artisan-terracotta">
                         Vendor: {thread.vendor?.display_name ?? thread.vendor?.email ?? "Unknown"}
                       </p>

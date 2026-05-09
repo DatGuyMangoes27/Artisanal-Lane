@@ -65,12 +65,14 @@ type AdminShellProps = {
   children: React.ReactNode;
   displayName: string;
   email: string;
+  unreadMessageCount?: number;
 };
 
 export function AdminShell({
   children,
   displayName,
   email,
+  unreadMessageCount = 0,
 }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -117,7 +119,20 @@ export function AdminShell({
                   )}
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  <span className="flex-1">{item.label}</span>
+                  {item.href === "/admin/messages" && unreadMessageCount > 0 ? (
+                    <span
+                      aria-label={`${unreadMessageCount} shop chats need attention`}
+                      className={cn(
+                        "ml-auto rounded-full px-2 py-0.5 text-xs font-semibold",
+                        isActive
+                          ? "bg-white text-artisan-terracotta"
+                          : "bg-artisan-terracotta text-white",
+                      )}
+                    >
+                      {unreadMessageCount}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}
@@ -177,6 +192,19 @@ export function AdminShell({
                     )}
                   >
                     {item.label}
+                    {item.href === "/admin/messages" && unreadMessageCount > 0 ? (
+                      <span
+                        aria-label={`${unreadMessageCount} shop chats need attention`}
+                        className={cn(
+                          "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                          isActive
+                            ? "bg-white text-artisan-terracotta"
+                            : "bg-artisan-terracotta text-white",
+                        )}
+                      >
+                        {unreadMessageCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

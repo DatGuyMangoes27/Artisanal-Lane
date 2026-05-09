@@ -1782,6 +1782,7 @@ class SupabaseService {
     required String accountType,
     required String registeredPhone,
     required String registeredEmail,
+    required String identityNumber,
   }) async {
     final payload = {
       'vendor_id': vendorId,
@@ -1792,7 +1793,7 @@ class SupabaseService {
       'account_type': accountType,
       'registered_phone': registeredPhone,
       'registered_email': registeredEmail,
-      'identity_number': null,
+      'identity_number': identityNumber,
       'business_registration_number': null,
       'verification_status': 'verified',
       'status_notes': null,

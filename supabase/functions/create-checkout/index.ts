@@ -287,20 +287,18 @@ Deno.serve(async (request) => {
     const sellerIdentityNumber = firstNonEmptyString(
       sellerPayoutProfile?.identity_number,
     );
-    const sellerBusinessRegistrationNumber = firstNonEmptyString(
-      sellerPayoutProfile?.business_registration_number,
+    const sellerBankName = firstNonEmptyString(
+      sellerPayoutProfile?.bank_name,
     );
     const sellerBankAccountNumber = firstNonEmptyString(
       sellerPayoutProfile?.account_number,
     );
-    const sellerBank = mapTradeSafeBank(
-      sellerPayoutProfile?.bank_name as string | null | undefined,
-    );
+    const sellerBank = mapTradeSafeBank(sellerBankName);
     const sellerBankAccountType = mapTradeSafeBankAccountType(
       sellerPayoutProfile?.account_type as string | null | undefined,
     );
     console.log(
-      `[checkout-debug] buyerPhonePresent=${buyerPhone != null} sellerPhonePresent=${sellerPhone != null} sellerEmailPresent=${sellerEmail != null} sellerIdentityPresent=${sellerIdentityNumber != null} sellerBankAccountPresent=${sellerBankAccountNumber != null} sellerBankTypePresent=${sellerBankAccountType != null}`,
+      `[checkout-debug] buyerPhonePresent=${buyerPhone != null} sellerPhonePresent=${sellerPhone != null} sellerEmailPresent=${sellerEmail != null} sellerIdentityPresent=${sellerIdentityNumber != null} sellerBankNamePresent=${sellerBankName != null} sellerBankAccountPresent=${sellerBankAccountNumber != null} sellerBankTypePresent=${sellerBankAccountType != null}`,
     );
 
     if (buyerPhone == null) {
@@ -333,8 +331,31 @@ Deno.serve(async (request) => {
       );
     }
 
+    if (sellerIdentityNumber == null) {
+      return jsonResponse(
+        {
+          error:
+            "This seller needs an ID number before TradeSafe checkout can start.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (
+      sellerBankName == null || sellerBankAccountNumber == null ||
+      sellerBankAccountType == null
+    ) {
+      return jsonResponse(
+        {
+          error:
+            "This seller needs complete bank details before TradeSafe checkout can start.",
+        },
+        { status: 400 },
+      );
+    }
+
     const buyerTokenId = await ensureTradeSafeToken({
-      existingTokenId: null,
+      existingTokenId: buyerProfile.tradesafe_token_id as string | null,
       displayName:
         (buyerProfile.display_name as string | null) ??
             (buyerProfile.email as string | null) ??
@@ -345,6 +366,8 @@ Deno.serve(async (request) => {
     console.log(`[checkout-debug] buyerTokenId=${buyerTokenId}`);
 
     const sellerTokenId = await ensureTradeSafeToken({
+      // TradeSafe bank details are immutable once attached to a token, so use
+      // the current payout profile when creating the seller token for checkout.
       existingTokenId: null,
       displayName:
         (sellerProfile.display_name as string | null) ??
@@ -354,24 +377,18 @@ Deno.serve(async (request) => {
       email: sellerEmail,
       mobile: normalizeMobile(sellerPhone),
       idNumber: sellerIdentityNumber,
-      idType: sellerIdentityNumber != null ? "NATIONAL" : undefined,
-      idCountry: sellerIdentityNumber != null ? "ZAF" : null,
-      organization: sellerBusinessRegistrationNumber != null
-          ? {
-              name: (shop.name as string | null) ?? sellerEmail,
-              tradeName: shop.name as string | null,
-              type: "PRIVATE",
-              registrationNumber: sellerBusinessRegistrationNumber,
-            }
-          : null,
-      bankAccount:
-        sellerBankAccountNumber != null && sellerBankAccountType != null
-          ? {
-              bank: sellerBank,
-              accountNumber: sellerBankAccountNumber,
-              accountType: sellerBankAccountType,
-            }
-          : null,
+      idType: "NATIONAL",
+      idCountry: "ZAF",
+      organization: null,
+      bankAccount: {
+        bank: sellerBank,
+        accountNumber: sellerBankAccountNumber,
+        accountType: sellerBankAccountType,
+      },
+      payoutSettings: {
+        interval: "IMMEDIATE",
+        refund: "IMMEDIATE",
+      },
     });
     console.log(`[checkout-debug] sellerTokenId=${sellerTokenId}`);
 

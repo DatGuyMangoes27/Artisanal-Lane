@@ -25,6 +25,18 @@ class ProductFormScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
+  static const _saProvinces = <String>[
+    'Eastern Cape',
+    'Free State',
+    'Gauteng',
+    'KwaZulu-Natal',
+    'Limpopo',
+    'Mpumalanga',
+    'Northern Cape',
+    'North West',
+    'Western Cape',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -33,6 +45,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _stockController = TextEditingController();
   final _careController = TextEditingController();
   final _marketPickupNameController = TextEditingController();
+  final _marketPickupLocationController = TextEditingController();
   final _optionOneNameController = TextEditingController();
   final _optionTwoNameController = TextEditingController();
   final _optionOneValuesController = TextEditingController();
@@ -46,6 +59,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   bool _isInitialized = false;
   bool _isUploading = false;
   bool _hasOptions = false;
+  String? _marketPickupProvince;
 
   final List<String> _imageUrls = [];
   final List<File> _pendingFiles = [];
@@ -109,6 +123,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 .firstOrNull
                 ?.marketName ??
             '';
+        _marketPickupLocationController.text =
+            _shippingOptions
+                .where((option) => option.key == 'market_pickup')
+                .firstOrNull
+                ?.marketLocation ??
+            '';
+        _marketPickupProvince = _shippingOptions
+            .where((option) => option.key == 'market_pickup')
+            .firstOrNull
+            ?.marketProvince;
       });
     } catch (_) {
       // Leave the product form on built-in defaults if the shop defaults fail to load.
@@ -143,6 +167,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _stockController.dispose();
     _careController.dispose();
     _marketPickupNameController.dispose();
+    _marketPickupLocationController.dispose();
     _optionOneNameController.dispose();
     _optionTwoNameController.dispose();
     _optionOneValuesController.dispose();
@@ -187,6 +212,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             .firstOrNull
             ?.marketName ??
         '';
+    _marketPickupLocationController.text =
+        _shippingOptions
+            .where((option) => option.key == 'market_pickup')
+            .firstOrNull
+            ?.marketLocation ??
+        '';
+    _marketPickupProvince = _shippingOptions
+        .where((option) => option.key == 'market_pickup')
+        .firstOrNull
+        ?.marketProvince;
     final optionGroups = product.optionGroups;
     _hasOptions = optionGroups.isNotEmpty;
     if (_hasOptions) {
@@ -1821,6 +1856,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   List<ShippingOption> _buildProductShippingOptions() {
     final marketPickupName = _marketPickupNameController.text.trim();
+    final marketPickupLocation = _marketPickupLocationController.text.trim();
+    final marketPickupProvince = _marketPickupProvince?.trim() ?? '';
     return _shippingOptions
         .map((option) {
           final rawPrice =
@@ -1830,6 +1867,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             price: parsedPrice ?? option.price,
             marketName: option.key == 'market_pickup'
                 ? (marketPickupName.isEmpty ? null : marketPickupName)
+                : null,
+            marketLocation: option.key == 'market_pickup'
+                ? (marketPickupLocation.isEmpty ? null : marketPickupLocation)
+                : null,
+            marketProvince: option.key == 'market_pickup'
+                ? (marketPickupProvince.isEmpty ? null : marketPickupProvince)
                 : null,
           );
         })
@@ -2053,6 +2096,50 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       decoration: const InputDecoration(
                         hintText: 'e.g. Bryanston Organic Market',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _marketPickupLocationController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) {
+                        if (!isEnabled || option.key != 'market_pickup') {
+                          return null;
+                        }
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter the market city or area';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'City / area, e.g. Johannesburg',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _marketPickupProvince,
+                      decoration: const InputDecoration(
+                        hintText: 'Market province',
+                      ),
+                      items: _saProvinces
+                          .map(
+                            (province) => DropdownMenuItem<String>(
+                              value: province,
+                              child: Text(province),
+                            ),
+                          )
+                          .toList(),
+                      validator: (value) {
+                        if (!isEnabled || option.key != 'market_pickup') {
+                          return null;
+                        }
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Select the market province';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        setState(() => _marketPickupProvince = value);
+                      },
                     ),
                   ],
                 ],

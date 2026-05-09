@@ -9,21 +9,25 @@ class ShippingOption {
   final bool enabled;
   final double price;
   final String? marketName;
+  final String? marketLocation;
+  final String? marketProvince;
 
   const ShippingOption({
     required this.key,
     required this.enabled,
     required this.price,
     this.marketName,
+    this.marketLocation,
+    this.marketProvince,
   });
 
   factory ShippingOption.fromJson(Map<String, dynamic> json) => ShippingOption(
     key: json['key'] as String,
     enabled: json['enabled'] as bool? ?? true,
     price: (json['price'] as num).toDouble(),
-    marketName: (json['market_name'] as String?)?.trim().isEmpty ?? true
-        ? null
-        : (json['market_name'] as String).trim(),
+    marketName: _trimmedString(json['market_name']),
+    marketLocation: _trimmedString(json['market_location']),
+    marketProvince: _trimmedString(json['market_province']),
   );
 
   Map<String, dynamic> toJson() => {
@@ -32,12 +36,18 @@ class ShippingOption {
     'price': price,
     if (marketName != null && marketName!.trim().isNotEmpty)
       'market_name': marketName!.trim(),
+    if (marketLocation != null && marketLocation!.trim().isNotEmpty)
+      'market_location': marketLocation!.trim(),
+    if (marketProvince != null && marketProvince!.trim().isNotEmpty)
+      'market_province': marketProvince!.trim(),
   };
 
   ShippingOption copyWith({
     bool? enabled,
     double? price,
     Object? marketName = _marketNameSentinel,
+    Object? marketLocation = _marketNameSentinel,
+    Object? marketProvince = _marketNameSentinel,
   }) => ShippingOption(
     key: key,
     enabled: enabled ?? this.enabled,
@@ -45,13 +55,24 @@ class ShippingOption {
     marketName: identical(marketName, _marketNameSentinel)
         ? this.marketName
         : marketName as String?,
+    marketLocation: identical(marketLocation, _marketNameSentinel)
+        ? this.marketLocation
+        : marketLocation as String?,
+    marketProvince: identical(marketProvince, _marketNameSentinel)
+        ? this.marketProvince
+        : marketProvince as String?,
   );
 
   // ── Static catalogue of all supported methods ──────────────────
   static const _catalogue = {
     'courier_guy': _MethodMeta(
-      name: 'The Courier Guy',
-      description: 'Door-to-door delivery, 2–4 business days',
+      name: 'Courier Guy Locker',
+      description: 'Collect at a Courier Guy locker near you',
+      icon: Icons.lock_outline_rounded,
+    ),
+    'courier_guy_door_to_door': _MethodMeta(
+      name: 'Courier Guy Door to Door',
+      description: 'Courier delivery to your address, 2–4 business days',
       icon: Icons.local_shipping_outlined,
     ),
     'pargo': _MethodMeta(
@@ -72,7 +93,12 @@ class ShippingOption {
 
   /// Returns the full default set of options (all enabled, default prices).
   static List<ShippingOption> defaults() => [
-    const ShippingOption(key: 'courier_guy', enabled: true, price: 99.00),
+    const ShippingOption(key: 'courier_guy', enabled: true, price: 69.00),
+    const ShippingOption(
+      key: 'courier_guy_door_to_door',
+      enabled: true,
+      price: 110.00,
+    ),
     const ShippingOption(key: 'pargo', enabled: true, price: 65.00),
     const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
   ];
@@ -91,6 +117,12 @@ class ShippingOption {
         .where((option) => _catalogue.containsKey(option.key))
         .toList();
   }
+}
+
+String? _trimmedString(Object? value) {
+  if (value is! String) return null;
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
 
 class _MethodMeta {

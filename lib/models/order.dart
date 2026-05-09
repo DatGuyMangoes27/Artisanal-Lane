@@ -118,7 +118,9 @@ class Order {
   String get shippingMethodDisplay {
     switch (shippingMethod) {
       case 'courier_guy':
-        return 'The Courier Guy';
+        return 'Courier Guy Locker';
+      case 'courier_guy_door_to_door':
+        return 'Courier Guy Door to Door';
       case 'pargo':
         return 'Pargo';
       case 'paxi':

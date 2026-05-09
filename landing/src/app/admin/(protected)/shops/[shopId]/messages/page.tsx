@@ -11,6 +11,7 @@ import {
   getAdminShopThreadMessages,
   getOrCreateAdminShopThread,
   getShopForAdminChat,
+  markAdminShopThreadRead,
 } from "@/lib/admin-messaging";
 
 export default async function AdminShopMessagesPage({
@@ -31,6 +32,7 @@ export default async function AdminShopMessagesPage({
   }
 
   const messages = await getAdminShopThreadMessages(thread.id);
+  await markAdminShopThreadRead(thread.id);
 
   const vendorName =
     shop.vendor?.display_name ?? shop.vendor?.email ?? "the shop owner";

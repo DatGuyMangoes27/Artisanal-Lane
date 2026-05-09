@@ -7,6 +7,7 @@ import { requireAdminSession } from "@/lib/admin-auth";
 import {
   getOrCreateAdminShopThread,
   listActiveAdminMessagingShops,
+  markAdminShopThreadRead,
 } from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -397,6 +398,7 @@ export async function sendAdminShopMessage(
     }
 
     if (message?.id != null) {
+      await markAdminShopThreadRead(thread.id);
       await sendChatMessagePushNotifications([message.id]);
     }
 

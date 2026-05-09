@@ -18,6 +18,7 @@ class CheckoutFormSnapshot {
   final String phoneNumber;
   final String? selectedShippingMethod;
   final bool hasAvailableShippingMethods;
+  final bool requiresShippingAddress;
   final bool requiresPickupPoint;
   final String pickupPoint;
 
@@ -30,6 +31,7 @@ class CheckoutFormSnapshot {
     required this.phoneNumber,
     required this.selectedShippingMethod,
     required this.hasAvailableShippingMethods,
+    required this.requiresShippingAddress,
     required this.requiresPickupPoint,
     required this.pickupPoint,
   });
@@ -37,10 +39,14 @@ class CheckoutFormSnapshot {
 
 CheckoutField? firstIncompleteCheckoutField(CheckoutFormSnapshot snapshot) {
   if (snapshot.fullName.trim().isEmpty) return CheckoutField.fullName;
-  if (snapshot.streetAddress.trim().isEmpty) return CheckoutField.streetAddress;
-  if (snapshot.city.trim().isEmpty) return CheckoutField.city;
-  if (snapshot.postalCode.trim().isEmpty) return CheckoutField.postalCode;
-  if ((snapshot.province ?? '').trim().isEmpty) return CheckoutField.province;
+  if (snapshot.requiresShippingAddress) {
+    if (snapshot.streetAddress.trim().isEmpty) {
+      return CheckoutField.streetAddress;
+    }
+    if (snapshot.city.trim().isEmpty) return CheckoutField.city;
+    if (snapshot.postalCode.trim().isEmpty) return CheckoutField.postalCode;
+    if ((snapshot.province ?? '').trim().isEmpty) return CheckoutField.province;
+  }
   if (snapshot.phoneNumber.trim().isEmpty) return CheckoutField.phoneNumber;
   if (!snapshot.hasAvailableShippingMethods ||
       (snapshot.selectedShippingMethod ?? '').trim().isEmpty) {

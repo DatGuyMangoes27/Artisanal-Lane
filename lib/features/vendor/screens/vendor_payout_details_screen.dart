@@ -24,6 +24,7 @@ class _VendorPayoutDetailsScreenState
   final _accountNumberController = TextEditingController();
   final _branchCodeController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _identityNumberController = TextEditingController();
 
   String? _selectedBankName;
   String? _accountType;
@@ -36,6 +37,7 @@ class _VendorPayoutDetailsScreenState
     _accountNumberController.dispose();
     _branchCodeController.dispose();
     _phoneController.dispose();
+    _identityNumberController.dispose();
     super.dispose();
   }
 
@@ -63,6 +65,8 @@ class _VendorPayoutDetailsScreenState
         : null;
     _phoneController.text =
         payoutProfile?.registeredPhone as String? ?? profile?.phone as String? ?? '';
+    _identityNumberController.text =
+        payoutProfile?.identityNumber as String? ?? '';
 
     _didHydrate = true;
   }
@@ -116,6 +120,7 @@ class _VendorPayoutDetailsScreenState
         accountType: _accountType!,
         registeredPhone: phone,
         registeredEmail: registeredEmail,
+        identityNumber: _identityNumberController.text.trim(),
       );
       ref.invalidate(currentProfileProvider);
       ref.invalidate(vendorPayoutProfileProvider);
@@ -181,7 +186,7 @@ class _VendorPayoutDetailsScreenState
                           ),
                           const SizedBox(height: 10),
                           Text(
-                            'Complete the bank details Artisan Lane should use for your TradeSafe-linked payouts. We use your registered email automatically, and your phone number can be updated here if needed.',
+                            'Complete the bank details and ID number Artisan Lane should use for your TradeSafe-linked payouts. We use your registered email automatically, and your phone number can be updated here if needed.',
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               color: AppTheme.textSecondary,
@@ -254,6 +259,15 @@ class _VendorPayoutDetailsScreenState
                             decoration: _inputDecoration(label: 'Account type'),
                           ),
                           const SizedBox(height: 24),
+                          _buildSectionTitle('Identity details'),
+                          const SizedBox(height: 12),
+                          _buildTextField(
+                            controller: _identityNumberController,
+                            label: 'South African ID number',
+                            keyboardType: TextInputType.number,
+                            validator: _requiredField,
+                          ),
+                          const SizedBox(height: 12),
                           _buildSectionTitle('Contact details'),
                           const SizedBox(height: 12),
                           _buildReadOnlyField(

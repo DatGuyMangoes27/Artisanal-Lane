@@ -24,11 +24,25 @@ class VendorShopSettingsScreen extends ConsumerStatefulWidget {
 
 class _VendorShopSettingsScreenState
     extends ConsumerState<VendorShopSettingsScreen> {
+  static const _saProvinces = <String>[
+    'Eastern Cape',
+    'Free State',
+    'Gauteng',
+    'KwaZulu-Natal',
+    'Limpopo',
+    'Mpumalanga',
+    'Northern Cape',
+    'North West',
+    'Western Cape',
+  ];
+
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
   final _brandStoryController = TextEditingController();
   final _locationController = TextEditingController();
+  final _marketPickupNameController = TextEditingController();
+  final _marketPickupLocationController = TextEditingController();
   final _picker = ImagePicker();
 
   String? _logoUrl;
@@ -40,6 +54,7 @@ class _VendorShopSettingsScreenState
   bool _marketEventsInitialized = false;
   bool _isOffline = false;
   DateTime? _backToWorkDate;
+  String? _marketPickupProvince;
   List<ShippingOption> _shippingOptions = ShippingOption.defaults();
   List<ShopMarketEvent> _marketEvents = const [];
   // Controllers for per-method price inputs
@@ -54,6 +69,8 @@ class _VendorShopSettingsScreenState
     _bioController.dispose();
     _brandStoryController.dispose();
     _locationController.dispose();
+    _marketPickupNameController.dispose();
+    _marketPickupLocationController.dispose();
     for (final c in _priceControllers.values) {
       c.dispose();
     }
@@ -257,7 +274,21 @@ class _VendorShopSettingsScreenState
         final price =
             double.tryParse(_priceControllers[opt.key]?.text ?? '') ??
             opt.price;
-        return opt.copyWith(price: price);
+        final marketName = _marketPickupNameController.text.trim();
+        final marketLocation = _marketPickupLocationController.text.trim();
+        final marketProvince = _marketPickupProvince?.trim() ?? '';
+        return opt.copyWith(
+          price: price,
+          marketName: opt.key == 'market_pickup'
+              ? (marketName.isEmpty ? null : marketName)
+              : null,
+          marketLocation: opt.key == 'market_pickup'
+              ? (marketLocation.isEmpty ? null : marketLocation)
+              : null,
+          marketProvince: opt.key == 'market_pickup'
+              ? (marketProvince.isEmpty ? null : marketProvince)
+              : null,
+        );
       }).toList();
 
       await service.updateShop(shop.id, {
@@ -346,6 +377,13 @@ class _VendorShopSettingsScreenState
         for (final opt in _shippingOptions) {
           _priceControllers[opt.key]?.text = opt.price.toStringAsFixed(2);
         }
+        final marketPickup = _shippingOptions
+            .where((option) => option.key == 'market_pickup')
+            .firstOrNull;
+        _marketPickupNameController.text = marketPickup?.marketName ?? '';
+        _marketPickupLocationController.text =
+            marketPickup?.marketLocation ?? '';
+        _marketPickupProvince = marketPickup?.marketProvince;
       }
     });
 
@@ -1343,68 +1381,132 @@ class _VendorShopSettingsScreenState
             Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.5)),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Price',
-                    style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'R',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  SizedBox(
-                    width: 90,
-                    child: TextFormField(
-                      controller: _priceControllers[opt.key],
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
+                  Row(
+                    children: [
+                      Text(
+                        'Price',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.textSecondary,
                         ),
-                        filled: true,
-                        fillColor: AppTheme.scaffoldBg,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide.none,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'R',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.terracotta.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(width: 4),
+                      SizedBox(
+                        width: 90,
+                        child: TextFormField(
+                          controller: _priceControllers[opt.key],
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            filled: true,
+                            fillColor: AppTheme.scaffoldBg,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(
+                                color: AppTheme.terracotta.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      if (opt.key == 'market_pickup')
+                        Text(
+                          '(free pickup)',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  if (opt.key == 'market_pickup')
-                    Text(
-                      '(free pickup)',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: AppTheme.textHint,
+                  if (opt.key == 'market_pickup') ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _marketPickupNameController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) {
+                        if (!isEnabled) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter the market name';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'Market name, e.g. Bryanston Organic Market',
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _marketPickupLocationController,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (value) {
+                        if (!isEnabled) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Enter the market city or area';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        hintText: 'City / area, e.g. Johannesburg',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _marketPickupProvince,
+                      decoration: const InputDecoration(
+                        hintText: 'Market province',
+                      ),
+                      items: _saProvinces
+                          .map(
+                            (province) => DropdownMenuItem<String>(
+                              value: province,
+                              child: Text(province),
+                            ),
+                          )
+                          .toList(),
+                      validator: (value) {
+                        if (!isEnabled) return null;
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Select the market province';
+                        }
+                        return null;
+                      },
+                      onChanged: (value) {
+                        setState(() => _marketPickupProvince = value);
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

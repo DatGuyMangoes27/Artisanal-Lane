@@ -24,6 +24,10 @@ type TokenInput = {
     accountNumber: string;
     accountType: "CHEQUE" | "SAVINGS" | "TRANSMISSION" | "BOND";
   } | null;
+  payoutSettings?: {
+    interval: "IMMEDIATE";
+    refund: "IMMEDIATE";
+  } | null;
 };
 
 const TRADE_SAFE_AUTH_URL =
@@ -87,7 +91,7 @@ function trimToNull(value: string | null | undefined) {
   return trimmed != null && trimmed.length > 0 ? trimmed : null;
 }
 
-function buildTokenInput(input: TokenInput) {
+export function buildTokenInput(input: TokenInput) {
   const { givenName, familyName } = splitDisplayName(input.displayName);
 
   return {
@@ -106,8 +110,48 @@ function buildTokenInput(input: TokenInput) {
     },
     ...(input.organization != null ? { organization: input.organization } : {}),
     ...(input.bankAccount != null ? { bankAccount: input.bankAccount } : {}),
+    ...(input.payoutSettings != null
+      ? {
+        settings: {
+          payout: input.payoutSettings,
+        },
+      }
+      : {}),
   };
 }
+
+function assertImmediatePayoutConfigured(
+  payoutSettings: TokenInput["payoutSettings"],
+  token: {
+    settings?: {
+      payout?: {
+        interval?: string | null;
+        refund?: string | null;
+      } | null;
+    } | null;
+  },
+) {
+  if (payoutSettings == null) {
+    return;
+  }
+
+  const payout = token.settings?.payout;
+  if (payout?.interval !== "IMMEDIATE" || payout.refund !== "IMMEDIATE") {
+    throw new Error(
+      "TradeSafe seller token did not confirm immediate payout settings.",
+    );
+  }
+}
+
+type TokenMutationResult = {
+  id: string;
+  settings?: {
+    payout?: {
+      interval?: string | null;
+      refund?: string | null;
+    } | null;
+  } | null;
+};
 
 export function normalizeMobile(value: string | null | undefined) {
   const digits = (value ?? "").replace(/[^+\d]/g, "");
@@ -251,16 +295,24 @@ export async function ensureTradeSafeToken(input: TokenInput) {
       mutation UpdateToken($id: ID!, $input: TokenInput!) {
         tokenUpdate(id: $id, input: $input) {
           id
+          settings {
+            payout {
+              interval
+              refund
+            }
+          }
         }
       }
     `;
 
     const updated = await tradeSafeRequest<{
-      tokenUpdate: { id: string };
+      tokenUpdate: TokenMutationResult;
     }>("tokenUpdate", updateMutation, {
       id: input.existingTokenId,
       input: buildTokenInput(input),
     });
+
+    assertImmediatePayoutConfigured(input.payoutSettings, updated.tokenUpdate);
 
     return updated.tokenUpdate.id;
   }
@@ -269,15 +321,23 @@ export async function ensureTradeSafeToken(input: TokenInput) {
     mutation CreateToken($input: TokenInput!) {
       tokenCreate(input: $input) {
         id
+        settings {
+          payout {
+            interval
+            refund
+          }
+        }
       }
     }
   `;
 
   const created = await tradeSafeRequest<{
-    tokenCreate: { id: string };
+    tokenCreate: TokenMutationResult;
   }>("tokenCreate", createMutation, {
     input: buildTokenInput(input),
   });
+
+  assertImmediatePayoutConfigured(input.payoutSettings, created.tokenCreate);
 
   return created.tokenCreate.id;
 }

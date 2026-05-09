@@ -86,28 +86,17 @@ void main() {
       '/vendor',
     );
     expect(
-      routeForAuthEvent(
-        AuthChangeEvent.signedIn,
-        requestedRole: 'vendor',
-      ),
+      routeForAuthEvent(AuthChangeEvent.signedIn, requestedRole: 'vendor'),
       '/vendor/onboarding',
     );
-    expect(
-      routeForAuthEvent(AuthChangeEvent.signedIn),
-      '/home',
-    );
-    expect(
-      routeForAuthEvent(AuthChangeEvent.signedOut),
-      '/welcome',
-    );
+    expect(routeForAuthEvent(AuthChangeEvent.signedIn), '/home');
+    expect(routeForAuthEvent(AuthChangeEvent.signedOut), '/welcome');
   });
 
   testWidgets('Reset password screen shows the new password form', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(
-      const MaterialApp(home: ResetPasswordScreen()),
-    );
+    await tester.pumpWidget(const MaterialApp(home: ResetPasswordScreen()));
     await tester.pump();
 
     expect(find.text('Create\nNew Password'), findsOneWidget);
@@ -224,8 +213,12 @@ void main() {
       CheckoutShippingInlineDetails.courierGuyLockerSearch,
     );
     expect(
+      inlineDetailsForShippingMethod('courier_guy_door_to_door'),
+      CheckoutShippingInlineDetails.none,
+    );
+    expect(
       inlineDetailsForShippingMethod('pargo'),
-      CheckoutShippingInlineDetails.pickupPointEntry,
+      CheckoutShippingInlineDetails.pargoPickupPointSearch,
     );
     expect(
       inlineDetailsForShippingMethod('market_pickup'),
@@ -326,9 +319,7 @@ void main() {
         ],
       );
 
-      await tester.pumpWidget(
-        MaterialApp.router(routerConfig: router),
-      );
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
@@ -341,7 +332,9 @@ void main() {
     },
   );
 
-  testWidgets('unread messages FAB shows the unread counter badge', (tester) async {
+  testWidgets('unread messages FAB shows the unread counter badge', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -358,7 +351,9 @@ void main() {
     expect(find.text('3'), findsOneWidget);
   });
 
-  testWidgets('buyer shell does not show the unread messages FAB', (tester) async {
+  testWidgets('buyer shell does not show the unread messages FAB', (
+    tester,
+  ) async {
     final router = GoRouter(
       initialLocation: '/profile',
       routes: [
@@ -384,7 +379,9 @@ void main() {
     expect(find.byIcon(Icons.forum_rounded), findsNothing);
   });
 
-  testWidgets('vendor shell does not show the unread messages FAB', (tester) async {
+  testWidgets('vendor shell does not show the unread messages FAB', (
+    tester,
+  ) async {
     final router = GoRouter(
       initialLocation: '/vendor/profile',
       routes: [
@@ -398,9 +395,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          vendorUnreadThreadsCountProvider.overrideWith((ref) => 3),
-        ],
+        overrides: [vendorUnreadThreadsCountProvider.overrideWith((ref) => 3)],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
@@ -426,7 +421,9 @@ void main() {
             ),
           ),
           categoriesProvider.overrideWith((ref) async => const <Category>[]),
-          featuredProductsProvider.overrideWith((ref) async => const <Product>[]),
+          featuredProductsProvider.overrideWith(
+            (ref) async => const <Product>[],
+          ),
           onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
           spotlightShopProvider.overrideWith((ref) async => null),
           followingFeedProvider.overrideWith((ref) async => const []),
@@ -486,16 +483,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Fresh Arrivals'), findsOneWidget);
-    await tester.drag(
-      find.byType(CustomScrollView),
-      const Offset(0, -1200),
-    );
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -1200));
     await tester.pumpAndSettle();
 
     expect(find.text('Fresh Leather Jacket'), findsOneWidget);
   });
 
-  testWidgets('vendor dashboard screen shows unread messages FAB', (tester) async {
+  testWidgets('vendor dashboard screen shows unread messages FAB', (
+    tester,
+  ) async {
     final now = DateTime(2026, 5, 3, 18);
     final shop = Shop(
       id: 'shop-1',
@@ -556,7 +552,9 @@ void main() {
               'fees': 0.0,
             },
           ),
-          vendorPayoutProfileProvider.overrideWith((ref) async => payoutProfile),
+          vendorPayoutProfileProvider.overrideWith(
+            (ref) async => payoutProfile,
+          ),
           vendorPayoutProfileStreamProvider.overrideWith(
             (ref) => Stream.value(payoutProfile),
           ),
@@ -679,7 +677,24 @@ void main() {
     });
 
     expect(isVendorPayoutSetupComplete(incompleteProfile), isFalse);
-    expect(isVendorPayoutSetupComplete(completeProfile), isTrue);
+    expect(isVendorPayoutSetupComplete(completeProfile), isFalse);
+
+    final completeProfileWithId = VendorPayoutProfile.fromJson({
+      'vendor_id': 'vendor-1',
+      'account_holder_name': 'Artisan Lane Test',
+      'bank_name': 'Standard Bank',
+      'account_number': '10271380908',
+      'branch_code': '051001',
+      'account_type': 'cheque',
+      'registered_phone': '0820000000',
+      'registered_email': 'vendor@example.com',
+      'identity_number': '8001015009087',
+      'verification_status': 'verified',
+      'created_at': '2026-04-07T12:00:00.000Z',
+      'updated_at': '2026-04-07T12:00:00.000Z',
+    });
+
+    expect(isVendorPayoutSetupComplete(completeProfileWithId), isTrue);
   });
 
   test('Approval celebration only shows until vendor dismisses it', () {
@@ -878,6 +893,7 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: 'courier_guy',
           hasAvailableShippingMethods: true,
+          requiresShippingAddress: true,
           requiresPickupPoint: false,
           pickupPoint: '',
         ),
@@ -895,6 +911,7 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: 'courier_guy',
           hasAvailableShippingMethods: true,
+          requiresShippingAddress: true,
           requiresPickupPoint: false,
           pickupPoint: '',
         ),
@@ -912,6 +929,7 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: null,
           hasAvailableShippingMethods: true,
+          requiresShippingAddress: true,
           requiresPickupPoint: false,
           pickupPoint: '',
         ),
@@ -929,11 +947,48 @@ void main() {
           phoneNumber: '0820000000',
           selectedShippingMethod: 'courier_guy',
           hasAvailableShippingMethods: true,
+          requiresShippingAddress: false,
           requiresPickupPoint: true,
           pickupPoint: '',
         ),
       ),
       CheckoutField.pickupPoint,
+    );
+    expect(
+      firstIncompleteCheckoutField(
+        const CheckoutFormSnapshot(
+          fullName: 'Alicia',
+          streetAddress: '',
+          city: '',
+          postalCode: '',
+          province: null,
+          phoneNumber: '0820000000',
+          selectedShippingMethod: 'market_pickup',
+          hasAvailableShippingMethods: true,
+          requiresShippingAddress: false,
+          requiresPickupPoint: false,
+          pickupPoint: '',
+        ),
+      ),
+      isNull,
+    );
+    expect(
+      firstIncompleteCheckoutField(
+        const CheckoutFormSnapshot(
+          fullName: 'Alicia',
+          streetAddress: '',
+          city: '',
+          postalCode: '',
+          province: null,
+          phoneNumber: '0820000000',
+          selectedShippingMethod: 'courier_guy_door_to_door',
+          hasAvailableShippingMethods: true,
+          requiresShippingAddress: true,
+          requiresPickupPoint: false,
+          pickupPoint: '',
+        ),
+      ),
+      CheckoutField.streetAddress,
     );
   });
 
@@ -950,6 +1005,7 @@ void main() {
             phoneNumber: '0820000000',
             selectedShippingMethod: null,
             hasAvailableShippingMethods: false,
+            requiresShippingAddress: true,
             requiresPickupPoint: false,
             pickupPoint: '',
           ),
@@ -972,18 +1028,44 @@ void main() {
       ShippingOption.defaults().map((option) => option.key),
       isNot(contains('paxi')),
     );
+    expect(
+      ShippingOption.defaults().map((option) => option.key),
+      containsAll(['courier_guy', 'courier_guy_door_to_door']),
+    );
 
     final filtered = ShippingOption.listFromJson([
       {'key': 'courier_guy', 'enabled': true, 'price': 99},
+      {'key': 'courier_guy_door_to_door', 'enabled': true, 'price': 110},
       {'key': 'paxi', 'enabled': true, 'price': 45},
       {'key': 'market_pickup', 'enabled': true, 'price': 0},
     ]);
 
     expect(filtered.map((option) => option.key), [
       'courier_guy',
+      'courier_guy_door_to_door',
       'market_pickup',
     ]);
   });
+
+  test(
+    'market pickup shipping option stores location and province metadata',
+    () {
+      final option = ShippingOption.fromJson(const {
+        'key': 'market_pickup',
+        'enabled': true,
+        'price': 0,
+        'market_name': 'Bryanston Organic Market',
+        'market_location': 'Johannesburg',
+        'market_province': 'Gauteng',
+      });
+
+      expect(option.marketName, 'Bryanston Organic Market');
+      expect(option.marketLocation, 'Johannesburg');
+      expect(option.marketProvince, 'Gauteng');
+      expect(option.toJson(), containsPair('market_location', 'Johannesburg'));
+      expect(option.toJson(), containsPair('market_province', 'Gauteng'));
+    },
+  );
 
   test(
     'Order pickup point summary supports both legacy text and locker maps',

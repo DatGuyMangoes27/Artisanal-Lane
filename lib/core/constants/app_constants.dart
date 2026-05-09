@@ -34,7 +34,8 @@ class AppConstants {
 
   // Shipping methods
   static const Map<String, String> shippingMethods = {
-    'courier_guy': 'The Courier Guy',
+    'courier_guy': 'Courier Guy Locker',
+    'courier_guy_door_to_door': 'Courier Guy Door to Door',
     'pargo': 'Pargo',
     'market_pickup': 'Market Pickup',
   };

@@ -140,6 +140,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return shippingMethod == 'courier_guy' || shippingMethod == 'pargo';
   }
 
+  bool _requiresShippingAddress(String? shippingMethod) {
+    return shippingMethod == 'courier_guy_door_to_door';
+  }
+
   String _pickupPointLabel(String? shippingMethod) {
     switch (shippingMethod) {
       case 'courier_guy':
@@ -176,6 +180,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (point.address.isNotEmpty) point.address,
       if (point.province.isNotEmpty) point.province,
     ].join(' • ');
+  }
+
+  String _marketPickupSummary(ShippingOption option) {
+    return [
+      option.marketName,
+      option.marketLocation,
+      option.marketProvince,
+    ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' • ');
   }
 
   void _clearCourierGuyLockerSelection() {
@@ -216,7 +228,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         _isLoadingCourierGuyLockers = false;
       });
     } catch (error, stackTrace) {
-      print(
+      debugPrint(
         '[locker-debug] checkout screen search failed query="$search" province="$province" error=$error stackTrace=$stackTrace',
       );
       if (!mounted) return;
@@ -311,6 +323,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       phoneNumber: _phoneController.text,
       selectedShippingMethod: _selectedShipping,
       hasAvailableShippingMethods: enabledOptions.isNotEmpty,
+      requiresShippingAddress: _requiresShippingAddress(_selectedShipping),
       requiresPickupPoint: _requiresPickupPoint(_selectedShipping),
       pickupPoint: _pickupPointController.text,
     );
@@ -416,6 +429,37 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _isSubmittingPayment = true;
     });
 
+    final requiresShippingAddress = _requiresShippingAddress(_selectedShipping);
+    final selectedOption = enabledOptions
+        .where((option) => option.key == _selectedShipping)
+        .firstOrNull;
+    final address = <String, dynamic>{
+      'name': _nameController.text,
+      'country': 'South Africa',
+      'phone': _phoneController.text,
+      if (requiresShippingAddress) ...{
+        'street': _streetController.text,
+        'city': _cityController.text,
+        'postal_code': _postalController.text,
+        'province': _selectedProvince,
+      },
+      if (_selectedShipping == 'courier_guy' &&
+          _selectedCourierGuyLocker != null)
+        'pickup_point': _selectedCourierGuyLocker!.toOrderJson()
+      else if (_selectedShipping == 'pargo' && _selectedPargoPoint != null)
+        'pickup_point': _selectedPargoPoint!.toOrderJson()
+      else if (_selectedShipping == 'market_pickup' && selectedOption != null)
+        'pickup_point': {
+          'carrier': 'market_pickup',
+          'point_type': 'market',
+          'name': selectedOption.marketName,
+          'address': selectedOption.marketLocation,
+          'province': selectedOption.marketProvince,
+        }
+      else if (_pickupPointController.text.trim().isNotEmpty)
+        'pickup_point': _pickupPointController.text.trim(),
+    };
+
     final checkoutData = {
       'items': items,
       'subtotal': subtotal,
@@ -423,22 +467,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       'shippingCost': shippingCost,
       'shippingMethod': _selectedShipping,
       'total': total,
-      'address': {
-        'name': _nameController.text,
-        'street': _streetController.text,
-        'city': _cityController.text,
-        'postal_code': _postalController.text,
-        'province': _selectedProvince,
-        'country': 'South Africa',
-        'phone': _phoneController.text,
-        if (_selectedShipping == 'courier_guy' &&
-            _selectedCourierGuyLocker != null)
-          'pickup_point': _selectedCourierGuyLocker!.toOrderJson()
-        else if (_selectedShipping == 'pargo' && _selectedPargoPoint != null)
-          'pickup_point': _selectedPargoPoint!.toOrderJson()
-        else if (_pickupPointController.text.trim().isNotEmpty)
-          'pickup_point': _pickupPointController.text.trim(),
-      },
+      'address': address,
     };
 
     try {
@@ -463,9 +492,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final cartAsync = ref.watch(cartItemsProvider);
     final giftOptions = ref.watch(giftOptionsProvider);
     final isGift = giftOptions.isGift;
-    final addressTitle = isGift
-        ? 'Recipient Delivery Details'
-        : 'Shipping Address';
+    final requiresShippingAddress = _requiresShippingAddress(_selectedShipping);
+    final addressTitle = requiresShippingAddress
+        ? (isGift ? 'Recipient Delivery Details' : 'Shipping Address')
+        : 'Contact Details';
     final nameLabel = isGift ? 'Recipient Full Name' : 'Full Name';
     final phoneLabel = isGift ? 'Recipient Phone Number' : 'Phone Number';
 
@@ -542,10 +572,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   children: [
                     _buildSectionTitle(addressTitle),
                     const SizedBox(height: 12),
-                    _buildInfoNote(
-                      'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
-                    ),
-                    const SizedBox(height: 24),
+                    if (requiresShippingAddress) ...[
+                      _buildInfoNote(
+                        'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
+                      ),
+                      const SizedBox(height: 24),
+                    ] else ...[
+                      _buildInfoNote(
+                        'We only need your name and phone number for this collection method. No delivery address is required.',
+                      ),
+                      const SizedBox(height: 24),
+                    ],
 
                     _buildTextField(
                       key: _fullNameFieldKey,
@@ -553,47 +590,52 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       controller: _nameController,
                       focusNode: _nameFocusNode,
                     ),
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      key: _streetFieldKey,
-                      label: 'Street Address',
-                      controller: _streetController,
-                      focusNode: _streetFocusNode,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            key: _cityFieldKey,
-                            label: 'City',
-                            controller: _cityController,
-                            focusNode: _cityFocusNode,
+                    if (requiresShippingAddress) ...[
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        key: _streetFieldKey,
+                        label: 'Street Address',
+                        controller: _streetController,
+                        focusNode: _streetFocusNode,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTextField(
+                              key: _cityFieldKey,
+                              label: 'City',
+                              controller: _cityController,
+                              focusNode: _cityFocusNode,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildTextField(
-                            key: _postalFieldKey,
-                            label: 'Postal Code',
-                            controller: _postalController,
-                            keyboardType: TextInputType.number,
-                            focusNode: _postalFocusNode,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: _buildTextField(
+                              key: _postalFieldKey,
+                              label: 'Postal Code',
+                              controller: _postalController,
+                              keyboardType: TextInputType.number,
+                              focusNode: _postalFocusNode,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildDropdownField(
-                      key: _provinceFieldKey,
-                      label: 'Province',
-                      value: _selectedProvince,
-                      items: _saProvinces,
-                      onChanged: (value) =>
-                          setState(() => _selectedProvince = value),
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStaticField(label: 'Country', value: 'South Africa'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildDropdownField(
+                        key: _provinceFieldKey,
+                        label: 'Province',
+                        value: _selectedProvince,
+                        items: _saProvinces,
+                        onChanged: (value) =>
+                            setState(() => _selectedProvince = value),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildStaticField(
+                        label: 'Country',
+                        value: 'South Africa',
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     _buildTextField(
                       key: _phoneFieldKey,
@@ -1291,7 +1333,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
             if (isSelected) ...[
               const SizedBox(height: 16),
-              _buildSelectedShippingInlineDetails(option.key),
+              _buildSelectedShippingInlineDetails(option),
             ],
           ],
         ),
@@ -1299,7 +1341,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildSelectedShippingInlineDetails(String shippingMethod) {
+  Widget _buildSelectedShippingInlineDetails(ShippingOption option) {
+    final shippingMethod = option.key;
     switch (inlineDetailsForShippingMethod(shippingMethod)) {
       case CheckoutShippingInlineDetails.courierGuyLockerSearch:
         return Column(
@@ -1437,8 +1480,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ],
         );
       case CheckoutShippingInlineDetails.marketPickupNote:
+        final marketSummary = _marketPickupSummary(option);
         return _buildInfoNote(
-          'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.',
+          marketSummary.isEmpty
+              ? 'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.'
+              : 'Market pickup: $marketSummary. Please only choose this if you can collect from this market.',
         );
       case CheckoutShippingInlineDetails.none:
         return const SizedBox.shrink();
