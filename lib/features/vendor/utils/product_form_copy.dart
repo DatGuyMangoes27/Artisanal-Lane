@@ -54,24 +54,31 @@ ProductPricingValues normalizeProductPricingForSave({
   required String currentPriceText,
   required String salePriceText,
 }) {
-  final currentPrice = double.parse(currentPriceText.trim());
+  final currentPrice = parseProductPriceText(currentPriceText);
   final trimmedSalePrice = salePriceText.trim();
 
   if (trimmedSalePrice.isEmpty) {
     return ProductPricingValues(price: currentPrice, compareAtPrice: null);
   }
 
-  final salePrice = double.parse(trimmedSalePrice);
+  final salePrice = parseProductPriceText(trimmedSalePrice);
   if (salePrice == currentPrice) {
     return ProductPricingValues(price: currentPrice, compareAtPrice: null);
   }
 
   final livePrice = currentPrice < salePrice ? currentPrice : salePrice;
   final originalPrice = currentPrice > salePrice ? currentPrice : salePrice;
-  return ProductPricingValues(
-    price: livePrice,
-    compareAtPrice: originalPrice,
-  );
+  return ProductPricingValues(price: livePrice, compareAtPrice: originalPrice);
+}
+
+double parseProductPriceText(String value) {
+  return double.parse(value.trim().replaceAll(',', '.'));
+}
+
+double? tryParseProductPriceText(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  return double.tryParse(trimmed.replaceAll(',', '.'));
 }
 
 ProductPricingFieldValues pricingFieldsFromStoredValues({

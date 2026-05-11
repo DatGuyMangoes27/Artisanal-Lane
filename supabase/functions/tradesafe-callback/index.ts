@@ -49,12 +49,12 @@ Deno.serve(async (request) => {
     const orderLookup = transactionId
       ? admin
         .from("orders")
-        .select("id, buyer_id, status, payment_state")
+        .select("id, buyer_id, shop_id, status, payment_state")
         .eq("tradesafe_transaction_id", transactionId)
         .maybeSingle()
       : admin
         .from("orders")
-        .select("id, buyer_id, status, payment_state")
+        .select("id, buyer_id, shop_id, status, payment_state")
         .eq("payment_reference", reference ?? "")
         .maybeSingle();
 
@@ -76,19 +76,21 @@ Deno.serve(async (request) => {
 
     const orderStatus = mapTradeSafeOrderStatus(state);
     const escrowStatus = mapTradeSafeEscrowStatus(state);
+    const orderUpdate = {
+      status: orderStatus,
+      payment_state: state,
+      payment_url: orderStatus === "paid" || orderStatus === "completed" ||
+          orderStatus === "cancelled"
+        ? null
+        : undefined,
+      tradesafe_transaction_id: transactionId,
+      tradesafe_allocation_id: allocationId,
+      paid_at: orderStatus === "paid" ? new Date().toISOString() : undefined,
+    };
 
     await admin
       .from("orders")
-      .update({
-        status: orderStatus,
-        payment_state: state,
-        payment_url: orderStatus === "paid" || orderStatus === "cancelled"
-          ? null
-          : undefined,
-        tradesafe_transaction_id: transactionId,
-        tradesafe_allocation_id: allocationId,
-        paid_at: orderStatus === "paid" ? new Date().toISOString() : null,
-      })
+      .update(orderUpdate)
       .eq("id", order.id);
 
     await admin
@@ -101,7 +103,21 @@ Deno.serve(async (request) => {
       })
       .eq("order_id", order.id);
 
-    if (orderStatus === "paid") {
+    if (orderStatus === "paid" || orderStatus === "completed") {
+      await admin
+        .from("chat_threads")
+        .upsert(
+          {
+            shop_id: order.shop_id,
+            buyer_id: order.buyer_id,
+            kind: "buyer_vendor",
+            last_message_preview: "New order placed",
+            last_message_type: "text",
+            last_message_at: new Date().toISOString(),
+          },
+          { onConflict: "shop_id,buyer_id", ignoreDuplicates: true },
+        );
+
       const { data: cart } = await admin
         .from("carts")
         .select("id")

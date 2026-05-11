@@ -43,6 +43,7 @@ void main() {
       accountType: 'cheque',
       registeredPhone: '0820000000',
       registeredEmail: 'vendor@example.com',
+      identityNumber: '8001015009087',
       verificationStatus: 'submitted',
       createdAt: now,
       updatedAt: now,

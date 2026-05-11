@@ -69,7 +69,7 @@ Deno.serve(async (request) => {
 
     const { data: order } = await admin
       .from("orders")
-      .select("id, shop_id, tradesafe_allocation_id")
+      .select("id, shop_id, status, tradesafe_allocation_id")
       .eq("id", orderId)
       .single();
 
@@ -81,6 +81,13 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: "You cannot update this order." }, {
         status: 403,
       });
+    }
+
+    if (order.status !== "paid") {
+      return jsonResponse(
+        { error: "This order cannot be marked shipped until payment is confirmed." },
+        { status: 400 },
+      );
     }
 
     let allocationState = "INITIATED";

@@ -312,6 +312,48 @@ class _VendorOrderDetailScreenState
               const SizedBox(height: 20),
             ],
 
+            Text(
+              'Buyer Contact',
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _infoRow(
+                    'Name',
+                    order.shippingAddress?['name'] as String? ??
+                        order.buyerDisplayName ??
+                        'Buyer',
+                  ),
+                  if ((order.buyerPhone ?? '').isNotEmpty)
+                    _infoRow('Phone', order.buyerPhone!),
+                  if ((order.shippingAddress?['phone'] as String?)
+                          ?.isNotEmpty ==
+                      true)
+                    _infoRow(
+                      'Delivery phone',
+                      order.shippingAddress!['phone'] as String,
+                    ),
+                  if ((order.buyerEmail ?? '').isNotEmpty)
+                    _infoRow('Email', order.buyerEmail!),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // Shipping address
             if (order.shippingAddress != null) ...[
               Text(

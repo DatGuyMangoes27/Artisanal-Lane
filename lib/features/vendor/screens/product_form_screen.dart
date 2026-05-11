@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -66,12 +67,28 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final List<_VariantDraft> _variants = [];
   List<ShippingOption> _shippingOptions = ShippingOption.defaults();
   final ImagePicker _picker = ImagePicker();
+  static const _priceKeyboard = TextInputType.numberWithOptions(decimal: true);
+  static final _priceInputFormatters = <TextInputFormatter>[
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+  ];
   late final Map<String, TextEditingController> _shippingPriceControllers = {
     for (final option in ShippingOption.defaults())
       option.key: TextEditingController(text: option.price.toStringAsFixed(2)),
   };
 
   bool get _isEditing => widget.productId != null;
+
+  String _imagePickerErrorMessage(ImageSource source) {
+    return source == ImageSource.camera
+        ? 'Camera access is blocked. Please allow camera access in your phone settings, or choose a photo from your gallery.'
+        : 'Could not access your photos. Please allow photo access in your phone settings and try again.';
+  }
+
+  String? _requiredPriceValidator(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Required';
+    if (tryParseProductPriceText(value) == null) return 'Invalid';
+    return null;
+  }
 
   @override
   void initState() {
@@ -351,7 +368,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Could not access camera: $e'),
+            content: Text(_imagePickerErrorMessage(source)),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -605,7 +622,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not add option photos: $error'),
+          content: Text(
+            _imagePickerErrorMessage(source ?? ImageSource.gallery),
+          ),
           backgroundColor: AppTheme.error,
         ),
       );
@@ -730,7 +749,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       if (!seenCombinations.add(key)) {
         return 'Each option combination must be unique.';
       }
-      if (double.tryParse(variant.priceController.text.trim()) == null) {
+      if (tryParseProductPriceText(variant.priceController.text) == null) {
         return 'Each combination needs a valid price.';
       }
       if (int.tryParse(variant.stockController.text.trim()) == null) {
@@ -889,7 +908,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             : List<String>.from(variantPayloads.first['images'] as List);
         fallbackPrice =
             (_priceController.text.trim().isNotEmpty
-                ? double.tryParse(_priceController.text.trim())
+                ? tryParseProductPriceText(_priceController.text)
                 : null) ??
             (variantPayloads.first['price'] as double);
         fallbackStock =
@@ -1691,12 +1710,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _priceController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: _priceKeyboard,
+                        inputFormatters: _priceInputFormatters,
                         validator: (v) {
                           if (_hasOptions) return null;
-                          if (v == null || v.isEmpty) return 'Required';
-                          if (double.tryParse(v) == null) return 'Invalid';
-                          return null;
+                          return _requiredPriceValidator(v);
                         },
                         decoration: InputDecoration(
                           hintText: _hasOptions
@@ -1716,7 +1734,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _compareAtPriceController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: _priceKeyboard,
+                        inputFormatters: _priceInputFormatters,
                         onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
                           hintText: 'Optional discounted price',
@@ -1862,7 +1881,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         .map((option) {
           final rawPrice =
               _shippingPriceControllers[option.key]?.text.trim() ?? '';
-          final parsedPrice = double.tryParse(rawPrice);
+          final parsedPrice = tryParseProductPriceText(rawPrice);
           return option.copyWith(
             price: parsedPrice ?? option.price,
             marketName: option.key == 'market_pickup'
@@ -2019,9 +2038,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         width: 90,
                         child: TextFormField(
                           controller: _shippingPriceControllers[option.key],
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
+                          keyboardType: _priceKeyboard,
+                          inputFormatters: _priceInputFormatters,
                           style: GoogleFonts.poppins(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -2032,7 +2050,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Required';
                             }
-                            if (double.tryParse(value.trim()) == null) {
+                            if (tryParseProductPriceText(value) == null) {
                               return 'Invalid';
                             }
                             return null;
@@ -2232,7 +2250,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: variant.priceController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: _priceKeyboard,
+                      inputFormatters: _priceInputFormatters,
                       decoration: const InputDecoration(
                         hintText: 'What buyers pay',
                       ),
@@ -2240,10 +2259,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         if (value == null || value.trim().isEmpty) {
                           return 'Required';
                         }
-                        if (double.tryParse(value.trim()) == null) {
-                          return 'Invalid';
-                        }
-                        return null;
+                        return _requiredPriceValidator(value);
                       },
                     ),
                   ],
@@ -2258,7 +2274,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: variant.compareAtPriceController,
-                      keyboardType: TextInputType.number,
+                      keyboardType: _priceKeyboard,
+                      inputFormatters: _priceInputFormatters,
                       onChanged: (_) => setState(() {}),
                       decoration: const InputDecoration(
                         hintText: 'Optional discounted price',

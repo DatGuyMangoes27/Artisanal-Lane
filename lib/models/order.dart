@@ -25,6 +25,9 @@ class Order {
 
   // Joined data
   final String? shopName;
+  final String? buyerDisplayName;
+  final String? buyerEmail;
+  final String? buyerPhone;
   final List<OrderItem>? items;
 
   const Order({
@@ -50,11 +53,15 @@ class Order {
     required this.createdAt,
     required this.updatedAt,
     this.shopName,
+    this.buyerDisplayName,
+    this.buyerEmail,
+    this.buyerPhone,
     this.items,
   });
 
   factory Order.fromJson(Map<String, dynamic> json) {
     final shopData = json['shops'] as Map<String, dynamic>?;
+    final buyerData = json['buyer'] as Map<String, dynamic>?;
     final itemsData = json['order_items'] as List?;
 
     return Order(
@@ -84,6 +91,9 @@ class Order {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       shopName: shopData?['name'] as String?,
+      buyerDisplayName: buyerData?['display_name'] as String?,
+      buyerEmail: buyerData?['email'] as String?,
+      buyerPhone: buyerData?['phone'] as String?,
       items: itemsData?.map((e) => OrderItem.fromJson(e)).toList(),
     );
   }

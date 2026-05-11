@@ -445,6 +445,16 @@ class SupabaseService {
     required String shopId,
     required String buyerId,
   }) async {
+    try {
+      final threadId = await _client.rpc<String>(
+        'get_or_create_buyer_chat_thread',
+        params: {'shop_uuid': shopId},
+      );
+      return getThread(threadId, buyerId);
+    } on PostgrestException {
+      // Fall back for older databases that do not have the RPC yet.
+    }
+
     final existing = await _client
         .from('chat_threads')
         .select(_chatThreadSelect)
@@ -1067,7 +1077,7 @@ class SupabaseService {
   static const _productSelect =
       '*, shops!inner(name, logo_url), categories(name), subcategories(name), product_variants(*)';
   static const _orderSelect =
-      '*, shops(name), order_items(*, products(title, images))';
+      '*, shops(name), buyer:profiles!orders_buyer_id_fkey(display_name, email, phone), order_items(*, products(title, images))';
 
   Map<String, dynamic> _productSummaryFromVariants(
     List<Map<String, dynamic>> variants,
@@ -1784,6 +1794,8 @@ class SupabaseService {
     required String registeredEmail,
     required String identityNumber,
   }) async {
+    final trimmedIdentityNumber = identityNumber.trim();
+    final hasIdentityNumber = trimmedIdentityNumber.isNotEmpty;
     final payload = {
       'vendor_id': vendorId,
       'account_holder_name': accountHolderName,
@@ -1793,10 +1805,12 @@ class SupabaseService {
       'account_type': accountType,
       'registered_phone': registeredPhone,
       'registered_email': registeredEmail,
-      'identity_number': identityNumber,
+      'identity_number': hasIdentityNumber ? trimmedIdentityNumber : null,
       'business_registration_number': null,
-      'verification_status': 'verified',
-      'status_notes': null,
+      'verification_status': hasIdentityNumber ? 'verified' : 'action_required',
+      'status_notes': hasIdentityNumber
+          ? null
+          : 'South African ID number is required for TradeSafe payouts.',
     };
 
     final data = await _client

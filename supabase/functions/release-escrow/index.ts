@@ -71,7 +71,7 @@ Deno.serve(async (request) => {
         : Promise.resolve({ data: { role: "admin" } }),
       admin
         .from("orders")
-        .select("id, buyer_id, tradesafe_allocation_id")
+        .select("id, buyer_id, status, tradesafe_allocation_id")
         .eq("id", orderId)
         .single(),
     ]);
@@ -87,6 +87,13 @@ Deno.serve(async (request) => {
       return jsonResponse({ error: "You cannot release this escrow." }, {
         status: 403,
       });
+    }
+
+    if (!["paid", "shipped", "delivered"].includes(order.status as string)) {
+      return jsonResponse(
+        { error: "This order cannot be released until payment is confirmed." },
+        { status: 400 },
+      );
     }
 
     let allocationState = "DELIVERY_ACCEPTED";

@@ -862,6 +862,13 @@ void main() {
       ),
       const ProductPricingValues(price: 190, compareAtPrice: null),
     );
+    expect(
+      normalizeProductPricingForSave(
+        currentPriceText: '70',
+        salePriceText: '66,50',
+      ),
+      const ProductPricingValues(price: 66.5, compareAtPrice: 70),
+    );
   });
 
   test('Product form pricing loads sale values into the correct fields', () {
