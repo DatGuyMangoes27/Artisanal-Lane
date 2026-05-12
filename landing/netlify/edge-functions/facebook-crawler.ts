@@ -1,4 +1,3 @@
-// @ts-nocheck
 const META_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,7 +25,7 @@ const META_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-export default async (request, context) => {
+const facebookCrawlerEdgeFunction = async (request: Request) => {
   const ua = request.headers.get("user-agent") || "";
 
   const isFacebookCrawler =
@@ -44,6 +43,8 @@ export default async (request, context) => {
     },
   });
 };
+
+export default facebookCrawlerEdgeFunction;
 
 export const config = {
   path: "/*",
