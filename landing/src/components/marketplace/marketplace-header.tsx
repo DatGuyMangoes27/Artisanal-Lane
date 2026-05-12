@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Search, ShoppingBag } from "lucide-react";
 
@@ -9,7 +8,9 @@ export function MarketplaceHeader() {
     <header className="sticky top-0 z-40 border-b border-artisan-clay/70 bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/shop" className="flex items-center gap-3">
-          <Image src="/logo.png" alt="Artisan Lane" width={36} height={36} className="rounded-lg" />
+          <span className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-artisan-terracotta to-artisan-clay font-serif text-lg font-bold text-white shadow-sm">
+            A
+          </span>
           <span className="font-serif text-xl font-bold text-foreground">Artisan Lane</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
