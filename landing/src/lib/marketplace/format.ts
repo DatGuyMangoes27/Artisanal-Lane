@@ -17,7 +17,7 @@ export function isProductOnSale(product: MarketplaceProduct) {
 }
 
 export function getProductPrimaryImage(product: MarketplaceProduct) {
-  return product.images[0] ?? "/logo.png";
+  return product.images[0] ?? "/marketplace-placeholder.svg";
 }
 
 export function getProductStockLabel(product: MarketplaceProduct) {

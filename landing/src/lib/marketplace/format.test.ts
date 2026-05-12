@@ -48,7 +48,7 @@ describe("marketplace formatting", () => {
 
   it("uses the first product image or a safe fallback", () => {
     expect(getProductPrimaryImage(baseProduct)).toBe("https://example.com/basket.jpg");
-    expect(getProductPrimaryImage({ ...baseProduct, images: [] })).toBe("/logo.png");
+    expect(getProductPrimaryImage({ ...baseProduct, images: [] })).toBe("/marketplace-placeholder.svg");
   });
 
   it("returns useful stock copy", () => {
