@@ -60,8 +60,7 @@ const shopSelect = `
   location,
   shipping_options,
   is_active,
-  is_offline,
-  products(count)
+  is_offline
 `;
 
 const uuidPattern =
@@ -91,8 +90,9 @@ type ShopRow = ShopSummaryRow & {
   brand_story: string | null;
   cover_image_url: string | null;
   shipping_options: unknown;
-  products?: Relation<{ count: number }>;
 };
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 type VariantRow = {
   id: string;
@@ -270,16 +270,15 @@ function mapProduct(row: ProductRow): MarketplaceProduct {
   };
 }
 
-function countProducts(row: Relation<{ count: number }>) {
-  const countRow = firstRelation(row);
-  return countRow?.count ?? 0;
-}
-
 function isUuid(value: string) {
   return uuidPattern.test(value);
 }
 
-function mapShop(row: ShopRow, products: MarketplaceProduct[] = []): MarketplaceShop {
+function mapShop(
+  row: ShopRow,
+  products: MarketplaceProduct[] = [],
+  productCount = products.length,
+): MarketplaceShop {
   return {
     id: row.id,
     name: row.name,
@@ -291,9 +290,43 @@ function mapShop(row: ShopRow, products: MarketplaceProduct[] = []): Marketplace
     brandStory: row.brand_story,
     coverImageUrl: row.cover_image_url,
     shippingOptions: mapShippingOptions(row.shipping_options),
-    productCount: countProducts(row.products),
+    productCount,
     products,
   };
+}
+
+async function loadPublicProductCountsForShops(
+  supabase: SupabaseServerClient,
+  shopIds: string[],
+) {
+  const uniqueShopIds = Array.from(new Set(shopIds.filter(Boolean)));
+
+  if (uniqueShopIds.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, shop_id, shops!inner(id)")
+    .eq("is_published", true)
+    .is("archived_at", null)
+    .eq("shops.is_active", true)
+    .in("shop_id", uniqueShopIds);
+
+  if (error) {
+    throw new Error("Failed to load marketplace shop product counts", { cause: error });
+  }
+
+  const counts = new Map<string, number>();
+  for (const product of (data ?? []) as Array<{ shop_id: string | null }>) {
+    if (!product.shop_id) {
+      continue;
+    }
+
+    counts.set(product.shop_id, (counts.get(product.shop_id) ?? 0) + 1);
+  }
+
+  return counts;
 }
 
 async function loadProducts(options: ProductQueryOptions = {}) {
@@ -430,7 +463,13 @@ export async function getMarketplaceShops(limit?: number) {
     throw new Error("Failed to load marketplace shops", { cause: error });
   }
 
-  return ((data ?? []) as ShopRow[]).map((shop) => mapShop(shop));
+  const shops = (data ?? []) as ShopRow[];
+  const publicProductCounts = await loadPublicProductCountsForShops(
+    supabase,
+    shops.map((shop) => shop.id),
+  );
+
+  return shops.map((shop) => mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0));
 }
 
 export async function getMarketplaceShop(shopIdOrSlug: string) {

@@ -221,10 +221,13 @@ describe("marketplace catalog helpers", () => {
     expect(shop).toMatchObject({
       id: "shop-1",
       slug: "artisan-shop",
-      productCount: 7,
+      productCount: 1,
       products: [{ id: "product-1" }],
     });
     expect(supabase.from).toHaveBeenNthCalledWith(1, "shops");
+    expect(String(supabase.queries[0].select.mock.calls[0]?.[0])).not.toContain(
+      "products(count)",
+    );
     expect(supabase.queries[0].calls).toContainEqual(["eq", "slug", "artisan-shop"]);
     expect(supabase.from).toHaveBeenNthCalledWith(2, "products");
     expect(supabase.queries[1].calls).toContainEqual(["eq", "shop_id", "shop-1"]);
