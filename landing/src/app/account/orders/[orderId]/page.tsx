@@ -2,12 +2,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { openBuyerDispute } from "@/app/account/disputes/actions";
 import { submitProductReview } from "@/app/account/reviews/actions";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getBuyerOrder, requireBuyerAccountSession } from "@/lib/marketplace/account";
+import { getActiveDisputeForOrder } from "@/lib/marketplace/dispute-data";
+import {
+  canOpenDisputeForOrderStatus,
+  formatDisputeStatus,
+} from "@/lib/marketplace/disputes";
 import { formatPrice } from "@/lib/marketplace/format";
 import {
   formatOrderStatus,
@@ -28,7 +34,10 @@ type BuyerOrderDetailPageProps = {
 export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailPageProps) {
   const { orderId } = await params;
   const { user } = await requireBuyerAccountSession(`/account/orders/${orderId}`);
-  const order = await getBuyerOrder(user.id, orderId);
+  const [order, activeDispute] = await Promise.all([
+    getBuyerOrder(user.id, orderId),
+    getActiveDisputeForOrder(orderId),
+  ]);
 
   if (!order) {
     notFound();
@@ -36,6 +45,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
 
   const pickupSummary = getOrderPickupPointSummary(order);
   const canReviewItems = canReviewOrderStatus(order.status);
+  const canOpenDispute = canOpenDisputeForOrderStatus(order.status);
 
   return (
     <div className="min-h-screen bg-background">
@@ -234,6 +244,48 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                   <span className="font-semibold text-foreground">State: </span>
                   <span className="text-muted-foreground">{formatOrderStatus(order.paymentState)}</span>
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-artisan-clay bg-card">
+              <CardContent className="space-y-4 p-6 text-sm">
+                <h2 className="font-serif text-2xl font-bold text-foreground">Need help?</h2>
+                {activeDispute ? (
+                  <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800">
+                    <p className="font-semibold">Dispute {formatDisputeStatus(activeDispute.status)}</p>
+                    <p className="mt-2 leading-6">{activeDispute.reason}</p>
+                    {activeDispute.resolution ? (
+                      <p className="mt-2 leading-6">Resolution: {activeDispute.resolution}</p>
+                    ) : null}
+                  </div>
+                ) : canOpenDispute ? (
+                  <form action={openBuyerDispute} className="space-y-3">
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="redirectTo" value={`/account/orders/${order.id}`} />
+                    <p className="text-muted-foreground">
+                      If something is wrong with this delivery, open a dispute. This starts a case with
+                      the seller and Artisan Lane admin team.
+                    </p>
+                    <label className="block font-medium text-foreground">
+                      What happened?
+                      <textarea
+                        name="reason"
+                        required
+                        rows={4}
+                        className="mt-2 w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                        placeholder="Describe the issue with your order."
+                      />
+                    </label>
+                    <Button type="submit" variant="outline" className="w-full rounded-full border-red-200 text-red-700 hover:text-red-800">
+                      Raise dispute
+                    </Button>
+                  </form>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Disputes become available once an order has shipped or been delivered. You can still
+                    message the seller from the order summary.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </aside>
