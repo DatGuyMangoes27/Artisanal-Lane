@@ -424,6 +424,28 @@ export async function getMarketplaceProduct(productId: string) {
   return data ? mapProduct(data as ProductRow) : null;
 }
 
+export async function getMarketplaceProductsByIds(productIds: string[]) {
+  const ids = Array.from(new Set(productIds.filter(Boolean)));
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select(productSelect)
+    .eq("is_published", true)
+    .is("archived_at", null)
+    .eq("shops.is_active", true)
+    .in("id", ids);
+
+  if (error) {
+    throw new Error("Failed to load marketplace cart products", { cause: error });
+  }
+
+  return ((data ?? []) as ProductRow[]).map(mapProduct);
+}
+
 export async function getMarketplaceProductsForShop(shopId: string, limit?: number) {
   return loadProducts({
     sort: "newest",

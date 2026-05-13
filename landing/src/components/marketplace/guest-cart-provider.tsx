@@ -13,6 +13,8 @@ import {
 import {
   addGuestCartItem,
   getGuestCartQuantity,
+  removeGuestCartItem,
+  updateGuestCartQuantity,
   type GuestCartItem,
   type GuestCartItemInput,
 } from "../../lib/marketplace/cart";
@@ -23,6 +25,9 @@ type GuestCartContextValue = {
   items: GuestCartItem[];
   quantity: number;
   addItem: (item: GuestCartItemInput) => void;
+  updateItemQuantity: (key: string, quantity: number) => void;
+  removeItem: (key: string) => void;
+  clearCart: () => void;
 };
 
 const GuestCartContext = createContext<GuestCartContextValue | null>(null);
@@ -87,6 +92,11 @@ export function GuestCartProvider({ children }: { children: ReactNode }) {
       items,
       quantity: getGuestCartQuantity(items),
       addItem: (item) => setItems((currentItems) => addGuestCartItem(currentItems, item)),
+      updateItemQuantity: (key, quantity) =>
+        setItems((currentItems) => updateGuestCartQuantity(currentItems, key, quantity)),
+      removeItem: (key) =>
+        setItems((currentItems) => removeGuestCartItem(currentItems, key)),
+      clearCart: () => setItems([]),
     }),
     [items],
   );

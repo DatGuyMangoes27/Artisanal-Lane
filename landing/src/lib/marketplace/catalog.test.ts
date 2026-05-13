@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { getMarketplaceProducts, getMarketplaceShop } from "./catalog";
+import { getMarketplaceProducts, getMarketplaceProductsByIds, getMarketplaceShop } from "./catalog";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
@@ -38,6 +38,10 @@ function createQuery(result: QueryResult) {
     }),
     contains: vi.fn((...args: unknown[]) => {
       calls.push(["contains", ...args]);
+      return query;
+    }),
+    in: vi.fn((...args: unknown[]) => {
+      calls.push(["in", ...args]);
       return query;
     }),
     or: vi.fn((...args: unknown[]) => {
@@ -232,5 +236,18 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.from).toHaveBeenNthCalledWith(2, "products");
     expect(supabase.queries[1].calls).toContainEqual(["eq", "shop_id", "shop-1"]);
     expect(supabase.queries[1].calls).toContainEqual(["limit", 48]);
+  });
+
+  it("loads public products by id for guest cart hydration", async () => {
+    const supabase = createSupabaseMock([{ data: [productRow], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    const products = await getMarketplaceProductsByIds(["product-1", "product-2", "product-1"]);
+
+    expect(products).toHaveLength(1);
+    expect(supabase.queries[0].calls).toContainEqual(["in", "id", ["product-1", "product-2"]]);
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "is_published", true]);
+    expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
   });
 });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Search, ShoppingBag } from "lucide-react";
+import { Search, ShoppingBag, UserRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -24,6 +24,9 @@ export function MarketplaceHeader() {
           </Button>
           <Button asChild variant="ghost" size="icon" aria-label="Cart">
             <Link href="/cart"><ShoppingBag /></Link>
+          </Button>
+          <Button asChild variant="ghost" size="icon" aria-label="Account">
+            <Link href="/account"><UserRound /></Link>
           </Button>
         </div>
       </div>
