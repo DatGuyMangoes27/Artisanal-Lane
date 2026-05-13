@@ -5,7 +5,10 @@ import { notFound } from "next/navigation";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { getMarketplaceShop } from "@/lib/marketplace/catalog";
+
+import { createBuyerThreadForShop } from "../../account/messages/actions";
 
 type ShopProfilePageProps = {
   params: Promise<{
@@ -109,6 +112,13 @@ export default async function ShopProfilePage({ params }: ShopProfilePageProps) 
               <p className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
                 {shop.bio ?? "This artisan is preparing their public shop story."}
               </p>
+              <form action={createBuyerThreadForShop} className="mt-8">
+                <input type="hidden" name="shopId" value={shop.id} />
+                <input type="hidden" name="redirectTo" value={`/shops/${shop.slug ?? shop.id}`} />
+                <Button type="submit" size="lg" className="rounded-full">
+                  Message artisan
+                </Button>
+              </form>
             </div>
           </div>
         </section>

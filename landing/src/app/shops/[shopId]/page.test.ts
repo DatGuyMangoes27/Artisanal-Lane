@@ -20,6 +20,15 @@ vi.mock("@/components/ui/badge", () => ({
     React.createElement("span", null, children),
 }));
 
+vi.mock("@/components/ui/button", () => ({
+  Button: ({ children, ...props }: { children: React.ReactNode }) =>
+    React.createElement("button", props, children),
+}));
+
+vi.mock("../../account/messages/actions", () => ({
+  createBuyerThreadForShop: vi.fn(),
+}));
+
 vi.mock("@/lib/marketplace/catalog", () => ({
   getMarketplaceShop: vi.fn(),
 }));

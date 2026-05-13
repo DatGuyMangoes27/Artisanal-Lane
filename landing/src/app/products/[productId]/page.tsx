@@ -16,6 +16,8 @@ import {
 } from "@/lib/marketplace/format";
 import type { ShippingOption } from "@/lib/marketplace/types";
 
+import { createBuyerThreadForShop } from "../../account/messages/actions";
+
 type ProductPageProps = {
   params: Promise<{
     productId: string;
@@ -120,6 +122,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
             <div className="rounded-3xl border border-artisan-clay bg-card p-6 shadow-sm">
               <AddToCartButton productId={product.id} disabled={isOutOfStock} />
+              <form action={createBuyerThreadForShop} className="mt-3">
+                <input type="hidden" name="shopId" value={product.shopId} />
+                <input type="hidden" name="redirectTo" value={`/products/${product.id}`} />
+                <button
+                  type="submit"
+                  className="h-12 w-full rounded-full border border-artisan-clay text-sm font-semibold text-foreground transition hover:border-artisan-terracotta hover:text-artisan-terracotta"
+                >
+                  Message seller
+                </button>
+              </form>
               {isOutOfStock ? (
                 <p className="mt-3 text-sm text-muted-foreground">
                   This piece is currently unavailable. Check back for restocks from the maker.

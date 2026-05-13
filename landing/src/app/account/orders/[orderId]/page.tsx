@@ -15,6 +15,8 @@ import {
   getOrderPickupPointSummary,
 } from "@/lib/marketplace/orders";
 
+import { createBuyerThreadForShop } from "../../messages/actions";
+
 type BuyerOrderDetailPageProps = {
   params: Promise<{
     orderId: string;
@@ -128,6 +130,13 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                     <Link href={order.paymentUrl}>Resume payment</Link>
                   </Button>
                 ) : null}
+                <form action={createBuyerThreadForShop} className="mt-3">
+                  <input type="hidden" name="shopId" value={order.shopId} />
+                  <input type="hidden" name="redirectTo" value={`/account/orders/${order.id}`} />
+                  <Button type="submit" variant="outline" className="w-full rounded-full">
+                    Message seller
+                  </Button>
+                </form>
               </CardContent>
             </Card>
 
