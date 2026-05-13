@@ -1,4 +1,5 @@
 import { getProductPrimaryImage } from "./format";
+import type { SavedAddress } from "./buyer-preferences";
 import type { GuestCartItem } from "./cart";
 import type { MarketplaceProduct, MarketplaceVariant, ShippingOption } from "./types";
 
@@ -133,4 +134,15 @@ export function requiresShippingAddress(methodKey: string | null) {
 
 export function requiresPickupPoint(methodKey: string | null) {
   return methodKey === "courier_guy" || methodKey === "pargo";
+}
+
+export function getSavedAddressCheckoutFields(address: SavedAddress) {
+  return {
+    name: address.name,
+    phone: address.phone,
+    street: address.street,
+    city: address.city,
+    postalCode: address.postalCode,
+    province: address.province,
+  };
 }

@@ -6,6 +6,7 @@ import {
   getAvailableShippingOptionsForCart,
   getCartSubtotal,
   getCheckoutBlocker,
+  getSavedAddressCheckoutFields,
   requiresPickupPoint,
   requiresShippingAddress,
 } from "./checkout";
@@ -140,5 +141,28 @@ describe("marketplace checkout helpers", () => {
     expect(requiresPickupPoint("courier_guy")).toBe(true);
     expect(requiresPickupPoint("pargo")).toBe(true);
     expect(requiresPickupPoint("market_pickup")).toBe(false);
+  });
+
+  it("maps a saved address to checkout form fields", () => {
+    expect(
+      getSavedAddressCheckoutFields({
+        id: "home",
+        name: "Home",
+        street: "1 Main Road",
+        city: "Cape Town",
+        postalCode: "8001",
+        province: "Western Cape",
+        country: "South Africa",
+        phone: "0710000000",
+        isDefault: true,
+      }),
+    ).toEqual({
+      name: "Home",
+      phone: "0710000000",
+      street: "1 Main Road",
+      city: "Cape Town",
+      postalCode: "8001",
+      province: "Western Cape",
+    });
   });
 });

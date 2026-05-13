@@ -13,9 +13,11 @@ import {
   getAvailableShippingOptionsForCart,
   getCartSubtotal,
   getCheckoutBlocker,
+  getSavedAddressCheckoutFields,
   requiresPickupPoint,
   requiresShippingAddress,
 } from "@/lib/marketplace/checkout";
+import { getAddressSummary, normalizeSavedAddresses, type SavedAddress } from "@/lib/marketplace/buyer-preferences";
 import { formatPrice } from "@/lib/marketplace/format";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/browser";
@@ -61,11 +63,41 @@ export function CheckoutForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
   const [shippingMethod, setShippingMethod] = useState<string | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [addressFields, setAddressFields] = useState({
+    name: "",
+    phone: "",
+    street: "",
+    city: "",
+    postalCode: "",
+    province: "",
+  });
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then((result: { data: { user: unknown } }) => {
-      setIsSignedIn(Boolean(result.data.user));
+    supabase.auth.getUser().then(async (result: { data: { user: { id: string } | null } }) => {
+      const user = result.data.user;
+      setIsSignedIn(Boolean(user));
+
+      if (!user) {
+        return;
+      }
+
+      const { data } = await supabase
+        .from("profiles")
+        .select("shipping_addresses")
+        .eq("id", user.id)
+        .single();
+
+      const profile = data as { shipping_addresses?: unknown } | null;
+      const addresses = normalizeSavedAddresses(profile?.shipping_addresses);
+      setSavedAddresses(addresses);
+      const defaultAddress = addresses.find((address) => address.isDefault) ?? addresses[0];
+      if (defaultAddress) {
+        setSelectedAddressId(defaultAddress.id);
+        setAddressFields(getSavedAddressCheckoutFields(defaultAddress));
+      }
     });
   }, []);
 
@@ -160,15 +192,15 @@ export function CheckoutForm() {
 
       const pickupPoint = String(formData.get("pickupPoint") ?? "").trim();
       const shippingAddress = {
-        name: String(formData.get("name") ?? "").trim(),
+        name: addressFields.name.trim(),
         country: "South Africa",
-        phone: String(formData.get("phone") ?? "").trim(),
+        phone: addressFields.phone.trim(),
         ...(requiresShippingAddress(selectedShipping.key)
           ? {
-              street: String(formData.get("street") ?? "").trim(),
-              city: String(formData.get("city") ?? "").trim(),
-              postal_code: String(formData.get("postalCode") ?? "").trim(),
-              province: String(formData.get("province") ?? "").trim(),
+              street: addressFields.street.trim(),
+              city: addressFields.city.trim(),
+              postal_code: addressFields.postalCode.trim(),
+              province: addressFields.province.trim(),
             }
           : {}),
         ...(selectedShipping.key === "market_pickup"
@@ -238,6 +270,8 @@ export function CheckoutForm() {
     );
   }
 
+  const selectedSavedAddress = savedAddresses.find((address) => address.id === selectedAddressId) ?? null;
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -255,13 +289,54 @@ export function CheckoutForm() {
 
         <Card className="border-artisan-clay bg-card">
           <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
+            {savedAddresses.length > 0 ? (
+              <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
+                Saved delivery address
+                <select
+                  value={selectedAddressId}
+                  onChange={(event) => {
+                    const addressId = event.target.value;
+                    setSelectedAddressId(addressId);
+                    const address = savedAddresses.find((candidate) => candidate.id === addressId);
+                    if (address) {
+                      setAddressFields(getSavedAddressCheckoutFields(address));
+                    }
+                  }}
+                  className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                >
+                  <option value="">Enter a new address</option>
+                  {savedAddresses.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.name} - {getAddressSummary(address)}
+                    </option>
+                  ))}
+                </select>
+                {selectedSavedAddress ? (
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    Using {getAddressSummary(selectedSavedAddress)}
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
             <label className="space-y-2 text-sm font-medium text-foreground">
               Full name
-              <input name="name" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2" />
+              <input
+                name="name"
+                required
+                value={addressFields.name}
+                onChange={(event) => setAddressFields((current) => ({ ...current, name: event.target.value }))}
+                className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+              />
             </label>
             <label className="space-y-2 text-sm font-medium text-foreground">
               Phone number
-              <input name="phone" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2" />
+              <input
+                name="phone"
+                required
+                value={addressFields.phone}
+                onChange={(event) => setAddressFields((current) => ({ ...current, phone: event.target.value }))}
+                className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+              />
             </label>
           </CardContent>
         </Card>
@@ -308,19 +383,47 @@ export function CheckoutForm() {
             <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
               <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
                 Street address
-                <input name="street" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2" />
+                <input
+                  name="street"
+                  required
+                  value={addressFields.street}
+                  onChange={(event) => setAddressFields((current) => ({ ...current, street: event.target.value }))}
+                  className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                />
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground">
                 City
-                <input name="city" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2" />
+                <input
+                  name="city"
+                  required
+                  value={addressFields.city}
+                  onChange={(event) => setAddressFields((current) => ({ ...current, city: event.target.value }))}
+                  className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                />
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground">
                 Postal code
-                <input name="postalCode" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2" />
+                <input
+                  name="postalCode"
+                  required
+                  value={addressFields.postalCode}
+                  onChange={(event) =>
+                    setAddressFields((current) => ({ ...current, postalCode: event.target.value }))
+                  }
+                  className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                />
               </label>
               <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
                 Province
-                <select name="province" required className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2">
+                <select
+                  name="province"
+                  required
+                  value={addressFields.province}
+                  onChange={(event) =>
+                    setAddressFields((current) => ({ ...current, province: event.target.value }))
+                  }
+                  className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                >
                   <option value="">Choose province</option>
                   {provinces.map((province) => (
                     <option key={province} value={province}>{province}</option>
