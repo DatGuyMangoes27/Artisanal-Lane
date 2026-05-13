@@ -4,11 +4,19 @@ import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { listBuyerOrders, requireBuyerAccountSession } from "@/lib/marketplace/account";
+import {
+  listFavouriteProductIds,
+  listSavedAddresses,
+} from "@/lib/marketplace/buyer-preferences-data";
 import { formatOrderStatus } from "@/lib/marketplace/orders";
 
 export default async function AccountPage() {
   const { user, profile } = await requireBuyerAccountSession("/account");
-  const orders = await listBuyerOrders(user.id);
+  const [orders, favouriteIds, addresses] = await Promise.all([
+    listBuyerOrders(user.id),
+    listFavouriteProductIds(user.id),
+    listSavedAddresses(user.id),
+  ]);
   const activeOrders = orders.filter((order) =>
     ["pending", "paid", "shipped", "delivered", "disputed"].includes(order.status),
   );
@@ -35,7 +43,7 @@ export default async function AccountPage() {
           </Button>
         </div>
 
-        <section className="mt-10 grid gap-4 md:grid-cols-3">
+        <section className="mt-10 grid gap-4 md:grid-cols-4">
           <Card className="border-artisan-clay bg-card">
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground">Total orders</p>
@@ -56,6 +64,12 @@ export default async function AccountPage() {
               </p>
             </CardContent>
           </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Favourites</p>
+              <p className="mt-2 text-4xl font-bold text-foreground">{favouriteIds.length}</p>
+            </CardContent>
+          </Card>
         </section>
 
         <section className="mt-10 grid gap-4 md:grid-cols-2">
@@ -74,10 +88,32 @@ export default async function AccountPage() {
             <CardContent className="p-6">
               <h2 className="font-serif text-2xl font-bold text-foreground">Messages</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Buyer-seller messages are the next account area to bring across from the app.
+                Keep track of conversations with sellers and artisans.
               </p>
-              <Button disabled className="mt-6 rounded-full">
-                Coming next
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/messages">View messages</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Favourites</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Review saved products before they sell out.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/favourites">View favourites</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Saved addresses</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {addresses.length} saved delivery {addresses.length === 1 ? "address" : "addresses"}.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/addresses">Manage addresses</Link>
               </Button>
             </CardContent>
           </Card>

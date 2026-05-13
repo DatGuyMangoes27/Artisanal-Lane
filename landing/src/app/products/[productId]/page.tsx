@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { toggleFavouriteProduct } from "@/app/account/actions";
 import { AddToCartButton } from "@/components/marketplace/add-to-cart-button";
 import { GuestCartProvider } from "@/components/marketplace/guest-cart-provider";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
@@ -130,6 +131,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   className="h-12 w-full rounded-full border border-artisan-clay text-sm font-semibold text-foreground transition hover:border-artisan-terracotta hover:text-artisan-terracotta"
                 >
                   Message seller
+                </button>
+              </form>
+              <form action={toggleFavouriteProduct} className="mt-3">
+                <input type="hidden" name="productId" value={product.id} />
+                <input type="hidden" name="redirectTo" value={`/products/${product.id}`} />
+                <button
+                  type="submit"
+                  className="h-12 w-full rounded-full border border-artisan-clay text-sm font-semibold text-foreground transition hover:border-artisan-terracotta hover:text-artisan-terracotta"
+                >
+                  Save to favourites
                 </button>
               </form>
               {isOutOfStock ? (
