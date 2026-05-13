@@ -8,6 +8,7 @@ import {
   serializeSavedAddresses,
   upsertSavedAddress,
 } from "@/lib/marketplace/buyer-preferences";
+import { getBuyerProfileUpdate } from "@/lib/marketplace/buyer-profile";
 import { createClient } from "@/lib/supabase/server";
 
 async function requireUser(redirectTo: string) {
@@ -77,4 +78,21 @@ export async function saveAddress(formData: FormData) {
 
   revalidatePath("/account/addresses");
   redirect("/account/addresses");
+}
+
+export async function updateBuyerProfile(formData: FormData) {
+  const { supabase, user } = await requireUser("/account/profile");
+  const update = getBuyerProfileUpdate(formData);
+
+  await supabase
+    .from("profiles")
+    .update({
+      ...update,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  revalidatePath("/account");
+  revalidatePath("/account/profile");
+  redirect("/account/profile");
 }

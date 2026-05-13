@@ -75,6 +75,17 @@ export default async function AccountPage() {
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           <Card className="border-artisan-clay bg-card">
             <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Profile</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Update your display name and phone number for orders and seller communication.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/profile">Edit profile</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
               <h2 className="font-serif text-2xl font-bold text-foreground">Orders</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 View your TradeSafe orders, delivery details, tracking, and payment state.
