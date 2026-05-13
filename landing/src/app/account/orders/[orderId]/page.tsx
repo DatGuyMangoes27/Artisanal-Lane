@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { submitProductReview } from "@/app/account/reviews/actions";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   getOrderGrandTotal,
   getOrderPickupPointSummary,
 } from "@/lib/marketplace/orders";
+import { canReviewOrderStatus } from "@/lib/marketplace/reviews";
 
 import { createBuyerThreadForShop } from "../../messages/actions";
 
@@ -33,6 +35,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
   }
 
   const pickupSummary = getOrderPickupPointSummary(order);
+  const canReviewItems = canReviewOrderStatus(order.status);
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,6 +102,59 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                 ))}
               </CardContent>
             </Card>
+
+            {canReviewItems ? (
+              <Card className="border-artisan-clay bg-card">
+                <CardContent className="space-y-4 p-6">
+                  <h2 className="font-serif text-2xl font-bold text-foreground">Review your items</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Help other buyers by reviewing the pieces you received.
+                  </p>
+                  {order.items.map((item) => (
+                    <form
+                      key={`review-${item.id}`}
+                      action={submitProductReview}
+                      className="rounded-2xl border border-artisan-clay bg-background p-4"
+                    >
+                      <input type="hidden" name="productId" value={item.productId} />
+                      <input type="hidden" name="redirectTo" value={`/account/orders/${order.id}`} />
+                      <p className="font-semibold text-foreground">{item.title}</p>
+                      {item.variantName ? (
+                        <p className="text-sm text-muted-foreground">{item.variantName}</p>
+                      ) : null}
+                      <div className="mt-4 grid gap-3 sm:grid-cols-[140px_1fr]">
+                        <label className="text-sm font-medium text-foreground">
+                          Rating
+                          <select
+                            name="rating"
+                            defaultValue={5}
+                            className="mt-2 w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                          >
+                            {[5, 4, 3, 2, 1].map((rating) => (
+                              <option key={rating} value={rating}>
+                                {rating} star{rating === 1 ? "" : "s"}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-sm font-medium text-foreground">
+                          Review
+                          <textarea
+                            name="reviewText"
+                            rows={3}
+                            className="mt-2 w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                            placeholder="Share your thoughts on this item."
+                          />
+                        </label>
+                      </div>
+                      <Button type="submit" className="mt-4 rounded-full">
+                        Submit review
+                      </Button>
+                    </form>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
           </section>
 
           <aside className="space-y-6">
