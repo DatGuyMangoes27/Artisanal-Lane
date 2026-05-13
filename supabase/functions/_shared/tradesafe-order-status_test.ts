@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 
 import {
+  isTradeSafePaidState,
   mapTradeSafeEscrowStatus,
   mapTradeSafeOrderStatus,
   shouldIgnoreTradeSafeCallback,
@@ -18,6 +19,14 @@ Deno.test("TradeSafe status mapping treats failed checkout states as cancelled",
   assertEquals(mapTradeSafeEscrowStatus("FUNDS_RELEASED"), "released");
   assertEquals(mapTradeSafeEscrowStatus("EXPIRED"), "cancelled");
   assertEquals(mapTradeSafeEscrowStatus("CREATED"), "pending");
+});
+
+Deno.test("TradeSafe paid states are recognized before stale cleanup cancels", () => {
+  assertEquals(isTradeSafePaidState("FUNDS_RECEIVED"), true);
+  assertEquals(isTradeSafePaidState("FUNDS_RELEASED"), true);
+  assertEquals(isTradeSafePaidState("INITIATED"), false);
+  assertEquals(isTradeSafePaidState("CREATED"), false);
+  assertEquals(isTradeSafePaidState("CANCELLED"), false);
 });
 
 Deno.test("late TradeSafe callbacks do not revive locally cancelled stale checkouts", () => {

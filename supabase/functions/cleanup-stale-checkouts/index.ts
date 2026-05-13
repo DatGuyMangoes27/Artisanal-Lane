@@ -1,7 +1,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
-import { cancelTradeSafeTransaction } from "../_shared/tradesafe.ts";
+import {
+  cancelTradeSafeTransaction,
+  getTradeSafeTransactionState,
+} from "../_shared/tradesafe.ts";
+import {
+  isTradeSafePaidState,
+  mapTradeSafeEscrowStatus,
+  mapTradeSafeOrderStatus,
+} from "../_shared/tradesafe-order-status.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -11,6 +19,13 @@ type CancelledCheckout = {
   order_id: string;
   tradesafe_transaction_id: string | null;
   restored_item_count: number;
+};
+
+type StaleCandidate = {
+  id: string;
+  buyer_id: string;
+  shop_id: string;
+  tradesafe_transaction_id: string | null;
 };
 
 function isAuthorized(request: Request) {
@@ -23,6 +38,89 @@ function isAuthorized(request: Request) {
   } catch (_) {
     return false;
   }
+}
+
+async function reconcilePaidTradeSafeTransactions(
+  admin: ReturnType<typeof createClient>,
+  staleMinutes: number,
+) {
+  const cutoff = new Date(Date.now() - staleMinutes * 60 * 1000).toISOString();
+  const { data: candidates, error } = await admin
+    .from("orders")
+    .select("id, buyer_id, shop_id, tradesafe_transaction_id")
+    .eq("status", "pending")
+    .in("payment_state", ["checkout_created", "CREATED", "INITIATED"])
+    .not("tradesafe_transaction_id", "is", null)
+    .is("shipped_at", null)
+    .is("received_at", null)
+    .lte("created_at", cutoff);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const reconciled: string[] = [];
+  const failed: Array<{ orderId: string; error: string }> = [];
+
+  for (const order of (candidates ?? []) as StaleCandidate[]) {
+    try {
+      const transaction = await getTradeSafeTransactionState(
+        order.tradesafe_transaction_id!,
+      );
+      const transactionState = transaction?.state;
+
+      if (!isTradeSafePaidState(transactionState)) {
+        continue;
+      }
+
+      const allocation = transaction?.allocations?.[0];
+      const orderStatus = mapTradeSafeOrderStatus(transactionState!);
+      const escrowStatus = mapTradeSafeEscrowStatus(transactionState!);
+
+      await admin
+        .from("orders")
+        .update({
+          status: orderStatus,
+          payment_state: transactionState,
+          payment_url: null,
+          tradesafe_allocation_id: allocation?.id,
+          paid_at: orderStatus === "paid" ? new Date().toISOString() : undefined,
+        })
+        .eq("id", order.id);
+
+      await admin
+        .from("escrow_transactions")
+        .update({
+          status: escrowStatus,
+          provider_state: transactionState,
+          provider_allocation_id: allocation?.id,
+        })
+        .eq("order_id", order.id);
+
+      await admin
+        .from("chat_threads")
+        .upsert(
+          {
+            shop_id: order.shop_id,
+            buyer_id: order.buyer_id,
+            kind: "buyer_vendor",
+            last_message_preview: "New order placed",
+            last_message_type: "text",
+            last_message_at: new Date().toISOString(),
+          },
+          { onConflict: "shop_id,buyer_id", ignoreDuplicates: true },
+        );
+
+      reconciled.push(order.id);
+    } catch (error) {
+      failed.push({
+        orderId: order.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return { reconciled, failed };
 }
 
 Deno.serve(async (request) => {
@@ -44,6 +142,11 @@ Deno.serve(async (request) => {
         autoRefreshToken: false,
       },
     });
+
+    const reconciliation = await reconcilePaidTradeSafeTransactions(
+      admin,
+      staleMinutes,
+    );
 
     const { data, error } = await admin.rpc("cancel_stale_checkout_orders", {
       stale_minutes: staleMinutes,
@@ -80,6 +183,10 @@ Deno.serve(async (request) => {
       ),
       upstreamCancelled,
       upstreamFailed,
+      reconciledPaidCount: reconciliation.reconciled.length,
+      reconciliationFailedCount: reconciliation.failed.length,
+      reconciledPaidOrders: reconciliation.reconciled,
+      reconciliationFailures: reconciliation.failed,
       orders: cancelled.map((order) => order.order_id),
     });
   } catch (error) {

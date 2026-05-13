@@ -30,6 +30,10 @@ export function mapTradeSafeEscrowStatus(state: string) {
   }
 }
 
+export function isTradeSafePaidState(state: string | null | undefined) {
+  return state === "FUNDS_RECEIVED" || state === "FUNDS_RELEASED";
+}
+
 export function shouldIgnoreTradeSafeCallback({
   currentOrderStatus,
   currentPaymentState,

@@ -501,6 +501,33 @@ export async function createCheckoutLink(transactionId: string) {
   return result.checkoutLink;
 }
 
+export async function getTradeSafeTransactionState(transactionId: string) {
+  const query = `
+    query Transaction($id: ID!) {
+      transaction(id: $id) {
+        id
+        state
+        allocations {
+          id
+          state
+        }
+      }
+    }
+  `;
+
+  const result = await tradeSafeRequest<{
+    transaction: {
+      id: string;
+      state: string;
+      allocations: Array<{ id: string; state: string }>;
+    } | null;
+  }>("transaction", query, {
+    id: transactionId,
+  });
+
+  return result.transaction;
+}
+
 export async function startAllocationDelivery(allocationId: string) {
   const mutation = `
     mutation StartDelivery($id: ID!) {
