@@ -13,10 +13,14 @@ Deno.test("TradeSafe status mapping treats failed checkout states as cancelled",
   assertEquals(mapTradeSafeOrderStatus("CANCELLED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("FAILED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("EXPIRED"), "cancelled");
+  assertEquals(mapTradeSafeOrderStatus("REFUNDED"), "cancelled");
+  assertEquals(mapTradeSafeOrderStatus("DECLINED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("CREATED"), "pending");
 
   assertEquals(mapTradeSafeEscrowStatus("FUNDS_RECEIVED"), "held");
   assertEquals(mapTradeSafeEscrowStatus("FUNDS_RELEASED"), "released");
+  assertEquals(mapTradeSafeEscrowStatus("REFUNDED"), "refunded");
+  assertEquals(mapTradeSafeEscrowStatus("DECLINED"), "cancelled");
   assertEquals(mapTradeSafeEscrowStatus("EXPIRED"), "cancelled");
   assertEquals(mapTradeSafeEscrowStatus("CREATED"), "pending");
 });

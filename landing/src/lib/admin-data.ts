@@ -44,7 +44,13 @@ type OrderRecord = {
 
 type VendorApplicationRecord = {
   id: string;
-  user_id: string;
+  user_id: string | null;
+  applicant_user_id_snapshot: string | null;
+  applicant_display_name_snapshot: string | null;
+  applicant_email_snapshot: string | null;
+  applicant_account_deleted_at: string | null;
+  superseded_by_application_id: string | null;
+  superseded_at: string | null;
   business_name: string;
   motivation: string | null;
   portfolio_url: string | null;
@@ -226,7 +232,7 @@ async function withSignedDisputeAttachmentUrls(
   }));
 }
 
-async function getProfilesMap(ids: string[]) {
+async function getProfilesMap(ids: Array<string | null | undefined>) {
   const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
   if (uniqueIds.length === 0) {
     return new Map<string, ProfileRecord>();
@@ -342,8 +348,9 @@ export async function listVendorApplications() {
   const { data } = await admin
     .from("vendor_applications")
     .select(
-      "id, user_id, business_name, motivation, portfolio_url, proof_image_urls, location, status, reviewed_by, reviewed_at, created_at, delivery_info, turnaround_time",
+      "id, user_id, applicant_user_id_snapshot, applicant_display_name_snapshot, applicant_email_snapshot, applicant_account_deleted_at, superseded_by_application_id, superseded_at, business_name, motivation, portfolio_url, proof_image_urls, location, status, reviewed_by, reviewed_at, created_at, delivery_info, turnaround_time",
     )
+    .is("superseded_at", null)
     .order("created_at", { ascending: false })
     .limit(50);
 
@@ -355,7 +362,7 @@ export async function listVendorApplications() {
   return applications.map((application) => ({
     ...application,
     proof_image_urls: parseStringArray(application.proof_image_urls),
-    applicant: profiles.get(application.user_id) ?? null,
+    applicant: application.user_id ? profiles.get(application.user_id) ?? null : null,
     reviewer: application.reviewed_by
       ? profiles.get(application.reviewed_by) ?? null
       : null,

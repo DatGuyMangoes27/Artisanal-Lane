@@ -2,6 +2,11 @@ import React, { isValidElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getMarketplaceShop } from "@/lib/marketplace/catalog";
+import {
+  getShopReviewSummary,
+  listShopMarketEvents,
+  listShopPosts,
+} from "@/lib/marketplace/shop-profile-data";
 
 import ShopPage, { generateMetadata } from "./page";
 
@@ -31,6 +36,12 @@ vi.mock("../../account/messages/actions", () => ({
 
 vi.mock("@/lib/marketplace/catalog", () => ({
   getMarketplaceShop: vi.fn(),
+}));
+
+vi.mock("@/lib/marketplace/shop-profile-data", () => ({
+  getShopReviewSummary: vi.fn(),
+  listShopMarketEvents: vi.fn(),
+  listShopPosts: vi.fn(),
 }));
 
 vi.mock("next/image", () => ({
@@ -104,6 +115,26 @@ describe("shop profile page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getMarketplaceShop).mockResolvedValue(shop);
+    vi.mocked(getShopReviewSummary).mockResolvedValue({ averageRating: 4.8, reviewCount: 12 });
+    vi.mocked(listShopMarketEvents).mockResolvedValue([
+      {
+        id: "event-1",
+        marketName: "Neighbourgoods Market",
+        location: "Woodstock",
+        eventDate: "2026-06-01",
+        timeLabel: "10:00 - 14:00",
+        notes: "Find the latest ceramics in person.",
+      },
+    ]);
+    vi.mocked(listShopPosts).mockResolvedValue([
+      {
+        id: "post-1",
+        shopId: "shop-1",
+        caption: "Fresh pieces just came out of the kiln.",
+        mediaUrls: ["https://example.com/post.jpg"],
+        createdAt: "2026-05-12T00:00:00.000Z",
+      },
+    ]);
   });
 
   it("loads the requested shop and renders its profile with products", async () => {
@@ -115,8 +146,12 @@ describe("shop profile page", () => {
     expect(text).toContain("Copper & Clay Studio");
     expect(text).toContain("Cape Town");
     expect(text).toContain("Open for orders");
+    expect(text).toContain("Artisan profile");
+    expect(text).toContain("Mini profile");
     expect(text).toContain("Hand-built ceramics for everyday rituals.");
     expect(text).toContain("Each piece is shaped in small batches from local clay.");
+    expect(text).toContain("Neighbourgoods Market");
+    expect(text).toContain("Fresh pieces just came out of the kiln.");
     expect(text).toContain("Ochre Mug");
   });
 

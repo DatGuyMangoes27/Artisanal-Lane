@@ -6,6 +6,7 @@ import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/product_sorting.dart';
 
 class CategoryProductsScreen extends ConsumerStatefulWidget {
   final String categoryId;
@@ -33,14 +34,14 @@ class _CategoryProductsScreenState
   String _sortLabel = 'Newest';
 
   CategoryProductFilter get _filter => CategoryProductFilter(
-        categoryId: widget.categoryId,
-        subcategoryId: _selectedSubcategoryId,
-        tags: _selectedTags.toList(),
-        onSale: _onSale,
-        featured: _featured,
-        sortBy: _sortBy,
-        ascending: _ascending,
-      );
+    categoryId: widget.categoryId,
+    subcategoryId: _selectedSubcategoryId,
+    tags: _selectedTags.toList(),
+    onSale: _onSale,
+    featured: _featured,
+    sortBy: _sortBy,
+    ascending: _ascending,
+  );
 
   int get _activeFilterCount {
     int count = 0;
@@ -54,8 +55,9 @@ class _CategoryProductsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final subcategoriesAsync =
-        ref.watch(subcategoriesProvider(widget.categoryId));
+    final subcategoriesAsync = ref.watch(
+      subcategoriesProvider(widget.categoryId),
+    );
     final productsAsync = ref.watch(categoryProductsProvider(_filter));
 
     return Scaffold(
@@ -80,25 +82,37 @@ class _CategoryProductsScreenState
 
             // Product grid
             productsAsync.when(
-              data: (items) => items.isEmpty
-                  ? SliverFillRemaining(child: _buildEmptyState())
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                      sliver: SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 0.65,
+              data: (items) {
+                final filteredItems = filterProductsForDisplay(
+                  items,
+                  onSale: _onSale,
+                  featured: _featured,
+                );
+                final sortedItems = sortProductsForDisplay(
+                  filteredItems,
+                  sortBy: _sortBy,
+                  ascending: _ascending,
+                );
+                return sortedItems.isEmpty
+                    ? SliverFillRemaining(child: _buildEmptyState())
+                    : SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                childAspectRatio: 0.65,
+                              ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) =>
+                                ProductCard(product: sortedItems[index]),
+                            childCount: sortedItems.length,
+                          ),
                         ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) =>
-                              ProductCard(product: items[index]),
-                          childCount: items.length,
-                        ),
-                      ),
-                    ),
+                      );
+              },
               loading: () => const SliverFillRemaining(
                 child: Center(
                   child: CircularProgressIndicator(
@@ -216,8 +230,7 @@ class _CategoryProductsScreenState
           GestureDetector(
             onTap: () => _openFilterSheet(subcategoriesAsync),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: badgeCount > 0
                     ? AppTheme.terracotta.withValues(alpha: 0.08)
@@ -285,8 +298,7 @@ class _CategoryProductsScreenState
           const Spacer(),
           if (count > 0)
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
                 color: AppTheme.bone,
                 borderRadius: BorderRadius.circular(20),
@@ -385,20 +397,28 @@ class _CategoryProductsScreenState
                           tempSortLabel = 'Newest';
                         });
                       }),
-                      _sheetChip('Price: Low to High', tempSortLabel == 'Price ↑', () {
-                        setSheetState(() {
-                          tempSortBy = 'price';
-                          tempAscending = true;
-                          tempSortLabel = 'Price ↑';
-                        });
-                      }),
-                      _sheetChip('Price: High to Low', tempSortLabel == 'Price ↓', () {
-                        setSheetState(() {
-                          tempSortBy = 'price';
-                          tempAscending = false;
-                          tempSortLabel = 'Price ↓';
-                        });
-                      }),
+                      _sheetChip(
+                        'Price: Low to High',
+                        tempSortLabel == 'Price ↑',
+                        () {
+                          setSheetState(() {
+                            tempSortBy = 'price';
+                            tempAscending = true;
+                            tempSortLabel = 'Price ↑';
+                          });
+                        },
+                      ),
+                      _sheetChip(
+                        'Price: High to Low',
+                        tempSortLabel == 'Price ↓',
+                        () {
+                          setSheetState(() {
+                            tempSortBy = 'price';
+                            tempAscending = false;
+                            tempSortLabel = 'Price ↓';
+                          });
+                        },
+                      ),
                       _sheetChip('Name: A–Z', tempSortLabel == 'A–Z', () {
                         setSheetState(() {
                           tempSortBy = 'title';
@@ -428,12 +448,13 @@ class _CategoryProductsScreenState
                         _sheetChip('All', tempSubcategoryId == null, () {
                           setSheetState(() => tempSubcategoryId = null);
                         }),
-                        ...subcategories.map((s) => _sheetChip(
-                              s.name,
-                              tempSubcategoryId == s.id,
-                              () => setSheetState(
-                                  () => tempSubcategoryId = s.id),
-                            )),
+                        ...subcategories.map(
+                          (s) => _sheetChip(
+                            s.name,
+                            tempSubcategoryId == s.id,
+                            () => setSheetState(() => tempSubcategoryId = s.id),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -462,8 +483,7 @@ class _CategoryProductsScreenState
                       _sheetChip(
                         'Featured',
                         tempFeatured,
-                        () => setSheetState(
-                            () => tempFeatured = !tempFeatured),
+                        () => setSheetState(() => tempFeatured = !tempFeatured),
                         icon: Icons.star_outline_rounded,
                       ),
                     ],
@@ -522,7 +542,8 @@ class _CategoryProductsScreenState
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: BorderSide(
-                                color: AppTheme.sand.withValues(alpha: 0.5)),
+                              color: AppTheme.sand.withValues(alpha: 0.5),
+                            ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -584,8 +605,12 @@ class _CategoryProductsScreenState
     );
   }
 
-  Widget _sheetChip(String label, bool selected, VoidCallback onTap,
-      {IconData? icon}) {
+  Widget _sheetChip(
+    String label,
+    bool selected,
+    VoidCallback onTap, {
+    IconData? icon,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -606,8 +631,11 @@ class _CategoryProductsScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 14,
-                  color: selected ? AppTheme.terracotta : AppTheme.textHint),
+              Icon(
+                icon,
+                size: 14,
+                color: selected ? AppTheme.terracotta : AppTheme.textHint,
+              ),
               const SizedBox(width: 5),
             ],
             Text(
@@ -615,8 +643,7 @@ class _CategoryProductsScreenState
               style: GoogleFonts.poppins(
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                color:
-                    selected ? AppTheme.terracotta : AppTheme.textSecondary,
+                color: selected ? AppTheme.terracotta : AppTheme.textSecondary,
               ),
             ),
           ],

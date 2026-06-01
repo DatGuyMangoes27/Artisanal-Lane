@@ -400,7 +400,10 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                       _HeroIconButton(
                         icon: Icons.share_outlined,
                         onTap: () => Share.share(
-                          'Check out ${shop.name} on Artisan Lane!',
+                          buildShopShareText(
+                            shopId: shop.id,
+                            shopName: shop.name,
+                          ),
                         ),
                       ),
                     ],

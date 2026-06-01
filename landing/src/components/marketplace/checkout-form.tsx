@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import {
   buildCartLines,
   calculateShippingTotal,
+  checkoutBlockingMessage,
+  firstIncompleteCheckoutField,
   getAvailableShippingOptionsForCart,
   getCartSubtotal,
   getCheckoutBlocker,
@@ -17,6 +19,11 @@ import {
   requiresPickupPoint,
   requiresShippingAddress,
 } from "@/lib/marketplace/checkout";
+import {
+  clearGuestCartReservationToken,
+  getGuestCartReservationToken,
+  reserveGuestCartItem,
+} from "@/lib/marketplace/cart-reservations";
 import { getAddressSummary, normalizeSavedAddresses, type SavedAddress } from "@/lib/marketplace/buyer-preferences";
 import { formatPrice } from "@/lib/marketplace/format";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
@@ -34,9 +41,43 @@ const provinces = [
   "Western Cape",
 ];
 
+const giftServiceFee = 30;
+
 type CheckoutPayload = {
   checkoutUrl?: string;
+  orderId?: string;
   error?: string;
+};
+
+type CourierGuyLocker = {
+  code: string;
+  name: string;
+  address: string;
+  landmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  detailed_address?: {
+    province?: string;
+    locality?: string;
+    formatted_address?: string;
+  };
+  type?: {
+    name?: string;
+  };
+  place?: {
+    town?: string;
+  };
+};
+
+type PargoPickupPoint = {
+  code: string;
+  name: string;
+  address: string;
+  city: string;
+  province: string;
+  postal_code?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 function shippingName(option: ShippingOption) {
@@ -54,6 +95,53 @@ function shippingName(option: ShippingOption) {
   }
 }
 
+function courierGuyLockerSummary(locker: CourierGuyLocker) {
+  return [
+    locker.code ? `${locker.name} (${locker.code})` : locker.name,
+    locker.address || locker.detailed_address?.formatted_address,
+    locker.detailed_address?.province,
+  ].filter(Boolean).join(" • ");
+}
+
+function pargoPickupPointSummary(point: PargoPickupPoint) {
+  return [
+    point.code ? `${point.name} (${point.code})` : point.name,
+    point.address,
+    point.city,
+    point.province,
+  ].filter(Boolean).join(" • ");
+}
+
+function courierGuyLockerToOrderJson(locker: CourierGuyLocker) {
+  return {
+    carrier: "courier_guy",
+    point_type: (locker.type?.name ?? "Locker").toLowerCase(),
+    code: locker.code,
+    name: locker.name,
+    address: locker.address || locker.detailed_address?.formatted_address || "",
+    city: locker.place?.town ?? locker.detailed_address?.locality ?? "",
+    province: locker.detailed_address?.province ?? "",
+    ...(locker.landmark ? { landmark: locker.landmark } : {}),
+    ...(locker.latitude != null ? { latitude: locker.latitude } : {}),
+    ...(locker.longitude != null ? { longitude: locker.longitude } : {}),
+  };
+}
+
+function pargoPickupPointToOrderJson(point: PargoPickupPoint) {
+  return {
+    carrier: "pargo",
+    point_type: "pickup_point",
+    code: point.code,
+    name: point.name,
+    address: point.address,
+    city: point.city,
+    province: point.province,
+    ...(point.postal_code ? { postal_code: point.postal_code } : {}),
+    ...(point.latitude != null ? { latitude: point.latitude } : {}),
+    ...(point.longitude != null ? { longitude: point.longitude } : {}),
+  };
+}
+
 export function CheckoutForm() {
   const router = useRouter();
   const { items, clearCart } = useGuestCart();
@@ -65,6 +153,22 @@ export function CheckoutForm() {
   const [shippingMethod, setShippingMethod] = useState<string | null>(null);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [isGift, setIsGift] = useState(false);
+  const [giftRecipient, setGiftRecipient] = useState("");
+  const [giftMessage, setGiftMessage] = useState("");
+  const [pickupPointText, setPickupPointText] = useState("");
+  const [courierGuyLockerProvince, setCourierGuyLockerProvince] = useState("");
+  const [courierGuySearch, setCourierGuySearch] = useState("");
+  const [courierGuyLockers, setCourierGuyLockers] = useState<CourierGuyLocker[]>([]);
+  const [selectedCourierGuyLocker, setSelectedCourierGuyLocker] = useState<CourierGuyLocker | null>(null);
+  const [isLoadingCourierGuyLockers, setIsLoadingCourierGuyLockers] = useState(false);
+  const [courierGuyLockerError, setCourierGuyLockerError] = useState<string | null>(null);
+  const [pargoPointProvince, setPargoPointProvince] = useState("");
+  const [pargoSearch, setPargoSearch] = useState("");
+  const [pargoPickupPoints, setPargoPickupPoints] = useState<PargoPickupPoint[]>([]);
+  const [selectedPargoPoint, setSelectedPargoPoint] = useState<PargoPickupPoint | null>(null);
+  const [isLoadingPargoPoints, setIsLoadingPargoPoints] = useState(false);
+  const [pargoPointError, setPargoPointError] = useState<string | null>(null);
   const [addressFields, setAddressFields] = useState({
     name: "",
     phone: "",
@@ -88,7 +192,7 @@ export function CheckoutForm() {
         .from("profiles")
         .select("shipping_addresses")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       const profile = data as { shipping_addresses?: unknown } | null;
       const addresses = normalizeSavedAddresses(profile?.shipping_addresses);
@@ -107,7 +211,7 @@ export function CheckoutForm() {
     fetch("/api/marketplace/cart", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, reservationToken: getGuestCartReservationToken() }),
     })
       .then((response) => response.json() as Promise<{ products: MarketplaceProduct[] }>)
       .then((payload) => {
@@ -131,7 +235,7 @@ export function CheckoutForm() {
   const selectedShipping = shippingOptions.find((option) => option.key === shippingMethod) ?? null;
   const subtotal = getCartSubtotal(lines);
   const shippingCost = selectedShipping ? calculateShippingTotal(lines, selectedShipping.key) : 0;
-  const total = subtotal + shippingCost;
+  const total = subtotal + shippingCost + (isGift ? giftServiceFee : 0);
   const blocker = getCheckoutBlocker(lines);
 
   useEffect(() => {
@@ -143,16 +247,97 @@ export function CheckoutForm() {
     }
   }, [shippingMethod, shippingOptions]);
 
+  async function searchCourierGuyLockers() {
+    const query = courierGuySearch.trim();
+    const province = courierGuyLockerProvince.trim();
+    if (query.length < 2 && province.length === 0) {
+      setCourierGuyLockers([]);
+      setCourierGuyLockerError("Choose a province or type at least two characters to search.");
+      return;
+    }
+
+    setIsLoadingCourierGuyLockers(true);
+    setCourierGuyLockerError(null);
+
+    const response = await fetch("/api/marketplace/pickup-points/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ carrier: "courier_guy", query, province, limit: 8 }),
+    });
+    const payload = (await response.json()) as { lockers?: CourierGuyLocker[]; error?: string } | null;
+
+    if (!response.ok || payload?.error) {
+      setCourierGuyLockers([]);
+      setCourierGuyLockerError(payload?.error ?? "Could not load Courier Guy lockers.");
+    } else {
+      setCourierGuyLockers(payload?.lockers ?? []);
+    }
+
+    setIsLoadingCourierGuyLockers(false);
+  }
+
+  async function searchPargoPickupPoints() {
+    const query = pargoSearch.trim();
+    const province = pargoPointProvince.trim();
+    if (query.length < 2 && province.length === 0) {
+      setPargoPickupPoints([]);
+      setPargoPointError("Choose a province or type at least two characters to search.");
+      return;
+    }
+
+    setIsLoadingPargoPoints(true);
+    setPargoPointError(null);
+
+    const response = await fetch("/api/marketplace/pickup-points/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ carrier: "pargo", query, province, limit: 8 }),
+    });
+    const payload = (await response.json()) as { points?: PargoPickupPoint[]; error?: string } | null;
+
+    if (!response.ok || payload?.error) {
+      setPargoPickupPoints([]);
+      setPargoPointError(payload?.error ?? "Could not load Pargo pickup points.");
+    } else {
+      setPargoPickupPoints(payload?.points ?? []);
+    }
+
+    setIsLoadingPargoPoints(false);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    if (blocker || !selectedShipping) {
-      setError(blocker ?? "Choose a delivery option before starting payment.");
+    if (blocker) {
+      setError(blocker);
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
+    const pickupPoint = selectedShipping?.key === "courier_guy" && selectedCourierGuyLocker
+      ? courierGuyLockerSummary(selectedCourierGuyLocker)
+      : selectedShipping?.key === "pargo" && selectedPargoPoint
+        ? pargoPickupPointSummary(selectedPargoPoint)
+        : pickupPointText.trim();
+    const incompleteField = firstIncompleteCheckoutField({
+      fullName: addressFields.name,
+      streetAddress: addressFields.street,
+      city: addressFields.city,
+      postalCode: addressFields.postalCode,
+      province: addressFields.province,
+      phoneNumber: addressFields.phone,
+      selectedShippingMethod: selectedShipping?.key ?? null,
+      hasAvailableShippingMethods: shippingOptions.length > 0,
+      requiresShippingAddress: requiresShippingAddress(selectedShipping?.key ?? null),
+      requiresPickupPoint: requiresPickupPoint(selectedShipping?.key ?? null),
+      pickupPoint,
+    });
+
+    if (incompleteField || !selectedShipping) {
+      setError(checkoutBlockingMessage(incompleteField ?? "shippingMethod"));
+      return;
+    }
+
     const supabase = createClient();
     const {
       data: { user },
@@ -166,6 +351,17 @@ export function CheckoutForm() {
     setIsSubmitting(true);
 
     try {
+      const reservationToken = getGuestCartReservationToken();
+      await Promise.all(
+        lines.map((line) =>
+          reserveGuestCartItem({
+            productId: line.productId,
+            variantId: line.variantId,
+            quantity: line.quantity,
+          }),
+        ),
+      );
+
       const { data: cart, error: cartError } = await supabase
         .from("carts")
         .upsert({ user_id: user.id }, { onConflict: "user_id" })
@@ -190,7 +386,6 @@ export function CheckoutForm() {
         throw new Error(itemsError.message);
       }
 
-      const pickupPoint = String(formData.get("pickupPoint") ?? "").trim();
       const shippingAddress = {
         name: addressFields.name.trim(),
         country: "South Africa",
@@ -213,6 +408,10 @@ export function CheckoutForm() {
                 province: selectedShipping.marketProvince,
               },
             }
+          : selectedShipping.key === "courier_guy" && selectedCourierGuyLocker
+            ? { pickup_point: courierGuyLockerToOrderJson(selectedCourierGuyLocker) }
+            : selectedShipping.key === "pargo" && selectedPargoPoint
+              ? { pickup_point: pargoPickupPointToOrderJson(selectedPargoPoint) }
           : pickupPoint
             ? { pickup_point: pickupPoint }
             : {}),
@@ -223,9 +422,13 @@ export function CheckoutForm() {
         {
           body: {
             userId: user.id,
+            reservationToken,
             shippingAddress,
             shippingMethod: selectedShipping.key,
             shippingCost,
+            isGift,
+            giftRecipient: isGift ? giftRecipient.trim() || null : null,
+            giftMessage: isGift ? giftMessage.trim() || null : null,
           },
         },
       );
@@ -236,6 +439,10 @@ export function CheckoutForm() {
       }
 
       clearCart();
+      clearGuestCartReservationToken();
+      if (checkoutData.orderId) {
+        window.sessionStorage.setItem("artisanLane:lastCheckoutOrderId", checkoutData.orderId);
+      }
       window.location.assign(checkoutData.checkoutUrl);
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : "Checkout failed.");
@@ -436,19 +643,215 @@ export function CheckoutForm() {
 
         {selectedShipping && requiresPickupPoint(selectedShipping.key) ? (
           <Card className="border-artisan-clay bg-card">
-            <CardContent className="space-y-2 p-6">
-              <label className="text-sm font-medium text-foreground">
-                Pickup point
-                <input
-                  name="pickupPoint"
-                  required
-                  placeholder="Enter the locker, branch, Pargo point, or pickup code"
-                  className="mt-2 w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
-                />
-              </label>
+            <CardContent className="space-y-4 p-6">
+              {selectedShipping.key === "courier_guy" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Search and select the Courier Guy locker where you want to collect your parcel.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-[180px_1fr_auto]">
+                    <select
+                      value={courierGuyLockerProvince}
+                      onChange={(event) => {
+                        setCourierGuyLockerProvince(event.target.value);
+                        setSelectedCourierGuyLocker(null);
+                        setPickupPointText("");
+                      }}
+                      className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">All provinces</option>
+                      {provinces.map((province) => (
+                        <option key={province} value={province}>{province}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={courierGuySearch}
+                      onChange={(event) => {
+                        setCourierGuySearch(event.target.value);
+                        setSelectedCourierGuyLocker(null);
+                        setPickupPointText("");
+                      }}
+                      placeholder="Type a mall, suburb, town, or locker code"
+                      className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
+                    />
+                    <Button type="button" variant="outline" onClick={searchCourierGuyLockers}>
+                      Search
+                    </Button>
+                  </div>
+                  {selectedCourierGuyLocker ? (
+                    <div className="rounded-2xl border border-artisan-clay bg-background p-4 text-sm">
+                      <p className="font-semibold text-foreground">Selected locker</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {courierGuyLockerSummary(selectedCourierGuyLocker)}
+                      </p>
+                    </div>
+                  ) : null}
+                  {courierGuyLockerError ? (
+                    <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {courierGuyLockerError}
+                    </p>
+                  ) : null}
+                  {isLoadingCourierGuyLockers ? (
+                    <p className="text-sm text-muted-foreground">Loading Courier Guy lockers...</p>
+                  ) : courierGuyLockers.length > 0 ? (
+                    <div className="divide-y overflow-hidden rounded-2xl border border-artisan-clay bg-background">
+                      {courierGuyLockers.map((locker) => (
+                        <button
+                          key={`${locker.code}-${locker.name}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCourierGuyLocker(locker);
+                            setPickupPointText(courierGuyLockerSummary(locker));
+                            setCourierGuyLockers([]);
+                            setCourierGuyLockerError(null);
+                          }}
+                          className="block w-full p-4 text-left text-sm transition hover:bg-secondary"
+                        >
+                          <span className="block font-semibold text-foreground">
+                            {locker.code ? `${locker.name} (${locker.code})` : locker.name}
+                          </span>
+                          <span className="mt-1 block text-muted-foreground">
+                            {[locker.address, locker.landmark, locker.detailed_address?.province]
+                              .filter(Boolean)
+                              .join(" • ")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : selectedShipping.key === "pargo" ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Search and select the Pargo pickup point where you want to collect your parcel.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-[180px_1fr_auto]">
+                    <select
+                      value={pargoPointProvince}
+                      onChange={(event) => {
+                        setPargoPointProvince(event.target.value);
+                        setSelectedPargoPoint(null);
+                        setPickupPointText("");
+                      }}
+                      className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">All provinces</option>
+                      {provinces.map((province) => (
+                        <option key={province} value={province}>{province}</option>
+                      ))}
+                    </select>
+                    <input
+                      value={pargoSearch}
+                      onChange={(event) => {
+                        setPargoSearch(event.target.value);
+                        setSelectedPargoPoint(null);
+                        setPickupPointText("");
+                      }}
+                      placeholder="Type a store, suburb, town, or point code"
+                      className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
+                    />
+                    <Button type="button" variant="outline" onClick={searchPargoPickupPoints}>
+                      Search
+                    </Button>
+                  </div>
+                  {selectedPargoPoint ? (
+                    <div className="rounded-2xl border border-artisan-clay bg-background p-4 text-sm">
+                      <p className="font-semibold text-foreground">Selected pickup point</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {pargoPickupPointSummary(selectedPargoPoint)}
+                      </p>
+                    </div>
+                  ) : null}
+                  {pargoPointError ? (
+                    <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {pargoPointError}
+                    </p>
+                  ) : null}
+                  {isLoadingPargoPoints ? (
+                    <p className="text-sm text-muted-foreground">Loading Pargo pickup points...</p>
+                  ) : pargoPickupPoints.length > 0 ? (
+                    <div className="divide-y overflow-hidden rounded-2xl border border-artisan-clay bg-background">
+                      {pargoPickupPoints.map((point) => (
+                        <button
+                          key={`${point.code}-${point.name}`}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPargoPoint(point);
+                            setPickupPointText(pargoPickupPointSummary(point));
+                            setPargoPickupPoints([]);
+                            setPargoPointError(null);
+                          }}
+                          className="block w-full p-4 text-left text-sm transition hover:bg-secondary"
+                        >
+                          <span className="block font-semibold text-foreground">
+                            {point.code ? `${point.name} (${point.code})` : point.name}
+                          </span>
+                          <span className="mt-1 block text-muted-foreground">
+                            {[point.address, point.city, point.province].filter(Boolean).join(" • ")}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <label className="text-sm font-medium text-foreground">
+                  Pickup point
+                  <input
+                    name="pickupPoint"
+                    required
+                    value={pickupPointText}
+                    onChange={(event) => setPickupPointText(event.target.value)}
+                    placeholder="Enter the pickup point or drop-off location"
+                    className="mt-2 w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                  />
+                </label>
+              )}
             </CardContent>
           </Card>
         ) : null}
+
+        <Card className="border-artisan-clay bg-card">
+          <CardContent className="space-y-4 p-6">
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={isGift}
+                onChange={(event) => setIsGift(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-semibold text-foreground">This is a gift</span>
+                <span className="mt-1 block text-muted-foreground">
+                  Add recipient details and a note. A R30 gift service fee will be added.
+                </span>
+              </span>
+            </label>
+            {isGift ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="space-y-2 text-sm font-medium text-foreground">
+                  Recipient name
+                  <input
+                    value={giftRecipient}
+                    onChange={(event) => setGiftRecipient(event.target.value)}
+                    className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                    placeholder="Optional"
+                  />
+                </label>
+                <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
+                  Gift message
+                  <textarea
+                    value={giftMessage}
+                    onChange={(event) => setGiftMessage(event.target.value)}
+                    rows={3}
+                    className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                    placeholder="Optional message for the recipient"
+                  />
+                </label>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
 
       <aside className="h-fit rounded-[2rem] border border-artisan-clay bg-card p-6 shadow-sm">
@@ -462,6 +865,12 @@ export function CheckoutForm() {
             <span className="text-muted-foreground">Delivery</span>
             <span className="font-semibold text-foreground">{formatPrice(shippingCost)}</span>
           </div>
+          {isGift ? (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Gift fee</span>
+              <span className="font-semibold text-foreground">{formatPrice(giftServiceFee)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between border-t border-artisan-clay pt-3 text-base">
             <span className="font-semibold text-foreground">Total</span>
             <span className="font-bold text-foreground">{formatPrice(total)}</span>

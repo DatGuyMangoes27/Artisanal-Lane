@@ -1,26 +1,33 @@
-import Link from "next/link";
-
+import { PaymentResultActions } from "@/components/marketplace/payment-result-actions";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
-import { Button } from "@/components/ui/button";
+import { paymentResultStatusCopy } from "@/lib/marketplace/payment-results";
 
-export default function PaymentSuccessPage() {
+type PaymentSuccessPageProps = {
+  searchParams?: Promise<{ orderId?: string }>;
+};
+
+export default async function PaymentSuccessPage({ searchParams }: PaymentSuccessPageProps) {
+  const params = await searchParams;
+  const copy = paymentResultStatusCopy("success");
+
   return (
     <div className="min-h-screen bg-background">
       <MarketplaceHeader />
       <main className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <p className="text-sm font-semibold uppercase tracking-[0.28em] text-artisan-terracotta">
-          Payment started
+          {copy.eyebrow}
         </p>
         <h1 className="mt-4 font-serif text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-          Thanks, your order is being processed.
+          {copy.title}
         </h1>
         <p className="mt-4 leading-7 text-muted-foreground">
-          TradeSafe will confirm the payment with Artisan Lane. You can continue browsing while the
-          order updates.
+          {copy.body}
         </p>
-        <Button asChild size="lg" className="mt-8 rounded-full">
-          <Link href="/shop">Back to shop</Link>
-        </Button>
+        <PaymentResultActions
+          fallbackHref={copy.primaryActionHref}
+          fallbackLabel={copy.primaryActionLabel}
+          orderId={params?.orderId}
+        />
       </main>
     </div>
   );

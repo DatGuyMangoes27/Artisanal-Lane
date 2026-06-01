@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/product_card.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/product_sorting.dart';
 import '../utils/search_results_layout.dart';
 
 class SearchResultsScreen extends ConsumerStatefulWidget {
@@ -59,13 +60,24 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             Expanded(
               child: results.when(
                 data: (items) {
-                  if (items.isEmpty) {
+                  final filteredItems = filterSearchProductsForDisplay(
+                    items,
+                    selectedFilter: _selectedFilter,
+                  );
+                  final sort = searchSortForIndex(_selectedSort);
+                  final visibleItems = sortProductsForDisplay(
+                    filteredItems,
+                    sortBy: sort.sortBy,
+                    ascending: sort.ascending,
+                  );
+
+                  if (visibleItems.isEmpty) {
                     return _buildEmptyState();
                   }
                   return Column(
                     children: [
                       // Count + Sort row
-                      _buildCountAndSortRow(items.length),
+                      _buildCountAndSortRow(visibleItems.length),
 
                       const SizedBox(height: 12),
 
@@ -75,14 +87,14 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                           gridDelegate:
                               const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.65,
-                          ),
-                          itemCount: items.length,
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                childAspectRatio: 0.65,
+                              ),
+                          itemCount: visibleItems.length,
                           itemBuilder: (context, index) =>
-                              ProductCard(product: items[index]),
+                              ProductCard(product: visibleItems[index]),
                         ),
                       ),
                     ],
@@ -124,7 +136,9 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                            border: Border.all(
+                              color: AppTheme.sand.withValues(alpha: 0.3),
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.03),
@@ -344,7 +358,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3), width: 1),
+                border: Border.all(
+                  color: AppTheme.sand.withValues(alpha: 0.3),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.03),
@@ -396,7 +413,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(30),
-                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3), width: 1),
+                border: Border.all(
+                  color: AppTheme.sand.withValues(alpha: 0.3),
+                  width: 1,
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.03),

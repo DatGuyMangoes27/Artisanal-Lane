@@ -63,11 +63,12 @@ class Order {
     final shopData = json['shops'] as Map<String, dynamic>?;
     final buyerData = json['buyer'] as Map<String, dynamic>?;
     final itemsData = json['order_items'] as List?;
+    String stringOrEmpty(dynamic value) => value is String ? value : '';
 
     return Order(
       id: json['id'] as String,
-      buyerId: json['buyer_id'] as String,
-      shopId: json['shop_id'] as String,
+      buyerId: stringOrEmpty(json['buyer_id']),
+      shopId: stringOrEmpty(json['shop_id']),
       status: json['status'] as String? ?? 'pending',
       total: (json['total'] as num).toDouble(),
       shippingCost: (json['shipping_cost'] as num?)?.toDouble() ?? 0,
@@ -125,6 +126,28 @@ class Order {
     return null;
   }
 
+  String? get shippingAddressSummary {
+    String cleanPart(dynamic value) {
+      if (value == null) return '';
+      final text = value.toString().trim();
+      return text.toLowerCase() == 'null' ? '' : text;
+    }
+
+    final street = cleanPart(shippingAddress?['street']);
+    final city = cleanPart(shippingAddress?['city']);
+    final postalCode = cleanPart(shippingAddress?['postal_code']);
+    final cityLine = [
+      city,
+      postalCode,
+    ].where((part) => part.isNotEmpty).join(' ');
+    final summary = [
+      street,
+      cityLine,
+    ].where((part) => part.isNotEmpty).join(', ');
+
+    return summary.isEmpty ? null : summary;
+  }
+
   String get shippingMethodDisplay {
     switch (shippingMethod) {
       case 'courier_guy':
@@ -174,6 +197,7 @@ class OrderItem {
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     final productData = json['products'] as Map<String, dynamic>?;
+    String stringOrEmpty(dynamic value) => value is String ? value : '';
     List<String> parseImages(dynamic img) {
       if (img == null) return [];
       if (img is List) return img.map((e) => e.toString()).toList();
@@ -183,7 +207,7 @@ class OrderItem {
     return OrderItem(
       id: json['id'] as String,
       orderId: json['order_id'] as String,
-      productId: json['product_id'] as String,
+      productId: stringOrEmpty(json['product_id']),
       variantId: json['variant_id'] as String?,
       variantName: json['variant_name'] as String?,
       variantImage: json['variant_image'] as String?,

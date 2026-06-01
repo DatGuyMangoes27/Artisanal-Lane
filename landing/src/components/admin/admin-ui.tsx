@@ -26,7 +26,7 @@ export function AdminPageHeader({
           {description}
         </p>
       </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
+      {actions ? <div className="min-w-0 md:max-w-[60%] lg:max-w-[65%]">{actions}</div> : null}
     </div>
   );
 }
@@ -109,6 +109,7 @@ export function StatusBadge({
             normalized === "cancelled" ||
             normalized === "suspended" ||
             normalized === "inactive" ||
+            normalized === "deleted" ||
             normalized === "open" ||
             normalized === "investigating"
           ? "border-red-200 bg-red-50 text-red-700"

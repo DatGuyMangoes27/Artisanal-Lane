@@ -1,4 +1,4 @@
-import { jsonResponse } from "../_shared/http.ts";
+import { jsonResponse, optionsResponse } from "../_shared/http.ts";
 
 const courierGuyApiKey = Deno.env.get("COURIER_GUY_API_KEY")!;
 const courierGuyApiBaseUrl = Deno.env.get("COURIER_GUY_API_BASE_URL") ??
@@ -154,6 +154,10 @@ async function fetchLockersData(): Promise<LockerFetchResult> {
 
 Deno.serve(async (request) => {
   try {
+    if (request.method === "OPTIONS") {
+      return optionsResponse();
+    }
+
     const body = request.method === "POST"
       ? ((await request.json()) as Record<string, unknown>)
       : {};

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Button } from "@/components/ui/button";
@@ -8,17 +9,31 @@ import {
   listFavouriteProductIds,
   listSavedAddresses,
 } from "@/lib/marketplace/buyer-preferences-data";
-import { formatOrderStatus } from "@/lib/marketplace/orders";
+import { listBuyerDisputes } from "@/lib/marketplace/dispute-data";
+import { listBuyerNotifications } from "@/lib/marketplace/notification-data";
+import { canConfirmReceipt, formatOrderStatus, getActiveBuyerOrders } from "@/lib/marketplace/orders";
 
 export default async function AccountPage() {
   const { user, profile } = await requireBuyerAccountSession("/account");
-  const [orders, favouriteIds, addresses] = await Promise.all([
+  if (profile?.role === "admin") {
+    redirect("/admin");
+  }
+  if (profile?.role === "vendor") {
+    redirect("/vendor");
+  }
+
+  const [orders, favouriteIds, addresses, notifications, disputes] = await Promise.all([
     listBuyerOrders(user.id),
     listFavouriteProductIds(user.id),
     listSavedAddresses(user.id),
+    listBuyerNotifications(user.id),
+    listBuyerDisputes(user.id),
   ]);
-  const activeOrders = orders.filter((order) =>
-    ["pending", "paid", "shipped", "delivered", "disputed"].includes(order.status),
+  const activeOrders = getActiveBuyerOrders(orders);
+  const receiptReminderOrder = orders.find(canConfirmReceipt);
+  const unreadNotifications = notifications.filter((notification) => !notification.readAt);
+  const openDisputes = disputes.filter((dispute) =>
+    ["open", "investigating"].includes(dispute.status),
   );
   const latestOrder = orders[0] ?? null;
 
@@ -71,6 +86,38 @@ export default async function AccountPage() {
             </CardContent>
           </Card>
         </section>
+
+        <section className="mt-4 grid gap-4 md:grid-cols-2">
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Unread notifications</p>
+              <p className="mt-2 text-4xl font-bold text-foreground">{unreadNotifications.length}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">Open disputes</p>
+              <p className="mt-2 text-4xl font-bold text-foreground">{openDisputes.length}</p>
+            </CardContent>
+          </Card>
+        </section>
+
+        {receiptReminderOrder ? (
+          <Card className="mt-8 border-artisan-clay bg-card">
+            <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="font-serif text-2xl font-bold text-foreground">Confirm your delivery</h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Order #{receiptReminderOrder.shortId} is ready for receipt confirmation. Confirm only
+                  once you have received it and are happy with it.
+                </p>
+              </div>
+              <Button asChild className="rounded-full">
+                <Link href={`/account/orders/${receiptReminderOrder.id}`}>Review order</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <section className="mt-10 grid gap-4 md:grid-cols-2">
           <Card className="border-artisan-clay bg-card">
@@ -125,6 +172,50 @@ export default async function AccountPage() {
               </p>
               <Button asChild className="mt-6 rounded-full">
                 <Link href="/account/addresses">Manage addresses</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Notifications</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Review order updates, receipt reminders, and marketplace notices.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/notifications">View notifications</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Disputes</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Track any support cases opened from your orders.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/disputes">View disputes</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Help and legal</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Find support paths, privacy information, and marketplace terms.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/help">Open help</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card className="border-artisan-clay bg-card">
+            <CardContent className="p-6">
+              <h2 className="font-serif text-2xl font-bold text-foreground">Settings</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Manage account-level preferences and deletion.
+              </p>
+              <Button asChild className="mt-6 rounded-full">
+                <Link href="/account/settings">Open settings</Link>
               </Button>
             </CardContent>
           </Card>

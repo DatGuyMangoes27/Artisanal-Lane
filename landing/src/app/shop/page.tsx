@@ -1,28 +1,65 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { SearchControls } from "@/components/marketplace/search-controls";
-import { ShopCard } from "@/components/marketplace/shop-card";
+import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
 import {
-  getFeaturedMarketplaceProducts,
   getFreshMarketplaceProducts,
   getMarketplaceCategories,
   getMarketplaceProducts,
-  getMarketplaceShops,
+  getMarketplaceShopCount,
+  getTrendingSearchTerms,
+  type MarketplaceAvailabilityFilter,
+  type MarketplacePriceFilter,
+  type MarketplaceProductSort,
 } from "@/lib/marketplace/catalog";
+import { createClient } from "@/lib/supabase/server";
+
+type ShopSearchParams = {
+  q?: string;
+  category?: string;
+  sort?: MarketplaceProductSort;
+  price?: MarketplacePriceFilter;
+  availability?: MarketplaceAvailabilityFilter;
+  page?: string;
+};
 
 type ShopPageProps = {
-  searchParams?: Promise<{
-    q?: string;
-    category?: string;
-    sort?: "newest" | "price_asc" | "price_desc";
-  }>;
+  searchParams?: Promise<ShopSearchParams>;
 };
+
+const productsPerPage = 16;
+
+function parseShopPage(value: string | undefined) {
+  const page = Number(value);
+  return Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
+}
+
+function buildPageHref(params: ShopSearchParams | undefined, page: number) {
+  const nextParams = new URLSearchParams(
+    Object.entries(params ?? {}).filter((entry): entry is [string, string] => (
+      typeof entry[1] === "string" && entry[1].length > 0
+    )),
+  );
+
+  if (page <= 1) {
+    nextParams.delete("page");
+  } else {
+    nextParams.set("page", String(page));
+  }
+
+  const queryString = nextParams.toString();
+  return queryString ? `/shop?${queryString}` : "/shop";
+}
 
 function SearchControlsFallback() {
   return (
-    <div className="grid gap-3 rounded-3xl border border-artisan-clay bg-card p-4 shadow-sm md:grid-cols-[1fr_220px_180px_auto]">
+    <div className="grid gap-3 rounded-3xl border border-artisan-clay bg-card p-4 shadow-sm md:grid-cols-[1fr_180px_160px_160px_150px_auto_auto]">
+      <div className="h-11 rounded-full bg-secondary" />
+      <div className="h-11 rounded-full bg-secondary" />
+      <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
@@ -36,14 +73,40 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const query = params?.q;
   const categoryId = params?.category;
   const sort = params?.sort ?? "newest";
+  const priceFilter = params?.price;
+  const availabilityFilter = params?.availability;
+  const currentPage = parseShopPage(params?.page);
+  const productOffset = (currentPage - 1) * productsPerPage;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const [categories, products, featuredProducts, freshProducts, shops] = await Promise.all([
+  const [categories, products, freshProducts, shopCount, trendingTerms, favouriteIds] = await Promise.all([
     getMarketplaceCategories(),
-    getMarketplaceProducts({ query, categoryId, sort }),
-    getFeaturedMarketplaceProducts(8),
+    getMarketplaceProducts({
+      query,
+      categoryId,
+      sort,
+      priceFilter,
+      availabilityFilter,
+      limit: productsPerPage + 1,
+      offset: productOffset,
+    }),
     getFreshMarketplaceProducts(8),
-    getMarketplaceShops(12),
+    getMarketplaceShopCount(),
+    getTrendingSearchTerms(8),
+    user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
   ]);
+  const pageProducts = products.slice(0, productsPerPage);
+  const hasNextPage = products.length > productsPerPage;
+  const previousPageHref = buildPageHref(params, currentPage - 1);
+  const nextPageHref = buildPageHref(params, currentPage + 1);
+  const favouriteIdSet = new Set(favouriteIds);
+  const shopQueryString = new URLSearchParams(
+    Object.entries(params ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  ).toString();
+  const shopHref = shopQueryString ? `/shop?${shopQueryString}` : "/shop";
 
   return (
     <main>
@@ -69,7 +132,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                 Search products
               </Link>
               <Link
-                href="#artisans"
+                href="/artisans"
                 className="inline-flex h-11 items-center justify-center rounded-full border border-artisan-clay bg-card px-6 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
               >
                 Meet the artisans
@@ -82,16 +145,16 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             </p>
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div className="rounded-3xl bg-background p-5">
-                <p className="text-3xl font-bold text-artisan-terracotta">{products.length}</p>
-                <p className="mt-1 text-sm text-muted-foreground">shop-ready products</p>
+                <p className="text-3xl font-bold text-artisan-terracotta">{pageProducts.length}</p>
+                <p className="mt-1 text-sm text-muted-foreground">products shown</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
-                <p className="text-3xl font-bold text-artisan-terracotta">{shops.length}</p>
+                <p className="text-3xl font-bold text-artisan-terracotta">{shopCount}</p>
                 <p className="mt-1 text-sm text-muted-foreground">artisan shops</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
-                <p className="text-3xl font-bold text-artisan-terracotta">{featuredProducts.length}</p>
-                <p className="mt-1 text-sm text-muted-foreground">featured finds</p>
+                <p className="text-3xl font-bold text-artisan-terracotta">{freshProducts.length}</p>
+                <p className="mt-1 text-sm text-muted-foreground">fresh arrivals</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
                 <p className="text-3xl font-bold text-artisan-terracotta">{categories.length}</p>
@@ -99,57 +162,6 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <Suspense fallback={<SearchControlsFallback />}>
-          <SearchControls categories={categories} />
-        </Suspense>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
-              Shop products
-            </p>
-            <h2 className="mt-2 font-serif text-3xl font-bold text-foreground">Shop products</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">{products.length} products found</p>
-        </div>
-        {products.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
-            No products match your search yet. Try a different keyword or category.
-          </p>
-        )}
-      </section>
-
-      <section className="bg-artisan-bone/40 py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
-              Featured finds
-            </p>
-            <h2 className="mt-2 font-serif text-3xl font-bold text-foreground">Featured finds</h2>
-          </div>
-          {featuredProducts.length > 0 ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {featuredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
-              Featured products will appear here as artisans highlight their best work.
-            </p>
-          )}
         </div>
       </section>
 
@@ -161,11 +173,16 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           <h2 className="mt-2 font-serif text-3xl font-bold text-foreground">Fresh arrivals</h2>
         </div>
         {freshProducts.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <ProductCarousel>
             {freshProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavourite={favouriteIdSet.has(product.id)}
+                redirectTo={shopHref}
+              />
             ))}
-          </div>
+          </ProductCarousel>
         ) : (
           <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
             New products will appear here as artisan shops publish fresh work.
@@ -173,27 +190,65 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         )}
       </section>
 
-      <section id="artisans" className="border-t border-artisan-clay/70 bg-card/50 py-14">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
-              Meet the artisans
-            </p>
-            <h2 className="mt-2 font-serif text-3xl font-bold text-foreground">Meet the artisans</h2>
-          </div>
-          {shops.length > 0 ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {shops.map((shop) => (
-                <ShopCard key={shop.id} shop={shop} />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
-              Artisan shops will appear here as makers come online.
-            </p>
-          )}
-        </div>
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <Suspense fallback={<SearchControlsFallback />}>
+          <SearchControls categories={categories} trendingTerms={trendingTerms} />
+        </Suspense>
       </section>
+
+      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
+              All products
+            </p>
+            <h2 className="mt-2 font-serif text-3xl font-bold text-foreground">All products</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">Page {currentPage}</p>
+        </div>
+        {pageProducts.length > 0 ? (
+          <>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {pageProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavourite={favouriteIdSet.has(product.id)}
+                redirectTo={shopHref}
+              />
+            ))}
+          </div>
+          <div className="mt-8 flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <p className="text-sm text-muted-foreground">
+              Showing up to {productsPerPage} products per page.
+            </p>
+            <div className="flex gap-3">
+              {currentPage > 1 ? (
+                <Link
+                  href={previousPageHref}
+                  className="inline-flex h-10 items-center justify-center rounded-full border border-artisan-clay bg-card px-5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+                >
+                  Previous
+                </Link>
+              ) : null}
+              {hasNextPage ? (
+                <Link
+                  href={nextPageHref}
+                  className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-artisan-terracotta-dark"
+                >
+                  Next
+                </Link>
+              ) : null}
+            </div>
+          </div>
+          </>
+        ) : (
+          <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
+            No products match your search yet. Try a different keyword or category.
+          </p>
+        )}
+      </section>
+
     </main>
   );
 }

@@ -10,15 +10,21 @@ import type {
   MarketplaceVariant,
   ShippingOption,
 } from "./types";
+import { resolveTrendingSearchTerms } from "./search-trends";
 
-export type MarketplaceProductSort = "newest" | "price_asc" | "price_desc";
+export type MarketplaceProductSort = "newest" | "price_asc" | "price_desc" | "popular";
+export type MarketplacePriceFilter = "under_200" | "between_200_500" | "over_500";
+export type MarketplaceAvailabilityFilter = "on_sale";
 
 export type MarketplaceProductOptions = {
   query?: string;
   categoryId?: string;
   tag?: string;
   sort?: MarketplaceProductSort;
+  priceFilter?: MarketplacePriceFilter;
+  availabilityFilter?: MarketplaceAvailabilityFilter;
   limit?: number;
+  offset?: number;
 };
 
 type ProductQueryOptions = MarketplaceProductOptions & {
@@ -311,6 +317,7 @@ async function loadPublicProductCountsForShops(
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
+    .gt("stock_qty", 0)
     .in("shop_id", uniqueShopIds);
 
   if (error) {
@@ -336,7 +343,8 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     .select(productSelect)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true);
+    .eq("shops.is_active", true)
+    .gt("stock_qty", 0);
 
   const searchQuery = options.query?.trim();
   if (searchQuery) {
@@ -355,7 +363,29 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     query = query.contains("tags", [options.tag]);
   }
 
+  switch (options.priceFilter) {
+    case "under_200":
+      query = query.lt("price", 200);
+      break;
+    case "between_200_500":
+      query = query.gte("price", 200).lte("price", 500);
+      break;
+    case "over_500":
+      query = query.gt("price", 500);
+      break;
+    default:
+      break;
+  }
+
+  if (options.availabilityFilter === "on_sale") {
+    query = query.not("compare_at_price", "is", null);
+  }
+
   switch (options.sort) {
+    case "popular":
+      query = query.order("is_featured", { ascending: false });
+      query = query.order("created_at", { ascending: false });
+      break;
     case "price_asc":
       query = query.order("price", { ascending: true });
       break;
@@ -368,9 +398,11 @@ async function loadProducts(options: ProductQueryOptions = {}) {
       break;
   }
 
-  const { data, error } = await query.limit(
-    boundedLimit(options.limit, defaultProductLimit, maxProductLimit),
-  );
+  const limit = boundedLimit(options.limit, defaultProductLimit, maxProductLimit);
+  const offset = Math.max(Math.trunc(options.offset ?? 0), 0);
+  const { data, error } = offset > 0
+    ? await query.range(offset, offset + limit - 1)
+    : await query.limit(limit);
 
   if (error) {
     throw new Error("Failed to load marketplace products", { cause: error });
@@ -383,6 +415,31 @@ export async function getMarketplaceProducts(options: MarketplaceProductOptions 
   return loadProducts(options);
 }
 
+export async function getTrendingSearchTerms(limit = 8) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("trending_searches")
+    .select("term")
+    .eq("is_active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    return resolveTrendingSearchTerms({
+      configuredTerms: [],
+      fallbackTerms: ["Ceramics", "Candles", "Jewellery", "Textiles", "Baskets"],
+      limit,
+    });
+  }
+
+  return resolveTrendingSearchTerms({
+    configuredTerms: (data ?? []).map((row: { term: string | null }) => row.term ?? ""),
+    fallbackTerms: ["Ceramics", "Candles", "Jewellery", "Textiles", "Baskets"],
+    limit,
+  });
+}
+
 export async function getFeaturedMarketplaceProducts(limit?: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -391,6 +448,7 @@ export async function getFeaturedMarketplaceProducts(limit?: number) {
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
+    .gt("stock_qty", 0)
     .eq("is_featured", true)
     .order("created_at", { ascending: false })
     .limit(boundedLimit(limit, 8, maxProductLimit));
@@ -415,6 +473,7 @@ export async function getMarketplaceProduct(productId: string) {
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
+    .gt("stock_qty", 0)
     .maybeSingle();
 
   if (error) {
@@ -424,21 +483,28 @@ export async function getMarketplaceProduct(productId: string) {
   return data ? mapProduct(data as ProductRow) : null;
 }
 
-export async function getMarketplaceProductsByIds(productIds: string[]) {
+export async function getMarketplaceProductsByIds(
+  productIds: string[],
+  options: { includeOutOfStock?: boolean } = {},
+) {
   const ids = Array.from(new Set(productIds.filter(Boolean)));
   if (ids.length === 0) {
     return [];
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("products")
     .select(productSelect)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
-    .in("id", ids);
+    .eq("shops.is_active", true);
 
+  if (!options.includeOutOfStock) {
+    query = query.gt("stock_qty", 0);
+  }
+
+  const { data, error } = await query.in("id", ids);
   if (error) {
     throw new Error("Failed to load marketplace cart products", { cause: error });
   }
@@ -492,6 +558,20 @@ export async function getMarketplaceShops(limit?: number) {
   );
 
   return shops.map((shop) => mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0));
+}
+
+export async function getMarketplaceShopCount() {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("shops")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error("Failed to count marketplace shops", { cause: error });
+  }
+
+  return count ?? 0;
 }
 
 export async function getMarketplaceShop(shopIdOrSlug: string) {

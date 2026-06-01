@@ -1,4 +1,5 @@
 export 'category.dart';
+export 'app_notification.dart';
 export 'chat_attachment.dart';
 export 'chat_message.dart';
 export 'chat_thread.dart';

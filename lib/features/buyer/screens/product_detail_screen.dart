@@ -11,6 +11,7 @@ import '../../../widgets/gradient_button.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../models/models.dart';
 import '../utils/product_detail_actions.dart';
+import '../utils/product_image_zoom.dart';
 import '../utils/cart_stock_guard.dart';
 import '../widgets/review_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -184,15 +185,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     setState(() => _isAddingToCart = true);
     try {
       final service = ref.read(supabaseServiceProvider);
-      await service.addToCart(
-        userId!,
-        product.id,
-        variantId: variant?.id,
-      );
-      await ref.read(metaAppEventsServiceProvider).logAddToCart(
-            product,
-            variant: variant,
-          );
+      await service.addToCart(userId!, product.id, variantId: variant?.id);
+      await ref
+          .read(metaAppEventsServiceProvider)
+          .logAddToCart(product, variant: variant);
       ref.invalidate(cartItemsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -239,10 +235,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     _lastTrackedViewKey = viewKey;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(metaAppEventsServiceProvider).logViewedProduct(
-            product,
-            variant: variant,
-          );
+      ref
+          .read(metaAppEventsServiceProvider)
+          .logViewedProduct(product, variant: variant);
     });
   }
 
@@ -251,6 +246,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     try {
       await Share.share(
         buildProductShareText(
+          productId: product.id,
           title: product.title,
           price: sharePrice,
         ),
@@ -274,6 +270,20 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
   }
 
+  Future<void> _openImageZoom({
+    required List<String> images,
+    required int initialIndex,
+  }) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ProductImageZoomScreen(
+          images: images,
+          initialIndex: initialIndex.clamp(0, images.length - 1),
+        ),
+      ),
+    );
+  }
+
   Future<void> _toggleFavourite(String productId, bool currentlyFav) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (requiresSignInForFavourite(userId)) {
@@ -294,6 +304,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         await service.addFavourite(userId!, productId);
       }
       ref.invalidate(favouriteIdsProvider);
+      ref.invalidate(favouriteIdsStreamProvider);
       ref.invalidate(favouriteProductsProvider);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -457,8 +468,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final cartItems = ref.watch(cartItemsProvider).value ?? const <CartItem>[];
 
-    final favIdsAsync = ref.watch(favouriteIdsProvider);
-    final favIds = favIdsAsync.value ?? [];
+    final favIds = ref.watch(currentFavouriteIdsProvider);
     final reviewSummaryAsync = ref.watch(
       productReviewSummaryProvider(widget.productId),
     );
@@ -578,29 +588,52 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 final url = displayImages.isNotEmpty
                                     ? displayImages[index]
                                     : product.primaryImage;
-                                return CachedNetworkImage(
-                                  imageUrl: url,
-                                  fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  placeholder: (_, __) => Container(
-                                    color: AppTheme.clay.withValues(alpha: 0.1),
-                                    child: Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppTheme.terracotta.withValues(
-                                          alpha: 0.5,
+                                return GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: () => _openImageZoom(
+                                    images: productZoomImages(
+                                      displayImages: displayImages,
+                                      fallbackImage: product.primaryImage,
+                                    ),
+                                    initialIndex: index,
+                                  ),
+                                  child: Stack(
+                                    fit: StackFit.expand,
+                                    children: [
+                                      CachedNetworkImage(
+                                        imageUrl: url,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        placeholder: (_, __) => Container(
+                                          color: AppTheme.clay.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          child: Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppTheme.terracotta
+                                                  .withValues(alpha: 0.5),
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (_, __, ___) => Container(
+                                          color: AppTheme.clay.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          child: const Icon(
+                                            Icons.image_outlined,
+                                            size: 64,
+                                            color: AppTheme.textHint,
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
-                                  errorWidget: (_, __, ___) => Container(
-                                    color: AppTheme.clay.withValues(alpha: 0.1),
-                                    child: const Icon(
-                                      Icons.image_outlined,
-                                      size: 64,
-                                      color: AppTheme.textHint,
-                                    ),
+                                      const Positioned(
+                                        right: 18,
+                                        bottom: 18,
+                                        child: _ZoomHintPill(),
+                                      ),
+                                    ],
                                   ),
                                 );
                               },
@@ -1568,6 +1601,155 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ZoomHintPill extends StatelessWidget {
+  const _ZoomHintPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.46),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.zoom_in_rounded, size: 16, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            'Tap to zoom',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductImageZoomScreen extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+
+  const _ProductImageZoomScreen({
+    required this.images,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_ProductImageZoomScreen> createState() =>
+      _ProductImageZoomScreenState();
+}
+
+class _ProductImageZoomScreenState extends State<_ProductImageZoomScreen> {
+  late final PageController _controller;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _controller = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: _controller,
+              itemCount: widget.images.length,
+              onPageChanged: (index) => setState(() => _currentIndex = index),
+              itemBuilder: (context, index) {
+                return InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: CachedNetworkImage(
+                      imageUrl: widget.images[index],
+                      fit: BoxFit.contain,
+                      placeholder: (_, __) => Center(
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.terracotta.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      errorWidget: (_, __, ___) => const Icon(
+                        Icons.image_outlined,
+                        size: 64,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            Positioned(
+              top: 12,
+              left: 12,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 22,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+              ),
+            ),
+            if (widget.images.length > 1)
+              Positioned(
+                bottom: 20,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${_currentIndex + 1} / ${widget.images.length}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

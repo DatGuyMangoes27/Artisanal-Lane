@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { shouldAcceptTradeSafeDelivery } from "../_shared/order-fulfillment.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
 import { acceptAllocationDelivery } from "../_shared/tradesafe.ts";
 
@@ -71,7 +72,9 @@ Deno.serve(async (request) => {
         : Promise.resolve({ data: { role: "admin" } }),
       admin
         .from("orders")
-        .select("id, buyer_id, status, tradesafe_allocation_id")
+        .select(
+          "id, buyer_id, status, shipping_method, tradesafe_allocation_id",
+        )
         .eq("id", orderId)
         .single(),
     ]);
@@ -97,7 +100,12 @@ Deno.serve(async (request) => {
     }
 
     let allocationState = "DELIVERY_ACCEPTED";
-    if (order.tradesafe_allocation_id) {
+    if (
+      shouldAcceptTradeSafeDelivery({
+        allocationId: order.tradesafe_allocation_id as string | null,
+        shippingMethod: order.shipping_method as string | null,
+      })
+    ) {
       const result = await acceptAllocationDelivery(
         order.tradesafe_allocation_id as string,
       );

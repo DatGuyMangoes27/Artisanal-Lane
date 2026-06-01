@@ -18,6 +18,7 @@ import {
   type GuestCartItem,
   type GuestCartItemInput,
 } from "../../lib/marketplace/cart";
+import { dispatchGuestCartChanged } from "../../lib/marketplace/cart-ui-events";
 
 export const guestCartStorageKey = "artisan-lane-guest-cart";
 
@@ -91,12 +92,28 @@ export function GuestCartProvider({ children }: { children: ReactNode }) {
     () => ({
       items,
       quantity: getGuestCartQuantity(items),
-      addItem: (item) => setItems((currentItems) => addGuestCartItem(currentItems, item)),
+      addItem: (item) =>
+        setItems((currentItems) => {
+          const nextItems = addGuestCartItem(currentItems, item);
+          dispatchGuestCartChanged(nextItems, { showNotice: true });
+          return nextItems;
+        }),
       updateItemQuantity: (key, quantity) =>
-        setItems((currentItems) => updateGuestCartQuantity(currentItems, key, quantity)),
+        setItems((currentItems) => {
+          const nextItems = updateGuestCartQuantity(currentItems, key, quantity);
+          dispatchGuestCartChanged(nextItems);
+          return nextItems;
+        }),
       removeItem: (key) =>
-        setItems((currentItems) => removeGuestCartItem(currentItems, key)),
-      clearCart: () => setItems([]),
+        setItems((currentItems) => {
+          const nextItems = removeGuestCartItem(currentItems, key);
+          dispatchGuestCartChanged(nextItems);
+          return nextItems;
+        }),
+      clearCart: () => {
+        dispatchGuestCartChanged([]);
+        setItems([]);
+      },
     }),
     [items],
   );

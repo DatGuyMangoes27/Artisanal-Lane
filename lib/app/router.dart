@@ -80,6 +80,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/login' ||
           path == '/register' ||
           path == '/forgot-password';
+      final isPublicLegalRoute = path == '/terms' || path == '/privacy';
+      final isRecoveryRoute = isPasswordRecoveryRoute(path);
 
       // Guests can browse home, search, products, shops, categories
       final isBrowseRoute =
@@ -97,9 +99,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           path.startsWith('/profile/');
 
       if (!isLoggedIn) {
+        if (isRecoveryRoute) return null;
         if (isProtectedBuyerRoute) return '/login';
-        if (!isAuthRoute && !isBrowseRoute) return '/welcome';
+        if (!isAuthRoute && !isBrowseRoute && !isPublicLegalRoute) {
+          return '/welcome';
+        }
       }
+
+      if (isRecoveryRoute) return null;
 
       if (isLoggedIn && isAuthRoute) {
         final user = Supabase.instance.client.auth.currentUser;
@@ -134,6 +141,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: passwordRecoveryRoute,
         builder: (context, state) => const ResetPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/terms',
+        builder: (context, state) =>
+            const LegalDocScreen(title: 'Terms of Service', type: 'terms'),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) =>
+            const LegalDocScreen(title: 'Privacy Policy', type: 'privacy'),
       ),
 
       // ── Buyer Shell ────────────────────────────────────────────

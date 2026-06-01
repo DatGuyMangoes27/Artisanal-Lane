@@ -1092,9 +1092,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
-    final subscription =
-        ref.watch(vendorSubscriptionStreamProvider).value ??
-        ref.watch(vendorSubscriptionProvider).value;
+    final subscription = preferredVendorSubscription(
+      streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
+      futureValue: ref.watch(vendorSubscriptionProvider).value,
+    );
     final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     final totalImages = _imageUrls.length + _pendingFiles.length;

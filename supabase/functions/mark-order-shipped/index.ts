@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { shouldStartTradeSafeDelivery } from "../_shared/order-fulfillment.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
 import { startAllocationDelivery } from "../_shared/tradesafe.ts";
 
@@ -69,7 +70,9 @@ Deno.serve(async (request) => {
 
     const { data: order } = await admin
       .from("orders")
-      .select("id, shop_id, status, tradesafe_allocation_id")
+      .select(
+        "id, shop_id, status, shipping_method, tradesafe_allocation_id, payment_state",
+      )
       .eq("id", orderId)
       .single();
 
@@ -85,13 +88,19 @@ Deno.serve(async (request) => {
 
     if (order.status !== "paid") {
       return jsonResponse(
-        { error: "This order cannot be marked shipped until payment is confirmed." },
+        {
+          error:
+            "This order cannot be marked shipped until payment is confirmed.",
+        },
         { status: 400 },
       );
     }
 
-    let allocationState = "INITIATED";
-    if (order.tradesafe_allocation_id) {
+    let allocationState = order.payment_state as string | null;
+    if (
+      order.tradesafe_allocation_id &&
+      shouldStartTradeSafeDelivery(order.shipping_method as string | null)
+    ) {
       const result = await startAllocationDelivery(
         order.tradesafe_allocation_id as string,
       );
@@ -99,25 +108,30 @@ Deno.serve(async (request) => {
     }
 
     const shippedAt = new Date().toISOString();
+    const orderUpdates: Record<string, string | null> = {
+      status: "shipped",
+      tracking_number: trackingNumber ?? null,
+      tracking_url: trackingUrl ?? null,
+      shipped_at: shippedAt,
+    };
+    if (allocationState != null) {
+      orderUpdates.payment_state = allocationState;
+    }
 
-    await Promise.all([
-      admin
-        .from("orders")
-        .update({
-          status: "shipped",
-          tracking_number: trackingNumber ?? null,
-          tracking_url: trackingUrl ?? null,
-          shipped_at: shippedAt,
-          payment_state: allocationState,
-        })
-        .eq("id", orderId),
-      admin
-        .from("escrow_transactions")
-        .update({
-          provider_state: allocationState,
-        })
-        .eq("order_id", orderId),
-    ]);
+    const updates = [
+      admin.from("orders").update(orderUpdates).eq("id", orderId),
+    ];
+    if (allocationState != null) {
+      updates.push(
+        admin
+          .from("escrow_transactions")
+          .update({
+            provider_state: allocationState,
+          })
+          .eq("order_id", orderId),
+      );
+    }
+    await Promise.all(updates);
 
     await sendInternalPushRequest({
       supabaseUrl,

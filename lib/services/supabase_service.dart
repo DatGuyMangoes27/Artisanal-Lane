@@ -4,6 +4,10 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import '../features/buyer/utils/cart_stock_guard.dart';
+import '../features/buyer/utils/favourite_products.dart';
+import '../features/buyer/utils/profile_avatar_upload.dart';
+import '../features/buyer/utils/search_trends.dart';
+import '../features/vendor/utils/vendor_earnings.dart';
 import '../models/models.dart';
 
 class SupabaseService {
@@ -13,6 +17,7 @@ class SupabaseService {
   static const _pendingDisplayNameKey = 'pending_auth_display_name';
   static const _chatAttachmentBucket = 'chat-attachments';
   static const _disputeAttachmentBucket = 'dispute-attachments';
+  static const _profileAvatarBucket = 'avatars';
   static const _chatThreadSelect =
       '*, shops(name, logo_url), buyer:profiles!chat_threads_buyer_id_fkey(display_name, avatar_url), vendor:profiles!chat_threads_vendor_id_fkey(display_name, avatar_url), chat_thread_reads(participant_id, last_read_at, last_read_message_id)';
   static const _shopReviewSelect = '*, profiles(display_name, avatar_url)';
@@ -323,6 +328,25 @@ class SupabaseService {
         );
 
     return _client.storage.from('shop-assets').getPublicUrl(storagePath);
+  }
+
+  Future<String> uploadProfileAvatar(String userId, File imageFile) async {
+    final ext = imageFile.path.split('.').last.toLowerCase();
+    final storagePath = profileAvatarStoragePath(
+      userId: userId,
+      originalPath: imageFile.path,
+      timestampMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    await _client.storage
+        .from(_profileAvatarBucket)
+        .upload(
+          storagePath,
+          imageFile,
+          fileOptions: FileOptions(contentType: _mimeType(ext), upsert: true),
+        );
+
+    return _client.storage.from(_profileAvatarBucket).getPublicUrl(storagePath);
   }
 
   Future<String> uploadVendorApplicationImage(
@@ -840,6 +864,29 @@ class SupabaseService {
     await _client.rpc('revoke_push_token', params: {'p_token': token});
   }
 
+  Stream<List<AppNotification>> watchNotifications(String userId) {
+    return _client
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .map(
+          (rows) => rows
+              .map(
+                (row) =>
+                    AppNotification.fromJson(Map<String, dynamic>.from(row)),
+              )
+              .toList(),
+        );
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toIso8601String()})
+        .eq('id', notificationId);
+  }
+
   Future<void> _sendChatPushNotification(String messageId) async {
     try {
       await _client.functions.invoke(
@@ -1046,21 +1093,45 @@ class SupabaseService {
         .select('term')
         .eq('is_active', true)
         .order('sort_order', ascending: true);
-    return (data as List).map((e) => e['term'] as String).toList();
+    final configuredTerms = (data as List)
+        .map((e) => e['term'] as String)
+        .toList();
+    return resolveTrendingSearchTerms(
+      configuredTerms: configuredTerms,
+      fallbackTerms: await _getPopularSearchFallbackTerms(),
+    );
   }
 
-  Stream<List<String>> watchTrendingSearches() {
-    return _client
+  Stream<List<String>> watchTrendingSearches() async* {
+    yield await getTrendingSearches();
+
+    yield* _client
         .from('trending_searches')
         .stream(primaryKey: ['id'])
         .eq('is_active', true)
         .order('sort_order', ascending: true)
-        .map(
-          (rows) => rows
+        .asyncMap((rows) async {
+          final configuredTerms = rows
               .map((row) => row['term'] as String)
               .where((term) => term.trim().isNotEmpty)
-              .toList(),
-        );
+              .toList();
+          return resolveTrendingSearchTerms(
+            configuredTerms: configuredTerms,
+            fallbackTerms: await _getPopularSearchFallbackTerms(),
+          );
+        });
+  }
+
+  Future<List<String>> _getPopularSearchFallbackTerms() async {
+    final data = await _client
+        .from('products')
+        .select('title')
+        .eq('is_published', true)
+        .gt('stock_qty', 0)
+        .order('is_featured', ascending: false)
+        .order('created_at', ascending: false)
+        .limit(8);
+    return (data as List).map((e) => e['title'] as String).toList();
   }
 
   // ── Subcategories ─────────────────────────────────────────────
@@ -1168,7 +1239,8 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
-        .eq('shops.is_active', true);
+        .eq('shops.is_active', true)
+        .gt('stock_qty', 0);
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
@@ -1205,6 +1277,7 @@ class SupabaseService {
         .select(_productSelect)
         .eq('is_published', true)
         .eq('shops.is_active', true)
+        .gt('stock_qty', 0)
         .eq('is_featured', true)
         .order('featured_at', ascending: false)
         .limit(limit);
@@ -1217,21 +1290,26 @@ class SupabaseService {
         .select(_productSelect)
         .eq('is_published', true)
         .eq('shops.is_active', true)
+        .gt('stock_qty', 0)
         .not('compare_at_price', 'is', null)
         .order('created_at', ascending: false)
         .limit(limit);
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
 
-  Future<Product> getProduct(String id) async {
-    final data = await _client
+  Future<Product> getProduct(String id, {bool buyerVisibleOnly = false}) async {
+    var query = _client
         .from('products')
         .select(
           '*, shops!inner(name, logo_url, slug, bio, location), categories(name), subcategories(name), product_variants(*)',
         )
         .eq('shops.is_active', true)
-        .eq('id', id)
-        .single();
+        .eq('id', id);
+    if (buyerVisibleOnly) {
+      query = query.eq('is_published', true).gt('stock_qty', 0);
+    }
+
+    final data = await query.single();
     return Product.fromJson(data);
   }
 
@@ -1245,19 +1323,17 @@ class SupabaseService {
     return (data as List).map((e) => Shop.fromJson(e)).toList();
   }
 
-  Future<Shop?> getSpotlightShop() async {
+  Future<List<Shop>> getSpotlightShops({int limit = 8}) async {
     final data = await _client
         .from('shops')
         .select()
         .eq('is_active', true)
         .eq('is_spotlight', true)
-        .maybeSingle();
+        .order('spotlighted_at', ascending: false)
+        .order('created_at', ascending: false)
+        .limit(limit);
 
-    if (data == null) {
-      return null;
-    }
-
-    return Shop.fromJson(data);
+    return (data as List).map((e) => Shop.fromJson(e)).toList();
   }
 
   Future<Shop> getShop(String id) async {
@@ -1449,9 +1525,7 @@ class SupabaseService {
           'product_id, products(*, shops(name, logo_url), categories(name), subcategories(name))',
         )
         .eq('user_id', userId);
-    return (data as List)
-        .map((e) => Product.fromJson(e['products'] as Map<String, dynamic>))
-        .toList();
+    return favouriteProductsFromRows(data as List);
   }
 
   Future<List<String>> getFavouriteProductIds(String userId) async {
@@ -1460,6 +1534,15 @@ class SupabaseService {
         .select('product_id')
         .eq('user_id', userId);
     return (data as List).map((e) => e['product_id'] as String).toList();
+  }
+
+  Stream<List<String>> watchFavouriteProductIds(String userId) {
+    return _client
+        .from('favourites')
+        .stream(primaryKey: ['id'])
+        .eq('user_id', userId)
+        .order('created_at')
+        .map((rows) => rows.map((row) => row['product_id'] as String).toList());
   }
 
   Future<void> addFavourite(String userId, String productId) async {
@@ -2326,8 +2409,9 @@ class SupabaseService {
   Future<Map<String, double>> getShopEarnings(String shopId) async {
     final orders = await _client
         .from('orders')
-        .select('id, total, shipping_cost')
-        .eq('shop_id', shopId);
+        .select('id, total, shipping_cost, status')
+        .eq('shop_id', shopId)
+        .inFilter('status', vendorEarningOrderStatuses.toList());
 
     if ((orders as List).isEmpty) {
       return {'totalSales': 0, 'held': 0, 'released': 0, 'fees': 0};
@@ -2346,6 +2430,9 @@ class SupabaseService {
     double totalSales = 0;
 
     for (final e in escrowData as List) {
+      if (!escrowCountsTowardVendorEarnings(e['status'] as String?)) {
+        continue;
+      }
       final amount = (e['amount'] as num).toDouble();
       final fee = (e['platform_fee'] as num?)?.toDouble() ?? 0;
       fees += fee;
@@ -2368,6 +2455,8 @@ class SupabaseService {
         .from('vendor_applications')
         .select()
         .eq('user_id', userId)
+        .order('created_at', ascending: false)
+        .limit(1)
         .maybeSingle();
     if (data == null) return null;
     return VendorApplication.fromJson(data);
@@ -2392,23 +2481,16 @@ class SupabaseService {
     String? deliveryInfo,
     String? turnaroundTime,
   }) async {
-    final appData = await _client
-        .from('vendor_applications')
-        .insert({
-          'user_id': userId,
-          'business_name': businessName,
-          'motivation': motivation,
-          'portfolio_url': portfolioUrl,
-          'proof_image_urls': proofImageUrls ?? const [],
-          'location': location,
-          'delivery_info': deliveryInfo,
-          'turnaround_time': turnaroundTime,
-          'status': 'pending',
-        })
-        .select()
-        .single();
-
-    return VendorApplication.fromJson(appData);
+    return _submitVendorApplicationOnce(
+      userId: userId,
+      businessName: businessName,
+      motivation: motivation,
+      portfolioUrl: portfolioUrl,
+      proofImageUrls: proofImageUrls,
+      location: location,
+      deliveryInfo: deliveryInfo,
+      turnaroundTime: turnaroundTime,
+    );
   }
 
   Future<VendorApplication> submitVendorOnboarding({
@@ -2421,23 +2503,57 @@ class SupabaseService {
     String? deliveryInfo,
     String? turnaroundTime,
   }) async {
-    final appData = await _client
-        .from('vendor_applications')
-        .insert({
-          'user_id': userId,
-          'business_name': businessName,
-          'motivation': motivation,
-          'portfolio_url': portfolioUrl,
-          'proof_image_urls': proofImageUrls ?? const [],
-          'location': location,
-          'delivery_info': deliveryInfo,
-          'turnaround_time': turnaroundTime,
-          'status': 'pending',
-        })
-        .select()
-        .single();
+    return _submitVendorApplicationOnce(
+      userId: userId,
+      businessName: businessName,
+      motivation: motivation,
+      portfolioUrl: portfolioUrl,
+      proofImageUrls: proofImageUrls,
+      location: location,
+      deliveryInfo: deliveryInfo,
+      turnaroundTime: turnaroundTime,
+    );
+  }
 
-    return VendorApplication.fromJson(appData);
+  Future<VendorApplication> _submitVendorApplicationOnce({
+    required String userId,
+    required String businessName,
+    String? motivation,
+    String? portfolioUrl,
+    List<String>? proofImageUrls,
+    String? location,
+    String? deliveryInfo,
+    String? turnaroundTime,
+  }) async {
+    final existing = await getVendorApplication(userId);
+    if (existing != null) return existing;
+
+    try {
+      final appData = await _client
+          .from('vendor_applications')
+          .insert({
+            'user_id': userId,
+            'applicant_user_id_snapshot': userId,
+            'business_name': businessName,
+            'motivation': motivation,
+            'portfolio_url': portfolioUrl,
+            'proof_image_urls': proofImageUrls ?? const [],
+            'location': location,
+            'delivery_info': deliveryInfo,
+            'turnaround_time': turnaroundTime,
+            'status': 'pending',
+          })
+          .select()
+          .single();
+
+      return VendorApplication.fromJson(appData);
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        final application = await getVendorApplication(userId);
+        if (application != null) return application;
+      }
+      rethrow;
+    }
   }
 
   Future<void> activateVendorAccount({

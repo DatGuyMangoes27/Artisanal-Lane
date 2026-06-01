@@ -3,6 +3,7 @@ import {
   buildChatMessagePush,
   buildDisputePush,
   buildOrderPush,
+  buildStoredNotification,
   recipientForChatMessage,
 } from "./push.ts";
 
@@ -99,6 +100,33 @@ Deno.test("order push payload includes tracking fallback for buyers", () => {
   assertEquals(payload.data.event, "shipped");
 });
 
+Deno.test("order push payload reminds buyers to confirm received orders", () => {
+  const payload = buildOrderPush({
+    event: "receipt_reminder",
+    orderId: "order-1",
+    recipientRole: "buyer",
+    shopName: "Clay Studio",
+    reminderKey: "day-6",
+  });
+
+  assertEquals(payload, {
+    title: "Have you received your order?",
+    body:
+      "If your order from Clay Studio has arrived, please mark it as received so the artisan can be paid.",
+    data: {
+      type: "order_update",
+      order_id: "order-1",
+      event: "receipt_reminder",
+      recipient_role: "buyer",
+      reminder_key: "day-6",
+    },
+  });
+  assertEquals(
+    buildStoredNotification("buyer-1", payload).event_key,
+    "order_update:order-1:receipt_reminder:day-6:buyer",
+  );
+});
+
 Deno.test("dispute push payload routes to the dispute order", () => {
   const payload = buildDisputePush({
     event: "opened",
@@ -117,6 +145,29 @@ Deno.test("dispute push payload routes to the dispute order", () => {
       dispute_id: "dispute-1",
       event: "opened",
       recipient_role: "vendor",
+    },
+  });
+});
+
+Deno.test("stored notification preserves recipient and push payload", () => {
+  const payload = buildOrderPush({
+    event: "paid",
+    orderId: "order-1",
+    recipientRole: "buyer",
+    shopName: "Clay Studio",
+  });
+
+  assertEquals(buildStoredNotification("buyer-1", payload), {
+    user_id: "buyer-1",
+    title: "Order confirmed",
+    body: "Your order from Clay Studio is confirmed.",
+    notification_type: "order_update",
+    event_key: "order_update:order-1:paid:buyer",
+    data: {
+      type: "order_update",
+      order_id: "order-1",
+      event: "paid",
+      recipient_role: "buyer",
     },
   });
 });

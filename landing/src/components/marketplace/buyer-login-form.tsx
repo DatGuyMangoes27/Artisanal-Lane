@@ -1,16 +1,26 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getAccountHomeHref,
+  getLoginIntentCopy,
+  getLoginRedirectForIntent,
+  normalizeLoginIntent,
+} from "@/lib/marketplace/account-routing";
 import { createClient } from "@/lib/supabase/browser";
 
 export function BuyerLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") || "/shop";
+  const intent = normalizeLoginIntent(searchParams.get("intent"));
+  const explicitRedirect = searchParams.get("redirect");
+  const redirectTo = explicitRedirect || getLoginRedirectForIntent(intent);
+  const copy = getLoginIntentCopy(intent);
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +42,7 @@ export function BuyerLoginForm() {
             email,
             password,
             options: {
-              data: { requested_role: "buyer" },
+              data: { requested_role: copy.requestedRole },
             },
           });
 
@@ -49,7 +59,37 @@ export function BuyerLoginForm() {
       return;
     }
 
-    router.replace(redirectTo);
+    const userId = result.data.user?.id ?? null;
+    const userEmail = result.data.user?.email ?? email;
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId ?? "")
+      .maybeSingle();
+    let profileRole = (profile as { role?: string | null } | null)?.role ?? null;
+
+    // Web sign-up only creates the auth user; without a matching profiles row the
+    // server-rendered account pages crash. Create it here (mirroring the mobile
+    // app) so brand-new buyers land in their account, and so existing
+    // profile-less accounts self-heal on their next sign in. Never overwrite an
+    // existing role.
+    if (userId && !profile) {
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: userId,
+        role: "buyer",
+        email: userEmail,
+        display_name: userEmail ? userEmail.split("@")[0] : null,
+      });
+      if (!profileError) {
+        profileRole = "buyer";
+      }
+    }
+
+    const roleHome = getAccountHomeHref(profileRole ?? copy.requestedRole);
+    const nextPath = profileRole === "buyer" && explicitRedirect ? redirectTo : roleHome;
+
+    router.replace(nextPath);
     router.refresh();
   }
 
@@ -57,13 +97,35 @@ export function BuyerLoginForm() {
     <Card className="w-full max-w-md border-artisan-clay/70 bg-white/95 shadow-xl">
       <CardHeader className="space-y-2">
         <CardTitle className="text-3xl text-artisan-sienna">
-          {mode === "sign-in" ? "Buyer Sign In" : "Create Buyer Account"}
+          {mode === "sign-in" ? copy.title : copy.createTitle}
         </CardTitle>
         <CardDescription>
-          Sign in to finish checkout and keep your order history connected to your account.
+          {copy.description}
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-artisan-bone/60 p-1">
+          <Button
+            asChild
+            type="button"
+            variant={intent === "buyer" ? "default" : "ghost"}
+            className={intent === "buyer" ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark" : ""}
+          >
+            <Link href={`/login?intent=buyer${explicitRedirect ? `&redirect=${encodeURIComponent(explicitRedirect)}` : ""}`}>
+              Buyer
+            </Link>
+          </Button>
+          <Button
+            asChild
+            type="button"
+            variant={intent === "vendor" ? "default" : "ghost"}
+            className={intent === "vendor" ? "bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark" : ""}
+          >
+            <Link href={`/login?intent=vendor${explicitRedirect ? `&redirect=${encodeURIComponent(explicitRedirect)}` : ""}`}>
+              Vendor
+            </Link>
+          </Button>
+        </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
           <label className="block space-y-2 text-sm font-medium text-artisan-sienna">
             Email

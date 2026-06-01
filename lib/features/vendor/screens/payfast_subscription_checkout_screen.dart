@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../../app/theme.dart';
 import '../../buyer/utils/payment_deep_links.dart';
@@ -59,8 +62,29 @@ class _PayfastSubscriptionCheckoutScreenState
             return NavigationDecision.prevent;
           },
         ),
-      )
-      ..loadRequest(widget.checkoutUri);
+      );
+    unawaited(_enablePaymentRequestThenLoad());
+  }
+
+  // Google Pay refuses to load inside a WebView unless the Payment Request API
+  // is explicitly enabled (and the app is registered in the Google Pay & Wallet
+  // Console). On unsupported devices this is a no-op; card/EFT still work.
+  Future<void> _enablePaymentRequestThenLoad() async {
+    final platform = _controller.platform;
+    if (platform is AndroidWebViewController) {
+      try {
+        final supported = await platform.isWebViewFeatureSupported(
+          WebViewFeatureType.paymentRequest,
+        );
+        if (supported) {
+          await platform.setPaymentRequestEnabled(true);
+        }
+      } catch (_) {
+        // Feature unavailable on this WebView/Play services version.
+      }
+    }
+    if (!mounted) return;
+    await _controller.loadRequest(widget.checkoutUri);
   }
 
   void _handleReturnRoute(String route) {

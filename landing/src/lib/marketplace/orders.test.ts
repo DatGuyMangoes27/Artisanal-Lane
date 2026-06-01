@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canConfirmReceipt,
+  getActiveBuyerOrders,
+  getDeliveryStatusMessage,
   formatOrderStatus,
   formatShippingMethod,
   getOrderGrandTotal,
   getOrderPickupPointSummary,
   getOrderShortId,
   mapBuyerOrder,
+  normalizeTrackingUrl,
+  shouldPromptReceiptReminder,
 } from "./orders";
 
 const orderRow = {
@@ -109,5 +114,53 @@ describe("buyer order helpers", () => {
         }),
       ),
     ).toBe("Market table near Gate 2");
+  });
+
+  it("knows when buyers can confirm receipt and should see reminders", () => {
+    const shipped = mapBuyerOrder(orderRow);
+    const completed = mapBuyerOrder({
+      ...orderRow,
+      status: "completed",
+      received_at: "2026-05-14T10:00:00.000Z",
+    });
+
+    expect(canConfirmReceipt(shipped)).toBe(true);
+    expect(shouldPromptReceiptReminder(shipped)).toBe(true);
+    expect(canConfirmReceipt(completed)).toBe(false);
+    expect(shouldPromptReceiptReminder(completed)).toBe(false);
+  });
+
+  it("normalizes tracking URLs for safe web links", () => {
+    expect(normalizeTrackingUrl("tracking.example.com/parcel/123")).toBe(
+      "https://tracking.example.com/parcel/123",
+    );
+    expect(normalizeTrackingUrl("http://tracking.example.com/parcel/123")).toBe(
+      "http://tracking.example.com/parcel/123",
+    );
+    expect(normalizeTrackingUrl("mailto:seller@example.com")).toBeNull();
+    expect(normalizeTrackingUrl("")).toBeNull();
+  });
+
+  it("describes buyer-facing delivery states", () => {
+    expect(getDeliveryStatusMessage(mapBuyerOrder(orderRow))).toContain(
+      "Your order is on its way",
+    );
+    expect(
+      getDeliveryStatusMessage(
+        mapBuyerOrder({
+          ...orderRow,
+          status: "completed",
+          received_at: "2026-05-14T10:00:00.000Z",
+        }),
+      ),
+    ).toContain("Receipt confirmed");
+  });
+
+  it("counts only active buyer orders", () => {
+    const shipped = mapBuyerOrder(orderRow);
+    const cancelled = mapBuyerOrder({ ...orderRow, id: "cancelled-order", status: "cancelled" });
+    const completed = mapBuyerOrder({ ...orderRow, id: "completed-order", status: "completed" });
+
+    expect(getActiveBuyerOrders([shipped, cancelled, completed])).toEqual([shipped]);
   });
 });

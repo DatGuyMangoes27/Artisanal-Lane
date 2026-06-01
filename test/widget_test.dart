@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
 import 'package:artisanal_lane/features/auth/screens/reset_password_screen.dart';
 import 'package:artisanal_lane/features/auth/utils/auth_redirects.dart';
+import 'package:artisanal_lane/features/auth/utils/forgot_password_validation.dart';
+import 'package:artisanal_lane/features/auth/utils/social_auth_error_messages.dart';
 import 'package:artisanal_lane/features/auth/screens/login_screen.dart';
 import 'package:artisanal_lane/features/auth/screens/welcome_screen.dart';
 import 'package:artisanal_lane/features/chat/utils/live_chat_messages.dart';
@@ -20,23 +22,35 @@ import 'package:artisanal_lane/features/buyer/utils/shop_profile_actions.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_destination.dart';
 import 'package:artisanal_lane/features/buyer/utils/cart_stock_guard.dart';
 import 'package:artisanal_lane/features/buyer/utils/product_detail_actions.dart';
+import 'package:artisanal_lane/features/buyer/utils/product_image_zoom.dart';
+import 'package:artisanal_lane/features/buyer/utils/product_sorting.dart';
+import 'package:artisanal_lane/features/buyer/utils/product_visibility.dart';
+import 'package:artisanal_lane/features/buyer/utils/receipt_reminders.dart';
+import 'package:artisanal_lane/features/buyer/utils/favourite_products.dart';
 import 'package:artisanal_lane/features/buyer/utils/buyer_home_copy.dart';
 import 'package:artisanal_lane/features/buyer/utils/checkout_validation.dart';
 import 'package:artisanal_lane/features/buyer/utils/checkout_shipping_layout.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_carousel.dart';
 import 'package:artisanal_lane/features/vendor/widgets/stationery_sheet_header.dart';
 import 'package:artisanal_lane/features/buyer/utils/search_results_layout.dart';
+import 'package:artisanal_lane/features/buyer/utils/search_trends.dart';
 import 'package:artisanal_lane/features/buyer/utils/payment_deep_links.dart';
+import 'package:artisanal_lane/features/buyer/utils/tracking_links.dart';
+import 'package:artisanal_lane/features/buyer/utils/order_history_filters.dart';
 import 'package:artisanal_lane/features/buyer/utils/product_shipping_checkout.dart';
 import 'package:artisanal_lane/features/buyer/utils/help_support_contact.dart';
+import 'package:artisanal_lane/features/buyer/utils/profile_avatar_upload.dart';
 import 'package:artisanal_lane/features/disputes/utils/dispute_attachment_support.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_fulfillment_options.dart';
 import 'package:artisanal_lane/features/vendor/providers/vendor_providers.dart';
 import 'package:artisanal_lane/features/vendor/screens/vendor_dashboard_screen.dart';
+import 'package:artisanal_lane/features/vendor/screens/vendor_application_screen.dart';
+import 'package:artisanal_lane/features/vendor/screens/vendor_order_detail_screen.dart';
 import 'package:artisanal_lane/features/vendor/screens/vendor_settings_screen.dart';
 import 'package:artisanal_lane/features/vendor/utils/product_form_copy.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_payout_setup.dart';
+import 'package:artisanal_lane/features/vendor/utils/vendor_earnings.dart';
 import 'package:artisanal_lane/models/cart_item.dart';
 import 'package:artisanal_lane/models/category.dart';
 import 'package:artisanal_lane/models/chat_message.dart';
@@ -48,8 +62,10 @@ import 'package:artisanal_lane/models/shipping_option.dart';
 import 'package:artisanal_lane/models/vendor_subscription.dart';
 import 'package:artisanal_lane/models/vendor_payout_profile.dart';
 import 'package:artisanal_lane/features/vendor/utils/vendor_onboarding_flow.dart';
+import 'package:artisanal_lane/widgets/african_patterns.dart';
 import 'package:artisanal_lane/widgets/buyer_shell.dart';
 import 'package:artisanal_lane/widgets/cart_nav_icon.dart';
+import 'package:artisanal_lane/widgets/gradient_button.dart';
 import 'package:artisanal_lane/widgets/unread_messages_fab.dart';
 import 'package:artisanal_lane/widgets/vendor_shell.dart';
 
@@ -63,6 +79,39 @@ void main() {
     expect(find.text('Artisan Lane'), findsOneWidget);
     expect(find.text('Sign In'), findsOneWidget);
     expect(find.text('Create Account'), findsOneWidget);
+  });
+
+  testWidgets('Welcome screen exposes terms of service as a link', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const ProviderScope(child: MaterialApp(home: WelcomeScreen())),
+    );
+    await tester.pump();
+
+    expect(find.widgetWithText(TextButton, 'Terms of Service'), findsOneWidget);
+  });
+
+  testWidgets('Footer brand mark displays the full logo', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: TripleDot())),
+    );
+
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.bySemanticsLabel('Artisan Lane logo'), findsOneWidget);
+  });
+
+  test('Profile avatar uploads are scoped to the current user', () {
+    expect(
+      profileAvatarStoragePath(
+        userId: 'user-1',
+        originalPath: 'photo.PNG',
+        timestampMillis: 123,
+      ),
+      'user-1/avatar-123.png',
+    );
   });
 
   testWidgets('Login screen shows social auth buttons', (
@@ -81,6 +130,25 @@ void main() {
       routeForAuthEvent(AuthChangeEvent.passwordRecovery),
       '/reset-password',
     );
+    expect(isPasswordRecoveryRoute('/reset-password'), isTrue);
+    expect(
+      routeForIncomingAuthRedirect(
+        Uri.parse('artisanlane://login-callback?type=recovery'),
+      ),
+      '/reset-password',
+    );
+    expect(
+      routeForIncomingAuthRedirect(
+        Uri.parse('artisanlane://login-callback#type=recovery'),
+      ),
+      '/reset-password',
+    );
+    expect(
+      routeForIncomingAuthRedirect(
+        Uri.parse('artisanlane://login-callback?type=signup'),
+      ),
+      isNull,
+    );
     expect(
       routeForAuthEvent(AuthChangeEvent.signedIn, role: 'vendor'),
       '/vendor',
@@ -91,6 +159,35 @@ void main() {
     );
     expect(routeForAuthEvent(AuthChangeEvent.signedIn), '/home');
     expect(routeForAuthEvent(AuthChangeEvent.signedOut), '/welcome');
+  });
+
+  test(
+    'Forgot password validation normalizes email and detects missing profiles',
+    () {
+      expect(
+        normalizeForgotPasswordEmail('  HANNAH@example.COM  '),
+        'hannah@example.com',
+      );
+      expect(isRegisteredEmailLookupResult({'id': 'profile-1'}), isTrue);
+      expect(isRegisteredEmailLookupResult(null), isFalse);
+      expect(
+        forgotPasswordEmailNotFoundMessage,
+        'No Artisan Lane account exists for this email address.',
+      );
+    },
+  );
+
+  test('Social auth errors are translated into friendly copy', () {
+    expect(
+      friendlySocialAuthError(
+        'GoogleSignInException(code GoogleSignInExceptionCode.canceled, [16] Account reauth failed., null)',
+      ),
+      'Google sign-in could not continue. Please try again or create an account.',
+    );
+    expect(
+      friendlySocialAuthError(Exception('Network unavailable')),
+      'Unable to start Google sign-in. Please check your connection and try again.',
+    );
   });
 
   testWidgets('Reset password screen shows the new password form', (
@@ -137,6 +234,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Delete Account'), findsOneWidget);
+    expect(find.text('Currency'), findsNothing);
   });
 
   testWidgets('Vendor settings screen exposes delete account action', (
@@ -174,6 +272,22 @@ void main() {
     );
   });
 
+  test('Vendor application contact chat includes review context', () {
+    final uri = vendorApplicationReviewWhatsappUri(
+      businessName: 'Luminousence Creative Group',
+    );
+
+    expect(uri.host, 'wa.me');
+    expect(
+      Uri.decodeComponent(uri.queryParameters['text']!),
+      contains('Luminousence Creative Group'),
+    );
+    expect(
+      Uri.decodeComponent(uri.queryParameters['text']!),
+      contains('vendor application'),
+    );
+  });
+
   test('Buyer home category hero relies on the card tap only', () {
     expect(buyerHomeCategoryHeroShowsInlineButton, isFalse);
   });
@@ -204,6 +318,18 @@ void main() {
         Uri.parse('https://artisanlanesa.co.za/payment/error'),
       ),
       '/cart',
+    );
+    expect(
+      resolvePaymentDeepLinkRoute(
+        Uri.parse('https://artisanlanesa.co.za/products/product-123'),
+      ),
+      '/home/product/product-123',
+    );
+    expect(
+      resolvePaymentDeepLinkRoute(
+        Uri.parse('https://artisanlanesa.co.za/shops/shop-123'),
+      ),
+      '/home/shop/shop-123',
     );
   });
 
@@ -410,6 +536,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserIdProvider.overrideWith((ref) => 'buyer-1'),
           currentProfileProvider.overrideWith(
             (ref) async => Profile(
               id: 'buyer-1',
@@ -425,7 +552,7 @@ void main() {
             (ref) async => const <Product>[],
           ),
           onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
-          spotlightShopProvider.overrideWith((ref) async => null),
+          spotlightShopsProvider.overrideWith((ref) async => const <Shop>[]),
           followingFeedProvider.overrideWith((ref) async => const []),
           buyerUnreadThreadsCountProvider.overrideWith((ref) => 2),
         ],
@@ -436,6 +563,64 @@ void main() {
 
     expect(find.byIcon(Icons.forum_rounded), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
+  });
+
+  testWidgets('buyer home artist spotlight shows multiple shops as carousel', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 5, 18, 15);
+    final older = now.subtract(const Duration(days: 1));
+    final spotlightShops = [
+      Shop(
+        id: 'shop-new',
+        vendorId: 'vendor-new',
+        name: 'New Spotlight Studio',
+        slug: 'new-spotlight-studio',
+        location: 'Cape Town',
+        isSpotlight: true,
+        spotlightedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      ),
+      Shop(
+        id: 'shop-older',
+        vendorId: 'vendor-older',
+        name: 'Older Spotlight Studio',
+        slug: 'older-spotlight-studio',
+        location: 'Durban',
+        isSpotlight: true,
+        spotlightedAt: older,
+        createdAt: older,
+        updatedAt: older,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          currentUserIdProvider.overrideWith((ref) => null),
+          currentProfileProvider.overrideWith((ref) async => null),
+          categoriesProvider.overrideWith((ref) async => const <Category>[]),
+          featuredProductsProvider.overrideWith(
+            (ref) async => const <Product>[],
+          ),
+          onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
+          freshArrivalsProvider.overrideWith((ref) async => const <Product>[]),
+          spotlightShopsProvider.overrideWith((ref) async => spotlightShops),
+          followingFeedProvider.overrideWith((ref) async => const []),
+          buyerUnreadThreadsCountProvider.overrideWith((ref) => 0),
+        ],
+        child: const MaterialApp(home: BuyerHomeScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Artist Spotlight'), findsOneWidget);
+    expect(find.text('New Spotlight Studio'), findsOneWidget);
+    expect(find.text('Older Spotlight Studio'), findsOneWidget);
   });
 
   testWidgets('buyer home fresh arrivals shows latest non-sale products', (
@@ -466,6 +651,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserIdProvider.overrideWith((ref) => null),
           currentProfileProvider.overrideWith((ref) async => null),
           categoriesProvider.overrideWith((ref) async => const <Category>[]),
           featuredProductsProvider.overrideWith(
@@ -473,7 +659,7 @@ void main() {
           ),
           onSaleProductsProvider.overrideWith((ref) async => const <Product>[]),
           freshArrivalsProvider.overrideWith((ref) async => [freshProduct]),
-          spotlightShopProvider.overrideWith((ref) async => null),
+          spotlightShopsProvider.overrideWith((ref) async => const <Shop>[]),
           followingFeedProvider.overrideWith((ref) async => const []),
           buyerUnreadThreadsCountProvider.overrideWith((ref) => 0),
         ],
@@ -575,6 +761,129 @@ void main() {
     expect(find.text('3'), findsWidgets);
   });
 
+  testWidgets('Vendor order detail wraps long tracking URLs', (tester) async {
+    final now = DateTime(2026, 5, 20);
+    const orderId = 'a3c9019d-1111-4222-8333-444444444444';
+    final order = Order(
+      id: orderId,
+      buyerId: 'buyer-1',
+      shopId: 'shop-1',
+      status: 'paid',
+      total: 50,
+      shippingMethod: 'market_pickup',
+      trackingNumber: '57475 57547 577474',
+      trackingUrl:
+          'https://www.lipsum.com/feed/html?very-long-query-string-that-should-wrap-inside-the-card=abcdefghijklmnopqrstuvwxyz',
+      shippingAddress: const {'name': 'Hannah Dalwai'},
+      buyerDisplayName: 'Hannah Dalwai',
+      buyerEmail: 'tester@seven.com',
+      buyerPhone: '0742270686',
+      createdAt: now,
+      updatedAt: now,
+      items: [
+        OrderItem(
+          id: 'item-1',
+          orderId: orderId,
+          productId: 'product-1',
+          productTitle: 'Aurora Collection: Press On Nails',
+          quantity: 1,
+          unitPrice: 50,
+          createdAt: now,
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          vendorOrderDetailStreamProvider(
+            orderId,
+          ).overrideWith((ref) => Stream.value(order)),
+        ],
+        child: const MaterialApp(
+          home: VendorOrderDetailScreen(orderId: orderId),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tracking URL'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Vendor application terms error scrolls back to the top banner', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [currentUserIdProvider.overrideWith((ref) => null)],
+        child: const MaterialApp(home: VendorApplicationScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final applicationScrollView = find.byType(Scrollable).first;
+    Finder fieldWithHint(String hint) =>
+        find.widgetWithText(TextFormField, hint);
+
+    await tester.scrollUntilVisible(
+      find.text('Business Name'),
+      160,
+      scrollable: applicationScrollView,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      fieldWithHint('Your craft business name'),
+      'Ninousence Creative Group',
+    );
+    await tester.scrollUntilVisible(
+      find.text('How will you fulfil orders?'),
+      160,
+      scrollable: applicationScrollView,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      fieldWithHint(
+        'e.g. I use Courier Guy for deliveries, or offer locker collection options',
+      ),
+      'I use courier delivery.',
+    );
+    await tester.scrollUntilVisible(
+      find.text('What is your typical turnaround time?'),
+      160,
+      scrollable: applicationScrollView,
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      fieldWithHint(
+        'e.g. 3–5 business days for ready stock, 10–14 days for custom orders',
+      ),
+      '3 to 5 business days.',
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Submit Application'),
+      160,
+      scrollable: applicationScrollView,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Application Review'), findsNothing);
+
+    final submitButton = find.byKey(const Key('vendorApplicationSubmitButton'));
+    await tester.ensureVisible(submitButton);
+    await tester.pumpAndSettle();
+    final button = tester.widget<GradientButton>(submitButton);
+    expect(button.onPressed, isNotNull);
+    button.onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Please accept the Terms & Conditions to continue.'),
+      findsOneWidget,
+    );
+    expect(find.text('Application Review'), findsOneWidget);
+  });
+
   test('Profile parses vendor approval dismissal timestamp', () {
     final profile = Profile.fromJson({
       'id': 'user-1',
@@ -618,6 +927,18 @@ void main() {
       businessRegistrationNumberLabel,
       'Business registration number (optional)',
     );
+  });
+
+  test('Vendor earnings exclude cancelled and pending orders', () {
+    expect(countsTowardVendorEarnings('paid'), isTrue);
+    expect(countsTowardVendorEarnings('shipped'), isTrue);
+    expect(countsTowardVendorEarnings('completed'), isTrue);
+    expect(countsTowardVendorEarnings('cancelled'), isFalse);
+    expect(countsTowardVendorEarnings('pending'), isFalse);
+    expect(escrowCountsTowardVendorEarnings('held'), isTrue);
+    expect(escrowCountsTowardVendorEarnings('released'), isTrue);
+    expect(escrowCountsTowardVendorEarnings('cancelled'), isFalse);
+    expect(escrowCountsTowardVendorEarnings('refunded'), isFalse);
   });
 
   test('Supported TradeSafe banks match the mapped backend list', () {
@@ -742,8 +1063,38 @@ void main() {
 
   test('Product share text is built from title and price', () {
     expect(
-      buildProductShareText(title: 'Hand-Stitched Leather Journal', price: 165),
-      'Check out Hand-Stitched Leather Journal on Artisan Lane! R165',
+      buildProductShareText(
+        productId: 'product-123',
+        title: 'Hand-Stitched Leather Journal',
+        price: 165,
+      ),
+      'Check out Hand-Stitched Leather Journal on Artisan Lane! R165\n'
+      'https://artisanlanesa.co.za/products/product-123',
+    );
+  });
+
+  test('Product image zoom uses visible gallery images with fallback', () {
+    expect(
+      productZoomImages(
+        displayImages: const ['https://example.com/front.jpg'],
+        fallbackImage: 'https://example.com/fallback.jpg',
+      ),
+      const ['https://example.com/front.jpg'],
+    );
+    expect(
+      productZoomImages(
+        displayImages: const [],
+        fallbackImage: 'https://example.com/fallback.jpg',
+      ),
+      const ['https://example.com/fallback.jpg'],
+    );
+  });
+
+  test('Shop share text includes the public shop link', () {
+    expect(
+      buildShopShareText(shopId: 'shop-123', shopName: 'Lianne Studio'),
+      'Check out Lianne Studio on Artisan Lane!\n'
+      'https://artisanlanesa.co.za/shops/shop-123',
     );
   });
 
@@ -752,10 +1103,371 @@ void main() {
     expect(requiresSignInForFavourite('user-1'), isFalse);
   });
 
+  test('Favourite product rows skip missing and unavailable product joins', () {
+    final products = favouriteProductsFromRows([
+      {'product_id': 'archived-product', 'products': null},
+      {
+        'product_id': 'sold-out-product',
+        'products': {
+          'id': 'sold-out-product',
+          'shop_id': 'shop-1',
+          'title': 'Sold Out Product',
+          'price': 120,
+          'stock_qty': 0,
+          'created_at': '2026-04-15T12:00:00.000Z',
+          'updated_at': '2026-04-15T12:00:00.000Z',
+        },
+      },
+      {
+        'product_id': 'visible-product',
+        'products': {
+          'id': 'visible-product',
+          'shop_id': 'shop-1',
+          'title': 'Visible Product',
+          'price': 120,
+          'stock_qty': 2,
+          'created_at': '2026-04-15T12:00:00.000Z',
+          'updated_at': '2026-04-15T12:00:00.000Z',
+        },
+      },
+    ]);
+
+    expect(products.map((product) => product.id), ['visible-product']);
+  });
+
+  test('Buyer-visible products must be published and in stock', () {
+    Product item({bool isPublished = true, int stockQty = 1}) => Product(
+      id: 'product',
+      shopId: 'shop-1',
+      title: 'Product',
+      price: 120,
+      stockQty: stockQty,
+      isPublished: isPublished,
+      createdAt: DateTime(2026, 5, 21),
+      updatedAt: DateTime(2026, 5, 21),
+    );
+
+    expect(isBuyerVisibleProduct(item()), isTrue);
+    expect(isBuyerVisibleProduct(item(stockQty: 0)), isFalse);
+    expect(isBuyerVisibleProduct(item(isPublished: false)), isFalse);
+  });
+
+  test('Favourite ids prefer live stream values over cached fetch values', () {
+    expect(
+      resolveFavouriteIds(
+        liveIds: const ['live-product'],
+        loadedIds: const ['cached-product'],
+      ),
+      const ['live-product'],
+    );
+    expect(resolveFavouriteIds(loadedIds: const ['cached-product']), const [
+      'cached-product',
+    ]);
+  });
+
   test('Basket actions require sign-in when browsing as a guest', () {
     expect(requiresSignInForCart(null), isTrue);
     expect(requiresSignInForCart(''), isTrue);
     expect(requiresSignInForCart('user-1'), isFalse);
+  });
+
+  test('Trending searches fall back to popular product terms', () {
+    expect(
+      resolveTrendingSearchTerms(
+        configuredTerms: const [],
+        fallbackTerms: const ['  Ceramics  ', 'ceramics', '', 'Leather'],
+      ),
+      const ['Ceramics', 'Leather'],
+    );
+    expect(
+      resolveTrendingSearchTerms(
+        configuredTerms: const ['Jewellery'],
+        fallbackTerms: const ['Ceramics'],
+      ),
+      const ['Jewellery'],
+    );
+  });
+
+  test('Product display sorting orders price low to high', () {
+    Product item(String id, double price) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: price,
+      createdAt: DateTime(2026, 4, 15),
+      updatedAt: DateTime(2026, 4, 15),
+    );
+
+    final sorted = sortProductsForDisplay(
+      [item('expensive', 950), item('cheap', 50), item('middle', 500)],
+      sortBy: 'price',
+      ascending: true,
+    );
+
+    expect(sorted.map((product) => product.id), [
+      'cheap',
+      'middle',
+      'expensive',
+    ]);
+  });
+
+  test('Product display sorting orders price high to low', () {
+    Product item(String id, double price) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: price,
+      createdAt: DateTime(2026, 4, 15),
+      updatedAt: DateTime(2026, 4, 15),
+    );
+
+    final sorted = sortProductsForDisplay(
+      [item('middle', 500), item('cheap', 50), item('expensive', 950)],
+      sortBy: 'price',
+      ascending: false,
+    );
+
+    expect(sorted.map((product) => product.id), [
+      'expensive',
+      'middle',
+      'cheap',
+    ]);
+  });
+
+  test('Product display sorting orders newest first', () {
+    Product item(String id, DateTime createdAt) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: 100,
+      createdAt: createdAt,
+      updatedAt: createdAt,
+    );
+
+    final sorted = sortProductsForDisplay(
+      [
+        item('older', DateTime(2026, 4, 10)),
+        item('newest', DateTime(2026, 4, 18)),
+        item('middle', DateTime(2026, 4, 14)),
+      ],
+      sortBy: 'created_at',
+      ascending: false,
+    );
+
+    expect(sorted.map((product) => product.id), ['newest', 'middle', 'older']);
+  });
+
+  test('Product display sorting orders title A to Z', () {
+    Product item(String id, String title) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: title,
+      price: 100,
+      createdAt: DateTime(2026, 4, 15),
+      updatedAt: DateTime(2026, 4, 15),
+    );
+
+    final sorted = sortProductsForDisplay(
+      [
+        item('zebra', 'Zebra Bowl'),
+        item('amber', 'amber Vase'),
+        item('middle', 'Moon Basket'),
+      ],
+      sortBy: 'title',
+      ascending: true,
+    );
+
+    expect(sorted.map((product) => product.id), ['amber', 'middle', 'zebra']);
+  });
+
+  test('Product display sorting orders popular items first', () {
+    Product item(
+      String id, {
+      bool isFeatured = false,
+      DateTime? featuredAt,
+      DateTime? createdAt,
+    }) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: 100,
+      isFeatured: isFeatured,
+      featuredAt: featuredAt,
+      createdAt: createdAt ?? DateTime(2026, 4, 15),
+      updatedAt: createdAt ?? DateTime(2026, 4, 15),
+    );
+
+    final sorted = sortProductsForDisplay(
+      [
+        item('regular-new', createdAt: DateTime(2026, 4, 18)),
+        item(
+          'featured-old',
+          isFeatured: true,
+          featuredAt: DateTime(2026, 4, 10),
+        ),
+        item(
+          'featured-new',
+          isFeatured: true,
+          featuredAt: DateTime(2026, 4, 17),
+        ),
+      ],
+      sortBy: 'popular',
+      ascending: false,
+    );
+
+    expect(sorted.map((product) => product.id), [
+      'featured-new',
+      'featured-old',
+      'regular-new',
+    ]);
+  });
+
+  test('Product display filters only on-sale items', () {
+    Product item(String id, {double? compareAtPrice}) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: 100,
+      compareAtPrice: compareAtPrice,
+      stockQty: 1,
+      createdAt: DateTime(2026, 4, 15),
+      updatedAt: DateTime(2026, 4, 15),
+    );
+
+    final filtered = filterProductsForDisplay([
+      item('sale', compareAtPrice: 150),
+      item('not-sale'),
+      item('invalid-sale', compareAtPrice: 90),
+    ], onSale: true);
+
+    expect(filtered.map((product) => product.id), ['sale']);
+  });
+
+  test('Product display filters out out-of-stock items', () {
+    Product item(String id, int stockQty) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: 100,
+      stockQty: stockQty,
+      createdAt: DateTime(2026, 5, 18),
+      updatedAt: DateTime(2026, 5, 18),
+    );
+
+    final filtered = filterProductsForDisplay([
+      item('available', 2),
+      item('sold-out', 0),
+    ]);
+
+    expect(filtered.map((product) => product.id), ['available']);
+  });
+
+  test('Search product display filters out out-of-stock items', () {
+    Product item(String id, int stockQty) => Product(
+      id: id,
+      shopId: 'shop-1',
+      title: id,
+      price: 100,
+      stockQty: stockQty,
+      createdAt: DateTime(2026, 5, 18),
+      updatedAt: DateTime(2026, 5, 18),
+    );
+
+    final filtered = filterSearchProductsForDisplay([
+      item('available', 2),
+      item('sold-out', 0),
+    ], selectedFilter: 0);
+
+    expect(filtered.map((product) => product.id), ['available']);
+  });
+
+  test('Tracking links normalize pasted courier URLs for opening', () {
+    expect(
+      normalizeTrackingUri(' courier.example/track/123 ')?.toString(),
+      'https://courier.example/track/123',
+    );
+    expect(
+      trackingUriLaunchCandidates(
+        'courier.example/track/123',
+      ).map((uri) => uri.toString()),
+      const [
+        'https://courier.example/track/123',
+        'http://courier.example/track/123',
+      ],
+    );
+    expect(
+      normalizeTrackingUri('https://courier.example/track/123')?.scheme,
+      'https',
+    );
+    expect(trackingUriLaunchCandidates('ftp://courier.example'), isEmpty);
+    expect(normalizeTrackingUri(''), isNull);
+  });
+
+  test('Order history hides cancelled orders by default', () {
+    Order order(String id, String status) => Order(
+      id: id,
+      buyerId: 'buyer-1',
+      shopId: 'shop-1',
+      status: status,
+      total: 100,
+      createdAt: DateTime(2026, 5, 18),
+      updatedAt: DateTime(2026, 5, 18),
+    );
+
+    final orders = [
+      order('paid-order-0001', 'paid'),
+      order('cancelled-order', 'cancelled'),
+    ];
+
+    expect(visibleOrderHistoryItems(orders).map((order) => order.id), [
+      'paid-order-0001',
+    ]);
+    expect(
+      visibleOrderHistoryItems(
+        orders,
+        hideCancelledOrders: false,
+      ).map((order) => order.id),
+      ['paid-order-0001', 'cancelled-order'],
+    );
+  });
+
+  test('Receipt reminders prompt only active shipped orders', () {
+    Order order(String status, {DateTime? shippedAt, DateTime? receivedAt}) =>
+        Order(
+          id: 'order-$status',
+          buyerId: 'buyer-1',
+          shopId: 'shop-1',
+          status: status,
+          total: 100,
+          shippedAt: shippedAt,
+          receivedAt: receivedAt,
+          createdAt: DateTime(2026, 5, 18),
+          updatedAt: DateTime(2026, 5, 18),
+        );
+
+    expect(
+      shouldPromptReceiptReminder(
+        order('shipped', shippedAt: DateTime(2026, 5, 15)),
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPromptReceiptReminder(
+        order('delivered', shippedAt: DateTime(2026, 5, 15)),
+      ),
+      isTrue,
+    );
+    expect(
+      shouldPromptReceiptReminder(
+        order(
+          'completed',
+          shippedAt: DateTime(2026, 5, 15),
+          receivedAt: DateTime(2026, 5, 18),
+        ),
+      ),
+      isFalse,
+    );
+    expect(shouldPromptReceiptReminder(order('disputed')), isFalse);
   });
 
   test(

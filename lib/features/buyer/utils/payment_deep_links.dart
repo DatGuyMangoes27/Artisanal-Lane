@@ -1,25 +1,35 @@
 final Uri paymentSuccessDeepLink = Uri.parse('artisanlane://payment/success');
 final Uri paymentFailureDeepLink = Uri.parse('artisanlane://payment/error');
-final Uri vendorSubscriptionSuccessDeepLink =
-    Uri.parse('artisanlane://vendor-subscription/success');
-final Uri vendorSubscriptionFailureDeepLink =
-    Uri.parse('artisanlane://vendor-subscription/error');
-final Uri vendorStationerySuccessDeepLink =
-    Uri.parse('artisanlane://vendor-stationery/success');
-final Uri vendorStationeryFailureDeepLink =
-    Uri.parse('artisanlane://vendor-stationery/error');
-final Uri paymentSuccessWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/payment/success');
-final Uri paymentFailureWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/payment/error');
-final Uri vendorSubscriptionSuccessWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/vendor/subscription/success');
-final Uri vendorSubscriptionFailureWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/vendor/subscription/error');
-final Uri vendorStationerySuccessWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/vendor/stationery/success');
-final Uri vendorStationeryFailureWebUrl =
-    Uri.parse('https://artisanlanesa.co.za/vendor/stationery/error');
+final Uri vendorSubscriptionSuccessDeepLink = Uri.parse(
+  'artisanlane://vendor-subscription/success',
+);
+final Uri vendorSubscriptionFailureDeepLink = Uri.parse(
+  'artisanlane://vendor-subscription/error',
+);
+final Uri vendorStationerySuccessDeepLink = Uri.parse(
+  'artisanlane://vendor-stationery/success',
+);
+final Uri vendorStationeryFailureDeepLink = Uri.parse(
+  'artisanlane://vendor-stationery/error',
+);
+final Uri paymentSuccessWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/payment/success',
+);
+final Uri paymentFailureWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/payment/error',
+);
+final Uri vendorSubscriptionSuccessWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/vendor/subscription/success',
+);
+final Uri vendorSubscriptionFailureWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/vendor/subscription/error',
+);
+final Uri vendorStationerySuccessWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/vendor/stationery/success',
+);
+final Uri vendorStationeryFailureWebUrl = Uri.parse(
+  'https://artisanlanesa.co.za/vendor/stationery/error',
+);
 
 String? resolvePaymentDeepLinkRoute(Uri uri) {
   if (uri.scheme == 'artisanlane' && uri.host == 'payment') {
@@ -57,6 +67,15 @@ String? resolvePaymentDeepLinkRoute(Uri uri) {
 
   final normalizedHost = uri.host.toLowerCase();
   if (uri.scheme == 'https' && normalizedHost == 'artisanlanesa.co.za') {
+    final productId = _productIdFromWebPath(uri.pathSegments);
+    if (productId != null) {
+      return '/home/product/${Uri.encodeComponent(productId)}';
+    }
+    final shopId = _shopIdFromWebPath(uri.pathSegments);
+    if (shopId != null) {
+      return '/home/shop/${Uri.encodeComponent(shopId)}';
+    }
+
     switch (uri.path) {
       case '/payment/success':
         return '/cart/confirmation';
@@ -76,4 +95,18 @@ String? resolvePaymentDeepLinkRoute(Uri uri) {
   }
 
   return null;
+}
+
+String? _productIdFromWebPath(List<String> pathSegments) {
+  if (pathSegments.length != 2) return null;
+  if (pathSegments.first != 'products') return null;
+  final productId = pathSegments[1].trim();
+  return productId.isEmpty ? null : productId;
+}
+
+String? _shopIdFromWebPath(List<String> pathSegments) {
+  if (pathSegments.length != 2) return null;
+  if (pathSegments.first != 'shops') return null;
+  final shopId = pathSegments[1].trim();
+  return shopId.isEmpty ? null : shopId;
 }

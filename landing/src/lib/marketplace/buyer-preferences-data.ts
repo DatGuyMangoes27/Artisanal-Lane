@@ -29,11 +29,11 @@ export async function listSavedAddresses(userId: string) {
     .from("profiles")
     .select("shipping_addresses")
     .eq("id", userId)
-    .single<{ shipping_addresses: unknown }>();
+    .maybeSingle<{ shipping_addresses: unknown }>();
 
   if (error) {
     throw new Error("Failed to load saved addresses", { cause: error });
   }
 
-  return normalizeSavedAddresses(data.shipping_addresses);
+  return normalizeSavedAddresses(data?.shipping_addresses ?? null);
 }

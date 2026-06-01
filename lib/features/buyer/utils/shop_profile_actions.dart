@@ -1,5 +1,12 @@
 enum ShopMessageTapOutcome { promptSignIn, openChat }
 
+const String shopShareBaseUrl = 'https://artisanlanesa.co.za/shops';
+
+String buildShopShareText({required String shopId, required String shopName}) {
+  final shopUrl = '$shopShareBaseUrl/${Uri.encodeComponent(shopId)}';
+  return 'Check out $shopName on Artisan Lane!\n$shopUrl';
+}
+
 String? shopCollectionMetaLabel(int? productCount) {
   if (productCount == null) return null;
   return '$productCount pieces';

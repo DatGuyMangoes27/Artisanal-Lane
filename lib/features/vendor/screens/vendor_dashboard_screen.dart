@@ -41,7 +41,8 @@ class VendorDashboardScreen extends ConsumerWidget {
         if (shop == null) {
           if (profile?.hasSeenVendorApproval != true) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) GoRouter.of(context).go('/vendor/onboarding');
+              if (context.mounted)
+                GoRouter.of(context).go('/vendor/onboarding');
             });
             return Scaffold(
               backgroundColor: AppTheme.scaffoldBg,
@@ -124,7 +125,8 @@ class _VendorSetupContent extends ConsumerWidget {
                 payoutReady: payoutReady,
                 onOpenPayouts: () => context.push('/vendor/profile/payouts'),
                 onOpenShop: () => context.push('/vendor/profile/shop'),
-                onOpenStationery: () => context.push('/vendor/profile/stationery'),
+                onOpenStationery: () =>
+                    context.push('/vendor/profile/stationery'),
               ),
             ],
           ),
@@ -223,18 +225,16 @@ class _DashboardContent extends ConsumerWidget {
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
-    final subscription =
-        ref.watch(vendorSubscriptionStreamProvider).value ??
-        ref.watch(vendorSubscriptionProvider).value;
+    final subscription = preferredVendorSubscription(
+      streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
+      futureValue: ref.watch(vendorSubscriptionProvider).value,
+    );
     final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       floatingActionButton: unreadMessages > 0
-          ? UnreadMessagesFab(
-              count: unreadMessages,
-              route: '/vendor/messages',
-            )
+          ? UnreadMessagesFab(count: unreadMessages, route: '/vendor/messages')
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: SafeArea(
@@ -1735,11 +1735,7 @@ class _PayoutBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.shield_outlined,
-            size: 20,
-            color: AppTheme.ochre,
-          ),
+          const Icon(Icons.shield_outlined, size: 20, color: AppTheme.ochre),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -1800,7 +1796,9 @@ class _SubscriptionBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  vendorSubscriptionStatusTitle(subscription?.status ?? 'inactive'),
+                  vendorSubscriptionStatusTitle(
+                    subscription?.status ?? 'inactive',
+                  ),
                   style: GoogleFonts.poppins(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -1918,7 +1916,9 @@ class _ChecklistRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              isComplete ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              isComplete
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
               color: isComplete ? AppTheme.baobab : AppTheme.ochre,
             ),
             const SizedBox(width: 12),

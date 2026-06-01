@@ -156,6 +156,13 @@ Deno.serve(async (request) => {
       throw new Error(error.message);
     }
 
+    const { data: expiredReservationQuantity, error: expiredReservationError } =
+      await admin.rpc("expire_product_reservations");
+
+    if (expiredReservationError) {
+      throw new Error(expiredReservationError.message);
+    }
+
     const cancelled = (data ?? []) as CancelledCheckout[];
     const upstreamResults = await Promise.allSettled(
       cancelled
@@ -181,6 +188,7 @@ Deno.serve(async (request) => {
         (sum, order) => sum + order.restored_item_count,
         0,
       ),
+      expiredReservationQuantity: expiredReservationQuantity ?? 0,
       upstreamCancelled,
       upstreamFailed,
       reconciledPaidCount: reconciliation.reconciled.length,

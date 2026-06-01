@@ -12,7 +12,12 @@ type ChatRecipient = {
 };
 
 export type PushRecipientRole = "buyer" | "vendor";
-export type OrderPushEvent = "paid" | "shipped" | "completed" | "cancelled";
+export type OrderPushEvent =
+  | "paid"
+  | "shipped"
+  | "receipt_reminder"
+  | "completed"
+  | "cancelled";
 export type DisputePushEvent = "opened" | "resolved";
 
 export type PushPayload = {
@@ -20,6 +25,17 @@ export type PushPayload = {
   body: string;
   data: Record<string, string>;
 };
+
+export function buildStoredNotification(userId: string, payload: PushPayload) {
+  return {
+    user_id: userId,
+    title: payload.title,
+    body: payload.body,
+    notification_type: payload.data.type ?? "general",
+    event_key: notificationEventKey(payload),
+    data: payload.data,
+  };
+}
 
 export function recipientForChatMessage(
   thread: ChatThreadPushRow,
@@ -83,12 +99,14 @@ export function buildOrderPush({
   recipientRole,
   shopName,
   trackingNumber,
+  reminderKey,
 }: {
   event: OrderPushEvent;
   orderId: string;
   recipientRole: PushRecipientRole;
   shopName?: string | null;
   trackingNumber?: string | null;
+  reminderKey?: string | null;
 }): PushPayload {
   const storeName = shopName?.trim() || "Artisan Lane";
   const copy = orderPushCopy({
@@ -106,6 +124,7 @@ export function buildOrderPush({
       order_id: orderId,
       event,
       recipient_role: recipientRole,
+      ...(reminderKey ? { reminder_key: reminderKey } : {}),
     },
   };
 }
@@ -197,6 +216,14 @@ function orderPushCopy({
     };
   }
 
+  if (event === "receipt_reminder") {
+    return {
+      title: "Have you received your order?",
+      body:
+        `If your order from ${shopName} has arrived, please mark it as received so the artisan can be paid.`,
+    };
+  }
+
   if (event === "completed" && recipientRole === "vendor") {
     return {
       title: "Order completed",
@@ -246,6 +273,44 @@ function disputePushBody({
   }
 
   return `Your dispute for an order from ${shopName} was resolved.`;
+}
+
+function notificationEventKey(payload: PushPayload) {
+  const type = payload.data.type ?? "general";
+  const role = payload.data.recipient_role ?? "recipient";
+
+  if (type === "chat_message") {
+    const messageId = payload.data.message_id;
+    return messageId ? `${type}:${messageId}:${role}` : fallbackEventKey(payload);
+  }
+
+  if (type === "order_update") {
+    const orderId = payload.data.order_id;
+    const event = payload.data.event ?? "update";
+    const reminderKey = payload.data.reminder_key;
+    if (orderId && event === "receipt_reminder" && reminderKey) {
+      return `${type}:${orderId}:${event}:${reminderKey}:${role}`;
+    }
+    return orderId
+      ? `${type}:${orderId}:${event}:${role}`
+      : fallbackEventKey(payload);
+  }
+
+  if (type === "dispute_update") {
+    const disputeId = payload.data.dispute_id;
+    const event = payload.data.event ?? "update";
+    return disputeId
+      ? `${type}:${disputeId}:${event}:${role}`
+      : fallbackEventKey(payload);
+  }
+
+  return fallbackEventKey(payload);
+}
+
+function fallbackEventKey(payload: PushPayload) {
+  return `${payload.data.type ?? "general"}:${payload.title}:${payload.body}:${
+    JSON.stringify(payload.data)
+  }`;
 }
 
 export type FirebaseServiceAccount = {

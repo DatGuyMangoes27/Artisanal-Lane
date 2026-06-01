@@ -20,6 +20,30 @@ export type CartLine = {
   isAvailable: boolean;
 };
 
+export type CheckoutField =
+  | "fullName"
+  | "streetAddress"
+  | "city"
+  | "postalCode"
+  | "province"
+  | "phoneNumber"
+  | "shippingMethod"
+  | "pickupPoint";
+
+export type CheckoutFormSnapshot = {
+  fullName: string;
+  streetAddress: string;
+  city: string;
+  postalCode: string;
+  province: string | null;
+  phoneNumber: string;
+  selectedShippingMethod: string | null;
+  hasAvailableShippingMethods: boolean;
+  requiresShippingAddress: boolean;
+  requiresPickupPoint: boolean;
+  pickupPoint: string;
+};
+
 export const multiShopCheckoutMessage =
   "Checkout currently supports one artisan shop per order. Please complete each shop separately.";
 
@@ -145,4 +169,34 @@ export function getSavedAddressCheckoutFields(address: SavedAddress) {
     postalCode: address.postalCode,
     province: address.province,
   };
+}
+
+export function firstIncompleteCheckoutField(snapshot: CheckoutFormSnapshot): CheckoutField | null {
+  if (snapshot.fullName.trim().length === 0) return "fullName";
+  if (snapshot.requiresShippingAddress) {
+    if (snapshot.streetAddress.trim().length === 0) return "streetAddress";
+    if (snapshot.city.trim().length === 0) return "city";
+    if (snapshot.postalCode.trim().length === 0) return "postalCode";
+    if ((snapshot.province ?? "").trim().length === 0) return "province";
+  }
+  if (snapshot.phoneNumber.trim().length === 0) return "phoneNumber";
+  if (!snapshot.hasAvailableShippingMethods || !snapshot.selectedShippingMethod?.trim()) {
+    return "shippingMethod";
+  }
+  if (snapshot.requiresPickupPoint && snapshot.pickupPoint.trim().length === 0) {
+    return "pickupPoint";
+  }
+
+  return null;
+}
+
+export function checkoutBlockingMessage(field: CheckoutField | null) {
+  if (field === "pickupPoint") {
+    return "Please enter the pickup point or drop-off location for this shipping method.";
+  }
+  if (field === "shippingMethod") {
+    return "This product does not have any shipping options available yet.";
+  }
+
+  return "Please complete your checkout details before continuing to TradeSafe.";
 }

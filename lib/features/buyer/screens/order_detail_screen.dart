@@ -14,20 +14,14 @@ import '../../../widgets/african_patterns.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/receipt_reminders.dart';
+import '../utils/tracking_links.dart';
 import '../widgets/review_widgets.dart';
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
 
   const OrderDetailScreen({super.key, required this.orderId});
-
-  static Uri? _trackingUri(String? value) {
-    if (value == null) return null;
-    final trimmed = value.trim();
-    if (trimmed.isEmpty) return null;
-    final normalized = trimmed.contains('://') ? trimmed : 'https://$trimmed';
-    return Uri.tryParse(normalized);
-  }
 
   Future<void> _copyTrackingNumber(
     BuildContext context,
@@ -46,8 +40,8 @@ class OrderDetailScreen extends ConsumerWidget {
     BuildContext context,
     String trackingUrl,
   ) async {
-    final uri = _trackingUri(trackingUrl);
-    if (uri == null) {
+    final candidates = trackingUriLaunchCandidates(trackingUrl);
+    if (candidates.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -59,7 +53,20 @@ class OrderDetailScreen extends ConsumerWidget {
       );
       return;
     }
-    final launched = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+
+    var launched = false;
+    for (final uri in candidates) {
+      try {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!launched) {
+          launched = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        }
+      } catch (_) {
+        launched = false;
+      }
+      if (launched) break;
+    }
+
     if (launched || !context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -88,7 +95,9 @@ class OrderDetailScreen extends ConsumerWidget {
       return;
     }
 
-    final isEligible = await ref.read(canReviewProductProvider(item.productId).future);
+    final isEligible = await ref.read(
+      canReviewProductProvider(item.productId).future,
+    );
     if (!isEligible) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -306,24 +315,23 @@ class OrderDetailScreen extends ConsumerWidget {
                                 _openTrackingUrl(context, order.trackingUrl!),
                           ),
                         ],
-                        if (order.shippingAddress != null) ...[
+                        if (order.shippingAddressSummary != null) ...[
                           const SizedBox(height: 16),
                           _Divider(),
                           const SizedBox(height: 16),
                           _ShippingInfoRow(
                             icon: Icons.location_on_outlined,
-                            text:
-                                '${order.shippingAddress!['street']}, ${order.shippingAddress!['city']} ${order.shippingAddress!['postal_code']}',
+                            text: order.shippingAddressSummary!,
                           ),
-                          if ((order.pickupPointSummary ?? '').isNotEmpty) ...[
-                            const SizedBox(height: 16),
-                            _Divider(),
-                            const SizedBox(height: 16),
-                            _ShippingInfoRow(
-                              icon: Icons.pin_drop_outlined,
-                              text: 'Pickup point: ${order.pickupPointSummary}',
-                            ),
-                          ],
+                        ],
+                        if ((order.pickupPointSummary ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          _Divider(),
+                          const SizedBox(height: 16),
+                          _ShippingInfoRow(
+                            icon: Icons.pin_drop_outlined,
+                            text: 'Pickup point: ${order.pickupPointSummary}',
+                          ),
                         ],
                         if (order.shippingMethod == 'market_pickup') ...[
                           const SizedBox(height: 16),
@@ -365,6 +373,14 @@ class OrderDetailScreen extends ConsumerWidget {
                   ],
 
                   const SizedBox(height: 40),
+
+                  if (shouldPromptReceiptReminder(order)) ...[
+                    _ReceiptReminderCard(
+                      onConfirmTap: () =>
+                          context.push('/profile/orders/${order.id}/confirm'),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
 
                   // ── Action Buttons ─────────────────────────
                   if (order.status == 'shipped' ||
@@ -692,7 +708,9 @@ class _CompletedOrderReviewSection extends ConsumerWidget {
     var isLoading = false;
     final reviewableItems = <OrderItem>[];
     for (final item in items) {
-      final canReviewAsync = ref.watch(canReviewProductProvider(item.productId));
+      final canReviewAsync = ref.watch(
+        canReviewProductProvider(item.productId),
+      );
       if (canReviewAsync.isLoading) {
         isLoading = true;
       }
@@ -731,6 +749,82 @@ class _CompletedOrderReviewSection extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ReceiptReminderCard extends StatelessWidget {
+  final VoidCallback onConfirmTap;
+
+  const _ReceiptReminderCard({required this.onConfirmTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.ochre.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.ochre.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.82),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              color: AppTheme.ochre,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Have you received this order?',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Mark it as received once it arrives so the artisan can be paid.',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: onConfirmTap,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.ochre,
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    textStyle: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  child: const Text('Confirm receipt'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

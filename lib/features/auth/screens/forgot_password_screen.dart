@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
+import '../utils/forgot_password_validation.dart';
 import '../../../widgets/gradient_button.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -33,8 +34,25 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _errorMessage = null;
     });
     try {
+      final email = normalizeForgotPasswordEmail(_emailController.text);
+      final profileRows = await Supabase.instance.client
+          .from('profiles')
+          .select('id')
+          .ilike('email', email)
+          .limit(1);
+      final profileRow = profileRows is List && profileRows.isNotEmpty
+          ? profileRows.first
+          : null;
+
+      if (!isRegisteredEmailLookupResult(profileRow)) {
+        if (mounted) {
+          setState(() => _errorMessage = forgotPasswordEmailNotFoundMessage);
+        }
+        return;
+      }
+
       await Supabase.instance.client.auth.resetPasswordForEmail(
-        _emailController.text.trim(),
+        email,
         redirectTo: AppConstants.authRedirectUrl,
       );
       if (mounted) setState(() => _emailSent = true);

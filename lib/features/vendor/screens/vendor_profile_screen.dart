@@ -15,9 +15,10 @@ class VendorProfileScreen extends ConsumerWidget {
     final shopAsync = ref.watch(vendorShopProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
-    final subscription =
-        ref.watch(vendorSubscriptionStreamProvider).value ??
-        ref.watch(vendorSubscriptionProvider).value;
+    final subscription = preferredVendorSubscription(
+      streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
+      futureValue: ref.watch(vendorSubscriptionProvider).value,
+    );
     final subscriptionSubtitle = isVendorSubscriptionActive(subscription)
         ? vendorSubscriptionStatusMessage(subscription)
         : 'Manage your R349/month PayFast artisan subscription';
@@ -142,7 +143,7 @@ class VendorProfileScreen extends ConsumerWidget {
                 context,
                 Icons.settings_outlined,
                 'Settings',
-                'Notifications, language, and more',
+                'Notifications and more',
                 () => context.push('/vendor/profile/settings'),
               ),
             ],
@@ -157,9 +158,9 @@ class VendorProfileScreen extends ConsumerWidget {
     IconData icon,
     String title,
     String subtitle,
-    VoidCallback onTap,
-    {int badgeCount = 0}
-  ) {
+    VoidCallback onTap, {
+    int badgeCount = 0,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(

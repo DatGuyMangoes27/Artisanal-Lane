@@ -8,6 +8,11 @@ import { useGuestCart } from "@/components/marketplace/guest-cart-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildCartLines, getCartSubtotal, getCheckoutBlocker } from "@/lib/marketplace/checkout";
+import {
+  getGuestCartReservationToken,
+  releaseGuestCartItem,
+  reserveGuestCartItem,
+} from "@/lib/marketplace/cart-reservations";
 import { formatPrice } from "@/lib/marketplace/format";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 
@@ -15,6 +20,7 @@ export function CartReview() {
   const { items, quantity, updateItemQuantity, removeItem } = useGuestCart();
   const [products, setProducts] = useState<MarketplaceProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [reservationError, setReservationError] = useState<string | null>(null);
 
   useEffect(() => {
     let isCurrent = true;
@@ -22,7 +28,7 @@ export function CartReview() {
     fetch("/api/marketplace/cart", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, reservationToken: getGuestCartReservationToken() }),
     })
       .then((response) => response.json() as Promise<{ products: MarketplaceProduct[] }>)
       .then((payload) => {
@@ -44,6 +50,28 @@ export function CartReview() {
   const lines = useMemo(() => buildCartLines(items, products), [items, products]);
   const subtotal = getCartSubtotal(lines);
   const blocker = getCheckoutBlocker(lines);
+
+  async function updateReservedQuantity(line: (typeof lines)[number], nextQuantity: number) {
+    setReservationError(null);
+
+    try {
+      if (nextQuantity <= 0) {
+        await releaseGuestCartItem({
+          productId: line.productId,
+          variantId: line.variantId,
+        });
+      } else {
+        await reserveGuestCartItem({
+          productId: line.productId,
+          variantId: line.variantId,
+          quantity: nextQuantity,
+        });
+      }
+      updateItemQuantity(line.key, nextQuantity);
+    } catch (error) {
+      setReservationError(error instanceof Error ? error.message : "Could not update reserved stock.");
+    }
+  }
 
   if (quantity === 0) {
     return (
@@ -105,7 +133,7 @@ export function CartReview() {
                         variant="outline"
                         size="icon-sm"
                         aria-label={`Decrease ${line.title} quantity`}
-                        onClick={() => updateItemQuantity(line.key, line.quantity - 1)}
+                        onClick={() => updateReservedQuantity(line, line.quantity - 1)}
                       >
                         -
                       </Button>
@@ -115,7 +143,7 @@ export function CartReview() {
                         variant="outline"
                         size="icon-sm"
                         aria-label={`Increase ${line.title} quantity`}
-                        onClick={() => updateItemQuantity(line.key, line.quantity + 1)}
+                        onClick={() => updateReservedQuantity(line, line.quantity + 1)}
                       >
                         +
                       </Button>
@@ -123,7 +151,20 @@ export function CartReview() {
                         type="button"
                         variant="ghost"
                         className="text-muted-foreground"
-                        onClick={() => removeItem(line.key)}
+                        onClick={async () => {
+                          setReservationError(null);
+                          try {
+                            await releaseGuestCartItem({
+                              productId: line.productId,
+                              variantId: line.variantId,
+                            });
+                            removeItem(line.key);
+                          } catch (error) {
+                            setReservationError(
+                              error instanceof Error ? error.message : "Could not release reserved stock.",
+                            );
+                          }
+                        }}
                       >
                         Remove
                       </Button>
@@ -152,6 +193,11 @@ export function CartReview() {
         {blocker ? (
           <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             {blocker}
+          </p>
+        ) : null}
+        {reservationError ? (
+          <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {reservationError}
           </p>
         ) : null}
         <Button asChild size="lg" className="mt-6 w-full rounded-full" disabled={Boolean(blocker)}>

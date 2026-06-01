@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../providers/auth_providers.dart';
+import '../utils/social_auth_error_messages.dart';
 import '../../../widgets/gradient_button.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -106,9 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(
-          () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
-        );
+        setState(() => _errorMessage = friendlySocialAuthError(e));
       }
     } finally {
       if (mounted) {

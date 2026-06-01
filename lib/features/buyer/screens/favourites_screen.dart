@@ -81,9 +81,13 @@ class FavouritesScreen extends ConsumerWidget {
                   isFavourite: true,
                   onFavouriteToggle: () async {
                     final service = ref.read(supabaseServiceProvider);
-                    await service.removeFavourite(Supabase.instance.client.auth.currentUser!.id, items[index].id);
+                    await service.removeFavourite(
+                      Supabase.instance.client.auth.currentUser!.id,
+                      items[index].id,
+                    );
                     ref.invalidate(favouriteProductsProvider);
                     ref.invalidate(favouriteIdsProvider);
+                    ref.invalidate(favouriteIdsStreamProvider);
                   },
                 ),
                 childCount: items.length,
@@ -177,7 +181,10 @@ class FavouritesScreen extends ConsumerWidget {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppTheme.terracotta,
                 side: const BorderSide(color: AppTheme.terracotta),
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),

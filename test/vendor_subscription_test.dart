@@ -16,7 +16,7 @@ void main() {
     DateTime? periodEnd,
     String status = 'active',
   }) {
-    final now = DateTime(2026, 4, 15);
+    final now = DateTime.now();
     return VendorSubscription(
       vendorId: 'vendor-1',
       planCode: 'artisan-monthly',
@@ -118,17 +118,20 @@ void main() {
     expect(vendorSubscriptionGateMessage, contains('free first two months'));
   });
 
-  test('inactive subscription CTA uses the shorter two-month free-trial label', () {
-    expect(
-      vendorSubscriptionCtaLabel(
-        status: 'inactive',
-        isSubscriptionLoading: false,
-        isActivating: false,
-        isCancelledButAccessible: false,
-      ),
-      'Start 2-Month Free Trial',
-    );
-  });
+  test(
+    'inactive subscription CTA uses the shorter two-month free-trial label',
+    () {
+      expect(
+        vendorSubscriptionCtaLabel(
+          status: 'inactive',
+          isSubscriptionLoading: false,
+          isActivating: false,
+          isCancelledButAccessible: false,
+        ),
+        'Start 2-Month Free Trial',
+      );
+    },
+  );
 
   test('pending subscription helper copy falls back to inactive state', () {
     expect(vendorSubscriptionStatusTitle('pending'), 'Subscription inactive');
@@ -157,25 +160,52 @@ void main() {
     expect(subscription.status, 'inactive');
   });
 
-  testWidgets('subscription screen uses the shorter two-month free-trial CTA copy', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          vendorSubscriptionProvider.overrideWith((ref) async => null),
-          vendorSubscriptionStreamProvider.overrideWith(
-            (ref) => Stream.value(null),
-          ),
-        ],
-        child: const MaterialApp(home: VendorSubscriptionScreen()),
-      ),
+  test('fresher subscription data wins over stale stream state', () {
+    final olderInactive = activeSubscription(
+      status: 'inactive',
+      periodEnd: DateTime(2026, 5, 1),
     );
-    await tester.pumpAndSettle();
+    final newerActive = activeSubscription(periodEnd: DateTime(2026, 6, 1));
 
-    expect(find.text('Start Subscription • R349/month'), findsNothing);
-    expect(find.textContaining('First two months free'), findsWidgets);
+    final selected = preferredVendorSubscription(
+      streamValue: olderInactive,
+      futureValue: newerActive,
+    );
+
+    expect(selected, same(newerActive));
+    expect(isVendorSubscriptionActive(selected), isTrue);
   });
+
+  test('already active checkout errors are treated as refreshable state', () {
+    expect(
+      isVendorSubscriptionAlreadyActiveError(
+        'FunctionException(status: 400, details: {error: Your artisan subscription is already active.})',
+      ),
+      isTrue,
+    );
+    expect(isVendorSubscriptionAlreadyActiveError('network failed'), isFalse);
+  });
+
+  testWidgets(
+    'subscription screen uses the shorter two-month free-trial CTA copy',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            vendorSubscriptionProvider.overrideWith((ref) async => null),
+            vendorSubscriptionStreamProvider.overrideWith(
+              (ref) => Stream.value(null),
+            ),
+          ],
+          child: const MaterialApp(home: VendorSubscriptionScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Start Subscription • R349/month'), findsNothing);
+      expect(find.textContaining('First two months free'), findsWidgets);
+    },
+  );
 
   testWidgets(
     'subscription screen shows loading state instead of inactive fallback',
@@ -304,9 +334,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final categoryDropdown = find.byWidgetPredicate(
-      (widget) => widget is DropdownButtonFormField<String>,
-    ).first;
+    final categoryDropdown = find
+        .byWidgetPredicate(
+          (widget) => widget is DropdownButtonFormField<String>,
+        )
+        .first;
 
     await tester.ensureVisible(categoryDropdown);
     await tester.tap(categoryDropdown);

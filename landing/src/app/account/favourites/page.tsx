@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { toggleFavouriteProduct } from "@/app/account/actions";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
@@ -43,17 +42,12 @@ export default async function FavouritesPage() {
         ) : (
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {products.map((product) => (
-              <div key={product.id} className="space-y-3">
-                <ProductCard product={product} />
-                <form action={toggleFavouriteProduct}>
-                  <input type="hidden" name="productId" value={product.id} />
-                  <input type="hidden" name="action" value="remove" />
-                  <input type="hidden" name="redirectTo" value="/account/favourites" />
-                  <Button type="submit" variant="outline" className="w-full rounded-full">
-                    Remove favourite
-                  </Button>
-                </form>
-              </div>
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavourite
+                redirectTo="/account/favourites"
+              />
             ))}
           </div>
         )}

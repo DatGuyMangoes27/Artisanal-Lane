@@ -12,10 +12,10 @@ export default function BuyerLoginPage() {
             Artisan Lane
           </p>
           <h1 className="mt-3 font-serif text-5xl font-semibold text-artisan-sienna">
-            Buyer Account
+            Account Access
           </h1>
           <p className="mt-3 text-sm text-muted-foreground">
-            Sign in when you are ready to pay. Browsing and cart building stay open to guests.
+            Choose buyer or vendor access, then we will route you to the right workspace for your account.
           </p>
         </div>
         <Suspense fallback={null}>

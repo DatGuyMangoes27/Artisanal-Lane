@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { listBuyerOrders, requireBuyerAccountSession } from "@/lib/marketplace/account";
 import { formatPrice } from "@/lib/marketplace/format";
 import {
+  canConfirmReceipt,
   formatOrderStatus,
   formatShippingMethod,
   getOrderGrandTotal,
@@ -62,6 +63,9 @@ export default async function BuyerOrdersPage() {
                           Order #{order.shortId}
                         </h2>
                         <Badge variant="outline">{formatOrderStatus(order.status)}</Badge>
+                        {canConfirmReceipt(order) ? (
+                          <Badge className="bg-artisan-terracotta">Confirm receipt</Badge>
+                        ) : null}
                       </div>
                       <p className="mt-2 text-sm text-muted-foreground">
                         {order.shopName} • {formatShippingMethod(order.shippingMethod)}

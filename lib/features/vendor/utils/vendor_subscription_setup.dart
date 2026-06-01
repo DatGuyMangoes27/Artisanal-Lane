@@ -27,6 +27,28 @@ bool isVendorSubscriptionCancelledButAccessible(
   return currentPeriodEnd != null && currentPeriodEnd.isAfter(DateTime.now());
 }
 
+VendorSubscription? preferredVendorSubscription({
+  required VendorSubscription? streamValue,
+  required VendorSubscription? futureValue,
+}) {
+  if (streamValue == null) return futureValue;
+  if (futureValue == null) return streamValue;
+
+  final futureIsActive = isVendorSubscriptionActive(futureValue);
+  final streamIsActive = isVendorSubscriptionActive(streamValue);
+  if (futureIsActive && !streamIsActive) return futureValue;
+  if (streamIsActive && !futureIsActive) return streamValue;
+
+  if (futureValue.updatedAt.isAfter(streamValue.updatedAt)) return futureValue;
+  return streamValue;
+}
+
+bool isVendorSubscriptionAlreadyActiveError(Object error) {
+  return error.toString().toLowerCase().contains(
+    'artisan subscription is already active',
+  );
+}
+
 String vendorSubscriptionStatusTitle(
   String status, {
   bool cancelledStillAccessible = false,

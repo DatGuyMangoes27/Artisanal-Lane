@@ -16,13 +16,17 @@ import {
 } from "@/lib/marketplace/disputes";
 import { formatPrice } from "@/lib/marketplace/format";
 import {
+  canConfirmReceipt,
   formatOrderStatus,
   formatShippingMethod,
+  getDeliveryStatusMessage,
   getOrderGrandTotal,
   getOrderPickupPointSummary,
+  normalizeTrackingUrl,
 } from "@/lib/marketplace/orders";
 import { canReviewOrderStatus } from "@/lib/marketplace/reviews";
 
+import { confirmBuyerOrderReceipt } from "../actions";
 import { createBuyerThreadForShop } from "../../messages/actions";
 
 type BuyerOrderDetailPageProps = {
@@ -46,6 +50,8 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
   const pickupSummary = getOrderPickupPointSummary(order);
   const canReviewItems = canReviewOrderStatus(order.status);
   const canOpenDispute = canOpenDisputeForOrderStatus(order.status);
+  const canConfirmOrderReceipt = canConfirmReceipt(order);
+  const trackingHref = normalizeTrackingUrl(order.trackingUrl);
 
   return (
     <div className="min-h-screen bg-background">
@@ -209,6 +215,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
             <Card className="border-artisan-clay bg-card">
               <CardContent className="space-y-3 p-6 text-sm">
                 <h2 className="font-serif text-2xl font-bold text-foreground">Delivery</h2>
+                <p className="leading-6 text-muted-foreground">{getDeliveryStatusMessage(order)}</p>
                 <p>
                   <span className="font-semibold text-foreground">Method: </span>
                   <span className="text-muted-foreground">{formatShippingMethod(order.shippingMethod)}</span>
@@ -225,13 +232,34 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                     <span className="text-muted-foreground">{order.trackingNumber}</span>
                   </p>
                 ) : null}
-                {order.trackingUrl ? (
+                {trackingHref ? (
                   <Button asChild variant="outline" className="mt-2 rounded-full">
-                    <Link href={order.trackingUrl}>Track parcel</Link>
+                    <a href={trackingHref} target="_blank" rel="noreferrer">
+                      Track parcel
+                    </a>
                   </Button>
                 ) : null}
               </CardContent>
             </Card>
+
+            {canConfirmOrderReceipt ? (
+              <Card className="border-artisan-clay bg-card">
+                <CardContent className="space-y-4 p-6 text-sm">
+                  <h2 className="font-serif text-2xl font-bold text-foreground">Confirm receipt</h2>
+                  <p className="leading-6 text-muted-foreground">
+                    Only confirm once you have received the order and are happy with it. This releases
+                    the TradeSafe escrow payment to the artisan and marks the order complete.
+                  </p>
+                  <form action={confirmBuyerOrderReceipt}>
+                    <input type="hidden" name="orderId" value={order.id} />
+                    <input type="hidden" name="redirectTo" value={`/account/orders/${order.id}`} />
+                    <Button type="submit" className="w-full rounded-full">
+                      Yes, I received my order
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card className="border-artisan-clay bg-card">
               <CardContent className="space-y-3 p-6 text-sm">

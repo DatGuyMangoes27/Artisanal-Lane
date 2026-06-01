@@ -8,7 +8,7 @@ import {
   serializeSavedAddresses,
   upsertSavedAddress,
 } from "@/lib/marketplace/buyer-preferences";
-import { getBuyerProfileUpdate } from "@/lib/marketplace/buyer-profile";
+import { getBuyerProfileUpdate, profileAvatarStoragePath } from "@/lib/marketplace/buyer-profile";
 import { createClient } from "@/lib/supabase/server";
 
 async function requireUser(redirectTo: string) {
@@ -49,6 +49,53 @@ export async function toggleFavouriteProduct(formData: FormData) {
   revalidatePath("/account/favourites");
   revalidatePath(redirectTo);
   redirect(redirectTo);
+}
+
+export async function toggleFavouriteProductInline(
+  productId: string,
+  shouldFavourite: boolean,
+  redirectTo = "/",
+) {
+  const normalizedProductId = productId.trim();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      ok: false,
+      isFavourite: !shouldFavourite,
+      redirectTo: `/login?redirect=${encodeURIComponent(redirectTo)}`,
+    };
+  }
+
+  if (normalizedProductId) {
+    if (shouldFavourite) {
+      await supabase.from("favourites").upsert({
+        user_id: user.id,
+        product_id: normalizedProductId,
+      });
+    } else {
+      await supabase
+        .from("favourites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("product_id", normalizedProductId);
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/account");
+  revalidatePath("/account/favourites");
+  revalidatePath(redirectTo);
+
+  return {
+    ok: true,
+    isFavourite: shouldFavourite,
+    redirectTo: null,
+  };
 }
 
 export async function saveAddress(formData: FormData) {
@@ -95,4 +142,78 @@ export async function updateBuyerProfile(formData: FormData) {
   revalidatePath("/account");
   revalidatePath("/account/profile");
   redirect("/account/profile");
+}
+
+export async function uploadBuyerAvatar(formData: FormData) {
+  const { supabase, user } = await requireUser("/account/profile");
+  const file = formData.get("avatar");
+
+  if (!(file instanceof File) || file.size === 0) {
+    redirect("/account/profile");
+  }
+
+  const path = profileAvatarStoragePath({
+    userId: user.id,
+    originalPath: file.name,
+    timestampMillis: Date.now(),
+  });
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, { upsert: true });
+
+  if (uploadError) {
+    throw new Error(uploadError.message);
+  }
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  await supabase
+    .from("profiles")
+    .update({
+      avatar_url: data.publicUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  revalidatePath("/account");
+  revalidatePath("/account/profile");
+  redirect("/account/profile");
+}
+
+export async function markNotificationRead(formData: FormData) {
+  const notificationId = String(formData.get("notificationId") ?? "").trim();
+  const redirectTo = String(formData.get("redirectTo") ?? "/account/notifications");
+  const { supabase, user } = await requireUser(redirectTo);
+
+  if (notificationId) {
+    await supabase
+      .from("notifications")
+      .update({ read_at: new Date().toISOString() })
+      .eq("id", notificationId)
+      .eq("user_id", user.id);
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/account/notifications");
+  redirect(redirectTo);
+}
+
+export async function signOutBuyerAccount() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  revalidatePath("/");
+  revalidatePath("/account");
+  redirect("/login?signedOut=1");
+}
+
+export async function deleteBuyerAccount() {
+  const { supabase } = await requireUser("/account/settings");
+  const { data, error } = await supabase.functions.invoke("delete-account");
+  const payload = data as { error?: string } | null;
+
+  if (error || payload?.error) {
+    throw new Error(payload?.error ?? error?.message ?? "Could not delete your account.");
+  }
+
+  await supabase.auth.signOut();
+  redirect("/login?deleted=1");
 }

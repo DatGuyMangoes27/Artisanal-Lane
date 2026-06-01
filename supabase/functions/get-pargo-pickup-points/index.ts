@@ -1,4 +1,4 @@
-import { jsonResponse } from "../_shared/http.ts";
+import { jsonResponse, optionsResponse } from "../_shared/http.ts";
 
 const pargoApiUrl = Deno.env.get("PARGO_PICKUP_POINTS_URL") ??
   "https://api.live.pargo.co.za/pickup_points";
@@ -240,6 +240,10 @@ async function getPargoAccessToken() {
 
 Deno.serve(async (request) => {
   try {
+    if (request.method === "OPTIONS") {
+      return optionsResponse();
+    }
+
     if (!pargoUsername || !pargoPassword) {
       throw new Error("Missing Pargo credentials.");
     }

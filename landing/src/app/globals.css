@@ -206,6 +206,13 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  /* Italic glyphs lean past their box on the right. Since the gradient is
+     clipped to the text box, the slanted edge of the last letter on a line
+     (e.g. the "e" in "Handmade" when it wraps) would otherwise be cut off.
+     Reserve a little trailing room and clone it onto every wrapped line. */
+  padding-right: 0.12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 /* Glass Effect — warm tinted */

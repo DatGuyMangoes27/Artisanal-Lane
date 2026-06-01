@@ -105,12 +105,37 @@ class WelcomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'By continuing, you agree to our Terms of Service',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: AppTheme.textHint,
-                ),
+              Column(
+                children: [
+                  Text(
+                    'By continuing, you agree to our',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/terms'),
+                    style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Terms of Service',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.terracotta,
+                        decoration: TextDecoration.underline,
+                        decorationColor: AppTheme.terracotta,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
             ],

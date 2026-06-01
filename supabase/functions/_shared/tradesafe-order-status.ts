@@ -9,6 +9,9 @@ export function mapTradeSafeOrderStatus(state: string) {
     case "CANCELLED":
     case "FAILED":
     case "EXPIRED":
+    case "REFUNDED":
+    case "DECLINED":
+    case "REJECTED":
       return "cancelled";
     default:
       return "pending";
@@ -21,9 +24,13 @@ export function mapTradeSafeEscrowStatus(state: string) {
       return "held";
     case "FUNDS_RELEASED":
       return "released";
+    case "REFUNDED":
+      return "refunded";
     case "CANCELLED":
     case "FAILED":
     case "EXPIRED":
+    case "DECLINED":
+    case "REJECTED":
       return "cancelled";
     default:
       return "pending";

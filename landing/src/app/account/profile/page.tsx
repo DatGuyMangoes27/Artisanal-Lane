@@ -1,6 +1,8 @@
 import Link from "next/link";
+import Image from "next/image";
 
-import { updateBuyerProfile } from "@/app/account/actions";
+import { updateBuyerProfile, uploadBuyerAvatar } from "@/app/account/actions";
+import { BuyerAvatarUploadForm } from "@/components/marketplace/buyer-avatar-upload-form";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,9 +33,19 @@ export default async function BuyerProfilePage() {
         <Card className="mt-10 border-artisan-clay bg-card">
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="flex size-20 items-center justify-center rounded-full bg-artisan-clay font-serif text-3xl font-bold text-white">
-                {getBuyerInitial(profile ?? { display_name: null, email: user.email ?? null })}
-              </div>
+              {profile?.avatar_url ? (
+                <Image
+                  src={profile.avatar_url}
+                  alt={profile.display_name ?? "Buyer avatar"}
+                  width={80}
+                  height={80}
+                  className="size-20 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-20 items-center justify-center rounded-full bg-artisan-clay font-serif text-3xl font-bold text-white">
+                  {getBuyerInitial(profile ?? { display_name: null, email: user.email ?? null })}
+                </div>
+              )}
               <div>
                 <h2 className="font-serif text-2xl font-bold text-foreground">
                   {profile?.display_name || "Artisan Lane buyer"}
@@ -41,6 +53,8 @@ export default async function BuyerProfilePage() {
                 <p className="text-sm text-muted-foreground">{profile?.email ?? user.email}</p>
               </div>
             </div>
+
+            <BuyerAvatarUploadForm action={uploadBuyerAvatar} />
 
             <form action={updateBuyerProfile} className="mt-8 grid gap-4">
               <label className="space-y-2 text-sm font-medium text-foreground">

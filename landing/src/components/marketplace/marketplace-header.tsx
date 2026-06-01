@@ -1,38 +1,80 @@
 import Link from "next/link";
-import { Heart, Search, ShoppingBag, UserRound } from "lucide-react";
+import Image from "next/image";
+import { Heart, Search } from "lucide-react";
 
+import { AccountNavButton } from "@/components/marketplace/account-nav-button";
+import { CartNavButton } from "@/components/marketplace/cart-nav-button";
+import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notice";
 import { Button } from "@/components/ui/button";
 
-export function MarketplaceHeader() {
+type MarketplaceHeaderProps = {
+  activeItem?: "home" | "shop" | "artisans";
+};
+
+function navLinkClass(isActive = false) {
+  return isActive
+    ? "font-semibold text-artisan-terracotta transition hover:text-artisan-terracotta-dark"
+    : "transition hover:text-foreground";
+}
+
+function mobileNavLinkClass(isActive = false) {
+  return isActive
+    ? "whitespace-nowrap rounded-full bg-artisan-terracotta px-4 py-2 text-sm font-semibold text-white shadow-sm"
+    : "whitespace-nowrap rounded-full border border-artisan-clay bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:border-artisan-terracotta hover:text-artisan-terracotta";
+}
+
+export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
   return (
-    <header className="sticky top-0 z-40 border-b border-artisan-clay/70 bg-background/90 backdrop-blur">
+    <>
+    <header className="sticky top-0 z-40 border-b border-artisan-clay/70 bg-background/90 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/shop" className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-artisan-terracotta to-artisan-clay font-serif text-lg font-bold text-white shadow-sm">
-            A
-          </span>
+        <Link href="/" className="flex items-center gap-3">
+          <Image
+            src="/logo.png"
+            alt="Artisan Lane Logo"
+            width={38}
+            height={38}
+            className="rounded-xl shadow-sm"
+          />
           <span className="font-serif text-xl font-bold text-foreground">Artisan Lane</span>
         </Link>
         <nav className="hidden items-center gap-6 text-sm font-medium text-muted-foreground md:flex">
-          <Link href="/shop" className="transition hover:text-foreground">Shop</Link>
-          <Link href="/shop?sort=newest" className="transition hover:text-foreground">Fresh arrivals</Link>
-          <Link href="/shop#artisans" className="transition hover:text-foreground">Artisans</Link>
+          <Link href="/" className={navLinkClass(activeItem === "home")}>Home</Link>
+          <Link href="/shop" className={navLinkClass(activeItem === "shop")}>Store</Link>
+          <Link href="/artisans" className={navLinkClass(activeItem === "artisans")}>Artisans</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="icon" aria-label="Search">
             <Link href="/shop#search"><Search /></Link>
           </Button>
-          <Button asChild variant="ghost" size="icon" aria-label="Cart">
-            <Link href="/cart"><ShoppingBag /></Link>
-          </Button>
+          <CartNavButton />
           <Button asChild variant="ghost" size="icon" aria-label="Favourites">
             <Link href="/account/favourites"><Heart /></Link>
           </Button>
-          <Button asChild variant="ghost" size="icon" aria-label="Account">
-            <Link href="/account"><UserRound /></Link>
-          </Button>
+          <AccountNavButton />
         </div>
       </div>
+      <nav
+        aria-label="Mobile marketplace navigation"
+        className="border-t border-artisan-clay/50 px-4 py-2 md:hidden"
+      >
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <Link href="/" className={mobileNavLinkClass(activeItem === "home")}>
+            Home
+          </Link>
+          <Link href="/shop" className={mobileNavLinkClass(activeItem === "shop")}>
+            Store
+          </Link>
+          <Link href="/artisans" className={mobileNavLinkClass(activeItem === "artisans")}>
+            Artisans
+          </Link>
+          <Link href="/shop#search" className={mobileNavLinkClass()}>
+            Search
+          </Link>
+        </div>
+      </nav>
     </header>
+    <FloatingCartNotice />
+    </>
   );
 }

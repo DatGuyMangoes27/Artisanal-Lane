@@ -1,24 +1,186 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../app/theme.dart';
 import '../../../widgets/african_patterns.dart';
+import '../../auth/providers/auth_providers.dart' show currentProfileProvider;
 import '../providers/buyer_providers.dart';
 
-class BuyerProfileScreen extends ConsumerWidget {
+class BuyerProfileScreen extends ConsumerStatefulWidget {
   const BuyerProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BuyerProfileScreen> createState() => _BuyerProfileScreenState();
+}
+
+class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
+  final _picker = ImagePicker();
+  bool _isUploadingAvatar = false;
+
+  String _imagePickerErrorMessage(ImageSource source) {
+    return source == ImageSource.camera
+        ? 'Camera access is blocked. Please allow camera access in your phone settings, or choose a photo from your gallery.'
+        : 'Could not access your photos. Please allow photo access in your phone settings and try again.';
+  }
+
+  Future<void> _showAvatarSourceSheet() async {
+    if (_isUploadingAvatar) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppTheme.sand,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Update Profile Photo',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _avatarSourceTile(
+                icon: Icons.camera_alt_rounded,
+                iconColor: AppTheme.terracotta,
+                title: 'Take Photo',
+                subtitle: 'Use your camera',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadAvatar(ImageSource.camera);
+                },
+              ),
+              _avatarSourceTile(
+                icon: Icons.photo_library_rounded,
+                iconColor: AppTheme.baobab,
+                title: 'Choose from Gallery',
+                subtitle: 'Pick from your photos',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadAvatar(ImageSource.gallery);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _avatarSourceTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: iconColor.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon, color: iconColor),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.poppins(fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _pickAndUploadAvatar(ImageSource source) async {
+    try {
+      final userId = ref.read(currentUserIdProvider);
+      if (userId == null) {
+        throw Exception('Please sign in again to update your profile photo.');
+      }
+
+      final image = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      if (image == null) return;
+
+      setState(() => _isUploadingAvatar = true);
+      final service = ref.read(supabaseServiceProvider);
+      final avatarUrl = await service.uploadProfileAvatar(
+        userId,
+        File(image.path),
+      );
+      await service.updateProfile(userId, {'avatar_url': avatarUrl});
+      ref.invalidate(profileProvider);
+      ref.invalidate(currentProfileProvider);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Profile photo updated.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _imagePickerErrorMessage(source),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingAvatar = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final profileAsync = ref.watch(profileProvider);
     final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
     final disputedOrders = ref.watch(buyerDisputedOrdersProvider);
     final orders = ref.watch(ordersProvider).value ?? const [];
-    final favouriteIds =
-        ref.watch(favouriteIdsProvider).value ?? const <String>[];
+    final favouriteIds = ref.watch(currentFavouriteIdsProvider);
     final cartItems = ref.watch(cartItemsProvider).value ?? const [];
     final orderCount = orders.length;
     final favouriteCount = favouriteIds.length;
@@ -33,6 +195,8 @@ class BuyerProfileScreen extends ConsumerWidget {
         data: (profile) => _buildBody(
           context,
           profile,
+          _showAvatarSourceSheet,
+          _isUploadingAvatar,
           unreadMessages,
           disputedOrders.length,
           orderCount,
@@ -56,6 +220,8 @@ class BuyerProfileScreen extends ConsumerWidget {
   Widget _buildBody(
     BuildContext context,
     dynamic profile,
+    VoidCallback onEditAvatar,
+    bool isUploadingAvatar,
     int unreadMessages,
     int disputeCount,
     int orderCount,
@@ -65,7 +231,7 @@ class BuyerProfileScreen extends ConsumerWidget {
     return SingleChildScrollView(
       child: Column(
         children: [
-          _buildHeader(context, profile),
+          _buildHeader(context, profile, onEditAvatar, isUploadingAvatar),
           const SizedBox(height: 32),
           _buildStatsRow(orderCount, favouriteCount, cartCount),
           const SizedBox(height: 32),
@@ -104,7 +270,12 @@ class BuyerProfileScreen extends ConsumerWidget {
   }
 
   // ── Header section with profile data ────────────────────────────
-  Widget _buildHeader(BuildContext context, dynamic profile) {
+  Widget _buildHeader(
+    BuildContext context,
+    dynamic profile,
+    VoidCallback onEditAvatar,
+    bool isUploadingAvatar,
+  ) {
     return Stack(
       children: [
         Container(
@@ -154,24 +325,36 @@ class BuyerProfileScreen extends ConsumerWidget {
                   Positioned(
                     bottom: 0,
                     right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppTheme.terracotta,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.terracotta.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt_outlined,
-                        size: 16,
-                        color: Colors.white,
+                    child: GestureDetector(
+                      onTap: isUploadingAvatar ? null : onEditAvatar,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.terracotta,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.terracotta.withValues(alpha: 0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: isUploadingAvatar
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.camera_alt_outlined,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                       ),
                     ),
                   ),

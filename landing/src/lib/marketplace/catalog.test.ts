@@ -44,6 +44,26 @@ function createQuery(result: QueryResult) {
       calls.push(["in", ...args]);
       return query;
     }),
+    gt: vi.fn((...args: unknown[]) => {
+      calls.push(["gt", ...args]);
+      return query;
+    }),
+    gte: vi.fn((...args: unknown[]) => {
+      calls.push(["gte", ...args]);
+      return query;
+    }),
+    lt: vi.fn((...args: unknown[]) => {
+      calls.push(["lt", ...args]);
+      return query;
+    }),
+    lte: vi.fn((...args: unknown[]) => {
+      calls.push(["lte", ...args]);
+      return query;
+    }),
+    not: vi.fn((...args: unknown[]) => {
+      calls.push(["not", ...args]);
+      return query;
+    }),
     or: vi.fn((...args: unknown[]) => {
       calls.push(["or", ...args]);
       return query;
@@ -54,6 +74,10 @@ function createQuery(result: QueryResult) {
     }),
     limit: vi.fn((...args: unknown[]) => {
       calls.push(["limit", ...args]);
+      return query;
+    }),
+    range: vi.fn((...args: unknown[]) => {
+      calls.push(["range", ...args]);
       return query;
     }),
     maybeSingle: vi.fn(async () => result),
@@ -192,6 +216,7 @@ describe("marketplace catalog helpers", () => {
     expect(calls).toContainEqual(["eq", "is_published", true]);
     expect(calls).toContainEqual(["is", "archived_at", null]);
     expect(calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(calls).toContainEqual(["gt", "stock_qty", 0]);
     expect(calls).toContainEqual(["eq", "category_id", "category-1"]);
     expect(calls).toContainEqual(["contains", "tags", ["home"]]);
     expect(calls).toContainEqual(["ilike", "title", "%Basket%"]);
@@ -235,6 +260,7 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["eq", "slug", "artisan-shop"]);
     expect(supabase.from).toHaveBeenNthCalledWith(2, "products");
     expect(supabase.queries[1].calls).toContainEqual(["eq", "shop_id", "shop-1"]);
+    expect(supabase.queries[1].calls).toContainEqual(["gt", "stock_qty", 0]);
     expect(supabase.queries[1].calls).toContainEqual(["limit", 48]);
   });
 
@@ -249,5 +275,44 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["eq", "is_published", true]);
     expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
     expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(supabase.queries[0].calls).toContainEqual(["gt", "stock_qty", 0]);
+  });
+
+  it("can hydrate cart products that are reserved down to zero stock", async () => {
+    const supabase = createSupabaseMock([{ data: [{ ...productRow, stock_qty: 0 }], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    const products = await getMarketplaceProductsByIds(["product-1"], {
+      includeOutOfStock: true,
+    });
+
+    expect(products).toHaveLength(1);
+    expect(supabase.queries[0].calls).not.toContainEqual(["gt", "stock_qty", 0]);
+  });
+
+  it("applies mobile-style discovery filters for price, sale, and popularity", async () => {
+    const supabase = createSupabaseMock([{ data: [productRow], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    await getMarketplaceProducts({
+      priceFilter: "under_200",
+      availabilityFilter: "on_sale",
+      sort: "popular",
+    });
+
+    const calls = supabase.queries[0].calls;
+    expect(calls).toContainEqual(["lt", "price", 200]);
+    expect(calls).toContainEqual(["not", "compare_at_price", "is", null]);
+    expect(calls).toContainEqual(["order", "is_featured", { ascending: false }]);
+    expect(calls).toContainEqual(["order", "created_at", { ascending: false }]);
+  });
+
+  it("uses range when loading an offset product page", async () => {
+    const supabase = createSupabaseMock([{ data: [productRow], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    await getMarketplaceProducts({ limit: 9, offset: 8 });
+
+    expect(supabase.queries[0].calls).toContainEqual(["range", 8, 16]);
   });
 });

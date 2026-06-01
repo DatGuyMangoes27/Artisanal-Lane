@@ -16,72 +16,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _orderNotifications = true;
   bool _promotionNotifications = false;
-  bool _darkMode = false;
-  String _selectedLanguage = 'English';
-  String _selectedCurrency = 'ZAR';
   bool _isDeletingAccount = false;
-
-  void _showLanguagePicker() {
-    final languages = ['English', 'Afrikaans', 'isiZulu', 'isiXhosa', 'Sesotho', 'Setswana'];
-    _showPickerSheet('Language', languages, _selectedLanguage, (val) {
-      setState(() => _selectedLanguage = val);
-    });
-  }
-
-  void _showCurrencyPicker() {
-    final currencies = ['ZAR', 'USD', 'EUR', 'GBP'];
-    _showPickerSheet('Currency', currencies, _selectedCurrency, (val) {
-      setState(() => _selectedCurrency = val);
-    });
-  }
-
-  void _showPickerSheet(String title, List<String> options, String current, ValueChanged<String> onSelect) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.scaffoldBg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 12),
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.sand, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 20),
-              Text(title, style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-              const SizedBox(height: 20),
-              ...options.map((opt) {
-                final isSelected = opt == current;
-                return ListTile(
-                  onTap: () {
-                    onSelect(opt);
-                    Navigator.pop(ctx);
-                  },
-                  leading: Icon(
-                    isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                    color: isSelected ? AppTheme.terracotta : AppTheme.textHint,
-                    size: 22,
-                  ),
-                  title: Text(
-                    opt,
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                      color: isSelected ? AppTheme.terracotta : AppTheme.textPrimary,
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 
   Future<void> _deleteAccount() async {
     setState(() => _isDeletingAccount = true);
@@ -104,10 +39,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '$error',
-            style: GoogleFonts.poppins(fontSize: 13),
-          ),
+          content: Text('$error', style: GoogleFonts.poppins(fontSize: 13)),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -122,9 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Account',
           style: GoogleFonts.playfairDisplay(
@@ -196,7 +126,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.3)),
+                          color: AppTheme.sand.withValues(alpha: 0.3),
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.02),
@@ -250,82 +181,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           setState(() => _promotionNotifications = v),
                       activeTrackColor: AppTheme.terracotta,
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── Appearance Section ─────────────────────────────────
-              const _SectionTitle(title: 'Appearance'),
-              const SizedBox(height: 16),
-              _SettingsGroup(
-                children: [
-                  _SettingsTile(
-                    icon: Icons.dark_mode_outlined,
-                    title: 'Dark Mode',
-                    trailing: Switch(
-                      value: _darkMode,
-                      onChanged: (v) => setState(() => _darkMode = v),
-                      activeTrackColor: AppTheme.terracotta,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 32),
-
-              // ── General Section ────────────────────────────────────
-              const _SectionTitle(title: 'General'),
-              const SizedBox(height: 16),
-              _SettingsGroup(
-                children: [
-                  _SettingsTile(
-                    icon: Icons.language_outlined,
-                    title: 'Language',
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _selectedLanguage,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: AppTheme.textHint,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 20,
-                          color: AppTheme.textHint,
-                        ),
-                      ],
-                    ),
-                    onTap: _showLanguagePicker,
-                  ),
-                  _Divider(),
-                  _SettingsTile(
-                    icon: Icons.attach_money,
-                    title: 'Currency',
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _selectedCurrency,
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: AppTheme.textHint,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        const Icon(
-                          Icons.chevron_right,
-                          size: 20,
-                          color: AppTheme.textHint,
-                        ),
-                      ],
-                    ),
-                    onTap: _showCurrencyPicker,
                   ),
                 ],
               ),
@@ -430,7 +285,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(
-                          color: AppTheme.error.withValues(alpha: 0.2)),
+                        color: AppTheme.error.withValues(alpha: 0.2),
+                      ),
                     ),
                     backgroundColor: AppTheme.error.withValues(alpha: 0.05),
                   ),
@@ -448,7 +304,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
-                  onPressed: _isDeletingAccount ? null : _showDeleteAccountDialog,
+                  onPressed: _isDeletingAccount
+                      ? null
+                      : _showDeleteAccountDialog,
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
@@ -545,9 +403,7 @@ class _SettingsGroup extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 }

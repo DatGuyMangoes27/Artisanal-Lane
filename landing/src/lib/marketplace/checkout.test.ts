@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildCartLines,
   calculateShippingTotal,
+  checkoutBlockingMessage,
+  firstIncompleteCheckoutField,
   getAvailableShippingOptionsForCart,
   getCartSubtotal,
   getCheckoutBlocker,
@@ -164,5 +166,67 @@ describe("marketplace checkout helpers", () => {
       postalCode: "8001",
       province: "Western Cape",
     });
+  });
+
+  it("validates checkout details according to the selected delivery method", () => {
+    expect(
+      firstIncompleteCheckoutField({
+        fullName: "Buyer",
+        streetAddress: "",
+        city: "",
+        postalCode: "",
+        province: "",
+        phoneNumber: "0710000000",
+        selectedShippingMethod: "courier_guy",
+        hasAvailableShippingMethods: true,
+        requiresShippingAddress: false,
+        requiresPickupPoint: true,
+        pickupPoint: "",
+      }),
+    ).toBe("pickupPoint");
+
+    expect(
+      firstIncompleteCheckoutField({
+        fullName: "Buyer",
+        streetAddress: "",
+        city: "Cape Town",
+        postalCode: "8001",
+        province: "Western Cape",
+        phoneNumber: "0710000000",
+        selectedShippingMethod: "courier_guy_door_to_door",
+        hasAvailableShippingMethods: true,
+        requiresShippingAddress: true,
+        requiresPickupPoint: false,
+        pickupPoint: "",
+      }),
+    ).toBe("streetAddress");
+
+    expect(
+      firstIncompleteCheckoutField({
+        fullName: "Buyer",
+        streetAddress: "",
+        city: "",
+        postalCode: "",
+        province: "",
+        phoneNumber: "",
+        selectedShippingMethod: "market_pickup",
+        hasAvailableShippingMethods: true,
+        requiresShippingAddress: false,
+        requiresPickupPoint: false,
+        pickupPoint: "",
+      }),
+    ).toBe("phoneNumber");
+  });
+
+  it("uses buyer-facing checkout validation messages", () => {
+    expect(checkoutBlockingMessage("pickupPoint")).toBe(
+      "Please enter the pickup point or drop-off location for this shipping method.",
+    );
+    expect(checkoutBlockingMessage("shippingMethod")).toBe(
+      "This product does not have any shipping options available yet.",
+    );
+    expect(checkoutBlockingMessage("phoneNumber")).toBe(
+      "Please complete your checkout details before continuing to TradeSafe.",
+    );
   });
 });

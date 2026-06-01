@@ -163,6 +163,36 @@ export async function rejectApplication(
   }
 }
 
+export async function restoreApplication(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+    const applicationId = String(formData.get("applicationId"));
+
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("vendor_applications")
+      .update({
+        status: "pending",
+        reviewed_by: null,
+        reviewed_at: null,
+      })
+      .eq("id", applicationId)
+      .eq("status", "rejected");
+
+    throwIfSupabaseError(error, "Unable to restore application.");
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/applications");
+
+    return createSuccessState("Application restored to pending review.");
+  } catch (error) {
+    return createErrorState(error, "Unable to restore application.");
+  }
+}
+
 export async function toggleProductPublish(
   _previousState: AdminActionState,
   formData: FormData,
@@ -272,10 +302,6 @@ export async function toggleShopSpotlight(
     const nextValue = String(formData.get("nextValue")) === "true";
 
     const admin = createAdminClient();
-
-    if (nextValue) {
-      await admin.from("shops").update({ is_spotlight: false }).eq("is_spotlight", true);
-    }
 
     await admin
       .from("shops")

@@ -98,9 +98,7 @@ class VendorProductsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
             const Icon(
@@ -242,9 +240,10 @@ class VendorProductsScreen extends ConsumerWidget {
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
-    final subscription =
-        ref.watch(vendorSubscriptionStreamProvider).value ??
-        ref.watch(vendorSubscriptionProvider).value;
+    final subscription = preferredVendorSubscription(
+      streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
+      futureValue: ref.watch(vendorSubscriptionProvider).value,
+    );
     final subscriptionActive = isVendorSubscriptionActive(subscription);
 
     return Scaffold(
@@ -315,9 +314,7 @@ class VendorProductsScreen extends ConsumerWidget {
   ) {
     final optionCount = product.variants.length;
     final isSoldOut = product.stockQty <= 0;
-    final stockLabel = isSoldOut
-        ? 'Sold out'
-        : 'Stock: ${product.stockQty}';
+    final stockLabel = isSoldOut ? 'Sold out' : 'Stock: ${product.stockQty}';
 
     return GestureDetector(
       onTap: () => context.push('/vendor/products/${product.id}'),
@@ -376,7 +373,9 @@ class VendorProductsScreen extends ConsumerWidget {
                     'R${product.price.toStringAsFixed(0)} · $stockLabel${optionCount > 0 ? ' · $optionCount option(s)' : ''}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
-                      color: isSoldOut ? AppTheme.error : AppTheme.textSecondary,
+                      color: isSoldOut
+                          ? AppTheme.error
+                          : AppTheme.textSecondary,
                       fontWeight: isSoldOut ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
@@ -385,8 +384,7 @@ class VendorProductsScreen extends ConsumerWidget {
                     spacing: 6,
                     runSpacing: 6,
                     children: [
-                      if (isSoldOut)
-                        _productTag('Sold Out', AppTheme.error),
+                      if (isSoldOut) _productTag('Sold Out', AppTheme.error),
                       if (product.isOnSale)
                         _productTag('On Sale', AppTheme.terracotta),
                       if (optionCount > 0)

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../utils/product_visibility.dart';
 
 // Re-export core providers so existing imports still work
 export '../../auth/providers/auth_providers.dart'
@@ -122,6 +123,15 @@ final buyerUnreadThreadsCountProvider = Provider<int>((ref) {
   final streamThreads = ref.watch(buyerThreadsStreamProvider).value;
   final threads = streamThreads ?? ref.watch(buyerThreadsProvider).value ?? [];
   return threads.where((thread) => thread.unreadCount > 0).length;
+});
+
+final notificationsStreamProvider = StreamProvider<List<AppNotification>>((
+  ref,
+) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return Stream.value(const <AppNotification>[]);
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchNotifications(userId);
 });
 
 final buyerChatThreadProvider = FutureProvider.family<ChatThread, String>((
@@ -270,7 +280,11 @@ final productDetailProvider = FutureProvider.family<Product, String>((
   productId,
 ) async {
   final service = ref.read(supabaseServiceProvider);
-  return service.getProduct(productId);
+  final product = await service.getProduct(productId, buyerVisibleOnly: true);
+  if (!isBuyerVisibleProduct(product)) {
+    throw StateError('This product is no longer available.');
+  }
+  return product;
 });
 
 final searchProductsProvider = FutureProvider.family<List<Product>, String>((
@@ -293,9 +307,9 @@ final shopsProvider = FutureProvider<List<Shop>>((ref) async {
   return service.getShops();
 });
 
-final spotlightShopProvider = FutureProvider<Shop?>((ref) async {
+final spotlightShopsProvider = FutureProvider<List<Shop>>((ref) async {
   final service = ref.read(supabaseServiceProvider);
-  return service.getSpotlightShop();
+  return service.getSpotlightShops();
 });
 
 final shopDetailProvider = FutureProvider.family<Shop, String>((
@@ -373,6 +387,26 @@ final favouriteIdsProvider = FutureProvider<List<String>>((ref) async {
   if (userId == null) return [];
   final service = ref.read(supabaseServiceProvider);
   return service.getFavouriteProductIds(userId);
+});
+
+final favouriteIdsStreamProvider = StreamProvider<List<String>>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return Stream.value(const <String>[]);
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchFavouriteProductIds(userId);
+});
+
+List<String> resolveFavouriteIds({
+  List<String>? liveIds,
+  List<String>? loadedIds,
+}) {
+  return liveIds ?? loadedIds ?? const <String>[];
+}
+
+final currentFavouriteIdsProvider = Provider<List<String>>((ref) {
+  final liveIds = ref.watch(favouriteIdsStreamProvider).value;
+  final loadedIds = ref.watch(favouriteIdsProvider).value;
+  return resolveFavouriteIds(liveIds: liveIds, loadedIds: loadedIds);
 });
 
 // ── Cart ────────────────────────────────────────────────────────

@@ -13,10 +13,7 @@ class MudclothPatternPainter extends CustomPainter {
   final Color color;
   final double cellSize;
 
-  MudclothPatternPainter({
-    this.color = Colors.white,
-    this.cellSize = 28,
-  });
+  MudclothPatternPainter({this.color = Colors.white, this.cellSize = 28});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -43,9 +40,15 @@ class MudclothPatternPainter extends CustomPainter {
           // Small cross
           final armLen = cellSize * 0.22;
           canvas.drawLine(
-            Offset(cx - armLen, cy), Offset(cx + armLen, cy), paint);
+            Offset(cx - armLen, cy),
+            Offset(cx + armLen, cy),
+            paint,
+          );
           canvas.drawLine(
-            Offset(cx, cy - armLen), Offset(cx, cy + armLen), paint);
+            Offset(cx, cy - armLen),
+            Offset(cx, cy + armLen),
+            paint,
+          );
         } else if (pattern == 1) {
           // Dot
           canvas.drawCircle(Offset(cx, cy), cellSize * 0.07, dotPaint);
@@ -153,31 +156,33 @@ class WovenDivider extends StatelessWidget {
   }
 }
 
-/// Decorative three-dot cluster, used as a small accent.
+/// Small footer brand mark used at the end of browse/profile screens.
 class TripleDot extends StatelessWidget {
   final Color? color;
   final double size;
 
-  const TripleDot({super.key, this.color, this.size = 4});
+  const TripleDot({super.key, this.color, this.size = 52});
 
   @override
   Widget build(BuildContext context) {
-    final c = color ?? AppTheme.ochre;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _dot(c, size),
-        SizedBox(width: size * 1.5),
-        _dot(c, size * 0.7),
-        SizedBox(width: size * 1.5),
-        _dot(c, size),
-      ],
+    final borderColor = color ?? AppTheme.sand;
+    return Semantics(
+      label: 'Artisan Lane logo',
+      image: true,
+      child: Container(
+        width: size,
+        height: size,
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: AppTheme.bone,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor.withValues(alpha: 0.28)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+        ),
+      ),
     );
   }
-
-  Widget _dot(Color c, double s) => Container(
-        width: s,
-        height: s,
-        decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-      );
 }

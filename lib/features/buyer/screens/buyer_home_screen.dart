@@ -9,11 +9,13 @@ import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
+import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/unread_messages_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../utils/buyer_home_copy.dart';
 import '../utils/curated_collection_carousel.dart';
 import '../utils/curated_collection_destination.dart';
+import '../utils/product_detail_actions.dart';
 import '../providers/buyer_providers.dart';
 
 class BuyerHomeScreen extends ConsumerWidget {
@@ -24,18 +26,17 @@ class BuyerHomeScreen extends ConsumerWidget {
     final categories = ref.watch(categoriesProvider);
     final featured = ref.watch(featuredProductsProvider);
     final freshArrivals = ref.watch(freshArrivalsProvider);
-    final spotlightShop = ref.watch(spotlightShopProvider);
+    final spotlightShops = ref.watch(spotlightShopsProvider);
     final followingFeed = ref.watch(followingFeedProvider);
     final unreadMessages = ref.watch(buyerUnreadThreadsCountProvider);
     final profile = ref.watch(currentProfileProvider).value;
+    final userId = ref.watch(currentUserIdProvider);
+    final favouriteIds = ref.watch(currentFavouriteIdsProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       floatingActionButton: unreadMessages > 0
-          ? UnreadMessagesFab(
-              count: unreadMessages,
-              route: '/profile/messages',
-            )
+          ? UnreadMessagesFab(count: unreadMessages, route: '/profile/messages')
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: RefreshIndicator(
@@ -45,8 +46,10 @@ class BuyerHomeScreen extends ConsumerWidget {
           ref.invalidate(categoriesProvider);
           ref.invalidate(featuredProductsProvider);
           ref.invalidate(onSaleProductsProvider);
-          ref.invalidate(spotlightShopProvider);
+          ref.invalidate(spotlightShopsProvider);
           ref.invalidate(followingFeedProvider);
+          ref.invalidate(favouriteIdsProvider);
+          ref.invalidate(favouriteIdsStreamProvider);
         },
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(
@@ -289,6 +292,14 @@ class BuyerHomeScreen extends ConsumerWidget {
                         height: 310,
                         child: _AutoScrollingCuratedCollection(
                           products: products,
+                          favouriteIds: favouriteIds,
+                          onFavouriteToggle: (product) => _toggleFavourite(
+                            context,
+                            ref,
+                            product,
+                            favouriteIds.contains(product.id),
+                            userId,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -314,42 +325,64 @@ class BuyerHomeScreen extends ConsumerWidget {
 
             // ── Meet the Makers ───────────────────────────────────────────
             SliverToBoxAdapter(
-              child: spotlightShop.when(
-                data: (maker) {
-                  if (maker == null) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Artist Spotlight',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
+              child: spotlightShops.when(
+                data: (makers) {
+                  if (makers.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Artist Spotlight',
+                              style: GoogleFonts.playfairDisplay(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              buyerHomeMakerSpotlightSubtitle,
+                              style: GoogleFonts.poppins(
+                                fontSize: 13,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          buyerHomeMakerSpotlightSubtitle,
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: AppTheme.textSecondary,
-                          ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 330,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: makers.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 16),
+                          itemBuilder: (context, index) {
+                            final maker = makers[index];
+                            return SizedBox(
+                              width: MediaQuery.of(context).size.width * 0.82,
+                              child: _ElegantMakerSpotlight(
+                                shopName: maker.name,
+                                location: maker.location,
+                                imageUrl: maker.coverImageUrl,
+                                logoUrl: maker.logoUrl,
+                                quote: maker.brandStory ?? maker.bio,
+                                onTap: () =>
+                                    context.push('/home/shop/${maker.id}'),
+                              ),
+                            );
+                          },
                         ),
-                        const SizedBox(height: 16),
-                        _ElegantMakerSpotlight(
-                          shopName: maker.name,
-                          location: maker.location,
-                          imageUrl: maker.coverImageUrl,
-                          logoUrl: maker.logoUrl,
-                          quote: maker.brandStory ?? maker.bio,
-                          onTap: () => context.push('/home/shop/${maker.id}'),
-                        ),
-                        const SizedBox(height: 32),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 32),
+                    ],
                   );
                 },
                 loading: () => Padding(
@@ -376,10 +409,22 @@ class BuyerHomeScreen extends ConsumerWidget {
               data: (products) => SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 sliver: SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => ProductCard(product: products[index]),
-                    childCount: products.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final product = products[index];
+                    final isFavourite = favouriteIds.contains(product.id);
+
+                    return ProductCard(
+                      product: product,
+                      isFavourite: isFavourite,
+                      onFavouriteToggle: () => _toggleFavourite(
+                        context,
+                        ref,
+                        product,
+                        isFavourite,
+                        userId,
+                      ),
+                    );
+                  }, childCount: products.length),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 16,
@@ -430,6 +475,62 @@ class BuyerHomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _toggleFavourite(
+    BuildContext context,
+    WidgetRef ref,
+    Product product,
+    bool currentlyFavourite,
+    String? userId,
+  ) async {
+    if (requiresSignInForFavourite(userId)) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to save favourites',
+        message:
+            'Create an account or sign in to save this item to your favourites.',
+      );
+      return;
+    }
+
+    final service = ref.read(supabaseServiceProvider);
+    try {
+      if (currentlyFavourite) {
+        await service.removeFavourite(userId!, product.id);
+      } else {
+        await service.addFavourite(userId!, product.id);
+      }
+      ref.invalidate(favouriteIdsProvider);
+      ref.invalidate(favouriteIdsStreamProvider);
+      ref.invalidate(favouriteProductsProvider);
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            currentlyFavourite
+                ? 'Removed from favourites'
+                : 'Saved to favourites',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.baobab,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (_) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not update favourites right now.',
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 }
 
@@ -640,7 +741,14 @@ class _SectionHeader extends StatelessWidget {
 
 class _ElegantProductCard extends StatelessWidget {
   final Product product;
-  const _ElegantProductCard({required this.product});
+  final bool isFavourite;
+  final VoidCallback? onFavouriteToggle;
+
+  const _ElegantProductCard({
+    required this.product,
+    this.isFavourite = false,
+    this.onFavouriteToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -680,16 +788,23 @@ class _ElegantProductCard extends StatelessWidget {
                     Positioned(
                       top: 12,
                       right: 12,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.favorite_border,
-                          size: 16,
-                          color: AppTheme.textPrimary,
+                      child: GestureDetector(
+                        onTap: onFavouriteToggle,
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isFavourite
+                                ? Icons.favorite_rounded
+                                : Icons.favorite_border,
+                            size: 16,
+                            color: isFavourite
+                                ? AppTheme.terracotta
+                                : AppTheme.textPrimary,
+                          ),
                         ),
                       ),
                     ),
@@ -744,8 +859,14 @@ class _ElegantProductCard extends StatelessWidget {
 
 class _AutoScrollingCuratedCollection extends StatefulWidget {
   final List<Product> products;
+  final List<String> favouriteIds;
+  final ValueChanged<Product> onFavouriteToggle;
 
-  const _AutoScrollingCuratedCollection({required this.products});
+  const _AutoScrollingCuratedCollection({
+    required this.products,
+    required this.favouriteIds,
+    required this.onFavouriteToggle,
+  });
 
   @override
   State<_AutoScrollingCuratedCollection> createState() =>
@@ -777,7 +898,8 @@ class _AutoScrollingCuratedCollectionState
   }
 
   void _startAutoScroll() {
-    if (!mounted || !shouldAutoScrollCuratedCollection(widget.products.length)) {
+    if (!mounted ||
+        !shouldAutoScrollCuratedCollection(widget.products.length)) {
       return;
     }
 
@@ -844,7 +966,14 @@ class _AutoScrollingCuratedCollectionState
           scrollDirection: Axis.horizontal,
           itemCount: widget.products.length,
           separatorBuilder: (_, __) => const SizedBox(width: 16),
-          itemBuilder: (_, i) => _ElegantProductCard(product: widget.products[i]),
+          itemBuilder: (_, i) {
+            final product = widget.products[i];
+            return _ElegantProductCard(
+              product: product,
+              isFavourite: widget.favouriteIds.contains(product.id),
+              onFavouriteToggle: () => widget.onFavouriteToggle(product),
+            );
+          },
         ),
       ),
     );

@@ -1,5 +1,5 @@
-"use client";
-
+import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import { ProductCard } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -30,7 +30,14 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import {
+  getFeaturedMarketplaceProducts,
+  getMarketplaceCategories,
+} from "@/lib/marketplace/catalog";
+import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
+import { buildHomeCategoryLinks } from "@/lib/marketplace/home-category-links";
+import type { MarketplaceProduct } from "@/lib/marketplace/types";
+import { createClient } from "@/lib/supabase/server";
 
 const IOS_APP_STORE_URL =
   "https://apps.apple.com/za/app/artisan-lane/id6760702139";
@@ -92,80 +99,9 @@ function SmallPhoneFrame({
   );
 }
 
-function Navigation() {
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
-    };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  return (
-    <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled ? "glass shadow-lg" : "bg-transparent"
-      }`}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <Image
-              src="/logo.png"
-              alt="Artisan Lane Logo"
-              width={36}
-              height={36}
-              className="rounded-lg"
-            />
-            <span className="text-xl font-bold text-[#3A1F10]">Artisan Lane</span>
-          </Link>
-
-          <div className="hidden md:flex items-center gap-8">
-            <Link
-              href="#features"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Features
-            </Link>
-            <Link
-              href="#how-it-works"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              How It Works
-            </Link>
-            <Link
-              href="#artisans"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              For Artisans
-            </Link>
-            <Link
-              href="#faq"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              FAQ
-            </Link>
-          </div>
-
-          <Button
-            asChild
-            className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-6"
-          >
-            <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-              Download on iOS
-            </Link>
-          </Button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 function HeroSection() {
   return (
-    <section className="relative min-h-screen pt-32 pb-20 overflow-hidden">
+    <section className="relative pt-12 pb-10 overflow-hidden lg:pt-16 lg:pb-14">
       {/* Softer, more organic blobs for an artisanal feel */}
       <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/10 to-transparent rounded-full blur-[100px] animate-blob" />
       <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-gradient-to-tr from-[#559826]/10 via-[#D4A020]/5 to-transparent rounded-full blur-[80px] animate-blob" style={{ animationDelay: "-7s" }} />
@@ -175,41 +111,42 @@ function HeroSection() {
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="text-center lg:text-left">
             <Badge variant="secondary" className="mb-6 px-5 py-2.5 text-sm bg-white/50 backdrop-blur-md text-[#7A0000] border-[#EDD5BE] shadow-sm font-medium tracking-wide inline-flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5" /> Discover Authentic South African Craft
+              <Sparkles className="w-3.5 h-3.5" /> The Artisan Lane store is live
             </Badge>
 
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-[#3A1F10]">
-              Handmade With
+              Shop South African
               <br />
-              <span className="gradient-text italic">Heart & Soul.</span>
+              <span className="gradient-text italic">Handmade Goods.</span>
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-lg mx-auto lg:mx-0 mb-8">
-              Discover unique, handcrafted goods from South Africa&apos;s finest
-              artisans. Every product on Artisan Lane tells a story of
-              passion, tradition, and extraordinary craftsmanship.
+              Browse the live Artisan Lane marketplace on the web. Discover maker shops,
+              save favourites, check out securely with TradeSafe escrow, and track your
+              orders from payment through delivery.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
-              <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                <Button
-                  size="lg"
-                  className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full sm:w-auto"
-                >
-                  <Apple className="w-5 h-5 mr-2" />
-                  Download on the App Store
-                </Button>
-              </Link>
               <Button
+                asChild
+                size="lg"
+                className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full sm:w-auto"
+              >
+                <Link href="/shop">
+                  <ShoppingBag className="w-5 h-5 mr-2" />
+                  Shop the Marketplace
+                </Link>
+              </Button>
+              <Button
+                asChild
                 size="lg"
                 variant="outline"
-                disabled
-                className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-transparent w-full sm:w-auto opacity-100 cursor-default"
+                className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full sm:w-auto"
               >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                </svg>
-                Google Play — Coming Soon
+                <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+                  <Apple className="w-5 h-5 mr-2" />
+                  Get the iOS App
+                </Link>
               </Button>
             </div>
 
@@ -245,6 +182,126 @@ function HeroSection() {
             </div>
           </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function MarketplaceGatewaySection() {
+  const routes = [
+    {
+      href: "/shop",
+      icon: ShoppingBag,
+      label: "Shop products",
+      description: "Browse handmade goods across jewellery, home, beauty, clothing, baby, kids, art, and design.",
+    },
+    {
+      href: "/shop?sort=newest",
+      icon: Sparkles,
+      label: "Fresh arrivals",
+      description: "See the newest pieces added by South African makers and small studios.",
+    },
+    {
+      href: "/artisans",
+      icon: Store,
+      label: "Meet the artisans",
+      description: "Explore dedicated maker shops, brand stories, and product collections.",
+    },
+  ];
+
+  return (
+    <section className="relative pb-20">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="rounded-[2rem] border border-[#EDD5BE] bg-white/75 p-5 shadow-xl shadow-[#7A0000]/5 backdrop-blur">
+          <div className="flex flex-col gap-4 border-b border-[#EDD5BE] pb-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#7A0000]">
+                Enter the marketplace
+              </p>
+              <h2 className="mt-2 font-serif text-3xl font-bold text-[#3A1F10]">
+                The store is now part of the website.
+              </h2>
+            </div>
+            <Button asChild className="rounded-full bg-[#7A0000] px-6 text-white hover:bg-[#4A0000]">
+              <Link href="/shop">
+                Start shopping <ArrowRight className="ml-2 size-4" />
+              </Link>
+            </Button>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {routes.map((route) => (
+              <Link
+                key={route.href}
+                href={route.href}
+                className="group rounded-3xl border border-[#EDD5BE] bg-[#FFF8F0] p-5 transition hover:-translate-y-1 hover:border-[#7A0000]/40 hover:bg-white hover:shadow-lg"
+              >
+                <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-[#7A0000]/10 text-[#7A0000] transition group-hover:bg-[#7A0000] group-hover:text-white">
+                  <route.icon className="size-6" />
+                </div>
+                <h3 className="font-serif text-xl font-bold text-[#3A1F10]">{route.label}</h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{route.description}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HomeFeaturedFindsSection({
+  products,
+  favouriteIds = [],
+}: {
+  products: MarketplaceProduct[];
+  favouriteIds?: string[];
+}) {
+  const favouriteIdSet = new Set(favouriteIds);
+
+  return (
+    <section className="bg-artisan-bone/40 py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <Badge
+              variant="secondary"
+              className="mb-4 bg-[#7A0000]/10 px-4 py-2 text-sm text-[#7A0000]"
+            >
+              Featured finds
+            </Badge>
+            <h2 className="text-4xl font-bold text-[#3A1F10] md:text-5xl">
+              Shop Pieces Worth
+              <br />
+              <span className="gradient-text italic">Stopping For.</span>
+            </h2>
+            <p className="mt-4 max-w-2xl text-muted-foreground">
+              A live preview of products from the marketplace, selected from featured artisan listings.
+            </p>
+          </div>
+          <Button asChild className="rounded-full bg-[#7A0000] px-6 text-white hover:bg-[#4A0000]">
+            <Link href="/shop">
+              View all products <ArrowRight className="ml-2 size-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {products.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                isFavourite={favouriteIdSet.has(product.id)}
+                redirectTo="/"
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
+            Featured products will appear here as artisans highlight their best work.
+          </p>
+        )}
       </div>
     </section>
   );
@@ -328,7 +385,11 @@ function FeaturesSection() {
   );
 }
 
-function AppShowcaseSection() {
+function AppShowcaseSection({
+  categoryLinks,
+}: {
+  categoryLinks: Array<{ label: string; href: string }>;
+}) {
   return (
     <section id="how-it-works" className="py-24 bg-[#F7E4CC]/30 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -391,17 +452,22 @@ function AppShowcaseSection() {
           </div>
         </div>
 
-        <div className="flex flex-wrap justify-center gap-3 mt-16">
-          {["Art & Design", "Clothing", "Beauty", "Jewellery", "Home & Living", "Baby & Kids"].map((category) => (
-            <Badge
-              key={category}
-              variant="outline"
-              className="px-4 py-2 text-sm border-[#7A0000]/30 hover:bg-[#7A0000]/10 transition-colors cursor-pointer"
-            >
-              {category}
-            </Badge>
-          ))}
-        </div>
+        {categoryLinks.length > 0 ? (
+          <div className="flex flex-wrap justify-center gap-3 mt-16">
+            {categoryLinks.map((category) => (
+              <Badge
+                key={category.href}
+                asChild
+                variant="outline"
+                className="px-4 py-2 text-sm border-[#7A0000]/30 hover:bg-[#7A0000]/10 transition-colors cursor-pointer"
+              >
+                <Link href={category.href} aria-label={`Shop ${category.label} products`}>
+                  {category.label}
+                </Link>
+              </Badge>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -515,8 +581,8 @@ function TrustSection() {
               size="lg"
               className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8"
             >
-              <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                Download on iOS <ArrowRight className="w-4 h-4 ml-2" />
+              <Link href="/shop">
+                Shop the marketplace <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
             </Button>
           </div>
@@ -718,40 +784,40 @@ function CTASection() {
 
           <CardContent className="relative p-12 text-center">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Support Local Artisans
+              Ready to Shop Local?
             </h2>
             <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto">
-              Every purchase supports a South African artisan and their craft.
-              Download Artisan Lane and discover the beauty of handmade.
+              The Artisan Lane store is live on the web. Browse handmade pieces,
+              save favourites, check out securely, and manage your orders from your buyer account.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
               <Button
                 asChild
                 size="lg"
-                className="bg-[#3A1F10] hover:bg-[#2a1510] text-white rounded-xl px-6 h-14 w-full sm:w-[260px]"
+                className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-xl px-6 h-14 w-full sm:w-[260px]"
               >
-                <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                  <Apple className="w-6 h-6 mr-3" />
+                <Link href="/shop">
+                  <ShoppingBag className="w-6 h-6 mr-3" />
                   <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Download on the</span>
-                    <span className="font-semibold">App Store</span>
+                    <span className="text-[10px] block opacity-70">Enter the</span>
+                    <span className="font-semibold">Marketplace</span>
                   </div>
                 </Link>
               </Button>
               <Button
+                asChild
                 size="lg"
                 variant="outline"
-                disabled
-                className="rounded-xl px-6 h-14 border-2 w-full sm:w-[260px] opacity-100 cursor-default"
+                className="rounded-xl px-6 h-14 border-2 w-full sm:w-[260px]"
               >
-                <svg className="w-6 h-6 mr-3" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3,20.5V3.5C3,2.91 3.34,2.39 3.84,2.15L13.69,12L3.84,21.85C3.34,21.6 3,21.09 3,20.5M16.81,15.12L6.05,21.34L14.54,12.85L16.81,15.12M20.16,10.81C20.5,11.08 20.75,11.5 20.75,12C20.75,12.5 20.53,12.9 20.18,13.18L17.89,14.5L15.39,12L17.89,9.5L20.16,10.81M6.05,2.66L16.81,8.88L14.54,11.15L6.05,2.66Z"/>
-                </svg>
-                <div className="text-left">
-                  <span className="text-[10px] block opacity-70">Google Play is</span>
-                  <span className="font-semibold">Coming Soon</span>
-                </div>
+                <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
+                  <Apple className="w-6 h-6 mr-3" />
+                  <div className="text-left">
+                    <span className="text-[10px] block opacity-70">Prefer mobile?</span>
+                    <span className="font-semibold">Download iOS</span>
+                  </div>
+                </Link>
               </Button>
             </div>
 
@@ -854,13 +920,26 @@ function Footer() {
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const [featuredProducts, categories, favouriteIds] = await Promise.all([
+    getFeaturedMarketplaceProducts(8),
+    getMarketplaceCategories(),
+    user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
+  ]);
+  const categoryLinks = buildHomeCategoryLinks(categories);
+
   return (
     <main className="min-h-screen">
-      <Navigation />
+      <MarketplaceHeader activeItem="home" />
       <HeroSection />
+      <MarketplaceGatewaySection />
+      <HomeFeaturedFindsSection products={featuredProducts} favouriteIds={favouriteIds} />
       <FeaturesSection />
-      <AppShowcaseSection />
+      <AppShowcaseSection categoryLinks={categoryLinks} />
       <ArtisanShopSection />
       <TrustSection />
       <MarqueeSection />

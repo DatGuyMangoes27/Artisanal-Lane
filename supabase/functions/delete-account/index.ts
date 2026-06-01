@@ -48,7 +48,7 @@ Deno.serve(async (request) => {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("id, role")
+      .select("id, role, display_name, email")
       .eq("id", user.id)
       .single();
 
@@ -130,6 +130,24 @@ Deno.serve(async (request) => {
           })
           .eq("vendor_id", user.id);
       }
+    }
+
+    const deletedAt = new Date().toISOString();
+    const { error: applicationSnapshotError } = await admin
+      .from("vendor_applications")
+      .update({
+        applicant_user_id_snapshot: user.id,
+        applicant_display_name_snapshot: profile.display_name,
+        applicant_email_snapshot: profile.email,
+        applicant_account_deleted_at: deletedAt,
+      })
+      .eq("user_id", user.id);
+
+    if (applicationSnapshotError != null) {
+      return jsonResponse(
+        { error: "Could not preserve your application history." },
+        { status: 500 },
+      );
     }
 
     const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);

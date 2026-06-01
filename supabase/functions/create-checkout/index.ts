@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { getBearerToken, jsonResponse } from "../_shared/http.ts";
+import { getBearerToken, jsonResponse, optionsResponse } from "../_shared/http.ts";
 import {
   createCheckoutLink,
   createTradeSafeTransaction,
@@ -29,9 +29,14 @@ function firstNonEmptyString(...values: Array<unknown>) {
 
 Deno.serve(async (request) => {
   try {
+    if (request.method === "OPTIONS") {
+      return optionsResponse();
+    }
+
     const body = await request.json();
     const shippingAddress =
       (body.shippingAddress ?? {}) as Record<string, unknown>;
+    const reservationToken = firstNonEmptyString(body.reservationToken);
     const requestUserId =
       typeof body.userId === "string" && body.userId.trim().length > 0
         ? body.userId.trim()
@@ -47,6 +52,7 @@ Deno.serve(async (request) => {
         shippingMethod: body.shippingMethod ?? null,
         shippingCost: body.shippingCost ?? null,
         isGift: body.isGift === true,
+        hasReservationToken: reservationToken != null,
         shippingAddressKeys: Object.keys(shippingAddress),
       }),
     );
@@ -117,7 +123,7 @@ Deno.serve(async (request) => {
     const { data: cartItems, error: cartError } = await admin
       .from("cart_items")
       .select(
-        "id, product_id, variant_id, quantity, products(id, title, price, shop_id), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
+        "id, product_id, variant_id, quantity, products(id, title, price, shop_id, stock_qty), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
       )
       .eq("cart_id", cartRow.id);
 
@@ -139,6 +145,7 @@ Deno.serve(async (request) => {
         title: string;
         price: number;
         shop_id: string;
+        stock_qty: number;
       },
       variant: item.product_variants as
         | {
@@ -178,10 +185,15 @@ Deno.serve(async (request) => {
     );
 
     for (const item of items) {
-      if (item.variant && item.quantity > Number(item.variant.stock_qty ?? 0)) {
+      if (reservationToken != null) {
+        continue;
+      }
+
+      const stockQty = Number(item.variant?.stock_qty ?? item.product.stock_qty ?? 0);
+      if (item.quantity > stockQty) {
         return jsonResponse(
           {
-            error: `${item.variant.display_name ?? item.variant.color_name} is low on stock. Please update your basket and try again.`,
+            error: `${item.variant?.display_name ?? item.variant?.color_name ?? item.product.title} is low on stock. Please update your basket and try again.`,
           },
           { status: 400 },
         );
@@ -433,22 +445,7 @@ Deno.serve(async (request) => {
     const orderId = orderRow.id as string;
     const paymentReference = `order-${orderId}`;
 
-    const transaction = await createTradeSafeTransaction({
-      reference: paymentReference,
-      title: `Artisan Lane order ${orderId.substring(0, 8).toUpperCase()}`,
-      description: `Marketplace order for ${shop.name as string}`,
-      buyerTokenId,
-      sellerTokenId,
-      amount: grandTotal,
-    });
-    console.log(
-      `[checkout-debug] tradesafe transaction created transactionId=${transaction.transactionId} allocationId=${transaction.allocationId} state=${transaction.transactionState}`,
-    );
-
-    const checkoutUrl = await createCheckoutLink(transaction.transactionId);
-    console.log(`[checkout-debug] checkoutUrl=${checkoutUrl}`);
-
-    await admin.from("order_items").insert(
+    const { error: orderItemsError } = await admin.from("order_items").insert(
       items.map((item) => ({
         order_id: orderId,
         product_id: item.productId,
@@ -463,19 +460,72 @@ Deno.serve(async (request) => {
       })),
     );
 
-    for (const item of items) {
-      if (item.variantId) {
-        await admin.rpc("decrement_variant_stock", {
-          variant_id_input: item.variantId,
-          qty_input: item.quantity,
-        });
-      } else {
-        await admin.rpc("decrement_product_stock", {
-          product_id_input: item.productId,
-          qty_input: item.quantity,
-        });
+    if (orderItemsError) {
+      throw orderItemsError;
+    }
+
+    if (reservationToken != null) {
+      const { error: consumeReservationError } = await admin.rpc(
+        "consume_product_reservations",
+        {
+          reservation_token_input: reservationToken,
+          order_id_input: orderId,
+        },
+      );
+
+      if (consumeReservationError) {
+        throw consumeReservationError;
+      }
+    } else {
+      for (const item of items) {
+        const { error: decrementError } = item.variantId
+          ? await admin.rpc("decrement_variant_stock", {
+            variant_id_input: item.variantId,
+            qty_input: item.quantity,
+          })
+          : await admin.rpc("decrement_product_stock", {
+            product_id_input: item.productId,
+            qty_input: item.quantity,
+          });
+
+        if (decrementError) {
+          // The unit was claimed by a concurrent checkout between the
+          // availability check above and this atomic decrement. Roll back the
+          // half-created order (order_items cascade) so the stale-checkout
+          // cleanup can never "restore" stock that was never taken, and so we
+          // never oversell or leave the item showing as in stock after a sale.
+          console.log(
+            `[checkout-debug] stock decrement failed orderId=${orderId} productId=${item.productId} variantId=${item.variantId ?? "none"} error=${decrementError.message}`,
+          );
+          await admin.from("orders").delete().eq("id", orderId);
+          return jsonResponse(
+            {
+              error: `${
+                item.variant?.display_name ??
+                  item.variant?.color_name ??
+                  item.product.title
+              } is low on stock. Please update your basket and try again.`,
+            },
+            { status: 400 },
+          );
+        }
       }
     }
+
+    const transaction = await createTradeSafeTransaction({
+      reference: paymentReference,
+      title: `Artisan Lane order ${orderId.substring(0, 8).toUpperCase()}`,
+      description: `Marketplace order for ${shop.name as string}`,
+      buyerTokenId,
+      sellerTokenId,
+      amount: grandTotal,
+    });
+    console.log(
+      `[checkout-debug] tradesafe transaction created transactionId=${transaction.transactionId} allocationId=${transaction.allocationId} state=${transaction.transactionState}`,
+    );
+
+    const checkoutUrl = await createCheckoutLink(transaction.transactionId);
+    console.log(`[checkout-debug] checkoutUrl=${checkoutUrl}`);
 
     await admin.from("escrow_transactions").insert({
       order_id: orderId,

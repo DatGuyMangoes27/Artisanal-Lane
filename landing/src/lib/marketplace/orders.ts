@@ -106,6 +106,67 @@ export function getOrderGrandTotal(order: Pick<BuyerOrder, "total" | "shippingCo
   return order.total + order.shippingCost + (order.isGift ? 30 : 0);
 }
 
+export function canConfirmReceipt(order: Pick<BuyerOrder, "status" | "receivedAt">) {
+  return ["shipped", "delivered"].includes(order.status.toLowerCase()) && order.receivedAt == null;
+}
+
+export function shouldPromptReceiptReminder(order: Pick<BuyerOrder, "status" | "receivedAt">) {
+  return canConfirmReceipt(order);
+}
+
+export function normalizeTrackingUrl(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.includes(":") && !trimmed.includes("://")) {
+    return null;
+  }
+
+  const candidates = trimmed.includes("://") ? [trimmed] : [`https://${trimmed}`, `http://${trimmed}`];
+  for (const candidate of candidates) {
+    let url: URL;
+    try {
+      url = new URL(candidate);
+    } catch {
+      continue;
+    }
+    if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.length > 0) {
+      return url.toString();
+    }
+  }
+
+  return null;
+}
+
+export function getDeliveryStatusMessage(order: Pick<BuyerOrder, "status" | "receivedAt" | "shippedAt">) {
+  if (order.receivedAt || order.status.toLowerCase() === "completed") {
+    return "Receipt confirmed. The order is complete and escrow has been released to the artisan.";
+  }
+
+  switch (order.status.toLowerCase()) {
+    case "shipped":
+      return "Your order is on its way. Confirm receipt once you have received it and are happy with it.";
+    case "delivered":
+      return "Your order has been marked delivered. Confirm receipt to release escrow to the artisan.";
+    case "paid":
+      return "Payment is secured in escrow. The artisan is preparing your order.";
+    case "pending":
+      return "Payment is still pending. Resume checkout if you have not completed payment.";
+    case "cancelled":
+      return "This order was cancelled.";
+    case "disputed":
+      return "A dispute is open for this order. Do not confirm receipt until the issue is resolved.";
+    default:
+      return "Track this order here as the seller updates fulfilment.";
+  }
+}
+
+export function getActiveBuyerOrders<T extends Pick<BuyerOrder, "status">>(orders: T[]) {
+  const activeStatuses = new Set(["pending", "paid", "shipped", "delivered", "disputed"]);
+  return orders.filter((order) => activeStatuses.has(order.status.toLowerCase()));
+}
+
 export function getOrderPickupPointSummary(order: Pick<BuyerOrder, "shippingAddress">) {
   const pickupPoint = order.shippingAddress?.pickup_point;
 

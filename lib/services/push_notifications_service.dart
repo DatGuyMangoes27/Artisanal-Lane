@@ -11,18 +11,25 @@ import 'supabase_service.dart';
 String? routeForPushNotification(Map<String, dynamic> data) {
   final type = data['type']?.toString();
   final threadId = data['thread_id']?.toString().trim();
+  final orderId = data['order_id']?.toString().trim();
   final recipientRole = data['recipient_role']?.toString();
 
-  if (type != 'chat_message' || threadId == null || threadId.isEmpty) {
-    return null;
+  if (type == 'chat_message') {
+    if (threadId == null || threadId.isEmpty) return null;
+    if (recipientRole == 'vendor') return '/vendor/messages/$threadId';
+    if (recipientRole == 'buyer') return '/profile/messages/$threadId';
   }
 
-  if (recipientRole == 'vendor') {
-    return '/vendor/messages/$threadId';
+  if (type == 'order_update') {
+    if (orderId == null || orderId.isEmpty) return null;
+    if (recipientRole == 'vendor') return '/vendor/orders/$orderId';
+    if (recipientRole == 'buyer') return '/profile/orders/$orderId';
   }
 
-  if (recipientRole == 'buyer') {
-    return '/profile/messages/$threadId';
+  if (type == 'dispute_update') {
+    if (orderId == null || orderId.isEmpty) return null;
+    if (recipientRole == 'vendor') return '/vendor/orders/$orderId/dispute';
+    if (recipientRole == 'buyer') return '/profile/orders/$orderId/dispute';
   }
 
   return null;

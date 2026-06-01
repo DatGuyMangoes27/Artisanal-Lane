@@ -10,6 +10,7 @@ import '../../../app/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../services/meta_app_events_service.dart';
 import '../providers/auth_providers.dart';
+import '../utils/social_auth_error_messages.dart';
 import '../../../widgets/gradient_button.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
@@ -141,9 +142,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(
-          () => _errorMessage = e.toString().replaceFirst('Exception: ', ''),
-        );
+        setState(() => _errorMessage = friendlySocialAuthError(e));
       }
     } finally {
       if (mounted) {

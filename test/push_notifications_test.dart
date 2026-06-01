@@ -35,4 +35,15 @@ void main() {
       isNull,
     );
   });
+
+  test('order notification data routes to the buyer order detail', () {
+    expect(
+      routeForPushNotification({
+        'type': 'order_update',
+        'order_id': 'order-123',
+        'recipient_role': 'buyer',
+      }),
+      '/profile/orders/order-123',
+    );
+  });
 }

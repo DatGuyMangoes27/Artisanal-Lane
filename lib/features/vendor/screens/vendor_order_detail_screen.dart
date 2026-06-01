@@ -515,18 +515,29 @@ class _VendorOrderDetailScreenState
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          SizedBox(
+            width: 104,
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppTheme.textHint,
+              ),
+            ),
           ),
-          Text(
-            value,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              softWrap: true,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+              ),
             ),
           ),
         ],

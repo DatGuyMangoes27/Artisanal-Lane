@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { reserveGuestCartItem } from "@/lib/marketplace/cart-reservations";
 
 import { useGuestCart } from "./guest-cart-provider";
 
@@ -13,8 +14,10 @@ type AddToCartButtonProps = {
 };
 
 export function AddToCartButton({ productId, variantId = null, disabled }: AddToCartButtonProps) {
-  const { addItem } = useGuestCart();
+  const { addItem, items } = useGuestCart();
   const [hasAdded, setHasAdded] = useState(false);
+  const [isReserving, setIsReserving] = useState(false);
+  const [reservationError, setReservationError] = useState(false);
 
   useEffect(() => {
     if (!hasAdded) {
@@ -29,15 +32,31 @@ export function AddToCartButton({ productId, variantId = null, disabled }: AddTo
     <Button
       type="button"
       size="lg"
-      disabled={disabled}
+      disabled={disabled || isReserving}
       aria-live="polite"
       className="h-12 w-full rounded-full"
-      onClick={() => {
-        addItem({ productId, variantId, quantity: 1 });
-        setHasAdded(true);
+      onClick={async () => {
+        setReservationError(false);
+        const currentQuantity = items.find(
+          (item) => item.productId === productId && item.variantId === variantId,
+        )?.quantity ?? 0;
+        setIsReserving(true);
+        try {
+          await reserveGuestCartItem({
+            productId,
+            variantId,
+            quantity: currentQuantity + 1,
+          });
+          addItem({ productId, variantId, quantity: 1 });
+          setHasAdded(true);
+        } catch {
+          setReservationError(true);
+        } finally {
+          setIsReserving(false);
+        }
       }}
     >
-      {hasAdded ? "Added to cart" : "Add to cart"}
+      {isReserving ? "Reserving..." : reservationError ? "Out of stock" : hasAdded ? "Added to cart" : "Add to cart"}
     </Button>
   );
 }

@@ -6,9 +6,11 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../buyer/utils/help_support_contact.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_fulfillment_options.dart';
 import '../utils/vendor_onboarding_flow.dart';
@@ -309,6 +311,30 @@ class _VendorOnboardingScreenState
     }
   }
 
+  Future<void> _refreshApplicationStatus() async {
+    ref.invalidate(vendorApplicationProvider);
+    ref.invalidate(vendorApplicationStreamProvider);
+    await ref.read(vendorApplicationProvider.future);
+  }
+
+  Future<void> _contactAdminAboutApplication(dynamic application) async {
+    final uri = vendorApplicationReviewWhatsappUri(
+      businessName: application.businessName,
+    );
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not open WhatsApp. Please email $helpSupportEmail.',
+          ),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
   Future<void> _logout() async {
     try {
       await Supabase.instance.client.auth.signOut();
@@ -331,7 +357,8 @@ class _VendorOnboardingScreenState
               if (application.isApproved &&
                   shouldShowVendorApprovalCelebration(
                     isApproved: true,
-                    hasSeenVendorApproval: profile?.hasSeenVendorApproval ?? false,
+                    hasSeenVendorApproval:
+                        profile?.hasSeenVendorApproval ?? false,
                   )) {
                 return _buildApproved(application);
               }
@@ -579,11 +606,8 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 20),
 
-            Container(
-              key: _fulfillmentKey,
-              width: double.infinity,
-            ),
-            _buildLabel('How will you fulfil orders?'),
+            Container(key: _fulfillmentKey, width: double.infinity),
+            _buildRequiredLabel('How will you fulfil orders?'),
             const SizedBox(height: 4),
             Text(
               vendorFulfillmentDescription,
@@ -642,11 +666,8 @@ class _VendorOnboardingScreenState
             ),
             const SizedBox(height: 20),
 
-            Container(
-              key: _turnaroundKey,
-              width: double.infinity,
-            ),
-            _buildLabel('Typical turnaround time?'),
+            Container(key: _turnaroundKey, width: double.infinity),
+            _buildRequiredLabel('Typical turnaround time?'),
             const SizedBox(height: 4),
             Text(
               'How long from order placed to ready-to-ship? Include made-to-order time if applicable.',
@@ -842,7 +863,7 @@ class _VendorOnboardingScreenState
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () => ref.invalidate(vendorApplicationProvider),
+              onPressed: _refreshApplicationStatus,
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: Text(
                 'Refresh Status',
@@ -1019,6 +1040,49 @@ class _VendorOnboardingScreenState
             ),
           ),
           const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _contactAdminAboutApplication(application),
+              icon: const Icon(Icons.chat_outlined, size: 18),
+              label: Text(
+                'Chat with Admin',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.terracotta,
+                side: const BorderSide(color: AppTheme.terracotta, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'This opens a chat with Artisan Lane support about your application.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppTheme.textHint,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            helpSupportEmail,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppTheme.terracotta,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
           Center(
             child: TextButton(
               onPressed: _logout,
@@ -1278,6 +1342,16 @@ class _VendorOnboardingScreenState
     );
   }
 
+  Widget _buildRequiredLabel(String text) {
+    return Row(
+      children: [
+        _buildLabel(text),
+        const SizedBox(width: 8),
+        _buildRequiredBadge(),
+      ],
+    );
+  }
+
   Widget _buildSubLabel(String text) {
     return Text(
       text,
@@ -1295,9 +1369,7 @@ class _VendorOnboardingScreenState
       decoration: BoxDecoration(
         color: AppTheme.terracotta.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: AppTheme.terracotta.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.35)),
       ),
       child: Text(
         'Required',

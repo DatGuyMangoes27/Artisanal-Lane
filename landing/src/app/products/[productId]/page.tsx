@@ -10,6 +10,7 @@ import { GuestCartProvider } from "@/components/marketplace/guest-cart-provider"
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
 import { getMarketplaceProduct } from "@/lib/marketplace/catalog";
 import {
   formatPrice,
@@ -74,6 +75,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const canReview = user
     ? Boolean(await getLatestEligibleProductReviewContext(user.id, product.id))
     : false;
+  const favouriteIds = user ? await listFavouriteProductIds(user.id) : [];
+  const isFavourite = favouriteIds.includes(product.id);
   const myReview = user
     ? reviewOverview.reviews.find((review) => review.buyerId === user.id) ?? null
     : null;
@@ -120,7 +123,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <section className="space-y-8">
             <div>
               <Link
-                href="/shop#artisans"
+                href={product.shop ? `/shops/${product.shop.slug || product.shop.id}` : "/artisans"}
                 className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta hover:underline"
               >
                 {product.shop?.name ?? "Artisan Lane seller"}
@@ -155,12 +158,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
               </form>
               <form action={toggleFavouriteProduct} className="mt-3">
                 <input type="hidden" name="productId" value={product.id} />
+                <input type="hidden" name="action" value={isFavourite ? "remove" : "add"} />
                 <input type="hidden" name="redirectTo" value={`/products/${product.id}`} />
                 <button
                   type="submit"
                   className="h-12 w-full rounded-full border border-artisan-clay text-sm font-semibold text-foreground transition hover:border-artisan-terracotta hover:text-artisan-terracotta"
                 >
-                  Save to favourites
+                  {isFavourite ? "Saved to favourites" : "Save to favourites"}
                 </button>
               </form>
               {isOutOfStock ? (

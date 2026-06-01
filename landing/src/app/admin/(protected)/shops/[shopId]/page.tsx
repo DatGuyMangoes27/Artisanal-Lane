@@ -41,7 +41,7 @@ export default async function AdminShopDetailPage({
         title={shop.name}
         description="Inspect the storefront, moderate posts, review products, and leave internal notes for other admins."
         actions={
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap gap-3 md:justify-end">
             <Button asChild variant="outline">
               <Link href="/admin/shops">
                 <ArrowLeft className="h-4 w-4" />

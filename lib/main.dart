@@ -47,6 +47,7 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
   late final AppLinks _appLinks;
   StreamSubscription<Uri>? _paymentDeepLinkSubscription;
   PushNotificationsService? _pushNotificationsService;
+  bool _isHandlingPasswordRecovery = false;
 
   @override
   void initState() {
@@ -73,12 +74,26 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
         _pushNotificationsService?.registerCurrentDevice() ?? Future.value(),
       );
     }
+    unawaited(_handleInitialDeepLink());
     _paymentDeepLinkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingDeepLink,
     );
   }
 
+  Future<void> _handleInitialDeepLink() async {
+    final uri = await _appLinks.getInitialLink();
+    if (uri != null) {
+      _handleIncomingDeepLink(uri);
+    }
+  }
+
   void _handleIncomingDeepLink(Uri uri) {
+    final authRoute = routeForIncomingAuthRedirect(uri);
+    if (authRoute != null) {
+      _routeToPasswordRecovery();
+      return;
+    }
+
     final route = resolvePaymentDeepLinkRoute(uri);
     if (route == null) return;
 
@@ -92,6 +107,15 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       router.go(route);
+    });
+  }
+
+  void _routeToPasswordRecovery() {
+    _isHandlingPasswordRecovery = true;
+    final router = ref.read(routerProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      router.go(passwordRecoveryRoute);
     });
   }
 
@@ -110,11 +134,15 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
     ref.listen(authStateProvider, (_, next) {
       next.whenData((authState) async {
         if (authState.event == AuthChangeEvent.passwordRecovery) {
-          router.go(passwordRecoveryRoute);
+          _routeToPasswordRecovery();
           return;
         }
 
         if (authState.event == AuthChangeEvent.signedIn) {
+          if (_isHandlingPasswordRecovery) {
+            router.go(passwordRecoveryRoute);
+            return;
+          }
           final service = ref.read(supabaseServiceProvider);
           final profile = await service.syncCurrentUserProfile();
           await _pushNotificationsService?.registerCurrentDevice();
@@ -137,6 +165,10 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
         }
 
         if (authState.event == AuthChangeEvent.signedOut) {
+          if (_isHandlingPasswordRecovery) {
+            _isHandlingPasswordRecovery = false;
+            return;
+          }
           final route = routeForAuthEvent(authState.event);
           if (route != null) {
             router.go(route);

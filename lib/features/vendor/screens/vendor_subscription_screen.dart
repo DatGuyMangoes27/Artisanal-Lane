@@ -58,9 +58,10 @@ class _VendorSubscriptionScreenState
         return;
       }
 
-      final subscription =
-          ref.read(vendorSubscriptionStreamProvider).value ??
-          ref.read(vendorSubscriptionProvider).value;
+      final subscription = preferredVendorSubscription(
+        streamValue: ref.read(vendorSubscriptionStreamProvider).value,
+        futureValue: ref.read(vendorSubscriptionProvider).value,
+      );
       if (isVendorSubscriptionActive(subscription)) {
         timer.cancel();
         return;
@@ -99,13 +100,29 @@ class _VendorSubscriptionScreenState
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => PayfastSubscriptionCheckoutScreen(
-            checkoutUri: checkoutUri,
-          ),
+          builder: (_) =>
+              PayfastSubscriptionCheckoutScreen(checkoutUri: checkoutUri),
         ),
       );
     } catch (error) {
       if (!mounted) return;
+      if (isVendorSubscriptionAlreadyActiveError(error)) {
+        ref.invalidate(vendorSubscriptionProvider);
+        ref.invalidate(vendorSubscriptionStreamProvider);
+        await ref.read(vendorSubscriptionProvider.future);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Subscription active. Your shop is unlocked.',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+            backgroundColor: AppTheme.baobab,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -129,9 +146,7 @@ class _VendorSubscriptionScreenState
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Cancel subscription?',
           style: GoogleFonts.playfairDisplay(
@@ -221,8 +236,18 @@ class _VendorSubscriptionScreenState
 
   static String _formatDialogDate(DateTime value) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final day = value.day.toString();
     final month = months[value.month - 1];
@@ -234,18 +259,22 @@ class _VendorSubscriptionScreenState
   Widget build(BuildContext context) {
     final subscriptionStreamAsync = ref.watch(vendorSubscriptionStreamProvider);
     final subscriptionFutureAsync = ref.watch(vendorSubscriptionProvider);
-    final subscription =
-        subscriptionStreamAsync.value ?? subscriptionFutureAsync.value;
+    final subscription = preferredVendorSubscription(
+      streamValue: subscriptionStreamAsync.value,
+      futureValue: subscriptionFutureAsync.value,
+    );
     final subscriptionError =
         subscriptionStreamAsync.error ?? subscriptionFutureAsync.error;
     final isSubscriptionLoading =
         subscription == null &&
         subscriptionError == null &&
-        (subscriptionStreamAsync.isLoading || subscriptionFutureAsync.isLoading);
+        (subscriptionStreamAsync.isLoading ||
+            subscriptionFutureAsync.isLoading);
     final status = subscription?.status ?? 'inactive';
     final isActive = isVendorSubscriptionActive(subscription);
-    final isCancelledButAccessible =
-        isVendorSubscriptionCancelledButAccessible(subscription);
+    final isCancelledButAccessible = isVendorSubscriptionCancelledButAccessible(
+      subscription,
+    );
     final canCancel = status == 'active' && isActive;
     final isActivating = _isWaitingForActivation && !isActive;
     final canStartSubscription =
@@ -264,7 +293,10 @@ class _VendorSubscriptionScreenState
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
@@ -332,7 +364,8 @@ class _VendorSubscriptionScreenState
                 ),
                 onPressed: canStartSubscription ? _startSubscription : null,
                 isLoading:
-                    (!isSubscriptionLoading && _startingCheckout) || isActivating,
+                    (!isSubscriptionLoading && _startingCheckout) ||
+                    isActivating,
                 fontSize: 15,
               ),
               if (canCancel && subscription != null) ...[
@@ -356,9 +389,7 @@ class _VendorSubscriptionScreenState
                           size: 18,
                         ),
                   label: Text(
-                    _cancelling
-                        ? 'Cancelling…'
-                        : 'Cancel Subscription',
+                    _cancelling ? 'Cancelling…' : 'Cancel Subscription',
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w600,
                       color: AppTheme.error,
@@ -420,13 +451,13 @@ class _SubscriptionHeroCard extends StatelessWidget {
         : errorMessage != null
         ? AppTheme.error
         : switch (status) {
-      'active' => AppTheme.baobab,
-      'pending' => AppTheme.ochre,
-      'past_due' => AppTheme.error,
-      'cancelled' =>
-        isCancelledButAccessible ? AppTheme.ochre : AppTheme.textHint,
-      _ => AppTheme.terracotta,
-    };
+            'active' => AppTheme.baobab,
+            'pending' => AppTheme.ochre,
+            'past_due' => AppTheme.error,
+            'cancelled' =>
+              isCancelledButAccessible ? AppTheme.ochre : AppTheme.textHint,
+            _ => AppTheme.terracotta,
+          };
     final statusLabel = isLoading
         ? 'Checking subscription'
         : errorMessage != null
@@ -554,10 +585,7 @@ class _FeatureCard extends StatelessWidget {
   final String title;
   final List<String> items;
 
-  const _FeatureCard({
-    required this.title,
-    required this.items,
-  });
+  const _FeatureCard({required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {

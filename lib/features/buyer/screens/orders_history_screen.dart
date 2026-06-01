@@ -4,16 +4,27 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
+import '../../../models/order.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/order_history_filters.dart';
+import '../utils/receipt_reminders.dart';
 
-class OrdersHistoryScreen extends ConsumerWidget {
+class OrdersHistoryScreen extends ConsumerStatefulWidget {
   const OrdersHistoryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrdersHistoryScreen> createState() =>
+      _OrdersHistoryScreenState();
+}
+
+class _OrdersHistoryScreenState extends ConsumerState<OrdersHistoryScreen> {
+  bool _hideCancelledOrders = true;
+
+  @override
+  Widget build(BuildContext context) {
     final orders = ref.watch(ordersStreamProvider);
 
     return Scaffold(
@@ -59,6 +70,11 @@ class OrdersHistoryScreen extends ConsumerWidget {
             Expanded(
               child: orders.when(
                 data: (items) {
+                  final visibleItems = visibleOrderHistoryItems(
+                    items,
+                    hideCancelledOrders: _hideCancelledOrders,
+                  );
+
                   if (items.isEmpty) {
                     return _EmptyOrdersState(
                       onStartShopping: () => context.go('/home'),
@@ -67,17 +83,25 @@ class OrdersHistoryScreen extends ConsumerWidget {
 
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
-                    itemCount: items.length + 1, // +1 for bottom TripleDot
+                    itemCount: visibleItems.length + 2,
                     separatorBuilder: (_, __) => const SizedBox(height: 20),
                     itemBuilder: (context, index) {
-                      if (index == items.length) {
+                      if (index == 0) {
+                        return _HideCancelledToggle(
+                          value: _hideCancelledOrders,
+                          onChanged: (value) =>
+                              setState(() => _hideCancelledOrders = value),
+                        );
+                      }
+
+                      if (index == visibleItems.length + 1) {
                         return const Padding(
                           padding: EdgeInsets.only(top: 24, bottom: 8),
                           child: Center(child: TripleDot()),
                         );
                       }
 
-                      final order = items[index];
+                      final order = visibleItems[index - 1];
                       return _OrderCard(
                         order: order,
                         onTap: () =>
@@ -172,6 +196,59 @@ class _BackButton extends StatelessWidget {
   }
 }
 
+class _HideCancelledToggle extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _HideCancelledToggle({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hide cancelled orders',
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value
+                      ? 'Cancelled orders are hidden'
+                      : 'Cancelled orders are shown',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeThumbColor: AppTheme.terracotta,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Empty State
 // ═══════════════════════════════════════════════════════════════════
@@ -241,7 +318,7 @@ class _EmptyOrdersState extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════
 
 class _OrderCard extends StatelessWidget {
-  final dynamic order;
+  final Order order;
   final VoidCallback onTap;
 
   const _OrderCard({required this.order, required this.onTap});
@@ -353,8 +430,54 @@ class _OrderCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (shouldPromptReceiptReminder(order)) ...[
+              const SizedBox(height: 16),
+              const _ReceiptReminderPill(),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ReceiptReminderPill extends StatelessWidget {
+  const _ReceiptReminderPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.ochre.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.ochre.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 18,
+            color: AppTheme.ochre,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Reminder: mark as received once it arrives',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.ochre,
+              ),
+            ),
+          ),
+          const Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: AppTheme.ochre,
+          ),
+        ],
       ),
     );
   }

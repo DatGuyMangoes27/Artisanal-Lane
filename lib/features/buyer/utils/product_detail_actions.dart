@@ -1,8 +1,13 @@
+const String productShareBaseUrl = 'https://artisanlanesa.co.za/products';
+
 String buildProductShareText({
+  required String productId,
   required String title,
   required double price,
 }) {
-  return 'Check out $title on Artisan Lane! R${price.toStringAsFixed(0)}';
+  final productUrl = '$productShareBaseUrl/${Uri.encodeComponent(productId)}';
+  return 'Check out $title on Artisan Lane! R${price.toStringAsFixed(0)}\n'
+      '$productUrl';
 }
 
 bool requiresSignInForFavourite(String? userId) {

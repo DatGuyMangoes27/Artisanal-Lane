@@ -26,6 +26,8 @@ class _VendorApplicationScreenState
   final _locationController = TextEditingController();
   final _deliveryController = TextEditingController();
   final _turnaroundController = TextEditingController();
+  final _applicationFormScrollController = ScrollController();
+  final _errorBannerKey = GlobalKey();
   bool _acceptedTcs = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -38,18 +40,38 @@ class _VendorApplicationScreenState
     _locationController.dispose();
     _deliveryController.dispose();
     _turnaroundController.dispose();
+    _applicationFormScrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (!_acceptedTcs) {
-      setState(
-        () =>
-            _errorMessage = 'Please accept the Terms & Conditions to continue.',
+  void _showError(String message) {
+    setState(() => _errorMessage = message);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final errorContext = _errorBannerKey.currentContext;
+      if (errorContext != null) {
+        Scrollable.ensureVisible(
+          errorContext,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          alignment: 0.08,
+        );
+        return;
+      }
+      if (!_applicationFormScrollController.hasClients) return;
+      _applicationFormScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
       );
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_acceptedTcs) {
+      _showError('Please accept the Terms & Conditions to continue.');
       return;
     }
+    if (!_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -129,9 +151,7 @@ class _VendorApplicationScreenState
         );
       }
     } catch (e) {
-      setState(
-        () => _errorMessage = e.toString().replaceAll('Exception: ', ''),
-      );
+      _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -456,8 +476,28 @@ class _VendorApplicationScreenState
     return Form(
       key: _formKey,
       child: ListView(
+        controller: _applicationFormScrollController,
         padding: const EdgeInsets.all(24),
         children: [
+          if (_errorMessage != null) ...[
+            Container(
+              key: _errorBannerKey,
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppTheme.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppTheme.error.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Text(
+                _errorMessage!,
+                style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -501,25 +541,6 @@ class _VendorApplicationScreenState
 
           _VendorRequirementsCard(),
           const SizedBox(height: 24),
-
-          if (_errorMessage != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.error.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppTheme.error.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Text(
-                _errorMessage!,
-                style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
 
           _buildLabel('Business Name'),
           const SizedBox(height: 8),
@@ -569,10 +590,10 @@ class _VendorApplicationScreenState
           ),
           const SizedBox(height: 20),
 
-          _buildLabel('How will you fulfil orders?'),
+          _buildRequiredLabel('How will you fulfil orders?'),
           const SizedBox(height: 4),
           Text(
-              'Tell us about your delivery method — courier, click & collect, market pickup, etc.',
+            'Tell us about your delivery method — courier, click & collect, market pickup, etc.',
             style: GoogleFonts.poppins(
               fontSize: 11,
               color: AppTheme.textHint,
@@ -594,7 +615,7 @@ class _VendorApplicationScreenState
           ),
           const SizedBox(height: 20),
 
-          _buildLabel('What is your typical turnaround time?'),
+          _buildRequiredLabel('What is your typical turnaround time?'),
           const SizedBox(height: 4),
           Text(
             'How long from order placed to ready-to-ship? Include any made-to-order time.',
@@ -634,6 +655,7 @@ class _VendorApplicationScreenState
           const SizedBox(height: 28),
 
           GradientButton(
+            key: const Key('vendorApplicationSubmitButton'),
             label: 'Submit Application',
             isLoading: _isLoading,
             onPressed: _isLoading ? null : _submit,
@@ -651,6 +673,36 @@ class _VendorApplicationScreenState
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+
+  Widget _buildRequiredLabel(String text) {
+    return Row(
+      children: [
+        _buildLabel(text),
+        const SizedBox(width: 8),
+        _buildRequiredBadge(),
+      ],
+    );
+  }
+
+  Widget _buildRequiredBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppTheme.terracotta.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        'Required',
+        style: GoogleFonts.poppins(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppTheme.terracotta,
+          letterSpacing: 0.3,
+        ),
       ),
     );
   }
@@ -880,10 +932,7 @@ class _VendorTermsCardState extends State<_VendorTermsCard> {
             ),
           ),
           if (_expanded) ...[
-            Divider(
-              color: AppTheme.sand.withValues(alpha: 0.4),
-              height: 1,
-            ),
+            Divider(color: AppTheme.sand.withValues(alpha: 0.4), height: 1),
             Container(
               constraints: const BoxConstraints(maxHeight: 260),
               padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
@@ -916,20 +965,14 @@ class _VendorTermsCardState extends State<_VendorTermsCard> {
               ),
             ),
           ],
-          Divider(
-            color: AppTheme.sand.withValues(alpha: 0.4),
-            height: 1,
-          ),
+          Divider(color: AppTheme.sand.withValues(alpha: 0.4), height: 1),
           InkWell(
             borderRadius: const BorderRadius.vertical(
               bottom: Radius.circular(16),
             ),
             onTap: () => showVendorTermsSheet(context),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
                   const Icon(

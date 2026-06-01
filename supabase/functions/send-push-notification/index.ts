@@ -5,6 +5,7 @@ import {
   buildChatMessagePush,
   buildDisputePush,
   buildOrderPush,
+  buildStoredNotification,
   type ChatThreadPushRow,
   type DisputePushEvent,
   getFirebaseAccessToken,
@@ -31,6 +32,9 @@ Deno.serve(async (request) => {
       ? body.disputeId.trim()
       : "";
     const event = typeof body.event === "string" ? body.event.trim() : "";
+    const reminderKey = typeof body.reminderKey === "string"
+      ? body.reminderKey.trim()
+      : "";
 
     if (
       (type === "chat_message" && messageIds.length === 0) ||
@@ -95,6 +99,7 @@ Deno.serve(async (request) => {
         projectId: firebaseServiceAccount.project_id,
         orderId,
         event,
+        reminderKey,
       });
       sent += result.sent;
       skipped += result.skipped;
@@ -181,16 +186,6 @@ async function sendChatMessageNotification({
     .eq("id", message.sender_id)
     .maybeSingle();
 
-  const { data: tokens } = await admin
-    .from("user_push_tokens")
-    .select("id, token")
-    .eq("user_id", recipient.userId)
-    .is("revoked_at", null);
-
-  if (!tokens || tokens.length === 0) {
-    return { sent, skipped: skipped + 1, failures };
-  }
-
   const payload = buildChatMessagePush({
     threadId: thread.id,
     messageId: message.id as string,
@@ -206,6 +201,17 @@ async function sendChatMessageNotification({
     body: message.body as string | null,
     messageType: message.message_type as string | null,
   });
+  await storeNotification(admin, recipient.userId, payload);
+
+  const { data: tokens } = await admin
+    .from("user_push_tokens")
+    .select("id, token")
+    .eq("user_id", recipient.userId)
+    .is("revoked_at", null);
+
+  if (!tokens || tokens.length === 0) {
+    return { sent, skipped: skipped + 1, failures };
+  }
 
   const sendResult = await sendPayloadToTokens({
     admin,
@@ -228,12 +234,14 @@ async function sendOrderUpdateNotification({
   projectId,
   orderId,
   event,
+  reminderKey,
 }: {
   admin: AdminClient;
   accessToken: string;
   projectId: string;
   orderId: string;
   event: OrderPushEvent;
+  reminderKey?: string;
 }) {
   const { data: order } = await admin
     .from("orders")
@@ -265,6 +273,7 @@ async function sendOrderUpdateNotification({
         recipientRole,
         shopName: shop?.name,
         trackingNumber: order.tracking_number as string | null,
+        reminderKey,
       }),
   });
 }
@@ -339,6 +348,9 @@ async function sendRecipientPayloads({
   const failures: Array<{ tokenId: string; status: number }> = [];
 
   for (const recipient of recipients) {
+    const payload = payloadForRecipient(recipient.role);
+    await storeNotification(admin, recipient.userId, payload);
+
     const { data: tokens } = await admin
       .from("user_push_tokens")
       .select("id, token")
@@ -355,7 +367,7 @@ async function sendRecipientPayloads({
       accessToken,
       projectId,
       tokens,
-      payload: payloadForRecipient(recipient.role),
+      payload,
     });
     sent += result.sent;
     failures.push(...result.failures);
@@ -407,6 +419,24 @@ async function sendPayloadToTokens({
   return { sent, failures };
 }
 
+async function storeNotification(
+  admin: AdminClient,
+  userId: string,
+  payload: PushPayload,
+) {
+  const notification = buildStoredNotification(userId, payload);
+  const { error } = await admin
+    .from("notifications")
+    .upsert(notification, {
+      onConflict: "user_id,event_key",
+      ignoreDuplicates: true,
+    });
+
+  if (error != null) {
+    console.error("Unable to store notification", error.message);
+  }
+}
+
 function normalizeMessageIds(input: unknown) {
   if (Array.isArray(input)) {
     return input
@@ -442,7 +472,8 @@ function chatSenderLabel({
 }
 
 function isOrderPushEvent(event: string): event is OrderPushEvent {
-  return ["paid", "shipped", "completed", "cancelled"].includes(event);
+  return ["paid", "shipped", "receipt_reminder", "completed", "cancelled"]
+    .includes(event);
 }
 
 function isDisputePushEvent(event: string): event is DisputePushEvent {
