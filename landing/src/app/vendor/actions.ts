@@ -111,6 +111,74 @@ function parseShippingOptions(formData: FormData) {
   }));
 }
 
+export type VendorApplicationState = { error: string | null };
+
+export async function submitVendorApplication(
+  _prevState: VendorApplicationState,
+  formData: FormData,
+): Promise<VendorApplicationState> {
+  const session = await requireVendorSession("/vendor/apply");
+
+  // Already an approved artisan (or admin) — nothing to apply for.
+  if (session.isApprovedVendor) {
+    redirect("/vendor");
+  }
+
+  const userId = session.user.id;
+  const admin = createAdminClient();
+
+  // Don't create a duplicate while an application is already in flight.
+  const { data: existing } = await admin
+    .from("vendor_applications")
+    .select("id")
+    .or(`user_id.eq.${userId},applicant_user_id_snapshot.eq.${userId}`)
+    .is("superseded_at", null)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    redirect("/vendor");
+  }
+
+  const businessName = parseNullableText(formData.get("businessName"));
+  if (!businessName) {
+    return { error: "Please enter your business or shop name." };
+  }
+
+  if (!isTruthy(formData.get("acceptTerms"))) {
+    return { error: "Please accept the Terms & Conditions to continue." };
+  }
+
+  const proofImageUrls = await getUploadedUrls(
+    formData,
+    "proofImages",
+    "shop-assets",
+    `${userId}/vendor-application`,
+  );
+
+  const { error } = await admin.from("vendor_applications").insert({
+    user_id: userId,
+    applicant_user_id_snapshot: userId,
+    applicant_display_name_snapshot: session.profile.displayName,
+    applicant_email_snapshot: session.profile.email,
+    business_name: businessName,
+    motivation: parseNullableText(formData.get("motivation")),
+    portfolio_url: parseNullableText(formData.get("portfolioUrl")),
+    proof_image_urls: proofImageUrls,
+    location: parseNullableText(formData.get("location")),
+    delivery_info: parseNullableText(formData.get("deliveryInfo")),
+    turnaround_time: parseNullableText(formData.get("turnaroundTime")),
+    status: "pending",
+  });
+
+  if (error) {
+    return { error: "We couldn't submit your application. Please try again." };
+  }
+
+  revalidatePath("/vendor");
+  redirect("/vendor");
+}
+
 export async function updateVendorShopSettings(formData: FormData) {
   const session = await requireVendorSession("/vendor/profile/shop");
   if (!session.isApprovedVendor) {

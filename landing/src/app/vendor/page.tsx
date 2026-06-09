@@ -38,10 +38,15 @@ export default async function VendorDashboardPage() {
               </p>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              We could not find an artisan application for this account yet. Apply from the
-              marketplace onboarding flow, then come back here once approved.
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                You haven&apos;t applied to sell on Artisan Lane yet. Tell us about your craft and
+                our team will review your application.
+              </p>
+              <Button asChild className="rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90">
+                <Link href="/vendor/apply">Start your application</Link>
+              </Button>
+            </div>
           )}
         </VendorPanel>
       </div>

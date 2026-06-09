@@ -86,8 +86,19 @@ export function BuyerLoginForm() {
       }
     }
 
-    const roleHome = getAccountHomeHref(profileRole ?? copy.requestedRole);
-    const nextPath = profileRole === "buyer" && explicitRedirect ? redirectTo : roleHome;
+    // Vendors keep a buyer-role profile until an admin approves their
+    // application (mirroring the mobile app), so route by the chosen intent
+    // rather than the profile role. Approved artisans/admins go to their
+    // portal; an unapproved vendor goes to the application flow (/vendor/apply
+    // bounces them to /vendor if they're already approved or have applied).
+    const isElevated = profileRole === "vendor" || profileRole === "admin";
+    const nextPath = isElevated
+      ? getAccountHomeHref(profileRole)
+      : explicitRedirect
+        ? redirectTo
+        : intent === "vendor"
+          ? "/vendor/apply"
+          : getAccountHomeHref(profileRole ?? copy.requestedRole);
 
     router.replace(nextPath);
     router.refresh();
