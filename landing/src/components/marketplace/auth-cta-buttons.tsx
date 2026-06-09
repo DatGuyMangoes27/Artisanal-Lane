@@ -4,30 +4,66 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { getAccountHomeHref } from "@/lib/marketplace/account-routing";
 import { createClient } from "@/lib/supabase/browser";
 
+type AuthState =
+  | { status: "loading" }
+  | { status: "guest" }
+  | { status: "authed"; dashboardHref: string };
+
+const pillBase = "whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition";
+
 export function AuthCtaButtons({ variant = "bar" }: { variant?: "bar" | "pill" }) {
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const [state, setState] = useState<AuthState>({ status: "loading" });
 
   useEffect(() => {
     let active = true;
     const supabase = createClient();
 
-    async function loadUser() {
+    async function load() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (active) {
-        setLoggedIn(Boolean(user));
+      if (!active) {
+        return;
       }
+      if (!user) {
+        setState({ status: "guest" });
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!active) {
+        return;
+      }
+
+      const role = (profile as { role?: string | null } | null)?.role ?? "buyer";
+      const requestedRole = (user.user_metadata as { requested_role?: string } | null)
+        ?.requested_role;
+      // Approved vendors/admins go to their portal; a pending vendor (still a
+      // buyer-role profile) is sent to /vendor to finish their application;
+      // everyone else lands on the buyer account.
+      const dashboardHref =
+        role === "vendor" || role === "admin"
+          ? getAccountHomeHref(role)
+          : requestedRole === "vendor"
+            ? "/vendor"
+            : "/account";
+
+      setState({ status: "authed", dashboardHref });
     }
 
-    void loadUser();
+    void load();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(() => {
-      void loadUser();
+      void load();
     });
 
     return () => {
@@ -36,27 +72,49 @@ export function AuthCtaButtons({ variant = "bar" }: { variant?: "bar" | "pill" }
     };
   }, []);
 
-  // Hide the CTAs once we know a user is signed in; the account icon covers them.
-  if (loggedIn === true) {
+  if (state.status === "loading") {
     return null;
   }
 
   if (variant === "pill") {
+    if (state.status === "authed") {
+      return (
+        <Link
+          href={state.dashboardHref}
+          className={`${pillBase} bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark`}
+        >
+          Dashboard
+        </Link>
+      );
+    }
+
     return (
       <>
         <Link
           href="/login?intent=buyer"
-          className="whitespace-nowrap rounded-full border border-artisan-clay bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:border-artisan-terracotta hover:text-artisan-terracotta"
+          className={`${pillBase} border border-artisan-clay bg-card text-foreground hover:border-artisan-terracotta hover:text-artisan-terracotta`}
         >
           Sign up
         </Link>
         <Link
           href="/login?intent=vendor"
-          className="whitespace-nowrap rounded-full bg-artisan-terracotta px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-artisan-terracotta-dark"
+          className={`${pillBase} bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark`}
         >
           Apply
         </Link>
       </>
+    );
+  }
+
+  if (state.status === "authed") {
+    return (
+      <Button
+        asChild
+        size="sm"
+        className="rounded-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+      >
+        <Link href={state.dashboardHref}>Dashboard</Link>
+      </Button>
     );
   }
 
