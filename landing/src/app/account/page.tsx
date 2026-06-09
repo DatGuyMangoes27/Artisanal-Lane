@@ -21,6 +21,14 @@ export default async function AccountPage() {
   if (profile?.role === "vendor") {
     redirect("/vendor");
   }
+  // Anyone who signed up as a vendor belongs in the vendor portal — even before
+  // approval — so they're always led to complete their application instead of
+  // landing on the buyer dashboard. (/vendor shows the apply CTA or status.)
+  const requestedRole = (user.user_metadata as { requested_role?: string } | null)
+    ?.requested_role;
+  if (requestedRole === "vendor") {
+    redirect("/vendor");
+  }
 
   const [orders, favouriteIds, addresses, notifications, disputes] = await Promise.all([
     listBuyerOrders(user.id),
