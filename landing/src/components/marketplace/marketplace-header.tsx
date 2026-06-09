@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Heart, Search } from "lucide-react";
 
 import { AccountNavButton } from "@/components/marketplace/account-nav-button";
+import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
 import { CartNavButton } from "@/components/marketplace/cart-nav-button";
 import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notice";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,9 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
             <Link href="/account/favourites"><Heart /></Link>
           </Button>
           <AccountNavButton />
+          <div className="ml-1 hidden items-center gap-2 sm:flex">
+            <AuthCtaButtons />
+          </div>
         </div>
       </div>
       <nav
@@ -79,6 +83,7 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           <Link href="/shop#search" className={mobileNavLinkClass()}>
             Search
           </Link>
+          <AuthCtaButtons variant="pill" />
         </div>
       </nav>
     </header>
