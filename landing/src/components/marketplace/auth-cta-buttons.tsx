@@ -13,16 +13,21 @@ export function AuthCtaButtons({ variant = "bar" }: { variant?: "bar" | "pill" }
     let active = true;
     const supabase = createClient();
 
-    supabase.auth.getUser().then(({ data }) => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (active) {
-        setLoggedIn(Boolean(data.user));
+        setLoggedIn(Boolean(user));
       }
-    });
+    }
+
+    void loadUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoggedIn(Boolean(session?.user));
+    } = supabase.auth.onAuthStateChange(() => {
+      void loadUser();
     });
 
     return () => {
