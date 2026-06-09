@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ProductImagePicker } from "@/components/vendor/product-image-picker";
 import type {
   VendorCategory,
   VendorProduct,
@@ -112,16 +113,84 @@ export function VendorProductForm({
       </section>
 
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
+        <h3 className="text-2xl font-semibold text-artisan-sienna">Fulfillment</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Sell from stock, offer made-to-order custom pieces, or both. Made-to-order items stay buyable even when stock runs out.
+        </p>
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna lg:col-span-2">
+            Fulfillment mode
+            <select
+              name="fulfillmentMode"
+              defaultValue={product?.fulfillmentMode ?? "stocked"}
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            >
+              <option value="stocked">Stocked only</option>
+              <option value="made_to_order">Made to order only</option>
+              <option value="stocked_with_mto">Stocked, then made to order when sold out</option>
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Made-to-order price (optional)
+            <input
+              name="madeToOrderPrice"
+              inputMode="decimal"
+              defaultValue={money(product?.madeToOrderPrice)}
+              placeholder="Defaults to the price above"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Open made-to-order capacity (optional)
+            <input
+              name="madeToOrderCapacity"
+              inputMode="numeric"
+              defaultValue={product?.madeToOrderCapacity == null ? "" : String(product.madeToOrderCapacity)}
+              placeholder="Leave blank for unlimited"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Lead time min (days)
+            <input
+              name="leadMinDays"
+              inputMode="numeric"
+              defaultValue={product?.leadMinDays == null ? "" : String(product.leadMinDays)}
+              placeholder="e.g. 14"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Lead time max (days)
+            <input
+              name="leadMaxDays"
+              inputMode="numeric"
+              defaultValue={product?.leadMaxDays == null ? "" : String(product.leadMaxDays)}
+              placeholder="e.g. 21"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="flex items-center gap-3 text-sm font-medium text-artisan-sienna lg:col-span-2">
+            <input name="allowCustomNote" type="checkbox" defaultChecked={product?.allowCustomNote ?? false} />
+            Let buyers add a custom request note on made-to-order items
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Images</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Paste existing URLs, and upload any new product photos.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Upload and crop new product photos, or paste existing hosted URLs below.</p>
         <div className="mt-5 grid gap-4">
-          <textarea
-            name="imageUrls"
-            defaultValue={product?.images.join("\n") ?? ""}
-            className="min-h-28 rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
-            placeholder="One hosted image URL per line"
-          />
-          <input name="productImages" type="file" accept="image/*" multiple className="text-sm" />
+          <ProductImagePicker />
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Existing image URLs
+            <textarea
+              name="imageUrls"
+              defaultValue={product?.images.join("\n") ?? ""}
+              className="min-h-28 rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+              placeholder="One hosted image URL per line"
+            />
+          </label>
         </div>
       </section>
 

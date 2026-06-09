@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ProductCardAddToCartButton } from "@/components/marketplace/product-card-add-to-cart-button";
 import { ProductFavouriteButton } from "@/components/marketplace/product-favourite-button";
@@ -23,6 +24,9 @@ export function ProductCard({
   redirectTo?: string;
 }) {
   const onSale = isProductOnSale(product);
+  const mtoAvailable =
+    product.fulfillmentMode === "made_to_order" ||
+    (product.fulfillmentMode === "stocked_with_mto" && product.stockQty <= 0);
 
   return (
     <Card className="flex h-full flex-col overflow-hidden border-artisan-clay/80 bg-card/95 py-0">
@@ -64,9 +68,17 @@ export function ProductCard({
               <p className="text-sm text-muted-foreground line-through">{formatPrice(product.compareAtPrice)}</p>
             ) : null}
           </div>
-          <span className="text-xs font-medium text-muted-foreground">{getProductStockLabel(product)}</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            {mtoAvailable ? "Made to order" : getProductStockLabel(product)}
+          </span>
         </div>
-        <ProductCardAddToCartButton productId={product.id} disabled={product.stockQty <= 0} />
+        {mtoAvailable ? (
+          <Button asChild variant="outline" size="sm" className="w-full rounded-full">
+            <Link href={`/products/${product.id}`}>View options</Link>
+          </Button>
+        ) : (
+          <ProductCardAddToCartButton productId={product.id} disabled={product.stockQty <= 0} />
+        )}
       </CardContent>
     </Card>
   );

@@ -32,8 +32,31 @@ describe("guest cart helpers", () => {
         productId: "product-1",
         variantId: null,
         quantity: 3,
+        isMadeToOrder: false,
+        customNote: null,
       },
     ]);
+  });
+
+  it("keeps made-to-order lines separate and carries the custom note", () => {
+    const stocked = addGuestCartItem([], {
+      productId: "product-1",
+      variantId: null,
+      quantity: 1,
+    });
+    const withMto = addGuestCartItem(stocked, {
+      productId: "product-1",
+      variantId: null,
+      quantity: 1,
+      isMadeToOrder: true,
+      customNote: "  Engrave initials  ",
+    });
+
+    expect(withMto).toHaveLength(2);
+    expect(getGuestCartItemKey("product-1", null, true)).toBe("product-1:mto");
+    const mtoLine = withMto.find((item) => item.isMadeToOrder);
+    expect(mtoLine?.key).toBe("product-1:mto");
+    expect(mtoLine?.customNote).toBe("Engrave initials");
   });
 
   it("updates, removes, and sums quantities", () => {

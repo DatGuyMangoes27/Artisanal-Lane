@@ -353,13 +353,16 @@ export function CheckoutForm() {
     try {
       const reservationToken = getGuestCartReservationToken();
       await Promise.all(
-        lines.map((line) =>
-          reserveGuestCartItem({
-            productId: line.productId,
-            variantId: line.variantId,
-            quantity: line.quantity,
-          }),
-        ),
+        lines
+          // Made-to-order lines are produced on demand and never reserve stock.
+          .filter((line) => !line.isMadeToOrder)
+          .map((line) =>
+            reserveGuestCartItem({
+              productId: line.productId,
+              variantId: line.variantId,
+              quantity: line.quantity,
+            }),
+          ),
       );
 
       const { data: cart, error: cartError } = await supabase
@@ -379,6 +382,8 @@ export function CheckoutForm() {
           product_id: line.productId,
           variant_id: line.variantId,
           quantity: line.quantity,
+          is_made_to_order: line.isMadeToOrder,
+          custom_note: line.isMadeToOrder ? line.customNote : null,
         })),
       );
 

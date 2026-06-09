@@ -1127,7 +1127,7 @@ class SupabaseService {
         .from('products')
         .select('title')
         .eq('is_published', true)
-        .gt('stock_qty', 0)
+        .or(_availableProductFilter)
         .order('is_featured', ascending: false)
         .order('created_at', ascending: false)
         .limit(8);
@@ -1147,6 +1147,9 @@ class SupabaseService {
   // ── Products ──────────────────────────────────────────────────
   static const _productSelect =
       '*, shops!inner(name, logo_url), categories(name), subcategories(name), product_variants(*)';
+  // Buyable when in stock, or when made-to-order (available even at zero stock).
+  static const _availableProductFilter =
+      'stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)';
   static const _orderSelect =
       '*, shops(name), buyer:profiles!orders_buyer_id_fkey(display_name, email, phone), order_items(*, products(title, images))';
 
@@ -1240,7 +1243,7 @@ class SupabaseService {
         .select(_productSelect)
         .eq('is_published', true)
         .eq('shops.is_active', true)
-        .gt('stock_qty', 0);
+        .or(_availableProductFilter);
 
     if (categoryId != null) {
       query = query.eq('category_id', categoryId);
@@ -1277,7 +1280,7 @@ class SupabaseService {
         .select(_productSelect)
         .eq('is_published', true)
         .eq('shops.is_active', true)
-        .gt('stock_qty', 0)
+        .or(_availableProductFilter)
         .eq('is_featured', true)
         .order('featured_at', ascending: false)
         .limit(limit);
@@ -1290,7 +1293,7 @@ class SupabaseService {
         .select(_productSelect)
         .eq('is_published', true)
         .eq('shops.is_active', true)
-        .gt('stock_qty', 0)
+        .or(_availableProductFilter)
         .not('compare_at_price', 'is', null)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -1306,7 +1309,7 @@ class SupabaseService {
         .eq('shops.is_active', true)
         .eq('id', id);
     if (buyerVisibleOnly) {
-      query = query.eq('is_published', true).gt('stock_qty', 0);
+      query = query.eq('is_published', true).or(_availableProductFilter);
     }
 
     final data = await query.single();
@@ -1636,6 +1639,8 @@ class SupabaseService {
     String productId, {
     String? variantId,
     int quantity = 1,
+    bool isMadeToOrder = false,
+    String? customNote,
   }) async {
     var cartData = await _client
         .from('carts')
@@ -1650,16 +1655,21 @@ class SupabaseService {
         .single();
 
     final cartId = cartData['id'] as String;
+    final trimmedNote = customNote?.trim();
+    final note = (trimmedNote != null && trimmedNote.isNotEmpty)
+        ? trimmedNote
+        : null;
 
     final existingRows = await _client
         .from('cart_items')
-        .select('id, quantity, variant_id')
+        .select('id, quantity, variant_id, is_made_to_order')
         .eq('cart_id', cartId)
         .eq('product_id', productId);
 
     Map<String, dynamic>? existing;
     for (final row in existingRows as List) {
-      if (row['variant_id'] == variantId) {
+      if (row['variant_id'] == variantId &&
+          (row['is_made_to_order'] == true) == isMadeToOrder) {
         existing = Map<String, dynamic>.from(row);
         break;
       }
@@ -1667,28 +1677,46 @@ class SupabaseService {
 
     if (existing != null) {
       final newQty = (existing['quantity'] as int) + quantity;
-      await _ensureCartQuantityWithinStock(
-        productId: productId,
-        variantId: variantId,
-        desiredQuantity: newQty,
-      );
+      // Made-to-order items are produced on demand and skip the stock guard.
+      if (!isMadeToOrder) {
+        await _ensureCartQuantityWithinStock(
+          productId: productId,
+          variantId: variantId,
+          desiredQuantity: newQty,
+        );
+      }
       await _client
           .from('cart_items')
-          .update({'quantity': newQty})
+          .update({
+            'quantity': newQty,
+            if (note != null) 'custom_note': note,
+          })
           .eq('id', existing['id'] as String);
     } else {
-      await _ensureCartQuantityWithinStock(
-        productId: productId,
-        variantId: variantId,
-        desiredQuantity: quantity,
-      );
+      if (!isMadeToOrder) {
+        await _ensureCartQuantityWithinStock(
+          productId: productId,
+          variantId: variantId,
+          desiredQuantity: quantity,
+        );
+      }
       await _client.from('cart_items').insert({
         'cart_id': cartId,
         'product_id': productId,
         'variant_id': variantId,
         'quantity': quantity,
+        'is_made_to_order': isMadeToOrder,
+        'custom_note': note,
       });
     }
+  }
+
+  Future<int> getMadeToOrderOpenUnits(String productId) async {
+    final result = await _client.rpc(
+      'made_to_order_open_units',
+      params: {'product_id_input': productId},
+    );
+    return (result as num?)?.toInt() ?? 0;
   }
 
   Future<void> updateCartItemQuantity(String cartItemId, int quantity) async {

@@ -17,6 +17,7 @@ import {
 import { formatPrice } from "@/lib/marketplace/format";
 import {
   canConfirmReceipt,
+  formatLeadTimeRange,
   formatOrderStatus,
   formatShippingMethod,
   getDeliveryStatusMessage,
@@ -105,6 +106,19 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                         <p className="font-semibold text-foreground">{item.title}</p>
                         {item.variantName ? (
                           <p className="text-sm text-muted-foreground">{item.variantName}</p>
+                        ) : null}
+                        {item.isMadeToOrder ? (
+                          <p className="mt-1 text-sm font-medium text-artisan-terracotta">
+                            Made to order
+                            {formatLeadTimeRange(item.leadMinDays, item.leadMaxDays)
+                              ? ` · ships in ${formatLeadTimeRange(item.leadMinDays, item.leadMaxDays)}`
+                              : ""}
+                          </p>
+                        ) : null}
+                        {item.isMadeToOrder && item.customNote ? (
+                          <p className="mt-1 text-sm italic text-muted-foreground">
+                            “{item.customNote}”
+                          </p>
                         ) : null}
                       </div>
                       <div className="flex flex-wrap justify-between gap-3 text-sm">

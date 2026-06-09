@@ -175,6 +175,10 @@ class OrderItem {
   final String? variantImage;
   final int quantity;
   final double unitPrice;
+  final bool isMadeToOrder;
+  final String? customNote;
+  final int? leadMinDays;
+  final int? leadMaxDays;
   final DateTime createdAt;
 
   // Joined data
@@ -190,6 +194,10 @@ class OrderItem {
     this.variantImage,
     required this.quantity,
     required this.unitPrice,
+    this.isMadeToOrder = false,
+    this.customNote,
+    this.leadMinDays,
+    this.leadMaxDays,
     required this.createdAt,
     this.productTitle,
     this.productImage,
@@ -213,6 +221,10 @@ class OrderItem {
       variantImage: json['variant_image'] as String?,
       quantity: json['quantity'] as int,
       unitPrice: (json['unit_price'] as num).toDouble(),
+      isMadeToOrder: json['is_made_to_order'] as bool? ?? false,
+      customNote: json['custom_note'] as String?,
+      leadMinDays: json['lead_time_min_days'] as int?,
+      leadMaxDays: json['lead_time_max_days'] as int?,
       createdAt: DateTime.parse(json['created_at'] as String),
       productTitle: productData?['title'] as String?,
       productImage:
@@ -224,4 +236,14 @@ class OrderItem {
   }
 
   double get lineTotal => unitPrice * quantity;
+
+  String? get leadTimeLabel {
+    if (leadMinDays == null && leadMaxDays == null) return null;
+    final min = leadMinDays;
+    final max = leadMaxDays;
+    if (min != null && max != null) {
+      return min == max ? '$min days' : '$min-$max days';
+    }
+    return '${min ?? max} days';
+  }
 }

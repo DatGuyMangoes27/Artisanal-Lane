@@ -18,6 +18,10 @@ export type CartLine = {
   shopName: string;
   shippingOptions: ShippingOption[];
   isAvailable: boolean;
+  isMadeToOrder: boolean;
+  customNote: string | null;
+  leadMinDays: number | null;
+  leadMaxDays: number | null;
 };
 
 export type CheckoutField =
@@ -69,7 +73,11 @@ export function buildCartLines(
       }
 
       const variant = findVariant(product, item.variantId);
-      const unitPrice = variant?.price ?? product.price;
+      const isMadeToOrder = item.isMadeToOrder === true;
+      const baseUnitPrice = variant?.price ?? product.price;
+      const unitPrice = isMadeToOrder
+        ? product.madeToOrderPrice ?? baseUnitPrice
+        : baseUnitPrice;
       const stockQty = variant?.stockQty ?? product.stockQty;
       const image = variant?.images[0] ?? getProductPrimaryImage(product);
 
@@ -87,7 +95,13 @@ export function buildCartLines(
         shopId: product.shopId,
         shopName: product.shop?.name ?? "Artisan Lane seller",
         shippingOptions: product.shippingOptions,
-        isAvailable: item.quantity <= stockQty,
+        // Made-to-order lines are produced on demand, so they are not limited
+        // by current inventory (capacity is enforced server-side at checkout).
+        isAvailable: isMadeToOrder || item.quantity <= stockQty,
+        isMadeToOrder,
+        customNote: item.customNote ?? null,
+        leadMinDays: isMadeToOrder ? product.leadMinDays : null,
+        leadMaxDays: isMadeToOrder ? product.leadMaxDays : null,
       };
     })
     .filter((line): line is CartLine => line != null);

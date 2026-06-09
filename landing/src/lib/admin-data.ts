@@ -889,3 +889,51 @@ export async function listStationeryRequests(
   return filtered;
 }
 
+export type AdminLearningResource = {
+  id: string;
+  type: "podcast" | "video" | "article";
+  title: string;
+  description: string | null;
+  content_url: string;
+  thumbnail_url: string | null;
+  author: string | null;
+  duration_label: string | null;
+  is_published: boolean;
+  is_featured: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+export async function listLearningResources(): Promise<AdminLearningResource[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("learning_resources")
+    .select(
+      "id, type, title, description, content_url, thumbnail_url, author, duration_label, is_published, is_featured, sort_order, created_at",
+    )
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => ({
+    id: String(row.id),
+    type:
+      row.type === "podcast" || row.type === "video"
+        ? row.type
+        : "article",
+    title: String(row.title ?? ""),
+    description: row.description ?? null,
+    content_url: String(row.content_url ?? ""),
+    thumbnail_url: row.thumbnail_url ?? null,
+    author: row.author ?? null,
+    duration_label: row.duration_label ?? null,
+    is_published: row.is_published !== false,
+    is_featured: row.is_featured === true,
+    sort_order: typeof row.sort_order === "number" ? row.sort_order : 0,
+    created_at: String(row.created_at),
+  }));
+}
+

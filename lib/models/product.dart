@@ -20,6 +20,12 @@ class Product {
   final bool isPublished;
   final bool isFeatured;
   final String? careInstructions;
+  final String fulfillmentMode;
+  final double? madeToOrderPrice;
+  final int? leadMinDays;
+  final int? leadMaxDays;
+  final int? madeToOrderCapacity;
+  final bool allowCustomNote;
   final DateTime? featuredAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -48,6 +54,12 @@ class Product {
     this.isPublished = true,
     this.isFeatured = false,
     this.careInstructions,
+    this.fulfillmentMode = 'stocked',
+    this.madeToOrderPrice,
+    this.leadMinDays,
+    this.leadMaxDays,
+    this.madeToOrderCapacity,
+    this.allowCustomNote = false,
     this.featuredAt,
     required this.createdAt,
     required this.updatedAt,
@@ -149,6 +161,14 @@ class Product {
       isPublished: json['is_published'] as bool? ?? true,
       isFeatured: json['is_featured'] as bool? ?? false,
       careInstructions: json['care_instructions'] as String?,
+      fulfillmentMode: json['fulfillment_mode'] as String? ?? 'stocked',
+      madeToOrderPrice: json['made_to_order_price'] != null
+          ? (json['made_to_order_price'] as num).toDouble()
+          : null,
+      leadMinDays: json['made_to_order_lead_min_days'] as int?,
+      leadMaxDays: json['made_to_order_lead_max_days'] as int?,
+      madeToOrderCapacity: json['made_to_order_capacity'] as int?,
+      allowCustomNote: json['made_to_order_allow_custom_note'] as bool? ?? false,
       featuredAt: json['featured_at'] != null
           ? DateTime.parse(json['featured_at'] as String)
           : null,
@@ -179,10 +199,44 @@ class Product {
     'is_published': isPublished,
     'is_featured': isFeatured,
     'care_instructions': careInstructions,
+    'fulfillment_mode': fulfillmentMode,
+    'made_to_order_price': madeToOrderPrice,
+    'made_to_order_lead_min_days': leadMinDays,
+    'made_to_order_lead_max_days': leadMaxDays,
+    'made_to_order_capacity': madeToOrderCapacity,
+    'made_to_order_allow_custom_note': allowCustomNote,
   };
 
   bool get isOnSale => compareAtPrice != null && compareAtPrice! > price;
   bool get hasVariants => variants.isNotEmpty;
+
+  /// Whether this product can ever be bought as made-to-order.
+  bool get isMadeToOrderEnabled =>
+      fulfillmentMode == 'made_to_order' ||
+      fulfillmentMode == 'stocked_with_mto';
+
+  /// Made-to-order only, with no stocked path at all.
+  bool get isMadeToOrderOnly => fulfillmentMode == 'made_to_order';
+
+  /// Made-to-order available to the buyer right now (enabled, and either
+  /// MTO-only or the stocked path has run out).
+  bool get isMadeToOrderAvailable =>
+      isMadeToOrderEnabled && (isMadeToOrderOnly || stockQty <= 0);
+
+  /// Price charged for a made-to-order purchase: the MTO override when set,
+  /// otherwise the normal product price.
+  double get effectiveMtoPrice => madeToOrderPrice ?? price;
+
+  /// Human-friendly lead-time label, e.g. "14-21 days" or "21 days".
+  String? get leadTimeLabel {
+    if (leadMinDays == null && leadMaxDays == null) return null;
+    final min = leadMinDays;
+    final max = leadMaxDays;
+    if (min != null && max != null) {
+      return min == max ? '$min days' : '$min-$max days';
+    }
+    return '${min ?? max} days';
+  }
   ProductVariant? get defaultVariant {
     for (final variant in variants) {
       if (variant.isActive) {

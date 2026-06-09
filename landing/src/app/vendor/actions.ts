@@ -13,9 +13,12 @@ import {
 } from "@/lib/marketplace/vendor-data";
 import {
   parseCurrencyInput,
+  parseFulfillmentMode,
   parseIntegerInput,
   parseJsonArrayInput,
   parseListInput,
+  parseNullableCurrencyInput,
+  parseNullableIntegerInput,
   parseNullableText,
   parseRequiredText,
 } from "@/lib/marketplace/vendor-utils";
@@ -243,6 +246,12 @@ async function productPayloadFromForm(formData: FormData, shopId: string, userId
     care_instructions: parseNullableText(formData.get("careInstructions")),
     shipping_options: parseShippingOptions(formData),
     option_groups: parseJsonArrayInput(formData.get("optionGroupsJson")),
+    fulfillment_mode: parseFulfillmentMode(formData.get("fulfillmentMode")),
+    made_to_order_price: parseNullableCurrencyInput(formData.get("madeToOrderPrice")),
+    made_to_order_lead_min_days: parseNullableIntegerInput(formData.get("leadMinDays")),
+    made_to_order_lead_max_days: parseNullableIntegerInput(formData.get("leadMaxDays")),
+    made_to_order_capacity: parseNullableIntegerInput(formData.get("madeToOrderCapacity")),
+    made_to_order_allow_custom_note: isTruthy(formData.get("allowCustomNote")),
     is_published: isTruthy(formData.get("isPublished")),
   };
 }

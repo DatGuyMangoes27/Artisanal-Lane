@@ -24,6 +24,9 @@ function isGuestCartItem(value: unknown): value is GuestCartItem {
   );
 }
 
+// The cart route only needs product identifiers for hydration, so the
+// made-to-order flags carried on guest cart items are ignored here.
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     items?: unknown;

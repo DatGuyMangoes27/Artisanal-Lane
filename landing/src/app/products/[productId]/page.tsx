@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { toggleFavouriteProduct } from "@/app/account/actions";
 import { submitProductReview } from "@/app/account/reviews/actions";
-import { AddToCartButton } from "@/components/marketplace/add-to-cart-button";
 import { GuestCartProvider } from "@/components/marketplace/guest-cart-provider";
+import { ProductPurchasePanel } from "@/components/marketplace/product-purchase-panel";
+import { ProductGallery } from "@/components/marketplace/product-gallery";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,41 +84,27 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const images = product.images.length > 0 ? product.images : [getProductPrimaryImage(product)];
   const enabledShippingOptions = product.shippingOptions.filter((option) => option.enabled);
   const isOutOfStock = product.stockQty <= 0;
+  const mtoEnabled =
+    product.fulfillmentMode === "made_to_order" ||
+    product.fulfillmentMode === "stocked_with_mto";
+  const mtoAvailable = mtoEnabled && (product.fulfillmentMode === "made_to_order" || isOutOfStock);
+
+  let openMtoUnits = 0;
+  if (mtoEnabled && product.madeToOrderCapacity != null) {
+    const { data: openUnits } = await supabase.rpc("made_to_order_open_units", {
+      product_id_input: product.id,
+    });
+    openMtoUnits = typeof openUnits === "number" ? openUnits : 0;
+  }
+
+  const showUnavailableNote = isOutOfStock && !mtoEnabled;
 
   return (
     <GuestCartProvider>
       <div className="min-h-screen bg-background">
         <MarketplaceHeader />
         <main className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-14">
-          <section aria-label={`${product.title} image gallery`} className="space-y-4">
-            <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-artisan-clay bg-secondary shadow-sm">
-              <Image
-                src={getProductPrimaryImage(product)}
-                alt={product.title}
-                fill
-                priority
-                sizes="(min-width: 1024px) 50vw, 100vw"
-                className="object-cover"
-              />
-              {onSale ? <Badge className="absolute left-4 top-4 bg-artisan-terracotta">Sale</Badge> : null}
-            </div>
-            <div className="grid grid-cols-4 gap-3">
-              {images.slice(0, 4).map((image, index) => (
-                <div
-                  key={`${image}-${index}`}
-                  className="relative aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
-                >
-                  <Image
-                    src={image}
-                    alt={`${product.title} image ${index + 1}`}
-                    fill
-                    sizes="25vw"
-                    className="object-cover"
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
+          <ProductGallery images={images} title={product.title} onSale={onSale} />
 
           <section className="space-y-8">
             <div>
@@ -138,14 +124,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     {formatPrice(product.compareAtPrice)}
                   </p>
                 ) : null}
-                <Badge variant={isOutOfStock ? "secondary" : "outline"}>
-                  {getProductStockLabel(product)}
+                <Badge variant={isOutOfStock && !mtoAvailable ? "secondary" : "outline"}>
+                  {mtoAvailable ? "Made to order" : getProductStockLabel(product)}
                 </Badge>
               </div>
             </div>
 
             <div className="rounded-3xl border border-artisan-clay bg-card p-6 shadow-sm">
-              <AddToCartButton productId={product.id} disabled={isOutOfStock} />
+              <ProductPurchasePanel product={product} openMtoUnits={openMtoUnits} />
               <form action={createBuyerThreadForShop} className="mt-3">
                 <input type="hidden" name="shopId" value={product.shopId} />
                 <input type="hidden" name="redirectTo" value={`/products/${product.id}`} />
@@ -167,15 +153,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                   {isFavourite ? "Saved to favourites" : "Save to favourites"}
                 </button>
               </form>
-              {isOutOfStock ? (
+              {showUnavailableNote ? (
                 <p className="mt-3 text-sm text-muted-foreground">
                   This piece is currently unavailable. Check back for restocks from the maker.
                 </p>
-              ) : (
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Guest cart saves on this device while full checkout is prepared for Phase 2.
-                </p>
-              )}
+              ) : null}
             </div>
 
             <div className="space-y-3">

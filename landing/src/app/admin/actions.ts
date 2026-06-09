@@ -659,3 +659,132 @@ export async function resolveDisputeRefund(
     return createErrorState(error, "Unable to refund buyer.");
   }
 }
+
+// ============================================================
+// Learning hub (podcasts / videos / articles)
+// ============================================================
+
+function learningString(formData: FormData, key: string): string {
+  const value = formData.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function learningNullableString(formData: FormData, key: string): string | null {
+  const value = learningString(formData, key);
+  return value.length > 0 ? value : null;
+}
+
+function learningChecked(formData: FormData, key: string): boolean {
+  const value = formData.get(key);
+  return value === "on" || value === "true" || value === "1";
+}
+
+async function uploadLearningThumbnail(file: File): Promise<string> {
+  const admin = createAdminClient();
+  const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
+  const path = `${crypto.randomUUID()}.${extension}`;
+  const { error } = await admin.storage.from("learning-assets").upload(path, file, {
+    contentType: file.type || "image/jpeg",
+    upsert: false,
+  });
+  if (error) {
+    throw new Error("Unable to upload thumbnail.");
+  }
+  return admin.storage.from("learning-assets").getPublicUrl(path).data.publicUrl;
+}
+
+export async function saveLearningResource(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+
+    const resourceId = learningString(formData, "resourceId");
+    const title = learningString(formData, "title");
+    const contentUrl = learningString(formData, "contentUrl");
+    const typeValue = learningString(formData, "type");
+    const type =
+      typeValue === "podcast" || typeValue === "video" ? typeValue : "article";
+
+    if (!title) {
+      throw new Error("Title is required.");
+    }
+    if (!contentUrl || !/^https?:\/\//i.test(contentUrl)) {
+      throw new Error("A valid link (https://...) is required.");
+    }
+
+    const sortOrderRaw = learningString(formData, "sortOrder");
+    const sortOrder = Number.parseInt(sortOrderRaw, 10);
+
+    const thumbnailFile = formData.get("thumbnail");
+    let thumbnailUrl = learningNullableString(formData, "existingThumbnailUrl");
+    if (
+      typeof File !== "undefined" &&
+      thumbnailFile instanceof File &&
+      thumbnailFile.size > 0
+    ) {
+      thumbnailUrl = await uploadLearningThumbnail(thumbnailFile);
+    }
+
+    const payload = {
+      type,
+      title,
+      description: learningNullableString(formData, "description"),
+      content_url: contentUrl,
+      thumbnail_url: thumbnailUrl,
+      author: learningNullableString(formData, "author"),
+      duration_label: learningNullableString(formData, "durationLabel"),
+      is_published: learningChecked(formData, "isPublished"),
+      is_featured: learningChecked(formData, "isFeatured"),
+      sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+    };
+
+    const admin = createAdminClient();
+    if (resourceId) {
+      const { error } = await admin
+        .from("learning_resources")
+        .update(payload)
+        .eq("id", resourceId);
+      throwIfSupabaseError(error, "Unable to update learning resource.");
+    } else {
+      const { error } = await admin.from("learning_resources").insert(payload);
+      throwIfSupabaseError(error, "Unable to create learning resource.");
+    }
+
+    revalidatePath("/admin/learning");
+    revalidatePath("/learn");
+
+    return createSuccessState(resourceId ? "Resource updated." : "Resource added.");
+  } catch (error) {
+    return createErrorState(error, "Unable to save learning resource.");
+  }
+}
+
+export async function deleteLearningResource(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+
+    const resourceId = learningString(formData, "resourceId");
+    if (!resourceId) {
+      throw new Error("Missing resource id.");
+    }
+
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from("learning_resources")
+      .delete()
+      .eq("id", resourceId);
+    throwIfSupabaseError(error, "Unable to delete learning resource.");
+
+    revalidatePath("/admin/learning");
+    revalidatePath("/learn");
+
+    return createSuccessState("Resource deleted.");
+  } catch (error) {
+    return createErrorState(error, "Unable to delete learning resource.");
+  }
+}

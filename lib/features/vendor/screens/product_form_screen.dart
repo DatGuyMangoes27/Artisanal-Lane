@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
@@ -51,6 +52,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _optionTwoNameController = TextEditingController();
   final _optionOneValuesController = TextEditingController();
   final _optionTwoValuesController = TextEditingController();
+  final _madeToOrderPriceController = TextEditingController();
+  final _leadMinController = TextEditingController();
+  final _leadMaxController = TextEditingController();
+  final _capacityController = TextEditingController();
 
   String? _selectedCategoryId;
   String? _selectedSubcategoryId;
@@ -60,6 +65,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   bool _isInitialized = false;
   bool _isUploading = false;
   bool _hasOptions = false;
+  String _fulfillmentMode = 'stocked';
+  bool _allowCustomNote = false;
   String? _marketPickupProvince;
 
   final List<String> _imageUrls = [];
@@ -189,6 +196,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _optionTwoNameController.dispose();
     _optionOneValuesController.dispose();
     _optionTwoValuesController.dispose();
+    _madeToOrderPriceController.dispose();
+    _leadMinController.dispose();
+    _leadMaxController.dispose();
+    _capacityController.dispose();
     for (final controller in _shippingPriceControllers.values) {
       controller.dispose();
     }
@@ -215,6 +226,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _selectedTags.addAll(product.tags);
     _isPublished = product.isPublished;
     _careController.text = product.careInstructions ?? '';
+    _fulfillmentMode = product.fulfillmentMode;
+    _allowCustomNote = product.allowCustomNote;
+    _madeToOrderPriceController.text = product.madeToOrderPrice != null
+        ? product.madeToOrderPrice!.toStringAsFixed(2)
+        : '';
+    _leadMinController.text = product.leadMinDays?.toString() ?? '';
+    _leadMaxController.text = product.leadMaxDays?.toString() ?? '';
+    _capacityController.text = product.madeToOrderCapacity?.toString() ?? '';
     _imageUrls.addAll(product.images);
     _shippingOptions = product.shippingOptions.isNotEmpty
         ? product.shippingOptions
@@ -353,6 +372,38 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     );
   }
 
+  /// Crops a picked image to a 1:1 square so product photos stay uniform.
+  /// Returns the cropped file, or null if the user cancelled the crop.
+  Future<File?> _cropSquare(String sourcePath) async {
+    try {
+      final cropped = await ImageCropper().cropImage(
+        sourcePath: sourcePath,
+        aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+        compressQuality: 90,
+        uiSettings: [
+          AndroidUiSettings(
+            toolbarTitle: 'Crop photo',
+            toolbarColor: AppTheme.terracotta,
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: true,
+            hideBottomControls: true,
+            initAspectRatio: CropAspectRatioPreset.square,
+          ),
+          IOSUiSettings(
+            title: 'Crop photo',
+            aspectRatioLockEnabled: true,
+            resetAspectRatioEnabled: false,
+          ),
+        ],
+      );
+      if (cropped == null) return null;
+      return File(cropped.path);
+    } catch (_) {
+      // If cropping fails for any reason, fall back to the original image.
+      return File(sourcePath);
+    }
+  }
+
   Future<void> _pickImage(ImageSource source) async {
     try {
       final XFile? image = await _picker.pickImage(
@@ -362,7 +413,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         imageQuality: 85,
       );
       if (image != null) {
-        setState(() => _pendingFiles.add(File(image.path)));
+        final cropped = await _cropSquare(image.path);
+        if (cropped != null) {
+          setState(() => _pendingFiles.add(cropped));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -384,9 +438,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         imageQuality: 85,
       );
       if (images.isNotEmpty) {
-        setState(() {
-          _pendingFiles.addAll(images.map((x) => File(x.path)));
-        });
+        for (final x in images) {
+          final cropped = await _cropSquare(x.path);
+          if (cropped != null) {
+            setState(() => _pendingFiles.add(cropped));
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -600,11 +657,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           imageQuality: 85,
         );
         if (images.isNotEmpty) {
-          setState(() {
-            _variants[index].pendingFiles.addAll(
-              images.map((image) => File(image.path)),
-            );
-          });
+          for (final image in images) {
+            final cropped = await _cropSquare(image.path);
+            if (cropped != null) {
+              setState(() => _variants[index].pendingFiles.add(cropped));
+            }
+          }
         }
         return;
       }
@@ -616,7 +674,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         imageQuality: 85,
       );
       if (image != null) {
-        setState(() => _variants[index].pendingFiles.add(File(image.path)));
+        final cropped = await _cropSquare(image.path);
+        if (cropped != null) {
+          setState(() => _variants[index].pendingFiles.add(cropped));
+        }
       }
     } catch (error) {
       if (!mounted) return;
@@ -946,6 +1007,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'compare_at_price': formPricing.compareAtPrice,
         if (_careController.text.trim().isNotEmpty)
           'care_instructions': _careController.text.trim(),
+        'fulfillment_mode': _fulfillmentMode,
+        'made_to_order_price': _madeToOrderPriceController.text.trim().isNotEmpty
+            ? tryParseProductPriceText(_madeToOrderPriceController.text)
+            : null,
+        'made_to_order_lead_min_days':
+            int.tryParse(_leadMinController.text.trim()),
+        'made_to_order_lead_max_days':
+            int.tryParse(_leadMaxController.text.trim()),
+        'made_to_order_capacity': int.tryParse(_capacityController.text.trim()),
+        'made_to_order_allow_custom_note': _allowCustomNote,
       };
 
       if (_isEditing) {
@@ -1770,6 +1841,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ),
             const SizedBox(height: 20),
 
+            _buildFulfillmentSection(),
+            const SizedBox(height: 20),
+
             _buildProductShippingSection(),
             const SizedBox(height: 20),
 
@@ -1808,6 +1882,117 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFulfillmentSection() {
+    final showMtoFields = _fulfillmentMode != 'stocked';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildLabel('Fulfillment'),
+        const SizedBox(height: 4),
+        Text(
+          'Made-to-order items stay buyable even when stock runs out.',
+          style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          initialValue: _fulfillmentMode,
+          items: const [
+            DropdownMenuItem(value: 'stocked', child: Text('Stocked only')),
+            DropdownMenuItem(
+              value: 'made_to_order',
+              child: Text('Made to order only'),
+            ),
+            DropdownMenuItem(
+              value: 'stocked_with_mto',
+              child: Text('Stocked, then made to order'),
+            ),
+          ],
+          onChanged: (value) =>
+              setState(() => _fulfillmentMode = value ?? 'stocked'),
+        ),
+        if (showMtoFields) ...[
+          const SizedBox(height: 16),
+          _buildLabel('Made-to-order price (optional)'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _madeToOrderPriceController,
+            keyboardType: _priceKeyboard,
+            inputFormatters: _priceInputFormatters,
+            decoration: const InputDecoration(
+              hintText: 'Defaults to the price above',
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel('Lead time min (days)'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _leadMinController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: 'e.g. 14'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel('Lead time max (days)'),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _leadMaxController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: 'e.g. 21'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _buildLabel('Open made-to-order capacity (optional)'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _capacityController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              hintText: 'Leave blank for unlimited',
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            value: _allowCustomNote,
+            onChanged: (v) => setState(() => _allowCustomNote = v),
+            title: Text(
+              'Allow custom request note',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            subtitle: Text(
+              'Buyers can describe their custom order',
+              style: GoogleFonts.poppins(
+                fontSize: 12,
+                color: AppTheme.textHint,
+              ),
+            ),
+            activeTrackColor: AppTheme.baobab,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
+      ],
     );
   }
 

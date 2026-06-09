@@ -57,6 +57,13 @@ function product(overrides: Partial<MarketplaceProduct> = {}): MarketplaceProduc
         sortOrder: 0,
       },
     ],
+    optionGroups: [],
+    fulfillmentMode: "stocked",
+    madeToOrderPrice: null,
+    leadMinDays: null,
+    leadMaxDays: null,
+    madeToOrderCapacity: null,
+    allowCustomNote: false,
     ...overrides,
   };
 }
@@ -64,7 +71,14 @@ function product(overrides: Partial<MarketplaceProduct> = {}): MarketplaceProduc
 describe("marketplace checkout helpers", () => {
   it("hydrates guest cart items with product and variant pricing", () => {
     const items: GuestCartItem[] = [
-      { key: "product-1:variant-1", productId: "product-1", variantId: "variant-1", quantity: 2 },
+      {
+        key: "product-1:variant-1",
+        productId: "product-1",
+        variantId: "variant-1",
+        quantity: 2,
+        isMadeToOrder: false,
+        customNote: null,
+      },
     ];
 
     const lines = buildCartLines(items, [product()]);
@@ -82,6 +96,44 @@ describe("marketplace checkout helpers", () => {
       },
     ]);
     expect(getCartSubtotal(lines)).toBe(300);
+  });
+
+  it("prices made-to-order lines with the MTO override and keeps them available at zero stock", () => {
+    const items: GuestCartItem[] = [
+      {
+        key: "product-1:mto",
+        productId: "product-1",
+        variantId: null,
+        quantity: 1,
+        isMadeToOrder: true,
+        customNote: "Sage green glaze",
+      },
+    ];
+
+    const lines = buildCartLines(items, [
+      product({
+        stockQty: 0,
+        fulfillmentMode: "made_to_order",
+        madeToOrderPrice: 200,
+        leadMinDays: 14,
+        leadMaxDays: 21,
+        variants: [],
+      }),
+    ]);
+
+    expect(lines).toMatchObject([
+      {
+        key: "product-1:mto",
+        unitPrice: 200,
+        lineTotal: 200,
+        isAvailable: true,
+        isMadeToOrder: true,
+        customNote: "Sage green glaze",
+        leadMinDays: 14,
+        leadMaxDays: 21,
+      },
+    ]);
+    expect(getCheckoutBlocker(lines)).toBeNull();
   });
 
   it("blocks checkout when cart items span more than one shop", () => {

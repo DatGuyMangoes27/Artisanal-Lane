@@ -9,6 +9,10 @@ export type BuyerOrderItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  isMadeToOrder: boolean;
+  customNote: string | null;
+  leadMinDays: number | null;
+  leadMaxDays: number | null;
 };
 
 export type BuyerOrder = {
@@ -240,5 +244,22 @@ function mapBuyerOrderItem(row: JsonRecord): BuyerOrderItem {
     quantity,
     unitPrice,
     lineTotal: unitPrice * quantity,
+    isMadeToOrder: row.is_made_to_order === true,
+    customNote: toStringOrNull(row.custom_note),
+    leadMinDays:
+      row.lead_time_min_days == null ? null : Math.trunc(toNumber(row.lead_time_min_days)),
+    leadMaxDays:
+      row.lead_time_max_days == null ? null : Math.trunc(toNumber(row.lead_time_max_days)),
   };
+}
+
+export function formatLeadTimeRange(
+  minDays: number | null,
+  maxDays: number | null,
+): string | null {
+  if (minDays == null && maxDays == null) return null;
+  if (minDays != null && maxDays != null) {
+    return minDays === maxDays ? `${minDays} days` : `${minDays}–${maxDays} days`;
+  }
+  return `${minDays ?? maxDays} days`;
 }

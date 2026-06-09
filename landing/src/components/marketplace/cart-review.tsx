@@ -55,17 +55,20 @@ export function CartReview() {
     setReservationError(null);
 
     try {
-      if (nextQuantity <= 0) {
-        await releaseGuestCartItem({
-          productId: line.productId,
-          variantId: line.variantId,
-        });
-      } else {
-        await reserveGuestCartItem({
-          productId: line.productId,
-          variantId: line.variantId,
-          quantity: nextQuantity,
-        });
+      // Made-to-order lines never reserve stock.
+      if (!line.isMadeToOrder) {
+        if (nextQuantity <= 0) {
+          await releaseGuestCartItem({
+            productId: line.productId,
+            variantId: line.variantId,
+          });
+        } else {
+          await reserveGuestCartItem({
+            productId: line.productId,
+            variantId: line.variantId,
+            quantity: nextQuantity,
+          });
+        }
       }
       updateItemQuantity(line.key, nextQuantity);
     } catch (error) {
@@ -120,6 +123,25 @@ export function CartReview() {
                     {line.variantName ? (
                       <p className="mt-1 text-sm text-muted-foreground">{line.variantName}</p>
                     ) : null}
+                    {line.isMadeToOrder ? (
+                      <p className="mt-1 text-sm font-medium text-artisan-terracotta">
+                        Made to order
+                        {line.leadMinDays != null || line.leadMaxDays != null
+                          ? ` · ships in ${
+                              line.leadMinDays != null && line.leadMaxDays != null
+                                ? line.leadMinDays === line.leadMaxDays
+                                  ? `${line.leadMinDays} days`
+                                  : `${line.leadMinDays}–${line.leadMaxDays} days`
+                                : `${line.leadMinDays ?? line.leadMaxDays} days`
+                            }`
+                          : ""}
+                      </p>
+                    ) : null}
+                    {line.isMadeToOrder && line.customNote ? (
+                      <p className="mt-1 text-sm italic text-muted-foreground">
+                        “{line.customNote}”
+                      </p>
+                    ) : null}
                     {!line.isAvailable ? (
                       <p className="mt-2 text-sm font-medium text-red-700">
                         Only {line.stockQty} available. Please lower the quantity.
@@ -154,10 +176,12 @@ export function CartReview() {
                         onClick={async () => {
                           setReservationError(null);
                           try {
-                            await releaseGuestCartItem({
-                              productId: line.productId,
-                              variantId: line.variantId,
-                            });
+                            if (!line.isMadeToOrder) {
+                              await releaseGuestCartItem({
+                                productId: line.productId,
+                                variantId: line.variantId,
+                              });
+                            }
                             removeItem(line.key);
                           } catch (error) {
                             setReservationError(

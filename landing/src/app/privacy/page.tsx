@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import Image from "next/image";
-import { ArrowLeft } from "lucide-react";
+
+import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Artisan Lane",
@@ -11,19 +10,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <main className="min-h-screen">
-      <nav className="glass sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <Image src="/logo.png" alt="Artisan Lane" width={36} height={36} className="rounded-lg" />
-              <span className="text-xl font-bold text-[#3A1F10]">Artisan Lane</span>
-            </Link>
-            <Link href="/" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <MarketplaceHeader />
 
       <section className="py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 prose-artisan">

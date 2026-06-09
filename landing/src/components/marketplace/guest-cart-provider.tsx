@@ -33,7 +33,9 @@ type GuestCartContextValue = {
 
 const GuestCartContext = createContext<GuestCartContextValue | null>(null);
 
-function isGuestCartItem(value: unknown): value is GuestCartItem {
+function isStoredGuestCartItem(
+  value: unknown,
+): value is Partial<GuestCartItem> & Pick<GuestCartItem, "key" | "productId" | "variantId" | "quantity"> {
   if (value == null || typeof value !== "object") {
     return false;
   }
@@ -57,7 +59,18 @@ export function deserializeGuestCartItems(value: string | null): GuestCartItem[]
 
   try {
     const parsed = JSON.parse(value) as unknown;
-    return Array.isArray(parsed) ? parsed.filter(isGuestCartItem) : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter(isStoredGuestCartItem).map((item) => ({
+      key: item.key,
+      productId: item.productId,
+      variantId: item.variantId,
+      quantity: item.quantity,
+      isMadeToOrder: item.isMadeToOrder === true,
+      customNote: typeof item.customNote === "string" ? item.customNote : null,
+    }));
   } catch {
     return [];
   }

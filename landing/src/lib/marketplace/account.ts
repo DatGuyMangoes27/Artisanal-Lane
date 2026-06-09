@@ -37,7 +37,7 @@ const buyerOrderSelect = `
   created_at,
   updated_at,
   shops(name, slug),
-  order_items(id, order_id, product_id, variant_id, variant_name, variant_image, quantity, unit_price, created_at, products(title, images))
+  order_items(id, order_id, product_id, variant_id, variant_name, variant_image, quantity, unit_price, is_made_to_order, custom_note, lead_time_min_days, lead_time_max_days, created_at, products(title, images))
 `;
 
 export async function requireBuyerAccountSession(redirectTo: string) {

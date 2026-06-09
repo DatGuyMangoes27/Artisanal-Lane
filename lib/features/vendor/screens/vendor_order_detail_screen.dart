@@ -174,6 +174,28 @@ class _VendorOrderDetailScreenState
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                          if (item.isMadeToOrder)
+                            Text(
+                              item.leadTimeLabel != null
+                                  ? 'Made to order · ships in ${item.leadTimeLabel}'
+                                  : 'Made to order',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: AppTheme.terracotta,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          if (item.isMadeToOrder &&
+                              item.customNote != null &&
+                              item.customNote!.trim().isNotEmpty)
+                            Text(
+                              '“${item.customNote!.trim()}”',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                color: AppTheme.textSecondary,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
                           Text(
                             'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',
                             style: GoogleFonts.poppins(

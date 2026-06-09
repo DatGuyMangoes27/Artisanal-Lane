@@ -656,6 +656,31 @@ class _ItemCard extends StatelessWidget {
                     ),
                   ),
                 ],
+                if (item.isMadeToOrder) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    item.leadTimeLabel != null
+                        ? 'Made to order · ships in ${item.leadTimeLabel}'
+                        : 'Made to order',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.terracotta,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (item.customNote != null &&
+                      item.customNote!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '“${item.customNote!.trim()}”',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ],
                 const SizedBox(height: 4),
                 Text(
                   'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',

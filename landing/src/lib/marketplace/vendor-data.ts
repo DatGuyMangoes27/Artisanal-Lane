@@ -109,6 +109,12 @@ export type VendorProduct = {
   careInstructions: string | null;
   shippingOptions: VendorShippingOption[];
   optionGroups: unknown[];
+  fulfillmentMode: string;
+  madeToOrderPrice: number | null;
+  leadMinDays: number | null;
+  leadMaxDays: number | null;
+  madeToOrderCapacity: number | null;
+  allowCustomNote: boolean;
   isPublished: boolean;
   isFeatured: boolean;
   archivedAt: string | null;
@@ -139,6 +145,10 @@ export type VendorOrderItem = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  isMadeToOrder: boolean;
+  customNote: string | null;
+  leadMinDays: number | null;
+  leadMaxDays: number | null;
 };
 
 export type VendorOrder = {
@@ -252,6 +262,12 @@ const productSelect = `
   care_instructions,
   shipping_options,
   option_groups,
+  fulfillment_mode,
+  made_to_order_price,
+  made_to_order_lead_min_days,
+  made_to_order_lead_max_days,
+  made_to_order_capacity,
+  made_to_order_allow_custom_note,
   is_published,
   is_featured,
   archived_at,
@@ -279,7 +295,7 @@ const orderSelect = `
   gift_message,
   created_at,
   buyer:profiles!orders_buyer_id_fkey(display_name, email),
-  order_items(id, product_id, variant_id, variant_name, variant_image, quantity, unit_price, products(title, images))
+  order_items(id, product_id, variant_id, variant_name, variant_image, quantity, unit_price, is_made_to_order, custom_note, lead_time_min_days, lead_time_max_days, products(title, images))
 `;
 
 function toRecord(value: unknown): JsonRecord | null {
@@ -943,6 +959,15 @@ function mapVendorProduct(row: JsonRecord): VendorProduct {
     careInstructions: toStringOrNull(row.care_instructions),
     shippingOptions: normalizeShippingOptions(row.shipping_options),
     optionGroups: toJsonArray(row.option_groups),
+    fulfillmentMode:
+      row.fulfillment_mode === "made_to_order" || row.fulfillment_mode === "stocked_with_mto"
+        ? String(row.fulfillment_mode)
+        : "stocked",
+    madeToOrderPrice: row.made_to_order_price == null ? null : toNumber(row.made_to_order_price),
+    leadMinDays: row.made_to_order_lead_min_days == null ? null : Math.trunc(toNumber(row.made_to_order_lead_min_days)),
+    leadMaxDays: row.made_to_order_lead_max_days == null ? null : Math.trunc(toNumber(row.made_to_order_lead_max_days)),
+    madeToOrderCapacity: row.made_to_order_capacity == null ? null : Math.trunc(toNumber(row.made_to_order_capacity)),
+    allowCustomNote: row.made_to_order_allow_custom_note === true,
     isPublished: row.is_published === true,
     isFeatured: row.is_featured === true,
     archivedAt: toStringOrNull(row.archived_at),
@@ -1010,6 +1035,12 @@ function mapVendorOrderItem(row: JsonRecord): VendorOrderItem {
     quantity,
     unitPrice,
     lineTotal: quantity * unitPrice,
+    isMadeToOrder: row.is_made_to_order === true,
+    customNote: toStringOrNull(row.custom_note),
+    leadMinDays:
+      row.lead_time_min_days == null ? null : Math.trunc(toNumber(row.lead_time_min_days)),
+    leadMaxDays:
+      row.lead_time_max_days == null ? null : Math.trunc(toNumber(row.lead_time_max_days)),
   };
 }
 

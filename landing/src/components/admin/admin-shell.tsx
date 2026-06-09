@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  GraduationCap,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -53,6 +54,11 @@ const navItems = [
     href: "/admin/stationery",
     label: "Stationery",
     icon: PackageOpen,
+  },
+  {
+    href: "/admin/learning",
+    label: "Learning",
+    icon: GraduationCap,
   },
   {
     href: "/admin/disputes",

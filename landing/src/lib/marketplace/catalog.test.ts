@@ -216,7 +216,10 @@ describe("marketplace catalog helpers", () => {
     expect(calls).toContainEqual(["eq", "is_published", true]);
     expect(calls).toContainEqual(["is", "archived_at", null]);
     expect(calls).toContainEqual(["eq", "shops.is_active", true]);
-    expect(calls).toContainEqual(["gt", "stock_qty", 0]);
+    expect(calls).toContainEqual([
+      "or",
+      "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
+    ]);
     expect(calls).toContainEqual(["eq", "category_id", "category-1"]);
     expect(calls).toContainEqual(["contains", "tags", ["home"]]);
     expect(calls).toContainEqual(["ilike", "title", "%Basket%"]);
@@ -260,7 +263,10 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["eq", "slug", "artisan-shop"]);
     expect(supabase.from).toHaveBeenNthCalledWith(2, "products");
     expect(supabase.queries[1].calls).toContainEqual(["eq", "shop_id", "shop-1"]);
-    expect(supabase.queries[1].calls).toContainEqual(["gt", "stock_qty", 0]);
+    expect(supabase.queries[1].calls).toContainEqual([
+      "or",
+      "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
+    ]);
     expect(supabase.queries[1].calls).toContainEqual(["limit", 48]);
   });
 
@@ -275,7 +281,10 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["eq", "is_published", true]);
     expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
     expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
-    expect(supabase.queries[0].calls).toContainEqual(["gt", "stock_qty", 0]);
+    expect(supabase.queries[0].calls).toContainEqual([
+      "or",
+      "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
+    ]);
   });
 
   it("can hydrate cart products that are reserved down to zero stock", async () => {

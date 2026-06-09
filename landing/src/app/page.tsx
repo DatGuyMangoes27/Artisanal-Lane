@@ -895,6 +895,7 @@ function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Support</h4>
             <ul className="space-y-3 text-muted-foreground">
+              <li><Link href="/about" className="hover:text-[#7A0000] transition-colors">Meet the Founder</Link></li>
               <li><Link href="#faq" className="hover:text-[#7A0000] transition-colors">FAQ</Link></li>
               <li><Link href="mailto:nicky@artisanlanesa.com" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
               <li><Link href="/admin/login" className="hover:text-[#7A0000] transition-colors">Admin Portal</Link></li>

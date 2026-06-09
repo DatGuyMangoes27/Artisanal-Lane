@@ -35,6 +35,13 @@ export type MarketplaceVariant = {
   sortOrder: number;
 };
 
+export type MarketplaceOptionGroup = {
+  name: string;
+  values: string[];
+};
+
+export type FulfillmentMode = "stocked" | "made_to_order" | "stocked_with_mto";
+
 export type MarketplaceProduct = {
   id: string;
   shopId: string;
@@ -52,6 +59,13 @@ export type MarketplaceProduct = {
   category: MarketplaceCategorySummary | null;
   subcategory: MarketplaceCategorySummary | null;
   variants: MarketplaceVariant[];
+  optionGroups: MarketplaceOptionGroup[];
+  fulfillmentMode: FulfillmentMode;
+  madeToOrderPrice: number | null;
+  leadMinDays: number | null;
+  leadMaxDays: number | null;
+  madeToOrderCapacity: number | null;
+  allowCustomNote: boolean;
 };
 
 export type MarketplaceShop = MarketplaceShopSummary & {

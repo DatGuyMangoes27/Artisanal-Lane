@@ -1,5 +1,6 @@
 import '../../../models/product.dart';
 
 bool isBuyerVisibleProduct(Product product) {
-  return product.isPublished && product.isInStock;
+  return product.isPublished &&
+      (product.isInStock || product.isMadeToOrderAvailable);
 }

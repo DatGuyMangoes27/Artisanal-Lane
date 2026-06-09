@@ -56,6 +56,25 @@ export default async function VendorOrderDetailPage({
                   <p className="text-sm text-muted-foreground">
                     {item.variantName ?? "Standard"} · Qty {item.quantity}
                   </p>
+                  {item.isMadeToOrder ? (
+                    <p className="mt-1 text-sm font-medium text-artisan-terracotta">
+                      Made to order
+                      {item.leadMinDays != null || item.leadMaxDays != null
+                        ? ` · ships in ${
+                            item.leadMinDays != null && item.leadMaxDays != null
+                              ? item.leadMinDays === item.leadMaxDays
+                                ? `${item.leadMinDays} days`
+                                : `${item.leadMinDays}–${item.leadMaxDays} days`
+                              : `${item.leadMinDays ?? item.leadMaxDays} days`
+                          }`
+                        : ""}
+                    </p>
+                  ) : null}
+                  {item.isMadeToOrder && item.customNote ? (
+                    <p className="mt-1 text-sm italic text-muted-foreground">
+                      “{item.customNote}”
+                    </p>
+                  ) : null}
                 </div>
                 <p className="font-medium text-artisan-sienna">{formatPrice(item.lineTotal)}</p>
               </div>

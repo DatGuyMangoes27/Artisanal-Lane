@@ -17,6 +17,14 @@ import '../widgets/review_widgets.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
 
+final madeToOrderOpenUnitsProvider = FutureProvider.family<int, String>((
+  ref,
+  productId,
+) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getMadeToOrderOpenUnits(productId);
+});
+
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final String productId;
 
@@ -32,6 +40,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   bool _isAddingToCart = false;
   final Map<int, String> _selectedOptionValues = {};
   late final PageController _pageController;
+  final _customNoteController = TextEditingController();
   String? _lastTrackedViewKey;
 
   @override
@@ -43,6 +52,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _customNoteController.dispose();
     super.dispose();
   }
 
@@ -170,7 +180,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     return false;
   }
 
-  Future<void> _addToCart(Product product, {ProductVariant? variant}) async {
+  Future<void> _addToCart(
+    Product product, {
+    ProductVariant? variant,
+    bool isMadeToOrder = false,
+    String? customNote,
+  }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (requiresSignInForCart(userId)) {
       await showSignInPromptSheet(
@@ -185,7 +200,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     setState(() => _isAddingToCart = true);
     try {
       final service = ref.read(supabaseServiceProvider);
-      await service.addToCart(userId!, product.id, variantId: variant?.id);
+      await service.addToCart(
+        userId!,
+        product.id,
+        variantId: variant?.id,
+        isMadeToOrder: isMadeToOrder,
+        customNote: customNote,
+      );
       await ref
           .read(metaAppEventsServiceProvider)
           .logAddToCart(product, variant: variant);
@@ -511,11 +532,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               product,
               variant: selectedVariant,
             );
+        final mtoEnabled = product.isMadeToOrderEnabled;
+        final isMtoMode =
+            mtoEnabled && (product.isMadeToOrderOnly || displayStock <= 0);
+        final openMtoUnits =
+            (mtoEnabled && product.madeToOrderCapacity != null)
+            ? (ref.watch(madeToOrderOpenUnitsProvider(product.id)).value ?? 0)
+            : 0;
+        final capacityFull =
+            isMtoMode &&
+            product.madeToOrderCapacity != null &&
+            openMtoUnits >= product.madeToOrderCapacity!;
+        final mtoPrice = product.effectiveMtoPrice;
         final canPurchase =
-            displayStock > 0 &&
             !_isAddingToCart &&
-            !hasReachedCartStockLimit &&
-            (!requiresVariantSelection || selectedVariant != null);
+            (!requiresVariantSelection || selectedVariant != null) &&
+            (isMtoMode
+                ? !capacityFull
+                : (displayStock > 0 && !hasReachedCartStockLimit));
         final imageCount = displayImages.isEmpty ? 1 : displayImages.length;
         final loadedReviews =
             productReviewsAsync.value ?? const <ProductReview>[];
@@ -956,6 +990,15 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               _buildStockIndicator(stockQty: displayStock),
                               const SizedBox(height: 16),
 
+                              // Made-to-order details
+                              if (isMtoMode) ...[
+                                _buildMadeToOrderCard(
+                                  product,
+                                  capacityFull: capacityFull,
+                                ),
+                                const SizedBox(height: 16),
+                              ],
+
                               // Out of Office banner
                               if (shopOffline) _buildOfflineBanner(backToWork),
 
@@ -1271,19 +1314,30 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 children: [
                   Expanded(
                     child: GradientButton(
-                      label: displayStock <= 0
-                          ? 'Sold Out'
-                          : hasReachedCartStockLimit
-                          ? 'Max In Basket'
-                          : requiresVariantSelection && selectedVariant == null
+                      label: requiresVariantSelection && selectedVariant == null
                           ? (optionGroups.length > 1
                                 ? 'Choose Options'
                                 : 'Choose ${optionGroups.first.name}')
+                          : isMtoMode
+                          ? (capacityFull
+                                ? 'Fully Booked'
+                                : 'Made to Order • R${mtoPrice.toStringAsFixed(0)}')
+                          : displayStock <= 0
+                          ? 'Sold Out'
+                          : hasReachedCartStockLimit
+                          ? 'Max In Basket'
                           : shopOffline
                           ? 'Pre-order • R${displayPrice.toStringAsFixed(0)}'
                           : 'Add to Basket • R${displayPrice.toStringAsFixed(0)}',
                       onPressed: canPurchase
-                          ? () => _addToCart(product, variant: selectedVariant)
+                          ? () => _addToCart(
+                              product,
+                              variant: selectedVariant,
+                              isMadeToOrder: isMtoMode,
+                              customNote: isMtoMode
+                                  ? _customNoteController.text
+                                  : null,
+                            )
                           : null,
                       isLoading: _isAddingToCart,
                     ),
@@ -1542,6 +1596,81 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           ],
         ),
         child: Icon(icon, size: 22, color: iconColor ?? AppTheme.textPrimary),
+      ),
+    );
+  }
+
+  Widget _buildMadeToOrderCard(Product product, {required bool capacityFull}) {
+    final lead = product.leadTimeLabel;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.terracotta.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.terracotta.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.handyman_outlined,
+                color: AppTheme.terracotta,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Made to order',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.terracotta,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            capacityFull
+                ? 'This maker is fully booked for custom orders right now. Check back soon.'
+                : lead != null
+                ? 'Hand-made just for you — ships in $lead.'
+                : 'Hand-made to order just for you.',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          if (!capacityFull && product.allowCustomNote) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Custom request (optional)',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customNoteController,
+              maxLines: 3,
+              maxLength: 500,
+              textCapitalization: TextCapitalization.sentences,
+              style: GoogleFonts.poppins(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Colours, sizing, personalisation…',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

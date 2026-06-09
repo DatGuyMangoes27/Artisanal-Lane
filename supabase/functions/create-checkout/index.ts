@@ -123,7 +123,7 @@ Deno.serve(async (request) => {
     const { data: cartItems, error: cartError } = await admin
       .from("cart_items")
       .select(
-        "id, product_id, variant_id, quantity, products(id, title, price, shop_id, stock_qty), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
+        "id, product_id, variant_id, quantity, is_made_to_order, custom_note, products(id, title, price, shop_id, stock_qty, fulfillment_mode, made_to_order_price, made_to_order_lead_min_days, made_to_order_lead_max_days, made_to_order_capacity), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
       )
       .eq("cart_id", cartRow.id);
 
@@ -140,12 +140,19 @@ Deno.serve(async (request) => {
       productId: item.product_id as string,
       variantId: item.variant_id as string | null,
       quantity: item.quantity as number,
+      isMadeToOrder: item.is_made_to_order === true,
+      customNote: (item.custom_note as string | null) ?? null,
       product: item.products as {
         id: string;
         title: string;
         price: number;
         shop_id: string;
         stock_qty: number;
+        fulfillment_mode: string | null;
+        made_to_order_price: number | null;
+        made_to_order_lead_min_days: number | null;
+        made_to_order_lead_max_days: number | null;
+        made_to_order_capacity: number | null;
       },
       variant: item.product_variants as
         | {
@@ -174,9 +181,17 @@ Deno.serve(async (request) => {
     const shopId = Array.from(shopIds)[0];
     const shippingCost = Number(body.shippingCost ?? 0);
     const giftFee = body.isGift === true ? GIFT_SERVICE_FEE : 0;
+    // Made-to-order lines use the product MTO price override when set,
+    // otherwise the normal variant/product price.
+    const unitPriceFor = (item: (typeof items)[number]) => {
+      const basePrice = Number(item.variant?.price ?? item.product.price);
+      if (item.isMadeToOrder && item.product.made_to_order_price != null) {
+        return Number(item.product.made_to_order_price);
+      }
+      return basePrice;
+    };
     const subtotal = items.reduce(
-      (sum, item) =>
-        sum + Number(item.variant?.price ?? item.product.price) * item.quantity,
+      (sum, item) => sum + unitPriceFor(item) * item.quantity,
       0,
     );
     const grandTotal = subtotal + shippingCost + giftFee;
@@ -185,7 +200,8 @@ Deno.serve(async (request) => {
     );
 
     for (const item of items) {
-      if (reservationToken != null) {
+      // Made-to-order lines are produced on demand and bypass stock checks.
+      if (item.isMadeToOrder || reservationToken != null) {
         continue;
       }
 
@@ -194,6 +210,26 @@ Deno.serve(async (request) => {
         return jsonResponse(
           {
             error: `${item.variant?.display_name ?? item.variant?.color_name ?? item.product.title} is low on stock. Please update your basket and try again.`,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Enforce the optional made-to-order capacity cap (open, not-yet-shipped units).
+    for (const item of items) {
+      if (!item.isMadeToOrder || item.product.made_to_order_capacity == null) {
+        continue;
+      }
+
+      const { data: openUnits } = await admin.rpc("made_to_order_open_units", {
+        product_id_input: item.productId,
+      });
+      const open = typeof openUnits === "number" ? openUnits : 0;
+      if (open + item.quantity > Number(item.product.made_to_order_capacity)) {
+        return jsonResponse(
+          {
+            error: `${item.product.title} is fully booked for made-to-order right now. Please try again later.`,
           },
           { status: 400 },
         );
@@ -456,7 +492,15 @@ Deno.serve(async (request) => {
             ? item.variant.images[0]
             : null,
         quantity: item.quantity,
-        unit_price: item.variant?.price ?? item.product.price,
+        unit_price: unitPriceFor(item),
+        is_made_to_order: item.isMadeToOrder,
+        custom_note: item.isMadeToOrder ? item.customNote : null,
+        lead_time_min_days: item.isMadeToOrder
+          ? item.product.made_to_order_lead_min_days
+          : null,
+        lead_time_max_days: item.isMadeToOrder
+          ? item.product.made_to_order_lead_max_days
+          : null,
       })),
     );
 
@@ -478,6 +522,11 @@ Deno.serve(async (request) => {
       }
     } else {
       for (const item of items) {
+        // Made-to-order lines never decrement stock.
+        if (item.isMadeToOrder) {
+          continue;
+        }
+
         const { error: decrementError } = item.variantId
           ? await admin.rpc("decrement_variant_stock", {
             variant_id_input: item.variantId,

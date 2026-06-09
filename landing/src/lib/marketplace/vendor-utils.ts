@@ -130,6 +130,30 @@ export function parseIntegerInput(value: FormDataEntryValue | string | null | un
   return parsed > 0 ? parsed : 0;
 }
 
+export function parseNullableCurrencyInput(
+  value: FormDataEntryValue | string | null | undefined,
+) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+  const parsed = Number(value.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function parseNullableIntegerInput(
+  value: FormDataEntryValue | string | null | undefined,
+) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+  const parsed = Math.trunc(Number(value.replace(/[^0-9.-]/g, "")));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export function parseFulfillmentMode(value: FormDataEntryValue | string | null | undefined) {
+  return value === "made_to_order" || value === "stocked_with_mto" ? value : "stocked";
+}
+
 export function parseNullableText(value: FormDataEntryValue | string | null | undefined) {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }

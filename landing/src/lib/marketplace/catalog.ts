@@ -3,7 +3,9 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
 import type {
+  FulfillmentMode,
   MarketplaceCategorySummary,
+  MarketplaceOptionGroup,
   MarketplaceProduct,
   MarketplaceShop,
   MarketplaceShopSummary,
@@ -36,6 +38,11 @@ const maxProductLimit = 96;
 const defaultShopLimit = 24;
 const maxShopLimit = 96;
 
+// A product is buyable when it has stock, or when it is made-to-order
+// (which stays available even at zero inventory).
+const availableProductFilter =
+  "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)";
+
 const productSelect = `
   id,
   shop_id,
@@ -49,6 +56,13 @@ const productSelect = `
   shipping_options,
   is_featured,
   created_at,
+  option_groups,
+  fulfillment_mode,
+  made_to_order_price,
+  made_to_order_lead_min_days,
+  made_to_order_lead_max_days,
+  made_to_order_capacity,
+  made_to_order_allow_custom_note,
   shops!inner(id, name, slug, logo_url, location, is_active, is_offline),
   categories(id, name, slug),
   subcategories(id, name, slug),
@@ -126,6 +140,13 @@ type ProductRow = {
   shipping_options: unknown;
   is_featured: boolean;
   created_at: string;
+  option_groups: unknown;
+  fulfillment_mode: string | null;
+  made_to_order_price: number | string | null;
+  made_to_order_lead_min_days: number | null;
+  made_to_order_lead_max_days: number | null;
+  made_to_order_capacity: number | null;
+  made_to_order_allow_custom_note: boolean | null;
   shops: Relation<ShopSummaryRow>;
   categories: Relation<CategoryRow>;
   subcategories: Relation<CategoryRow>;
@@ -255,6 +276,25 @@ function mapVariants(row: Relation<VariantRow>): MarketplaceVariant[] {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+function mapOptionGroups(value: unknown): MarketplaceOptionGroup[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      const row = toRecord(entry) ?? {};
+      const name = String(row.name ?? "").trim();
+      const values = toStringArray(row.values).filter((item) => item.trim().length > 0);
+      return { name, values };
+    })
+    .filter((group) => group.name.length > 0 && group.values.length > 0);
+}
+
+function normalizeFulfillmentMode(value: string | null): FulfillmentMode {
+  return value === "made_to_order" || value === "stocked_with_mto" ? value : "stocked";
+}
+
 function mapProduct(row: ProductRow): MarketplaceProduct {
   return {
     id: row.id,
@@ -273,6 +313,14 @@ function mapProduct(row: ProductRow): MarketplaceProduct {
     category: mapCategorySummary(row.categories),
     subcategory: mapCategorySummary(row.subcategories),
     variants: mapVariants(row.product_variants),
+    optionGroups: mapOptionGroups(row.option_groups),
+    fulfillmentMode: normalizeFulfillmentMode(row.fulfillment_mode),
+    madeToOrderPrice:
+      row.made_to_order_price == null ? null : toNumber(row.made_to_order_price),
+    leadMinDays: row.made_to_order_lead_min_days,
+    leadMaxDays: row.made_to_order_lead_max_days,
+    madeToOrderCapacity: row.made_to_order_capacity,
+    allowCustomNote: row.made_to_order_allow_custom_note === true,
   };
 }
 
@@ -317,7 +365,7 @@ async function loadPublicProductCountsForShops(
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
-    .gt("stock_qty", 0)
+    .or(availableProductFilter)
     .in("shop_id", uniqueShopIds);
 
   if (error) {
@@ -344,7 +392,7 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
-    .gt("stock_qty", 0);
+    .or(availableProductFilter);
 
   const searchQuery = options.query?.trim();
   if (searchQuery) {
@@ -448,7 +496,7 @@ export async function getFeaturedMarketplaceProducts(limit?: number) {
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
-    .gt("stock_qty", 0)
+    .or(availableProductFilter)
     .eq("is_featured", true)
     .order("created_at", { ascending: false })
     .limit(boundedLimit(limit, 8, maxProductLimit));
@@ -473,7 +521,7 @@ export async function getMarketplaceProduct(productId: string) {
     .eq("is_published", true)
     .is("archived_at", null)
     .eq("shops.is_active", true)
-    .gt("stock_qty", 0)
+    .or(availableProductFilter)
     .maybeSingle();
 
   if (error) {
@@ -501,7 +549,7 @@ export async function getMarketplaceProductsByIds(
     .eq("shops.is_active", true);
 
   if (!options.includeOutOfStock) {
-    query = query.gt("stock_qty", 0);
+    query = query.or(availableProductFilter);
   }
 
   const { data, error } = await query.in("id", ids);

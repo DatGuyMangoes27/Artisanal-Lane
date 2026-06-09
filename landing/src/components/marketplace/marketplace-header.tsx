@@ -8,7 +8,7 @@ import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notic
 import { Button } from "@/components/ui/button";
 
 type MarketplaceHeaderProps = {
-  activeItem?: "home" | "shop" | "artisans";
+  activeItem?: "home" | "shop" | "artisans" | "learn" | "about";
 };
 
 function navLinkClass(isActive = false) {
@@ -42,6 +42,8 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           <Link href="/" className={navLinkClass(activeItem === "home")}>Home</Link>
           <Link href="/shop" className={navLinkClass(activeItem === "shop")}>Store</Link>
           <Link href="/artisans" className={navLinkClass(activeItem === "artisans")}>Artisans</Link>
+          <Link href="/learn" className={navLinkClass(activeItem === "learn")}>Learn</Link>
+          <Link href="/about" className={navLinkClass(activeItem === "about")}>About</Link>
         </nav>
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="icon" aria-label="Search">
@@ -67,6 +69,12 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           </Link>
           <Link href="/artisans" className={mobileNavLinkClass(activeItem === "artisans")}>
             Artisans
+          </Link>
+          <Link href="/learn" className={mobileNavLinkClass(activeItem === "learn")}>
+            Learn
+          </Link>
+          <Link href="/about" className={mobileNavLinkClass(activeItem === "about")}>
+            About
           </Link>
           <Link href="/shop#search" className={mobileNavLinkClass()}>
             Search
