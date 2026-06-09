@@ -27,9 +27,9 @@ export function VendorShell({
               {shop?.location ? (
                 <p className="mt-1 text-sm text-muted-foreground">{shop.location}</p>
               ) : null}
-              {shop?.slug ? (
+              {shop?.isActive ? (
                 <Button asChild className="mt-4 w-full rounded-full" variant="outline">
-                  <Link href={`/artisans/${shop.slug}`}>View public profile</Link>
+                  <Link href={`/shops/${shop.slug ?? shop.id}`}>View public profile</Link>
                 </Button>
               ) : null}
               {!shop ? (
