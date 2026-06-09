@@ -164,8 +164,7 @@ export async function createVendorMarketEvent(formData: FormData) {
     market_name: parseRequiredText(formData.get("marketName")),
     location: parseRequiredText(formData.get("marketLocation")),
     event_date: parseRequiredText(formData.get("eventDate")),
-    starts_at: parseNullableText(formData.get("startsAt")),
-    ends_at: parseNullableText(formData.get("endsAt")),
+    time_label: parseNullableText(formData.get("timeLabel")),
     notes: parseNullableText(formData.get("notes")),
     is_active: isTruthy(formData.get("isActive")),
   });

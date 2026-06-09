@@ -209,7 +209,8 @@ export default async function VendorShopSettingsPage() {
                 <div>
                   <p className="font-medium text-artisan-sienna">{event.marketName}</p>
                   <p className="text-muted-foreground">
-                    {event.location} · {event.eventDate} · {formatVendorStatus(event.isActive ? "active" : "inactive")}
+                    {event.location} · {event.eventDate}
+                    {event.timeLabel ? ` · ${event.timeLabel}` : ""} · {formatVendorStatus(event.isActive ? "active" : "inactive")}
                   </p>
                 </div>
                 <form action={deleteVendorMarketEvent}>
@@ -226,10 +227,7 @@ export default async function VendorShopSettingsPage() {
             <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="marketName" placeholder="Market name" required />
             <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="marketLocation" placeholder="Location" required />
             <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="eventDate" type="date" required />
-            <div className="grid gap-3 md:grid-cols-2">
-              <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="startsAt" type="time" />
-              <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="endsAt" type="time" />
-            </div>
+            <input className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="timeLabel" placeholder="Time (e.g. 10:00 - 14:00)" />
             <textarea className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" name="notes" placeholder="Notes" />
             <label className="flex items-center gap-2 text-sm text-artisan-sienna">
               <input name="isActive" type="checkbox" defaultChecked />

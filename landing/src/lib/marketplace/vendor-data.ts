@@ -179,8 +179,7 @@ export type VendorMarketEvent = {
   marketName: string;
   location: string;
   eventDate: string;
-  startsAt: string | null;
-  endsAt: string | null;
+  timeLabel: string | null;
   notes: string | null;
   isActive: boolean;
 };
@@ -676,7 +675,7 @@ export async function listVendorMarketEvents(
   const admin = createAdminClient();
   let query = admin
     .from("shop_market_events")
-    .select("id, market_name, location, event_date, starts_at, ends_at, notes, is_active")
+    .select("id, market_name, location, event_date, time_label, notes, is_active")
     .eq("shop_id", shopId)
     .order("event_date", { ascending: true });
 
@@ -1050,8 +1049,7 @@ function mapVendorMarketEvent(row: JsonRecord): VendorMarketEvent {
     marketName: String(row.market_name),
     location: String(row.location),
     eventDate: String(row.event_date),
-    startsAt: toStringOrNull(row.starts_at),
-    endsAt: toStringOrNull(row.ends_at),
+    timeLabel: toStringOrNull(row.time_label),
     notes: toStringOrNull(row.notes),
     isActive: row.is_active !== false,
   };
