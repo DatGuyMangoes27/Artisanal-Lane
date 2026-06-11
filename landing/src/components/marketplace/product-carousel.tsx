@@ -32,7 +32,7 @@ export function ProductCarousel({ children }: { children: ReactNode }) {
         variant="secondary"
         size="icon"
         aria-label="Previous fresh arrival"
-        className="absolute -left-3 top-1/2 z-10 hidden size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:inline-flex"
+        className="absolute left-2 top-1/2 z-10 inline-flex size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:-left-3"
         onClick={() => scrollByProduct("previous")}
       >
         <ChevronLeft />
@@ -48,33 +48,11 @@ export function ProductCarousel({ children }: { children: ReactNode }) {
         variant="secondary"
         size="icon"
         aria-label="Next fresh arrival"
-        className="absolute -right-3 top-1/2 z-10 hidden size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:inline-flex"
+        className="absolute right-2 top-1/2 z-10 inline-flex size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:-right-3"
         onClick={() => scrollByProduct("next")}
       >
         <ChevronRight />
       </Button>
-      <div className="mt-4 flex justify-center gap-2 md:hidden">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Previous fresh arrival"
-          className="rounded-full"
-          onClick={() => scrollByProduct("previous")}
-        >
-          <ChevronLeft />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Next fresh arrival"
-          className="rounded-full"
-          onClick={() => scrollByProduct("next")}
-        >
-          <ChevronRight />
-        </Button>
-      </div>
     </div>
   );
 }
