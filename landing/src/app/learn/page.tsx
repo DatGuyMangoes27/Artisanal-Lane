@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { Headphones, PlayCircle, BookOpen, ArrowUpRight } from "lucide-react";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { getPublishedLearningResources, type LearningResource, type LearningResourceType } from "@/lib/learning";
+import { requireVendorSession } from "@/lib/marketplace/vendor-data";
 import { getLearningEmbedUrl } from "@/lib/learning-embed";
 
 export const metadata: Metadata = {
@@ -129,6 +131,14 @@ function FeaturedResource({ resource }: { resource: LearningResource }) {
 }
 
 export default async function LearnPage() {
+  // The Learn hub is for artisans: approved vendors and admins (who author the
+  // content). Guests are sent to login and bounced back here; logged-in buyers
+  // are sent to the store.
+  const session = await requireVendorSession("/learn");
+  if (!session.isApprovedVendor) {
+    redirect("/shop");
+  }
+
   const resources = await getPublishedLearningResources();
   const featured = resources.filter((item) => item.isFeatured).slice(0, 2);
 

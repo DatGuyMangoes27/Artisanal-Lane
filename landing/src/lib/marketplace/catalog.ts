@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 import type {
@@ -13,6 +14,7 @@ import type {
   ShippingOption,
 } from "./types";
 import { resolveTrendingSearchTerms } from "./search-trends";
+import { isKnownShippingMethod } from "./shipping";
 
 export type MarketplaceProductSort = "newest" | "price_asc" | "price_desc" | "popular";
 export type MarketplacePriceFilter = "under_200" | "between_200_500" | "over_500";
@@ -21,6 +23,7 @@ export type MarketplaceAvailabilityFilter = "on_sale";
 export type MarketplaceProductOptions = {
   query?: string;
   categoryId?: string;
+  subcategoryId?: string;
   tag?: string;
   sort?: MarketplaceProductSort;
   priceFilter?: MarketplacePriceFilter;
@@ -71,6 +74,7 @@ const productSelect = `
 
 const shopSelect = `
   id,
+  vendor_id,
   name,
   slug,
   bio,
@@ -80,7 +84,8 @@ const shopSelect = `
   location,
   shipping_options,
   is_active,
-  is_offline
+  is_offline,
+  is_spotlight
 `;
 
 const uuidPattern =
@@ -106,10 +111,12 @@ type ShopSummaryRow = {
 };
 
 type ShopRow = ShopSummaryRow & {
+  vendor_id: string | null;
   bio: string | null;
   brand_story: string | null;
   cover_image_url: string | null;
   shipping_options: unknown;
+  is_spotlight: boolean | null;
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -207,18 +214,21 @@ function mapShippingOptions(value: unknown): ShippingOption[] {
     return [];
   }
 
-  return value.map((option) => {
-    const row = toRecord(option) ?? {};
+  return value
+    .map((option) => {
+      const row = toRecord(option) ?? {};
 
-    return {
-      key: String(row.key ?? ""),
-      enabled: row.enabled === true,
-      price: toNumber(row.price),
-      marketName: toStringOrNull(row.market_name ?? row.marketName),
-      marketLocation: toStringOrNull(row.market_location ?? row.marketLocation),
-      marketProvince: toStringOrNull(row.market_province ?? row.marketProvince),
-    };
-  });
+      return {
+        key: String(row.key ?? ""),
+        // Mirror mobile parsing: a missing "enabled" flag means the method is on.
+        enabled: row.enabled !== false,
+        price: toNumber(row.price),
+        marketName: toStringOrNull(row.market_name ?? row.marketName),
+        marketLocation: toStringOrNull(row.market_location ?? row.marketLocation),
+        marketProvince: toStringOrNull(row.market_province ?? row.marketProvince),
+      };
+    })
+    .filter((option) => isKnownShippingMethod(option.key));
 }
 
 function mapCategorySummary(row: Relation<CategoryRow>): MarketplaceCategorySummary | null {
@@ -384,6 +394,66 @@ async function loadPublicProductCountsForShops(
   return counts;
 }
 
+type VendorSubscriptionRow = {
+  vendor_id: string;
+  status: string;
+  cancelled_at: string | null;
+  current_period_end: string | null;
+};
+
+// Mirrors public.vendor_subscription_is_active: an "active" row, or a
+// cancelled row that is still within its paid-through period.
+function isSubscriptionActive(row: VendorSubscriptionRow, now: number) {
+  const periodEnd = row.current_period_end
+    ? Date.parse(row.current_period_end)
+    : null;
+
+  if (row.status === "active" && row.cancelled_at == null) {
+    return periodEnd == null || periodEnd > now;
+  }
+
+  if (row.status === "cancelled") {
+    return periodEnd != null && periodEnd > now;
+  }
+
+  return false;
+}
+
+// vendor_subscriptions is RLS-protected (vendor/admin only), so the public
+// directory ranking reads it with the service-role client. Ranking is
+// non-critical, so failures degrade to "nobody subscribed" instead of
+// breaking the page.
+async function loadSubscribedVendorIds(vendorIds: Array<string | null>) {
+  const uniqueVendorIds = Array.from(
+    new Set(vendorIds.filter((id): id is string => Boolean(id))),
+  );
+
+  if (uniqueVendorIds.length === 0) {
+    return new Set<string>();
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("vendor_subscriptions")
+      .select("vendor_id, status, cancelled_at, current_period_end")
+      .in("vendor_id", uniqueVendorIds);
+
+    if (error) {
+      return new Set<string>();
+    }
+
+    const now = Date.now();
+    return new Set(
+      ((data ?? []) as VendorSubscriptionRow[])
+        .filter((row) => isSubscriptionActive(row, now))
+        .map((row) => row.vendor_id),
+    );
+  } catch {
+    return new Set<string>();
+  }
+}
+
 async function loadProducts(options: ProductQueryOptions = {}) {
   const supabase = await createClient();
   let query = supabase
@@ -401,6 +471,12 @@ async function loadProducts(options: ProductQueryOptions = {}) {
 
   if (options.categoryId) {
     query = query.eq("category_id", options.categoryId);
+
+    // Subcategories only narrow within a category, mirroring the mobile app's
+    // category screen filter.
+    if (options.subcategoryId) {
+      query = query.eq("subcategory_id", options.subcategoryId);
+    }
   }
 
   if (options.shopId) {
@@ -586,12 +662,34 @@ export async function getMarketplaceCategories() {
   }));
 }
 
+export async function getMarketplaceSubcategories() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("subcategories")
+    .select("id, category_id, name, slug")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    throw new Error("Failed to load marketplace subcategories", { cause: error });
+  }
+
+  return ((data ?? []) as Array<CategoryRow & { category_id: string | null }>).map(
+    (subcategory) => ({
+      id: subcategory.id,
+      categoryId: subcategory.category_id,
+      name: subcategory.name,
+      slug: subcategory.slug,
+    }),
+  );
+}
+
 export async function getMarketplaceShops(limit?: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("shops")
     .select(shopSelect)
     .eq("is_active", true)
+    .order("is_spotlight", { ascending: false })
     .order("name", { ascending: true })
     .limit(boundedLimit(limit, defaultShopLimit, maxShopLimit));
 
@@ -600,12 +698,32 @@ export async function getMarketplaceShops(limit?: number) {
   }
 
   const shops = (data ?? []) as ShopRow[];
-  const publicProductCounts = await loadPublicProductCountsForShops(
-    supabase,
-    shops.map((shop) => shop.id),
-  );
+  const [publicProductCounts, subscribedVendorIds] = await Promise.all([
+    loadPublicProductCountsForShops(
+      supabase,
+      shops.map((shop) => shop.id),
+    ),
+    loadSubscribedVendorIds(shops.map((shop) => shop.vendor_id)),
+  ]);
 
-  return shops.map((shop) => mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0));
+  // Tiered directory order: spotlighted shops, then shops with an active
+  // subscription, then everyone else; alphabetical by name within each tier.
+  const rankShop = (shop: ShopRow) => {
+    if (shop.is_spotlight === true) {
+      return 0;
+    }
+
+    if (shop.vendor_id && subscribedVendorIds.has(shop.vendor_id)) {
+      return 1;
+    }
+
+    return 2;
+  };
+
+  return shops
+    .slice()
+    .sort((a, b) => rankShop(a) - rankShop(b) || a.name.localeCompare(b.name))
+    .map((shop) => mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0));
 }
 
 export async function getMarketplaceShopCount() {

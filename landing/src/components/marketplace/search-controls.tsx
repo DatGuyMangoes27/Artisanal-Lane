@@ -4,38 +4,58 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { MarketplaceCategorySummary } from "@/lib/marketplace/types";
+import type {
+  MarketplaceCategorySummary,
+  MarketplaceSubcategorySummary,
+} from "@/lib/marketplace/types";
 
 export function SearchControls({
   categories,
+  subcategories = [],
   trendingTerms = [],
 }: {
   categories: MarketplaceCategorySummary[];
+  subcategories?: MarketplaceSubcategorySummary[];
   trendingTerms?: string[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryId, setCategoryId] = useState(searchParams.get("category") ?? "");
+  const [subcategoryId, setSubcategoryId] = useState(searchParams.get("subcategory") ?? "");
   const [sort, setSort] = useState(searchParams.get("sort") ?? "newest");
   const [priceFilter, setPriceFilter] = useState(searchParams.get("price") ?? "");
   const [availabilityFilter, setAvailabilityFilter] = useState(searchParams.get("availability") ?? "");
 
+  // Mirrors the mobile app: subcategory filtering only applies within a
+  // selected category, and resets when the category changes.
+  const categorySubcategories = categoryId
+    ? subcategories.filter((subcategory) => subcategory.categoryId === categoryId)
+    : [];
+  const validSubcategoryId = categorySubcategories.some(
+    (subcategory) => subcategory.id === subcategoryId,
+  )
+    ? subcategoryId
+    : "";
+
   function applyFilters(overrides: Partial<{
     query: string;
     categoryId: string;
+    subcategoryId: string;
     sort: string;
     priceFilter: string;
     availabilityFilter: string;
   }> = {}) {
     const nextQuery = overrides.query ?? query;
     const nextCategoryId = overrides.categoryId ?? categoryId;
+    const nextSubcategoryId = overrides.subcategoryId ?? validSubcategoryId;
     const nextSort = overrides.sort ?? sort;
     const nextPriceFilter = overrides.priceFilter ?? priceFilter;
     const nextAvailabilityFilter = overrides.availabilityFilter ?? availabilityFilter;
     const params = new URLSearchParams();
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCategoryId) params.set("category", nextCategoryId);
+    if (nextCategoryId && nextSubcategoryId) params.set("subcategory", nextSubcategoryId);
     if (nextSort !== "newest") params.set("sort", nextSort);
     if (nextPriceFilter) params.set("price", nextPriceFilter);
     if (nextAvailabilityFilter) params.set("availability", nextAvailabilityFilter);
@@ -50,6 +70,7 @@ export function SearchControls({
   function clearFilters() {
     setQuery("");
     setCategoryId("");
+    setSubcategoryId("");
     setSort("newest");
     setPriceFilter("");
     setAvailabilityFilter("");
@@ -58,21 +79,35 @@ export function SearchControls({
 
   return (
     <div id="search" className="rounded-3xl border border-artisan-clay bg-card p-4 shadow-sm">
-      <form onSubmit={onSubmit} className="grid gap-3 md:grid-cols-[1fr_180px_160px_160px_150px_auto_auto]">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search handmade products"
-          className="h-11 rounded-full border border-input bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring/30"
+          className="h-11 min-w-0 rounded-full border border-input bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring/30 md:min-w-[200px] md:flex-1"
         />
         <select
           value={categoryId}
-          onChange={(event) => setCategoryId(event.target.value)}
+          onChange={(event) => {
+            setCategoryId(event.target.value);
+            setSubcategoryId("");
+          }}
           className="h-11 rounded-full border border-input bg-background px-4 text-sm"
         >
           <option value="">All categories</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>{category.name}</option>
+          ))}
+        </select>
+        <select
+          value={validSubcategoryId}
+          onChange={(event) => setSubcategoryId(event.target.value)}
+          disabled={categorySubcategories.length === 0}
+          className="h-11 rounded-full border border-input bg-background px-4 text-sm disabled:opacity-60"
+        >
+          <option value="">All subcategories</option>
+          {categorySubcategories.map((subcategory) => (
+            <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>
           ))}
         </select>
         <select
@@ -103,10 +138,12 @@ export function SearchControls({
           <option value="">All products</option>
           <option value="on_sale">On sale</option>
         </select>
-        <Button type="submit" className="h-11 rounded-full">Apply</Button>
-        <Button type="button" variant="outline" className="h-11 rounded-full" onClick={clearFilters}>
-          Clear
-        </Button>
+        <div className="flex gap-3">
+          <Button type="submit" className="h-11 flex-1 rounded-full md:flex-none">Apply</Button>
+          <Button type="button" variant="outline" className="h-11 flex-1 rounded-full md:flex-none" onClick={clearFilters}>
+            Clear
+          </Button>
+        </div>
       </form>
       {trendingTerms.length > 0 ? (
         <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">

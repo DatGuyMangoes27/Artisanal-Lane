@@ -22,6 +22,13 @@ export type MarketplaceCategorySummary = {
   slug: string | null;
 };
 
+export type MarketplaceSubcategorySummary = {
+  id: string;
+  categoryId: string | null;
+  name: string;
+  slug: string | null;
+};
+
 export type MarketplaceVariant = {
   id: string;
   productId: string;

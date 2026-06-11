@@ -937,3 +937,38 @@ export async function listLearningResources(): Promise<AdminLearningResource[]> 
   }));
 }
 
+export type AdminNotificationRecipient = {
+  id: string;
+  display_name: string | null;
+  email: string | null;
+  role: string;
+};
+
+export async function searchNotificationRecipients(
+  query: string,
+): Promise<AdminNotificationRecipient[]> {
+  const sanitized = query.trim().replace(/[,()%]/g, " ").trim();
+  if (!sanitized) {
+    return [];
+  }
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, display_name, email, role")
+    .or(`email.ilike.%${sanitized}%,display_name.ilike.%${sanitized}%`)
+    .order("display_name", { ascending: true })
+    .limit(20);
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => ({
+    id: String(row.id),
+    display_name: row.display_name ?? null,
+    email: row.email ?? null,
+    role: String(row.role ?? "buyer"),
+  }));
+}
+

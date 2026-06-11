@@ -5,6 +5,8 @@ import { Heart, Search } from "lucide-react";
 import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
 import { CartNavButton } from "@/components/marketplace/cart-nav-button";
 import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notice";
+import { LearnNavLink } from "@/components/marketplace/learn-nav-link";
+import { MobileNavMenu } from "@/components/marketplace/mobile-nav-menu";
 import { Button } from "@/components/ui/button";
 
 type MarketplaceHeaderProps = {
@@ -15,12 +17,6 @@ function navLinkClass(isActive = false) {
   return isActive
     ? "font-semibold text-artisan-terracotta transition hover:text-artisan-terracotta-dark"
     : "transition hover:text-foreground";
-}
-
-function mobileNavLinkClass(isActive = false) {
-  return isActive
-    ? "whitespace-nowrap rounded-full bg-artisan-terracotta px-4 py-2 text-sm font-semibold text-white shadow-sm"
-    : "whitespace-nowrap rounded-full border border-artisan-clay bg-card px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition hover:border-artisan-terracotta hover:text-artisan-terracotta";
 }
 
 export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
@@ -42,7 +38,7 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           <Link href="/" className={navLinkClass(activeItem === "home")}>Home</Link>
           <Link href="/shop" className={navLinkClass(activeItem === "shop")}>Store</Link>
           <Link href="/artisans" className={navLinkClass(activeItem === "artisans")}>Artisans</Link>
-          <Link href="/learn" className={navLinkClass(activeItem === "learn")}>Learn</Link>
+          <LearnNavLink active={activeItem === "learn"} />
           <Link href="/about" className={navLinkClass(activeItem === "about")}>About</Link>
         </nav>
         <div className="flex items-center gap-2">
@@ -53,39 +49,12 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           <Button asChild variant="ghost" size="icon" aria-label="Favourites">
             <Link href="/account/favourites"><Heart /></Link>
           </Button>
-          <div className="ml-1 hidden items-center gap-2 sm:flex">
+          <div className="ml-1 hidden items-center gap-2 md:flex">
             <AuthCtaButtons />
           </div>
+          <MobileNavMenu activeItem={activeItem} />
         </div>
       </div>
-      <nav
-        aria-label="Mobile marketplace navigation"
-        className="border-t border-artisan-clay/50 px-4 py-2 md:hidden"
-      >
-        <div className="flex flex-wrap justify-end gap-2 pb-2">
-          <AuthCtaButtons variant="pill" />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <Link href="/" className={mobileNavLinkClass(activeItem === "home")}>
-            Home
-          </Link>
-          <Link href="/shop" className={mobileNavLinkClass(activeItem === "shop")}>
-            Store
-          </Link>
-          <Link href="/artisans" className={mobileNavLinkClass(activeItem === "artisans")}>
-            Artisans
-          </Link>
-          <Link href="/learn" className={mobileNavLinkClass(activeItem === "learn")}>
-            Learn
-          </Link>
-          <Link href="/about" className={mobileNavLinkClass(activeItem === "about")}>
-            About
-          </Link>
-          <Link href="/shop#search" className={mobileNavLinkClass()}>
-            Search
-          </Link>
-        </div>
-      </nav>
     </header>
     <FloatingCartNotice />
     </>

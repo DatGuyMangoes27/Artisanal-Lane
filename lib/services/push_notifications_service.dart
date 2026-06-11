@@ -32,6 +32,11 @@ String? routeForPushNotification(Map<String, dynamic> data) {
     if (recipientRole == 'buyer') return '/profile/orders/$orderId/dispute';
   }
 
+  if (type == 'admin_broadcast') {
+    final route = data['route']?.toString().trim();
+    if (route != null && route.startsWith('/')) return route;
+  }
+
   return null;
 }
 

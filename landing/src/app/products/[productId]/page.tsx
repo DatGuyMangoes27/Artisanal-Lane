@@ -18,7 +18,7 @@ import {
   getProductStockLabel,
   isProductOnSale,
 } from "@/lib/marketplace/format";
-import type { ShippingOption } from "@/lib/marketplace/types";
+import { shippingMethodName } from "@/lib/marketplace/shipping";
 import {
   getLatestEligibleProductReviewContext,
   getProductReviewOverview,
@@ -33,13 +33,6 @@ type ProductPageProps = {
   }>;
 };
 
-function formatShippingName(option: ShippingOption) {
-  return option.key
-    .split("_")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { productId } = await params;
@@ -177,7 +170,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                       className="rounded-3xl border border-artisan-clay bg-card p-4 text-sm"
                     >
                       <div className="flex items-center justify-between gap-4">
-                        <p className="font-semibold text-foreground">{formatShippingName(option)}</p>
+                        <p className="font-semibold text-foreground">{shippingMethodName(option.key)}</p>
                         <p className="text-muted-foreground">
                           {option.price > 0 ? formatPrice(option.price) : "Included"}
                         </p>

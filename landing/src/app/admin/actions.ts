@@ -11,6 +11,8 @@ import {
 } from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  type AdminBroadcastAudience,
+  sendAdminBroadcastPushNotification,
   sendChatMessagePushNotifications,
   sendDisputeResolvedPushNotification,
 } from "@/lib/push-notifications";
@@ -657,6 +659,69 @@ export async function resolveDisputeRefund(
     return createSuccessState("Buyer refunded.");
   } catch (error) {
     return createErrorState(error, "Unable to refund buyer.");
+  }
+}
+
+const broadcastAudiences: AdminBroadcastAudience[] = [
+  "user",
+  "all_vendors",
+  "all_buyers",
+  "subscribed_vendors",
+  "vendors_without_shop",
+];
+
+export async function sendAdminPushNotification(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+
+    const title = String(formData.get("title") ?? "").trim();
+    const body = String(formData.get("body") ?? "").trim();
+    const route = String(formData.get("route") ?? "").trim();
+    const audienceValue = String(formData.get("audience") ?? "").trim();
+    const userId = String(formData.get("userId") ?? "").trim();
+
+    if (!title) {
+      return createErrorState(null, "Please enter a notification title.");
+    }
+    if (!body) {
+      return createErrorState(null, "Please enter a notification message.");
+    }
+    if (route && !route.startsWith("/")) {
+      return createErrorState(null, "The app link must start with / (e.g. /learn).");
+    }
+
+    const audience = broadcastAudiences.find((value) => value === audienceValue);
+    if (!audience) {
+      return createErrorState(null, "Please choose an audience.");
+    }
+    if (audience === "user" && !userId) {
+      return createErrorState(null, "Please search for and select a recipient first.");
+    }
+
+    const result = await sendAdminBroadcastPushNotification({
+      title,
+      body,
+      route: route || null,
+      audience,
+      userId: audience === "user" ? userId : null,
+    });
+
+    if (result.recipients === 0) {
+      return createErrorState(null, "No users matched the selected audience.");
+    }
+
+    return createSuccessState(
+      `Notification sent to ${result.recipients} ${
+        result.recipients === 1 ? "user" : "users"
+      } (${result.sent} ${result.sent === 1 ? "device" : "devices"} reached${
+        result.failed > 0 ? `, ${result.failed} failed` : ""
+      }).`,
+    );
+  } catch (error) {
+    return createErrorState(error, "Unable to send push notification.");
   }
 }
 

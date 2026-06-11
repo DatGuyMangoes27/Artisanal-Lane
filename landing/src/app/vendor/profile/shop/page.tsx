@@ -13,13 +13,15 @@ import {
   requireVendorSession,
 } from "@/lib/marketplace/vendor-data";
 import { formatVendorStatus } from "@/lib/marketplace/vendor-utils";
+import {
+  SHIPPING_METHOD_KEYS,
+  defaultShippingPrice,
+  shippingMethodName,
+} from "@/lib/marketplace/shipping";
 
-const shippingMethods = [
-  ["courier_guy", "Courier Guy Locker"],
-  ["courier_guy_door_to_door", "Courier Guy Door to Door"],
-  ["pargo", "Pargo Pickup"],
-  ["market_pickup", "Market pickup"],
-] as const;
+const shippingMethods = SHIPPING_METHOD_KEYS.map(
+  (key) => [key, shippingMethodName(key)] as const,
+);
 
 export default async function VendorShopSettingsPage() {
   const session = await requireVendorSession("/vendor/profile/shop");
@@ -146,7 +148,7 @@ export default async function VendorShopSettingsPage() {
                     <input
                       name={`shipping_${key}`}
                       type="checkbox"
-                      defaultChecked={option?.enabled ?? key !== "market_pickup"}
+                      defaultChecked={option?.enabled ?? true}
                     />
                     {label}
                   </label>
@@ -155,7 +157,7 @@ export default async function VendorShopSettingsPage() {
                     <input
                       className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm text-foreground"
                       name={`shipping_price_${key}`}
-                      defaultValue={String(option?.price ?? 0)}
+                      defaultValue={String(option?.price ?? defaultShippingPrice(key))}
                     />
                   </label>
                   {key === "market_pickup" ? (

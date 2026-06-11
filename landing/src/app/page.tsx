@@ -748,7 +748,7 @@ function FAQSection() {
     {
       question: "What types of products can I find?",
       answer:
-        "You'll find a diverse range of handcrafted goods across Art & Design, Clothing, Beauty, Jewellery, Home & Living, and Baby & Kids. You'll also find artisan-made preserves and sauces. Everything is handmade by verified South African artisans — no mass-produced items.",
+        "You'll find a diverse range of handcrafted goods across Home, Art & Design, Jewellery, Clothing, Accessories, Baby & Kids, Self Care, Pantry, and Pets. Everything is handmade by verified South African artisans — no mass-produced items.",
     },
   ];
 

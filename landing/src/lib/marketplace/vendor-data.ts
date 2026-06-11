@@ -607,9 +607,13 @@ export async function getVendorProduct(
 
 export async function listVendorCategories() {
   const admin = createAdminClient();
+  // Mirrors the mobile app: categories and subcategories ordered by sort_order.
   const [categoriesResult, subcategoriesResult] = await Promise.all([
-    admin.from("categories").select("id, name").order("name"),
-    admin.from("subcategories").select("id, category_id, name").order("name"),
+    admin.from("categories").select("id, name").order("sort_order", { ascending: true }),
+    admin
+      .from("subcategories")
+      .select("id, category_id, name")
+      .order("sort_order", { ascending: true }),
   ]);
 
   return {

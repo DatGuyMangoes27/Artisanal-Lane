@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useGuestCart } from "@/components/marketplace/guest-cart-provider";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/marketplace/cart-reservations";
 import { getAddressSummary, normalizeSavedAddresses, type SavedAddress } from "@/lib/marketplace/buyer-preferences";
 import { formatPrice } from "@/lib/marketplace/format";
+import { shippingMethodDescription, shippingMethodName } from "@/lib/marketplace/shipping";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -80,19 +81,10 @@ type PargoPickupPoint = {
   longitude?: number | null;
 };
 
-function shippingName(option: ShippingOption) {
-  switch (option.key) {
-    case "courier_guy":
-      return "Courier Guy Locker";
-    case "courier_guy_door_to_door":
-      return "Courier Guy Door to Door";
-    case "pargo":
-      return "Pargo";
-    case "market_pickup":
-      return "Market Pickup";
-    default:
-      return option.key.replaceAll("_", " ");
-  }
+function marketPickupSummary(option: ShippingOption) {
+  return [option.marketName, option.marketLocation, option.marketProvince]
+    .filter((part) => Boolean(part?.trim()))
+    .join(" • ");
 }
 
 function courierGuyLockerSummary(locker: CourierGuyLocker) {
@@ -247,62 +239,133 @@ export function CheckoutForm() {
     }
   }, [shippingMethod, shippingOptions]);
 
-  async function searchCourierGuyLockers() {
-    const query = courierGuySearch.trim();
-    const province = courierGuyLockerProvince.trim();
-    if (query.length < 2 && province.length === 0) {
-      setCourierGuyLockers([]);
-      setCourierGuyLockerError("Choose a province or type at least two characters to search.");
+  const searchCourierGuyLockers = useCallback(
+    async (query: string, province: string, notifyEmptyInput: boolean) => {
+      if (query.length < 2 && province.length === 0) {
+        setCourierGuyLockers([]);
+        setCourierGuyLockerError(
+          notifyEmptyInput ? "Choose a province or type at least two characters to search." : null,
+        );
+        setIsLoadingCourierGuyLockers(false);
+        return;
+      }
+
+      setIsLoadingCourierGuyLockers(true);
+      setCourierGuyLockerError(null);
+
+      try {
+        const response = await fetch("/api/marketplace/pickup-points/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ carrier: "courier_guy", query, province, limit: 8 }),
+        });
+        const payload = (await response.json()) as { lockers?: CourierGuyLocker[]; error?: string } | null;
+
+        if (!response.ok || payload?.error) {
+          setCourierGuyLockers([]);
+          setCourierGuyLockerError(payload?.error ?? "Could not load Courier Guy lockers.");
+        } else {
+          setCourierGuyLockers(payload?.lockers ?? []);
+        }
+      } catch {
+        setCourierGuyLockers([]);
+        setCourierGuyLockerError("Could not load Courier Guy lockers right now. Try again in a moment.");
+      }
+
+      setIsLoadingCourierGuyLockers(false);
+    },
+    [],
+  );
+
+  const searchPargoPickupPoints = useCallback(
+    async (query: string, province: string, notifyEmptyInput: boolean) => {
+      if (query.length < 2 && province.length === 0) {
+        setPargoPickupPoints([]);
+        setPargoPointError(
+          notifyEmptyInput ? "Choose a province or type at least two characters to search." : null,
+        );
+        setIsLoadingPargoPoints(false);
+        return;
+      }
+
+      setIsLoadingPargoPoints(true);
+      setPargoPointError(null);
+
+      try {
+        const response = await fetch("/api/marketplace/pickup-points/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ carrier: "pargo", query, province, limit: 8 }),
+        });
+        const payload = (await response.json()) as { points?: PargoPickupPoint[]; error?: string } | null;
+
+        if (!response.ok || payload?.error) {
+          setPargoPickupPoints([]);
+          setPargoPointError(payload?.error ?? "Could not load Pargo pickup points.");
+        } else {
+          setPargoPickupPoints(payload?.points ?? []);
+        }
+      } catch {
+        setPargoPickupPoints([]);
+        setPargoPointError("Could not load Pargo pickup points right now. Try again in a moment.");
+      }
+
+      setIsLoadingPargoPoints(false);
+    },
+    [],
+  );
+
+  // Mirror mobile: search runs automatically (debounced) as the buyer types
+  // or changes the province filter.
+  useEffect(() => {
+    if (shippingMethod !== "courier_guy" || selectedCourierGuyLocker) {
       return;
     }
 
-    setIsLoadingCourierGuyLockers(true);
-    setCourierGuyLockerError(null);
+    const timeout = window.setTimeout(() => {
+      void searchCourierGuyLockers(courierGuySearch.trim(), courierGuyLockerProvince.trim(), false);
+    }, 300);
 
-    const response = await fetch("/api/marketplace/pickup-points/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carrier: "courier_guy", query, province, limit: 8 }),
-    });
-    const payload = (await response.json()) as { lockers?: CourierGuyLocker[]; error?: string } | null;
+    return () => window.clearTimeout(timeout);
+  }, [
+    shippingMethod,
+    courierGuySearch,
+    courierGuyLockerProvince,
+    selectedCourierGuyLocker,
+    searchCourierGuyLockers,
+  ]);
 
-    if (!response.ok || payload?.error) {
-      setCourierGuyLockers([]);
-      setCourierGuyLockerError(payload?.error ?? "Could not load Courier Guy lockers.");
-    } else {
-      setCourierGuyLockers(payload?.lockers ?? []);
-    }
-
-    setIsLoadingCourierGuyLockers(false);
-  }
-
-  async function searchPargoPickupPoints() {
-    const query = pargoSearch.trim();
-    const province = pargoPointProvince.trim();
-    if (query.length < 2 && province.length === 0) {
-      setPargoPickupPoints([]);
-      setPargoPointError("Choose a province or type at least two characters to search.");
+  useEffect(() => {
+    if (shippingMethod !== "pargo" || selectedPargoPoint) {
       return;
     }
 
-    setIsLoadingPargoPoints(true);
-    setPargoPointError(null);
+    const timeout = window.setTimeout(() => {
+      void searchPargoPickupPoints(pargoSearch.trim(), pargoPointProvince.trim(), false);
+    }, 300);
 
-    const response = await fetch("/api/marketplace/pickup-points/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ carrier: "pargo", query, province, limit: 8 }),
-    });
-    const payload = (await response.json()) as { points?: PargoPickupPoint[]; error?: string } | null;
+    return () => window.clearTimeout(timeout);
+  }, [shippingMethod, pargoSearch, pargoPointProvince, selectedPargoPoint, searchPargoPickupPoints]);
 
-    if (!response.ok || payload?.error) {
-      setPargoPickupPoints([]);
-      setPargoPointError(payload?.error ?? "Could not load Pargo pickup points.");
-    } else {
-      setPargoPickupPoints(payload?.points ?? []);
+  // Mirror mobile: switching delivery method clears the other methods'
+  // pickup-point state so stale selections are never submitted.
+  function selectShippingMethod(key: string) {
+    setShippingMethod(key);
+    if (key !== "courier_guy") {
+      setSelectedCourierGuyLocker(null);
+      setCourierGuyLockers([]);
+      setCourierGuyLockerError(null);
+      setCourierGuySearch("");
+      setCourierGuyLockerProvince("");
     }
-
-    setIsLoadingPargoPoints(false);
+    if (key !== "pargo") {
+      setSelectedPargoPoint(null);
+      setPargoPickupPoints([]);
+      setPargoPointError(null);
+      setPargoSearch("");
+      setPargoPointProvince("");
+    }
+    setPickupPointText("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -501,6 +564,11 @@ export function CheckoutForm() {
 
         <Card className="border-artisan-clay bg-card">
           <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
+            <p className="rounded-2xl border border-artisan-clay bg-background p-4 text-sm text-muted-foreground sm:col-span-2">
+              {selectedShipping && !requiresShippingAddress(selectedShipping.key)
+                ? "We only need your name and phone number for this collection method. No delivery address is required."
+                : "Orders can be placed from abroad, but delivery addresses must be within South Africa."}
+            </p>
             {savedAddresses.length > 0 ? (
               <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
                 Saved delivery address
@@ -563,30 +631,44 @@ export function CheckoutForm() {
                   className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-artisan-clay bg-background p-4"
                 >
                   <span>
-                    <span className="block font-semibold text-foreground">{shippingName(option)}</span>
-                    {option.marketName || option.marketLocation || option.marketProvince ? (
+                    <span className="block font-semibold text-foreground">
+                      {shippingMethodName(option.key)}
+                    </span>
+                    {shippingMethodDescription(option.key) ? (
                       <span className="mt-1 block text-sm text-muted-foreground">
-                        {[option.marketName, option.marketLocation, option.marketProvince]
-                          .filter(Boolean)
-                          .join(", ")}
+                        {shippingMethodDescription(option.key)}
+                      </span>
+                    ) : null}
+                    {option.key === "market_pickup" && marketPickupSummary(option) ? (
+                      <span className="mt-1 block text-sm text-muted-foreground">
+                        {marketPickupSummary(option)}
                       </span>
                     ) : null}
                   </span>
                   <span className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-foreground">
-                      {formatPrice(calculateShippingTotal(lines, option.key))}
+                      {calculateShippingTotal(lines, option.key) === 0
+                        ? "FREE"
+                        : formatPrice(calculateShippingTotal(lines, option.key))}
                     </span>
                     <input
                       type="radio"
                       name="shippingMethod"
                       value={option.key}
                       checked={shippingMethod === option.key}
-                      onChange={() => setShippingMethod(option.key)}
+                      onChange={() => selectShippingMethod(option.key)}
                     />
                   </span>
                 </label>
               ))}
             </div>
+            {selectedShipping?.key === "market_pickup" ? (
+              <p className="rounded-2xl border border-artisan-clay bg-background p-4 text-sm text-muted-foreground">
+                {marketPickupSummary(selectedShipping)
+                  ? `Market pickup: ${marketPickupSummary(selectedShipping)}. Please only choose this if you can collect from this market.`
+                  : "For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order."}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -679,7 +761,17 @@ export function CheckoutForm() {
                       placeholder="Type a mall, suburb, town, or locker code"
                       className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
                     />
-                    <Button type="button" variant="outline" onClick={searchCourierGuyLockers}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        searchCourierGuyLockers(
+                          courierGuySearch.trim(),
+                          courierGuyLockerProvince.trim(),
+                          true,
+                        )
+                      }
+                    >
                       Search
                     </Button>
                   </div>
@@ -755,7 +847,13 @@ export function CheckoutForm() {
                       placeholder="Type a store, suburb, town, or point code"
                       className="rounded-xl border border-artisan-clay bg-white px-3 py-2 text-sm"
                     />
-                    <Button type="button" variant="outline" onClick={searchPargoPickupPoints}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        searchPargoPickupPoints(pargoSearch.trim(), pargoPointProvince.trim(), true)
+                      }
+                    >
                       Search
                     </Button>
                   </div>
@@ -868,7 +966,9 @@ export function CheckoutForm() {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Delivery</span>
-            <span className="font-semibold text-foreground">{formatPrice(shippingCost)}</span>
+            <span className="font-semibold text-foreground">
+              {shippingCost === 0 ? "FREE" : formatPrice(shippingCost)}
+            </span>
           </div>
           {isGift ? (
             <div className="flex justify-between">

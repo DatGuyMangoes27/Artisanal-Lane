@@ -9,6 +9,7 @@ import {
   getFreshMarketplaceProducts,
   getMarketplaceCategories,
   getMarketplaceProducts,
+  getMarketplaceSubcategories,
   getMarketplaceShopCount,
   getTrendingSearchTerms,
   type MarketplaceAvailabilityFilter,
@@ -20,6 +21,7 @@ import { createClient } from "@/lib/supabase/server";
 type ShopSearchParams = {
   q?: string;
   category?: string;
+  subcategory?: string;
   sort?: MarketplaceProductSort;
   price?: MarketplacePriceFilter;
   availability?: MarketplaceAvailabilityFilter;
@@ -56,7 +58,8 @@ function buildPageHref(params: ShopSearchParams | undefined, page: number) {
 
 function SearchControlsFallback() {
   return (
-    <div className="grid gap-3 rounded-3xl border border-artisan-clay bg-card p-4 shadow-sm md:grid-cols-[1fr_180px_160px_160px_150px_auto_auto]">
+    <div className="grid gap-3 rounded-3xl border border-artisan-clay bg-card p-4 shadow-sm md:grid-cols-[1fr_170px_170px_150px_150px_140px_auto_auto]">
+      <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
       <div className="h-11 rounded-full bg-secondary" />
@@ -72,6 +75,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const params = await searchParams;
   const query = params?.q;
   const categoryId = params?.category;
+  const subcategoryId = categoryId ? params?.subcategory : undefined;
   const sort = params?.sort ?? "newest";
   const priceFilter = params?.price;
   const availabilityFilter = params?.availability;
@@ -82,11 +86,13 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [categories, products, freshProducts, shopCount, trendingTerms, favouriteIds] = await Promise.all([
+  const [categories, subcategories, products, freshProducts, shopCount, trendingTerms, favouriteIds] = await Promise.all([
     getMarketplaceCategories(),
+    getMarketplaceSubcategories(),
     getMarketplaceProducts({
       query,
       categoryId,
+      subcategoryId,
       sort,
       priceFilter,
       availabilityFilter,
@@ -198,7 +204,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <Suspense fallback={<SearchControlsFallback />}>
-          <SearchControls categories={categories} trendingTerms={trendingTerms} />
+          <SearchControls categories={categories} subcategories={subcategories} trendingTerms={trendingTerms} />
         </Suspense>
       </section>
 

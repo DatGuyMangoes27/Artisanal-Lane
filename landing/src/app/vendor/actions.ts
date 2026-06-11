@@ -22,22 +22,11 @@ import {
   parseNullableText,
   parseRequiredText,
 } from "@/lib/marketplace/vendor-utils";
+import { SHIPPING_METHOD_KEYS } from "@/lib/marketplace/shipping";
 
 type JsonRecord = Record<string, unknown>;
 
-const shippingKeys = [
-  "courier_guy",
-  "courier_guy_door_to_door",
-  "pargo",
-  "market_pickup",
-] as const;
-
-const shippingLabels: Record<(typeof shippingKeys)[number], string> = {
-  courier_guy: "Courier Guy Locker",
-  courier_guy_door_to_door: "Courier Guy Door to Door",
-  pargo: "Pargo Pickup",
-  market_pickup: "Market pickup",
-};
+const shippingKeys = SHIPPING_METHOD_KEYS;
 
 function isFile(value: FormDataEntryValue | null): value is File {
   return typeof File !== "undefined" && value instanceof File && value.size > 0;
@@ -100,15 +89,29 @@ function parseImageUrls(formData: FormData, key: string) {
 }
 
 function parseShippingOptions(formData: FormData) {
-  return shippingKeys.map((key) => ({
-    key,
-    label: shippingLabels[key],
-    enabled: isTruthy(formData.get(`shipping_${key}`)),
-    price: parseCurrencyInput(formData.get(`shipping_price_${key}`)),
-    marketName: parseNullableText(formData.get(`shipping_market_name_${key}`)),
-    marketLocation: parseNullableText(formData.get(`shipping_market_location_${key}`)),
-    marketProvince: parseNullableText(formData.get(`shipping_market_province_${key}`)),
-  }));
+  // Persist the same JSONB shape the mobile app reads/writes
+  // (snake_case market fields, omitted when empty).
+  return shippingKeys.map((key) => {
+    const marketName =
+      key === "market_pickup" ? parseNullableText(formData.get(`shipping_market_name_${key}`)) : null;
+    const marketLocation =
+      key === "market_pickup"
+        ? parseNullableText(formData.get(`shipping_market_location_${key}`))
+        : null;
+    const marketProvince =
+      key === "market_pickup"
+        ? parseNullableText(formData.get(`shipping_market_province_${key}`))
+        : null;
+
+    return {
+      key,
+      enabled: isTruthy(formData.get(`shipping_${key}`)),
+      price: parseCurrencyInput(formData.get(`shipping_price_${key}`)),
+      ...(marketName ? { market_name: marketName } : {}),
+      ...(marketLocation ? { market_location: marketLocation } : {}),
+      ...(marketProvince ? { market_province: marketProvince } : {}),
+    };
+  });
 }
 
 export type VendorApplicationState = { error: string | null };

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -59,6 +60,11 @@ const navItems = [
     href: "/admin/learning",
     label: "Learning",
     icon: GraduationCap,
+  },
+  {
+    href: "/admin/notifications",
+    label: "Notifications",
+    icon: Bell,
   },
   {
     href: "/admin/disputes",

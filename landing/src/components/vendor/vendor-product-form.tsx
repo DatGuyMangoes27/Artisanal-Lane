@@ -1,39 +1,25 @@
 import { Button } from "@/components/ui/button";
+import { CategorySubcategoryFields } from "@/components/vendor/category-subcategory-fields";
 import { ProductImagePicker } from "@/components/vendor/product-image-picker";
+import { VariantOptionsEditor } from "@/components/vendor/variant-options-editor";
 import type {
   VendorCategory,
   VendorProduct,
   VendorShop,
   VendorSubcategory,
 } from "@/lib/marketplace/vendor-data";
+import {
+  SHIPPING_METHOD_KEYS,
+  defaultShippingPrice,
+  shippingMethodName,
+} from "@/lib/marketplace/shipping";
 
-const shippingMethods = [
-  ["courier_guy", "Courier Guy Locker"],
-  ["courier_guy_door_to_door", "Courier Guy Door to Door"],
-  ["pargo", "Pargo Pickup"],
-  ["market_pickup", "Market pickup"],
-] as const;
+const shippingMethods = SHIPPING_METHOD_KEYS.map(
+  (key) => [key, shippingMethodName(key)] as const,
+);
 
 function money(value: number | null | undefined) {
   return value == null ? "" : String(value);
-}
-
-function productVariantsJson(product?: VendorProduct | null) {
-  if (!product?.variants.length) return "[]";
-  return JSON.stringify(
-    product.variants.map((variant) => ({
-      displayName: variant.displayName,
-      optionValues: variant.optionValues,
-      price: variant.price,
-      compareAtPrice: variant.compareAtPrice,
-      stockQty: variant.stockQty,
-      images: variant.images,
-      isActive: variant.isActive,
-      sortOrder: variant.sortOrder,
-    })),
-    null,
-    2,
-  );
 }
 
 export function VendorProductForm({
@@ -67,24 +53,12 @@ export function VendorProductForm({
             Description
             <textarea name="description" defaultValue={product?.description ?? ""} className="min-h-32 rounded-2xl border border-artisan-clay px-4 py-3 text-sm text-foreground" />
           </label>
-          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-            Category
-            <select name="categoryId" defaultValue={product?.categoryId ?? ""} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm">
-              <option value="">Select category</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>{category.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-            Subcategory
-            <select name="subcategoryId" defaultValue={product?.subcategoryId ?? ""} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm">
-              <option value="">Select subcategory</option>
-              {subcategories.map((subcategory) => (
-                <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>
-              ))}
-            </select>
-          </label>
+          <CategorySubcategoryFields
+            categories={categories}
+            subcategories={subcategories}
+            defaultCategoryId={product?.categoryId}
+            defaultSubcategoryId={product?.subcategoryId}
+          />
           <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
             Price
             <input name="price" required inputMode="decimal" defaultValue={money(product?.price)} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
@@ -196,16 +170,14 @@ export function VendorProductForm({
 
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Variants and options</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Use JSON for option groups and variant combinations, matching the mobile multi-option model.</p>
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-            Option groups JSON
-            <textarea name="optionGroupsJson" defaultValue={JSON.stringify(product?.optionGroups ?? [], null, 2)} className="min-h-48 rounded-2xl border border-artisan-clay px-4 py-3 font-mono text-xs" />
-          </label>
-          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-            Variants JSON
-            <textarea name="variantsJson" defaultValue={productVariantsJson(product)} className="min-h-48 rounded-2xl border border-artisan-clay px-4 py-3 font-mono text-xs" />
-          </label>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Offer this product in combinations like size and colour, with a price, stock level and photos per combination.
+        </p>
+        <div className="mt-5">
+          <VariantOptionsEditor
+            initialOptionGroups={product?.optionGroups ?? []}
+            initialVariants={product?.variants ?? []}
+          />
         </div>
       </section>
 
@@ -220,7 +192,7 @@ export function VendorProductForm({
                   <input name={`shipping_${key}`} type="checkbox" defaultChecked={option?.enabled ?? true} />
                   {label}
                 </label>
-                <input name={`shipping_price_${key}`} defaultValue={String(option?.price ?? 0)} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
+                <input name={`shipping_price_${key}`} defaultValue={String(option?.price ?? defaultShippingPrice(key))} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
                 {key === "market_pickup" ? (
                   <div className="grid gap-2">
                     <input name={`shipping_market_name_${key}`} placeholder="Market name" defaultValue={option?.marketName ?? ""} className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
