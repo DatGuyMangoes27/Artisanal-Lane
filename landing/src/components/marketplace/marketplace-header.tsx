@@ -62,6 +62,9 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
         aria-label="Mobile marketplace navigation"
         className="border-t border-artisan-clay/50 px-4 py-2 md:hidden"
       >
+        <div className="flex flex-wrap justify-end gap-2 pb-2">
+          <AuthCtaButtons variant="pill" />
+        </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           <Link href="/" className={mobileNavLinkClass(activeItem === "home")}>
             Home
@@ -81,7 +84,6 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
           <Link href="/shop#search" className={mobileNavLinkClass()}>
             Search
           </Link>
-          <AuthCtaButtons variant="pill" />
         </div>
       </nav>
     </header>
