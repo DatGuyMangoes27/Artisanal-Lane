@@ -137,6 +137,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
               >
                 Meet the artisans
               </Link>
+              <Link
+                href="/login?intent=vendor"
+                className="inline-flex h-11 items-center justify-center rounded-full border border-artisan-terracotta bg-card px-6 text-sm font-semibold text-artisan-terracotta shadow-sm transition hover:bg-artisan-terracotta hover:text-white"
+              >
+                Apply as a shop
+              </Link>
             </div>
           </div>
           <div className="rounded-[2rem] border border-artisan-clay bg-card/80 p-6 shadow-sm">

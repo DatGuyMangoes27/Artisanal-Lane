@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ShopCard } from "@/components/marketplace/shop-card";
 import { getMarketplaceShops } from "@/lib/marketplace/catalog";
@@ -22,6 +24,14 @@ export default async function ArtisansPage() {
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:mt-6 sm:text-lg sm:leading-8">
               Explore every active artisan shop, read their stories, and browse their collections from one place.
             </p>
+            <div className="mt-8">
+              <Link
+                href="/login?intent=vendor"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-artisan-terracotta px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-artisan-terracotta-dark"
+              >
+                Apply as a shop
+              </Link>
+            </div>
           </div>
         </section>
 

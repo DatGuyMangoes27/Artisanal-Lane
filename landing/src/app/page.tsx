@@ -701,6 +701,18 @@ function ForArtisansSection() {
             </Card>
           ))}
         </div>
+
+        <div className="mt-12 text-center">
+          <Button
+            asChild
+            size="lg"
+            className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base"
+          >
+            <Link href="/login?intent=vendor">
+              Apply as a shop <ArrowRight className="ml-2 w-4 h-4" />
+            </Link>
+          </Button>
+        </div>
       </div>
     </section>
   );
