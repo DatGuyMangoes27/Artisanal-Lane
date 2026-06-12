@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   callPayFastValidate,
   getPayFastConfig,
+  initialSubscriptionPeriodEnd,
   mapPayFastSubscriptionStatus,
   nextSubscriptionPeriodEnd,
   parsePayFastFormEncoded,
@@ -219,10 +220,17 @@ Deno.serve(async (request) => {
 
   const isDuplicatePayment = payfastPaymentId != null &&
     payfastPaymentId === existingSubscription?.payfast_payment_id;
+  // The first activation is the R0 sign-up ITN: PayFast only bills from two
+  // months out (first two months free), so grant a two-month period. Renewal
+  // ITNs (real monthly charges) extend by one month as before.
+  const isInitialActivation = existingSubscription?.started_at == null &&
+    existingSubscription?.last_payment_at == null;
   const nextPeriodEnd = nextStatus === "active" && !isDuplicatePayment
-    ? nextSubscriptionPeriodEnd(
-      existingSubscription?.current_period_end as string | null | undefined,
-    )
+    ? (isInitialActivation
+      ? initialSubscriptionPeriodEnd()
+      : nextSubscriptionPeriodEnd(
+        existingSubscription?.current_period_end as string | null | undefined,
+      ))
     : existingSubscription?.current_period_end ?? null;
 
   await admin

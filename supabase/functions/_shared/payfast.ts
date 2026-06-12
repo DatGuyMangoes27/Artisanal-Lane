@@ -360,3 +360,13 @@ export function nextSubscriptionPeriodEnd(fromIso?: string | null) {
   const baseDate = fromIso != null ? new Date(fromIso) : new Date();
   return addMonths(baseDate, 1).toISOString();
 }
+
+/**
+ * Period end for the initial R0 sign-up ITN. The PayFast subscription is
+ * created with billing_date two months out ("first two months free"), so the
+ * vendor's access must also run for two months until the first real charge.
+ */
+export function initialSubscriptionPeriodEnd(fromIso?: string | null) {
+  const baseDate = fromIso != null ? new Date(fromIso) : new Date();
+  return addMonths(baseDate, 2).toISOString();
+}
