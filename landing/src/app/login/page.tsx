@@ -1,10 +1,13 @@
 import { Suspense } from "react";
 
 import { BuyerLoginForm } from "@/components/marketplace/buyer-login-form";
+import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 
 export default function BuyerLoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,#f7e4cc_0%,#fdf5ec_45%,#fffaf5_100%)] px-4 py-12">
+    <>
+    <MarketplaceHeader />
+    <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-[radial-gradient(circle_at_top,#f7e4cc_0%,#fdf5ec_45%,#fffaf5_100%)] px-4 py-12">
       <div className="absolute inset-0 pattern-bg opacity-20" />
       <div className="relative z-10 w-full max-w-md">
         <div className="mb-8 text-center">
@@ -23,5 +26,6 @@ export default function BuyerLoginPage() {
         </Suspense>
       </div>
     </main>
+    </>
   );
 }
