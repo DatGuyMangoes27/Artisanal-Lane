@@ -14,7 +14,7 @@ export function VendorShell({
   return (
     <div className="min-h-screen bg-artisan-bone/40">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row">
-        <aside className="lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)] lg:w-72">
+        <aside className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:w-72 lg:self-start lg:overflow-y-auto">
           <div className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-4 shadow-xl">
             <Link href="/" className="text-xs uppercase tracking-[0.3em] text-artisan-terracotta">
               Artisan Lane
