@@ -740,6 +740,47 @@ export async function getMarketplaceShopCount() {
   return count ?? 0;
 }
 
+// Total number of products currently visible in the marketplace, mirroring the
+// same visibility filters used by the product listings (published, not
+// archived, active shop, and in-stock or made-to-order).
+export async function getMarketplaceProductCount() {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("products")
+    .select("id, shops!inner(id)", { count: "exact", head: true })
+    .eq("is_published", true)
+    .is("archived_at", null)
+    .eq("shops.is_active", true)
+    .or(availableProductFilter);
+
+  if (error) {
+    throw new Error("Failed to count marketplace products", { cause: error });
+  }
+
+  return count ?? 0;
+}
+
+// Number of visible products added within the recent "fresh" window (default 30
+// days), counted directly from the database.
+export async function getFreshMarketplaceProductCount(days = 30) {
+  const supabase = await createClient();
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("products")
+    .select("id, shops!inner(id)", { count: "exact", head: true })
+    .eq("is_published", true)
+    .is("archived_at", null)
+    .eq("shops.is_active", true)
+    .or(availableProductFilter)
+    .gte("created_at", since);
+
+  if (error) {
+    throw new Error("Failed to count fresh marketplace products", { cause: error });
+  }
+
+  return count ?? 0;
+}
+
 export async function getMarketplaceShop(shopIdOrSlug: string) {
   const supabase = await createClient();
   const lookupColumn = isUuid(shopIdOrSlug) ? "id" : "slug";

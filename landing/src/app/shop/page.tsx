@@ -7,8 +7,10 @@ import { SearchControls } from "@/components/marketplace/search-controls";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
 import {
   getFreshMarketplaceProducts,
+  getFreshMarketplaceProductCount,
   getMarketplaceCategories,
   getMarketplaceProducts,
+  getMarketplaceProductCount,
   getMarketplaceSubcategories,
   getMarketplaceShopCount,
   getTrendingSearchTerms,
@@ -86,7 +88,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [categories, subcategories, products, freshProducts, shopCount, trendingTerms, favouriteIds] = await Promise.all([
+  const [categories, subcategories, products, freshProducts, shopCount, productCount, freshCount, trendingTerms, favouriteIds] = await Promise.all([
     getMarketplaceCategories(),
     getMarketplaceSubcategories(),
     getMarketplaceProducts({
@@ -101,6 +103,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     }),
     getFreshMarketplaceProducts(8),
     getMarketplaceShopCount(),
+    getMarketplaceProductCount(),
+    getFreshMarketplaceProductCount(),
     getTrendingSearchTerms(8),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
   ]);
@@ -157,15 +161,15 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             </p>
             <div className="mt-6 grid grid-cols-2 gap-4">
               <div className="rounded-3xl bg-background p-5">
-                <p className="text-3xl font-bold text-artisan-terracotta">{pageProducts.length}</p>
-                <p className="mt-1 text-sm text-muted-foreground">products shown</p>
+                <p className="text-3xl font-bold text-artisan-terracotta">{productCount}</p>
+                <p className="mt-1 text-sm text-muted-foreground">products listed</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
                 <p className="text-3xl font-bold text-artisan-terracotta">{shopCount}</p>
                 <p className="mt-1 text-sm text-muted-foreground">artisan shops</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
-                <p className="text-3xl font-bold text-artisan-terracotta">{freshProducts.length}</p>
+                <p className="text-3xl font-bold text-artisan-terracotta">{freshCount}</p>
                 <p className="mt-1 text-sm text-muted-foreground">fresh arrivals</p>
               </div>
               <div className="rounded-3xl bg-background p-5">
