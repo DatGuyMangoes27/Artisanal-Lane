@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { ChatSafetyNotice } from "@/components/marketplace/chat-safety-notice";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { sendVendorMessage } from "@/app/vendor/actions";
 import {
@@ -33,6 +34,9 @@ export default async function VendorMessageThreadPage({
         description="Keep buyer conversations inside the shared chat thread."
       />
       <VendorPanel title="Conversation">
+        <div className="mb-4">
+          <ChatSafetyNotice />
+        </div>
         <div className="space-y-3">
           {messages.map((message) => {
             const mine = message.senderId === user.id;

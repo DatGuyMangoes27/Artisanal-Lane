@@ -142,6 +142,7 @@ class ChatThreadScaffold extends StatelessWidget {
       ),
       body: Column(
         children: [
+          const _ChatSafetyNotice(),
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
@@ -669,6 +670,47 @@ class _EmptyInbox extends StatelessWidget {
               fontSize: 13,
               color: AppTheme.textSecondary,
               height: 1.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatSafetyNotice extends StatelessWidget {
+  const _ChatSafetyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF7E6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE8C77B)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.shield_outlined,
+            size: 16,
+            color: Color(0xFF8A6100),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Safety tip: Artisan Lane will never ask you to verify payment '
+              'details or click a link to receive funds. Report suspicious '
+              'messages to admin@artisanlanesa.co.za.',
+              style: GoogleFonts.poppins(
+                fontSize: 11,
+                height: 1.4,
+                color: const Color(0xFF8A6100),
+              ),
             ),
           ),
         ],

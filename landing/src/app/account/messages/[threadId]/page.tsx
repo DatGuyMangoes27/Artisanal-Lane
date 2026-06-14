@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { sendBuyerMessage } from "@/app/account/messages/actions";
+import { ChatSafetyNotice } from "@/components/marketplace/chat-safety-notice";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,10 @@ export default async function BuyerMessageThreadPage({ params }: BuyerMessageThr
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-6">
+          <ChatSafetyNotice />
+        </div>
 
         <section className="mt-6 space-y-4">
           {messages.length === 0 ? (
