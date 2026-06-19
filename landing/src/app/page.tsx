@@ -143,9 +143,9 @@ function HeroSection() {
                 variant="outline"
                 className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full sm:w-auto"
               >
-                <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                  <Apple className="w-5 h-5 mr-2" />
-                  Get the iOS App
+                <Link href="/login?intent=vendor">
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Apply as an Artisan
                 </Link>
               </Button>
             </div>

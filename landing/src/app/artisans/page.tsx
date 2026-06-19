@@ -24,13 +24,30 @@ export default async function ArtisansPage() {
             <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:mt-6 sm:text-lg sm:leading-8">
               Explore every active artisan shop, read their stories, and browse their collections from one place.
             </p>
-            <div className="mt-8">
+            <div className="mt-8 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
               <Link
                 href="/login?intent=vendor"
                 className="inline-flex h-11 items-center justify-center rounded-full bg-artisan-terracotta px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-artisan-terracotta-dark"
               >
                 Apply as a shop
               </Link>
+              <div
+                className="inline-flex items-stretch overflow-hidden rounded-2xl shadow-sm"
+                aria-label="0% commission and your first two months free"
+              >
+                <div className="flex flex-col justify-center bg-[#4B5320] px-4 py-2 text-white">
+                  <span className="text-2xl font-extrabold leading-none">0%</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
+                    Commission
+                  </span>
+                </div>
+                <div className="flex flex-col justify-center bg-[#7A0000] px-4 py-2 text-white">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
+                    Two months
+                  </span>
+                  <span className="text-2xl font-extrabold uppercase leading-none">Free</span>
+                </div>
+              </div>
             </div>
           </div>
         </section>
