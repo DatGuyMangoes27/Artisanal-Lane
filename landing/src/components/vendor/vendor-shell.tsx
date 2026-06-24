@@ -3,18 +3,22 @@ import Link from "next/link";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Button } from "@/components/ui/button";
 import { VendorSidebarNav } from "@/components/vendor/vendor-sidebar-nav";
+import { VendorSubscriptionGate } from "@/components/vendor/vendor-subscription-gate";
 import { VendorSupportButton } from "@/components/vendor/vendor-support-button";
 import type { VendorShop } from "@/lib/marketplace/vendor-data";
 
 export function VendorShell({
   children,
   shop,
+  requiresSubscription = false,
 }: {
   children: React.ReactNode;
   shop: VendorShop | null;
+  requiresSubscription?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-artisan-bone/40">
+      <VendorSubscriptionGate active={requiresSubscription} />
       <MarketplaceHeader />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 lg:flex-row">
         <aside className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7.5rem)] lg:w-72 lg:self-start lg:overflow-y-auto">

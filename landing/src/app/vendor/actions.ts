@@ -8,10 +8,12 @@ import {
   getVendorProduct,
   getVendorShop,
   getVendorShopPost,
+  getVendorSubscription,
   requireVendorSession,
   requireVendorShop,
 } from "@/lib/marketplace/vendor-data";
 import {
+  isVendorSubscriptionActive,
   parseCurrencyInput,
   parseFulfillmentMode,
   parseIntegerInput,
@@ -326,8 +328,20 @@ async function productPayloadFromForm(formData: FormData, shopId: string, userId
   };
 }
 
+// Mirrors the database RLS gate (vendor_subscription_is_active) that protects
+// product writes on the mobile app. The web product actions use the service
+// role client, which bypasses RLS, so the subscription must be enforced here
+// too — otherwise vendors could list products without an active subscription.
+async function requireActiveVendorSubscription(vendorId: string) {
+  const subscription = await getVendorSubscription(vendorId);
+  if (!isVendorSubscriptionActive(subscription)) {
+    redirect("/vendor/profile/subscription?needsSubscription=1");
+  }
+}
+
 export async function createVendorProduct(formData: FormData) {
   const { shop, user } = await requireVendorShop("/vendor/products/new");
+  await requireActiveVendorSubscription(user.id);
   const payload = await productPayloadFromForm(formData, shop.id, user.id);
   const admin = createAdminClient();
   const { data, error } = await admin.from("products").insert(payload).select("id").single();
@@ -349,6 +363,7 @@ export async function createVendorProduct(formData: FormData) {
 
 export async function updateVendorProduct(formData: FormData) {
   const { shop, user } = await requireVendorShop("/vendor/products");
+  await requireActiveVendorSubscription(user.id);
   const productId = requireId(formData, "productId");
   const product = await getVendorProduct(shop.id, productId);
   if (!product) {
