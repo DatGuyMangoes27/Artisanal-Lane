@@ -1,0 +1,7 @@
+project_id = "byckurabenbunsbrzcpl"
+
+[functions.payfast-itn]
+verify_jwt = false
+
+[functions.tradesafe-callback]
+verify_jwt = false
