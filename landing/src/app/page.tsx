@@ -411,7 +411,7 @@ function AppShowcaseSection({
         </div>
 
         <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
-          <div className="relative lg:-translate-y-8">
+          <div className="hidden lg:block relative lg:-translate-y-8">
             <SmallPhoneFrame
               src="/screenshot-shops.png"
               alt="Artisan Lane shop directory"
@@ -438,7 +438,7 @@ function AppShowcaseSection({
             </Card>
           </div>
 
-          <div className="relative lg:translate-y-8">
+          <div className="hidden lg:block relative lg:translate-y-8">
             <SmallPhoneFrame
               src="/screenshot-checkout.png"
               alt="Artisan Lane product detail"
