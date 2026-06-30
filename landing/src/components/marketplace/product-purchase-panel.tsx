@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatPrice } from "@/lib/marketplace/format";
 import type { MarketplaceProduct, MarketplaceVariant } from "@/lib/marketplace/types";
@@ -10,6 +10,7 @@ import { AddToCartButton } from "./add-to-cart-button";
 type ProductPurchasePanelProps = {
   product: MarketplaceProduct;
   openMtoUnits: number;
+  onVariantChange?: (variant: MarketplaceVariant | null) => void;
 };
 
 function leadTimeLabel(minDays: number | null, maxDays: number | null) {
@@ -46,7 +47,7 @@ function resolveVariant(
   );
 }
 
-export function ProductPurchasePanel({ product, openMtoUnits }: ProductPurchasePanelProps) {
+export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }: ProductPurchasePanelProps) {
   const hasOptionGroups = product.optionGroups.length > 0;
   const hasVariants = product.variants.length > 0;
 
@@ -56,6 +57,9 @@ export function ProductPurchasePanel({ product, openMtoUnits }: ProductPurchaseP
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
   const [customNote, setCustomNote] = useState("");
 
+  const onVariantChangeRef = useRef(onVariantChange);
+  onVariantChangeRef.current = onVariantChange;
+
   const selectedVariant = useMemo(() => {
     if (!hasVariants) return null;
     if (hasOptionGroups) {
@@ -63,6 +67,10 @@ export function ProductPurchasePanel({ product, openMtoUnits }: ProductPurchaseP
     }
     return product.variants.find((variant) => variant.id === selectedVariantId) ?? null;
   }, [hasVariants, hasOptionGroups, product, selectedValues, selectedVariantId]);
+
+  useEffect(() => {
+    onVariantChangeRef.current?.(selectedVariant);
+  }, [selectedVariant]);
 
   const variantChosen = !hasVariants || selectedVariant != null;
   const effectiveStock = selectedVariant
