@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendChatMessagePushNotifications } from "@/lib/push-notifications";
 import {
   getVendorProduct,
   getVendorShop,
@@ -579,14 +580,22 @@ export async function sendVendorMessage(formData: FormData) {
     notFound();
   }
 
-  const { error } = await admin.from("chat_messages").insert({
-    thread_id: threadId,
-    sender_id: user.id,
-    body,
-    message_type: "text",
-  });
+  const { data: message, error } = await admin
+    .from("chat_messages")
+    .insert({
+      thread_id: threadId,
+      sender_id: user.id,
+      body,
+      message_type: "text",
+    })
+    .select("id")
+    .single();
   if (error) {
     throw new Error("Unable to send message.", { cause: error });
+  }
+
+  if (message?.id) {
+    await sendChatMessagePushNotifications([message.id]);
   }
 
   await admin.from("chat_thread_reads").upsert(

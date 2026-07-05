@@ -155,19 +155,28 @@ async function sendChatMessageNotification({
   let sent = 0;
   let skipped = 0;
 
+  // The chat_threads embed must name the FK: chat_threads also references
+  // chat_messages via admin_last_read_message_id, so an un-hinted embed is
+  // ambiguous and PostgREST rejects it (PGRST201).
   const { data: message, error: messageError } = await admin
     .from("chat_messages")
     .select(
-      "id, sender_id, body, message_type, chat_threads!inner(id, buyer_id, vendor_id, kind, shops(name))",
+      "id, sender_id, body, message_type, chat_threads!chat_messages_thread_id_fkey!inner(id, buyer_id, vendor_id, kind, shops(name))",
     )
     .eq("id", messageId)
     .single();
 
   if (messageError != null || message == null) {
+    console.error(
+      `chat push skipped: unable to load message ${messageId}: ${messageError?.message ?? "not found"}`,
+    );
     return { sent, skipped: skipped + 1, failures };
   }
 
   if (!isServiceRequest && message.sender_id !== callerId) {
+    console.error(
+      `chat push skipped: caller ${callerId} is not the sender of message ${messageId}`,
+    );
     return { sent, skipped: skipped + 1, failures };
   }
 
@@ -177,6 +186,9 @@ async function sendChatMessageNotification({
     message.sender_id as string,
   );
   if (recipient == null) {
+    console.error(
+      `chat push skipped: no recipient resolved for message ${messageId} in thread ${thread.id}`,
+    );
     return { sent, skipped: skipped + 1, failures };
   }
 

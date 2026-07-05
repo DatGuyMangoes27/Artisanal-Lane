@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { sendChatMessagePushNotifications } from "@/lib/push-notifications";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -51,14 +52,21 @@ export async function sendBuyerMessage(formData: FormData) {
   }
 
   const { supabase, user } = await requireUser();
-  const { error } = await supabase.from("chat_messages").insert({
-    thread_id: threadId,
-    sender_id: user.id,
-    body,
-    message_type: "text",
-  });
+  const { data: message, error } = await supabase
+    .from("chat_messages")
+    .insert({
+      thread_id: threadId,
+      sender_id: user.id,
+      body,
+      message_type: "text",
+    })
+    .select("id")
+    .single();
 
   if (!error) {
+    if (message?.id) {
+      await sendChatMessagePushNotifications([message.id]);
+    }
     await supabase.from("chat_thread_reads").upsert(
       {
         thread_id: threadId,
