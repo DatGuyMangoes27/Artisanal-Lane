@@ -3,7 +3,7 @@ export type BuyerChatThread = {
   shopId: string;
   buyerId: string;
   vendorId: string;
-  kind: "buyer_vendor" | "admin_vendor";
+  kind: "buyer_vendor" | "admin_vendor" | "admin_applicant";
   lastMessagePreview: string | null;
   lastMessageType: string;
   lastMessageSenderId: string | null;
@@ -74,12 +74,19 @@ export function mapBuyerChatThread(row: JsonRecord, currentUserId: string): Buye
   const lastMessageType = toStringOrNull(row.last_message_type) ?? "text";
   const lastMessagePreview = toStringOrNull(row.last_message_preview);
 
+  const kind =
+    row.kind === "admin_vendor"
+      ? ("admin_vendor" as const)
+      : row.kind === "admin_applicant"
+        ? ("admin_applicant" as const)
+        : ("buyer_vendor" as const);
+
   return {
     id: String(row.id),
-    shopId: String(row.shop_id),
+    shopId: row.shop_id != null ? String(row.shop_id) : "",
     buyerId: String(row.buyer_id),
     vendorId: String(row.vendor_id),
-    kind: row.kind === "admin_vendor" ? "admin_vendor" : "buyer_vendor",
+    kind,
     lastMessagePreview,
     lastMessageType,
     lastMessageSenderId: toStringOrNull(row.last_message_sender_id),
@@ -88,7 +95,9 @@ export function mapBuyerChatThread(row: JsonRecord, currentUserId: string): Buye
     updatedAt: String(row.updated_at),
     lastReadAt: toStringOrNull(currentRead?.last_read_at),
     lastReadMessageId: toStringOrNull(currentRead?.last_read_message_id),
-    shopName: toStringOrNull(shop?.name) ?? "Artisan Lane seller",
+    shopName:
+      toStringOrNull(shop?.name) ??
+      (kind === "admin_applicant" ? "Artisan Lane" : "Artisan Lane seller"),
     shopLogoUrl: toStringOrNull(shop?.logo_url),
     buyerDisplayName: toStringOrNull(buyer?.display_name),
     buyerAvatarUrl: toStringOrNull(buyer?.avatar_url),

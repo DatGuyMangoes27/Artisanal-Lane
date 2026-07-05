@@ -49,6 +49,15 @@ export function recipientForChatMessage(
     return { userId: thread.vendor_id, role: "vendor" };
   }
 
+  // Applicant threads: buyer_id is the applicant, vendor_id is the admin.
+  if (thread.kind === "admin_applicant") {
+    if (senderId === thread.buyer_id) {
+      return { userId: thread.vendor_id, role: "vendor" };
+    }
+
+    return { userId: thread.buyer_id, role: "buyer" };
+  }
+
   if (senderId === thread.buyer_id) {
     return { userId: thread.vendor_id, role: "vendor" };
   }

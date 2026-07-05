@@ -62,7 +62,7 @@ export async function listBuyerChatThreads(userId: string): Promise<BuyerChatThr
     .from("chat_threads")
     .select(chatThreadSelect)
     .eq("buyer_id", userId)
-    .eq("kind", "buyer_vendor")
+    .in("kind", ["buyer_vendor", "admin_applicant"])
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -85,7 +85,7 @@ export async function getBuyerChatThread(
     .select(chatThreadSelect)
     .eq("id", threadId)
     .eq("buyer_id", userId)
-    .eq("kind", "buyer_vendor")
+    .in("kind", ["buyer_vendor", "admin_applicant"])
     .maybeSingle();
 
   if (error) {

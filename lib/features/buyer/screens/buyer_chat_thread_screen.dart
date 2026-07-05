@@ -173,10 +173,16 @@ class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
       data: (thread) => ChatThreadScaffold(
         messagesAsync: displayedMessagesAsync,
         currentUserId: userId ?? '',
-        title: thread.shopName ?? 'Artisan',
-        subtitle: thread.vendorDisplayName,
-        avatarUrl: thread.shopLogoUrl,
-        avatarFallback: thread.shopName ?? 'A',
+        title: thread.kind.isAdminThread
+            ? 'Artisan Lane Support'
+            : thread.shopName ?? 'Artisan',
+        subtitle: thread.kind.isAdminThread
+            ? 'The Artisan Lane team'
+            : thread.vendorDisplayName,
+        avatarUrl: thread.kind.isAdminThread ? null : thread.shopLogoUrl,
+        avatarFallback: thread.kind.isAdminThread
+            ? 'Artisan Lane'
+            : thread.shopName ?? 'A',
         composer: _ChatComposer(
           controller: _messageController,
           pendingAttachment: _pendingAttachment,

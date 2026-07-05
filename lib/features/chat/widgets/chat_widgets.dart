@@ -324,7 +324,7 @@ class _InboxTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdminThread = thread.kind.isAdminVendor;
+    final isAdminThread = thread.kind.isAdminThread;
     final avatarUrl = isAdminThread
         ? null
         : (showBuyerIdentity ? thread.buyerAvatarUrl : thread.shopLogoUrl);

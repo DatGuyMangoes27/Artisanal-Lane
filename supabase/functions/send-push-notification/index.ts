@@ -473,6 +473,11 @@ function chatSenderLabel({
     if (senderId === thread.buyer_id) return "Artisan Lane Admin";
   }
 
+  // Applicant threads: the admin sits on the vendor side.
+  if (thread.kind === "admin_applicant" && senderId === thread.vendor_id) {
+    return "Artisan Lane Admin";
+  }
+
   const displayName = senderProfile?.display_name?.trim();
   if (displayName) return displayName;
 

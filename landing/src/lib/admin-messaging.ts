@@ -232,6 +232,91 @@ export async function getOrCreateAdminShopThread(
   return hydrateThread(insert.data as AdminShopThreadRow);
 }
 
+/**
+ * Applicant chat threads carry kind 'admin_applicant': buyer_id is the
+ * applicant (the thread shows up in their buyer inbox) and vendor_id is the
+ * admin. Applicants have no shop yet, so shop_id stays null.
+ */
+export async function getOrCreateAdminApplicantThread(
+  applicantUserId: string,
+  adminUserId: string,
+): Promise<{ id: string } | null> {
+  const admin = createAdminClient();
+
+  const existing = await admin
+    .from("chat_threads")
+    .select("id")
+    .eq("buyer_id", applicantUserId)
+    .eq("kind", "admin_applicant")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (existing.data) {
+    return { id: String(existing.data.id) };
+  }
+
+  const profileLookup = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", applicantUserId)
+    .maybeSingle();
+
+  if (!profileLookup.data) {
+    return null;
+  }
+
+  const insert = await admin
+    .from("chat_threads")
+    .insert({
+      shop_id: null,
+      buyer_id: applicantUserId,
+      vendor_id: adminUserId,
+      kind: "admin_applicant",
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (insert.error || !insert.data) {
+    throw new Error(
+      insert.error?.message ?? "Unable to create applicant chat thread.",
+    );
+  }
+
+  return { id: String(insert.data.id) };
+}
+
+export async function markAdminApplicantThreadRead(threadId: string) {
+  const admin = createAdminClient();
+  const threadLookup = await admin
+    .from("chat_threads")
+    .select("id")
+    .eq("id", threadId)
+    .eq("kind", "admin_applicant")
+    .maybeSingle();
+
+  if (!threadLookup.data) {
+    return;
+  }
+
+  const latestMessage = await admin
+    .from("chat_messages")
+    .select("id, created_at")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  await admin
+    .from("chat_threads")
+    .update({
+      admin_last_read_message_id: latestMessage.data?.id ?? null,
+      admin_last_read_at: latestMessage.data?.created_at ?? new Date().toISOString(),
+    })
+    .eq("id", threadId)
+    .eq("kind", "admin_applicant");
+}
+
 async function hydrateThread(
   row: AdminShopThreadRow,
 ): Promise<AdminShopThread> {

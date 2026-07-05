@@ -1,8 +1,10 @@
-import { Check, RotateCcw, X } from "lucide-react";
+import Link from "next/link";
+import { Check, MessageSquare, RotateCcw, X } from "lucide-react";
 
 import { approveApplication, rejectApplication, restoreApplication } from "@/app/admin/actions";
 import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
+import { Button } from "@/components/ui/button";
 import {
   getVendorApplicationApplicantDisplay,
   getVendorApplicationDisplayStatus,
@@ -146,6 +148,17 @@ export default async function AdminApplicationsPage() {
 
                   {reviewActions.length > 0 ? (
                     <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
+                      {application.user_id && !applicantDisplay.deletedAt ? (
+                        <Button
+                          asChild
+                          className="w-full bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+                        >
+                          <Link href={`/admin/applications/${application.user_id}/messages`}>
+                            <MessageSquare className="mr-2 h-4 w-4" />
+                            Message applicant
+                          </Link>
+                        </Button>
+                      ) : null}
                       {reviewActions.includes("approve") && application.user_id ? (
                         <AdminActionButtonForm
                           action={approveApplication}

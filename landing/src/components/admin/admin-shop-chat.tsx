@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Paperclip, SendHorizonal } from "lucide-react";
 
-import { sendAdminShopMessage } from "@/app/admin/actions";
+import { sendAdminApplicantMessage, sendAdminShopMessage } from "@/app/admin/actions";
 import { AdminActionFeedback } from "@/components/admin/admin-action-feedback";
 import { Button } from "@/components/ui/button";
 import { initialAdminActionState } from "@/lib/admin-action-state";
@@ -50,6 +50,31 @@ export function AdminShopChatPanel({
         emptyHint={emptyHint}
       />
       <AdminShopChatComposer shopId={shopId} />
+    </div>
+  );
+}
+
+export function AdminApplicantChatPanel({
+  applicantUserId,
+  adminUserId,
+  messages,
+  applicantName,
+}: {
+  applicantUserId: string;
+  adminUserId: string;
+  messages: ChatMessageView[];
+  applicantName: string;
+}) {
+  return (
+    <div className="flex h-[min(70vh,640px)] flex-col overflow-hidden rounded-3xl border border-artisan-clay bg-white">
+      <ChatMessagesList
+        messages={messages}
+        adminUserId={adminUserId}
+        shopName={applicantName}
+        vendorName={applicantName}
+        emptyHint={`Ask ${applicantName} for the extra details you need to review their application. They'll see this in their Artisan Lane inbox.`}
+      />
+      <AdminApplicantChatComposer applicantUserId={applicantUserId} />
     </div>
   );
 }
@@ -156,6 +181,53 @@ function ChatMessagesList({
         );
       })}
     </div>
+  );
+}
+
+function AdminApplicantChatComposer({
+  applicantUserId,
+}: {
+  applicantUserId: string;
+}) {
+  const [state, formAction, pending] = useActionState(
+    sendAdminApplicantMessage,
+    initialAdminActionState,
+  );
+  const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (state.status === "success") {
+      formRef.current?.reset();
+      textareaRef.current?.focus();
+    }
+  }, [state.status, state.savedAt]);
+
+  return (
+    <form
+      action={formAction}
+      className="space-y-2 border-t border-artisan-clay/60 bg-white p-4"
+      ref={formRef}
+    >
+      <input name="applicantUserId" type="hidden" value={applicantUserId} />
+      <textarea
+        className="min-h-24 w-full resize-y rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm text-artisan-sienna outline-none transition focus:border-artisan-terracotta"
+        name="body"
+        placeholder="Ask the applicant for more information..."
+        ref={textareaRef}
+      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminActionFeedback state={state} />
+        <Button
+          className="bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+          disabled={pending}
+          type="submit"
+        >
+          <SendHorizonal className="h-4 w-4" />
+          {pending ? "Sending..." : "Send message"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

@@ -5,8 +5,10 @@ import { revalidatePath } from "next/cache";
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
 import {
+  getOrCreateAdminApplicantThread,
   getOrCreateAdminShopThread,
   listActiveAdminMessagingShops,
+  markAdminApplicantThreadRead,
   markAdminShopThreadRead,
 } from "@/lib/admin-messaging";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -468,6 +470,65 @@ export async function sendAdminShopMessage(
     revalidatePath("/admin/messages");
     revalidatePath(`/admin/shops/${shopId}/messages`);
     revalidatePath(`/admin/shops/${shopId}`);
+
+    return createSuccessState("Message sent.");
+  } catch (error) {
+    return createErrorState(error, "Unable to send message.");
+  }
+}
+
+export async function sendAdminApplicantMessage(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    const session = await requireAdminSession();
+    const applicantUserId = String(formData.get("applicantUserId") ?? "").trim();
+    const body = String(formData.get("body") ?? "").trim();
+
+    if (!applicantUserId) {
+      return createErrorState(null, "Missing applicant id.");
+    }
+
+    if (!body) {
+      return {
+        status: "error",
+        message: "Please type a message before sending.",
+        savedAt: null,
+      };
+    }
+
+    const thread = await getOrCreateAdminApplicantThread(
+      applicantUserId,
+      session.user.id,
+    );
+    if (!thread) {
+      return createErrorState(null, "Unable to locate that applicant.");
+    }
+
+    const admin = createAdminClient();
+    const { data: message, error } = await admin
+      .from("chat_messages")
+      .insert({
+        thread_id: thread.id,
+        sender_id: session.user.id,
+        body,
+        message_type: "text",
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      return createErrorState(new Error(error.message), "Unable to send message.");
+    }
+
+    if (message?.id != null) {
+      await markAdminApplicantThreadRead(thread.id);
+      await sendChatMessagePushNotifications([message.id]);
+    }
+
+    revalidatePath("/admin/applications");
+    revalidatePath(`/admin/applications/${applicantUserId}/messages`);
 
     return createSuccessState("Message sent.");
   } catch (error) {

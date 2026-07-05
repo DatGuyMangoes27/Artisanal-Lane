@@ -2,14 +2,19 @@
 ///
 /// * `buyerVendor` — the default buyer<->vendor chat.
 /// * `adminVendor` — the Artisan Lane admin team messaging the shop.
+/// * `adminApplicant` — the admin team messaging a vendor applicant who has
+///   no shop yet; the applicant reads it in their buyer inbox.
 enum ChatThreadKind {
   buyerVendor,
-  adminVendor;
+  adminVendor,
+  adminApplicant;
 
   static ChatThreadKind fromRaw(String? raw) {
     switch (raw) {
       case 'admin_vendor':
         return ChatThreadKind.adminVendor;
+      case 'admin_applicant':
+        return ChatThreadKind.adminApplicant;
       case 'buyer_vendor':
       default:
         return ChatThreadKind.buyerVendor;
@@ -17,6 +22,9 @@ enum ChatThreadKind {
   }
 
   bool get isAdminVendor => this == ChatThreadKind.adminVendor;
+
+  /// Any conversation with the Artisan Lane team rather than a customer.
+  bool get isAdminThread => this != ChatThreadKind.buyerVendor;
 }
 
 class ChatThread {
@@ -89,7 +97,8 @@ class ChatThread {
 
     return ChatThread(
       id: json['id'] as String,
-      shopId: json['shop_id'] as String,
+      // Applicant threads have no shop yet.
+      shopId: (json['shop_id'] as String?) ?? '',
       buyerId: json['buyer_id'] as String,
       vendorId: json['vendor_id'] as String,
       kind: ChatThreadKind.fromRaw(json['kind'] as String?),
