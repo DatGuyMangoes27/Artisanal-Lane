@@ -155,6 +155,19 @@ export async function submitVendorApplication(
     return { error: "Please accept the Terms & Conditions to continue." };
   }
 
+  // Screening needs something to look at: a portfolio link or product photos.
+  const portfolioUrl = parseNullableText(formData.get("portfolioUrl"));
+  const hasProofFiles = formData
+    .getAll("proofImages")
+    .some((entry) => entry instanceof File && entry.size > 0);
+
+  if (!portfolioUrl && !hasProofFiles) {
+    return {
+      error:
+        "Please add a portfolio or social link, or upload at least one photo of your work, so we can review your application.",
+    };
+  }
+
   const proofImageUrls = await getUploadedUrls(
     formData,
     "proofImages",
@@ -169,7 +182,7 @@ export async function submitVendorApplication(
     applicant_email_snapshot: session.profile.email,
     business_name: businessName,
     motivation: parseNullableText(formData.get("motivation")),
-    portfolio_url: parseNullableText(formData.get("portfolioUrl")),
+    portfolio_url: portfolioUrl,
     proof_image_urls: proofImageUrls,
     location: parseNullableText(formData.get("location")),
     delivery_info: parseNullableText(formData.get("deliveryInfo")),

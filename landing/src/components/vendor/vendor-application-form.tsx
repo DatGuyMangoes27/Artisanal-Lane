@@ -74,6 +74,9 @@ export function VendorApplicationForm({
           placeholder="https://instagram.com/yourshop"
           className={inputClass}
         />
+        <span className="text-xs font-normal text-muted-foreground">
+          A portfolio link or product photos below is required so we can review your work.
+        </span>
       </label>
 
       <div className="grid gap-5 md:grid-cols-2">
@@ -96,7 +99,7 @@ export function VendorApplicationForm({
       </div>
 
       <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-        Proof of your work (optional)
+        Proof of your work
         <input
           name="proofImages"
           type="file"
@@ -105,7 +108,7 @@ export function VendorApplicationForm({
           className="text-sm"
         />
         <span className="text-xs font-normal text-muted-foreground">
-          Add a few photos of your products if you don&apos;t have a portfolio link.
+          Required if you don&apos;t have a portfolio link — add a few photos of your products.
         </span>
       </label>
 

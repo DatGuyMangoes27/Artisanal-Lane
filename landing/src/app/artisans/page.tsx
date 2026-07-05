@@ -6,6 +6,8 @@ import { getMarketplaceShops } from "@/lib/marketplace/catalog";
 
 export default async function ArtisansPage() {
   const shops = await getMarketplaceShops(48);
+  const activeShops = shops.filter((shop) => shop.productCount > 0);
+  const comingSoonShops = shops.filter((shop) => shop.productCount === 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,13 +63,13 @@ export default async function ArtisansPage() {
               <h2 className="mt-2 font-serif text-2xl font-bold text-foreground sm:text-3xl">Artisan shops</h2>
             </div>
             <p className="text-sm text-muted-foreground">
-              {shops.length} {shops.length === 1 ? "artisan" : "artisans"} listed
+              {activeShops.length} {activeShops.length === 1 ? "artisan" : "artisans"} listed
             </p>
           </div>
 
-          {shops.length > 0 ? (
+          {activeShops.length > 0 ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {shops.map((shop) => (
+              {activeShops.map((shop) => (
                 <ShopCard key={shop.id} shop={shop} />
               ))}
             </div>
@@ -76,6 +78,27 @@ export default async function ArtisansPage() {
               Artisan shops will appear here as makers come online.
             </p>
           )}
+
+          {comingSoonShops.length > 0 ? (
+            <div className="mt-12">
+              <div className="mb-6">
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
+                  Coming soon
+                </p>
+                <h2 className="mt-2 font-serif text-2xl font-bold text-foreground sm:text-3xl">
+                  New artisans setting up shop
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  These makers have joined Artisan Lane and are busy adding their first products.
+                </p>
+              </div>
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {comingSoonShops.map((shop) => (
+                  <ShopCard key={shop.id} shop={shop} />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
     </div>
