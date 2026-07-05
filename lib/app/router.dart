@@ -172,6 +172,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => const CuratedCollectionScreen(),
               ),
               GoRoute(
+                path: 'shop-all',
+                builder: (context, state) => const CategoryProductsScreen(
+                  categoryId: '',
+                  categoryName: 'Shop All',
+                ),
+              ),
+              GoRoute(
                 path: 'category/:categoryId',
                 builder: (context, state) => CategoryProductsScreen(
                   categoryId: state.pathParameters['categoryId']!,

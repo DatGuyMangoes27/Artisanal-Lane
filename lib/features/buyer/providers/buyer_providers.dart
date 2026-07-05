@@ -98,6 +98,8 @@ final subcategoriesProvider = FutureProvider.family<List<Subcategory>, String>((
   ref,
   categoryId,
 ) async {
+  // "Shop all" browsing passes an empty categoryId — no subcategories apply.
+  if (categoryId.isEmpty) return const <Subcategory>[];
   final service = ref.read(supabaseServiceProvider);
   return service.getSubcategories(categoryId);
 });
@@ -256,7 +258,8 @@ final categoryProductsProvider =
     ) async {
       final service = ref.read(supabaseServiceProvider);
       return service.getProducts(
-        categoryId: filter.categoryId,
+        // An empty categoryId means "shop all": no category filter.
+        categoryId: filter.categoryId.isEmpty ? null : filter.categoryId,
         subcategoryId: filter.subcategoryId,
         tags: filter.tags.isNotEmpty ? filter.tags : null,
         onSale: filter.onSale ? true : null,

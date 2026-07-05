@@ -100,7 +100,16 @@ class CategoriesScreen extends ConsumerWidget {
                   ),
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
-                      final cat = cats[index];
+                      // First tile browses the full catalogue.
+                      if (index == 0) {
+                        return _CategoryTile(
+                          icon: Icons.storefront_outlined,
+                          name: 'Shop All',
+                          onTap: () => context.push('/home/shop-all'),
+                        );
+                      }
+
+                      final cat = cats[index - 1];
 
                       return GestureDetector(
                         onTap: () => context.push(
@@ -160,7 +169,7 @@ class CategoriesScreen extends ConsumerWidget {
                         ),
                       );
                     },
-                    childCount: cats.length,
+                    childCount: cats.length + 1,
                   ),
                 ),
               ),
@@ -262,6 +271,73 @@ class CategoriesScreen extends ConsumerWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryTile extends StatelessWidget {
+  final IconData icon;
+  final String name;
+  final VoidCallback onTap;
+
+  const _CategoryTile({
+    required this.icon,
+    required this.name,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: AppTheme.sand.withValues(alpha: 0.3),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 70,
+              height: 70,
+              decoration: const BoxDecoration(
+                color: AppTheme.bone,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Icon(icon, color: AppTheme.terracotta, size: 32),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                name,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
