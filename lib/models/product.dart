@@ -248,6 +248,12 @@ class Product {
 
   bool get isInStock => stockQty > 0;
   bool get isLowStock => stockQty > 0 && stockQty <= 5;
+  bool get supportsMadeToOrder =>
+      fulfillmentMode == 'made_to_order' || fulfillmentMode == 'stocked_with_mto';
+
+  /// Made-to-order products stay buyable at zero stock, so listings must not
+  /// hide them the way plain out-of-stock items are hidden.
+  bool get isAvailableForPurchase => isInStock || supportsMadeToOrder;
   String get primaryImage => images.isNotEmpty
       ? images.first
       : 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400&h=400&fit=crop';

@@ -67,10 +67,18 @@ class _CategoryProductsScreenState
           slivers: [
             SliverToBoxAdapter(child: _buildHeader(context)),
 
-            // Filter button + count row
+            // Filter button + count row. Count the same filtered list the
+            // grid renders so the two can never disagree.
             productsAsync.when(
               data: (items) => SliverToBoxAdapter(
-                child: _buildFilterBar(items.length, subcategoriesAsync),
+                child: _buildFilterBar(
+                  filterProductsForDisplay(
+                    items,
+                    onSale: _onSale,
+                    featured: _featured,
+                  ).length,
+                  subcategoriesAsync,
+                ),
               ),
               loading: () => SliverToBoxAdapter(
                 child: _buildFilterBar(0, subcategoriesAsync),

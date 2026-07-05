@@ -7,7 +7,7 @@ List<Product> filterProductsForDisplay(
 }) {
   return products
       .where((product) {
-        if (!product.isInStock) return false;
+        if (!product.isAvailableForPurchase) return false;
         if (onSale && !product.isOnSale) return false;
         if (featured && !product.isFeatured) return false;
         return true;
@@ -61,7 +61,7 @@ List<Product> filterSearchProductsForDisplay(
 }) {
   return products
       .where((product) {
-        if (!product.isInStock) return false;
+        if (!product.isAvailableForPurchase) return false;
         switch (selectedFilter) {
           case 1:
             return product.price < 200;

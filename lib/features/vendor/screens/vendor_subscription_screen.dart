@@ -515,7 +515,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'First month free, then R${artisanSubscriptionAmount.toStringAsFixed(0)} / month',
+            'First two months free, then R${artisanSubscriptionAmount.toStringAsFixed(0)} / month',
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,
