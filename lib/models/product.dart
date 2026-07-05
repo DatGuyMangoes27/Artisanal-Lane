@@ -20,6 +20,7 @@ class Product {
   final bool isPublished;
   final bool isFeatured;
   final String? careInstructions;
+  final String? fragranceDescription;
   final String fulfillmentMode;
   final double? madeToOrderPrice;
   final int? leadMinDays;
@@ -54,6 +55,7 @@ class Product {
     this.isPublished = true,
     this.isFeatured = false,
     this.careInstructions,
+    this.fragranceDescription,
     this.fulfillmentMode = 'stocked',
     this.madeToOrderPrice,
     this.leadMinDays,
@@ -161,6 +163,7 @@ class Product {
       isPublished: json['is_published'] as bool? ?? true,
       isFeatured: json['is_featured'] as bool? ?? false,
       careInstructions: json['care_instructions'] as String?,
+      fragranceDescription: json['fragrance_description'] as String?,
       fulfillmentMode: json['fulfillment_mode'] as String? ?? 'stocked',
       madeToOrderPrice: json['made_to_order_price'] != null
           ? (json['made_to_order_price'] as num).toDouble()
@@ -199,6 +202,7 @@ class Product {
     'is_published': isPublished,
     'is_featured': isFeatured,
     'care_instructions': careInstructions,
+    'fragrance_description': fragranceDescription,
     'fulfillment_mode': fulfillmentMode,
     'made_to_order_price': madeToOrderPrice,
     'made_to_order_lead_min_days': leadMinDays,

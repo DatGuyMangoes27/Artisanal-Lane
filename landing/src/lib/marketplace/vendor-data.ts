@@ -107,6 +107,7 @@ export type VendorProduct = {
   images: string[];
   tags: string[];
   careInstructions: string | null;
+  fragranceDescription: string | null;
   shippingOptions: VendorShippingOption[];
   optionGroups: unknown[];
   fulfillmentMode: string;
@@ -260,6 +261,7 @@ const productSelect = `
   images,
   tags,
   care_instructions,
+  fragrance_description,
   shipping_options,
   option_groups,
   fulfillment_mode,
@@ -961,6 +963,7 @@ function mapVendorProduct(row: JsonRecord): VendorProduct {
     images: toStringArray(row.images),
     tags: toStringArray(row.tags),
     careInstructions: toStringOrNull(row.care_instructions),
+    fragranceDescription: toStringOrNull(row.fragrance_description),
     shippingOptions: normalizeShippingOptions(row.shipping_options),
     optionGroups: toJsonArray(row.option_groups),
     fulfillmentMode:

@@ -59,6 +59,7 @@ export type MarketplaceProduct = {
   stockQty: number;
   images: string[];
   tags: string[];
+  fragranceDescription: string | null;
   shippingOptions: ShippingOption[];
   isFeatured: boolean;
   createdAt: string;

@@ -56,6 +56,7 @@ const productSelect = `
   stock_qty,
   images,
   tags,
+  fragrance_description,
   shipping_options,
   is_featured,
   created_at,
@@ -144,6 +145,7 @@ type ProductRow = {
   stock_qty: number | null;
   images: unknown;
   tags: unknown;
+  fragrance_description: string | null;
   shipping_options: unknown;
   is_featured: boolean;
   created_at: string;
@@ -316,6 +318,7 @@ function mapProduct(row: ProductRow): MarketplaceProduct {
     stockQty: row.stock_qty ?? 0,
     images: toStringArray(row.images),
     tags: toStringArray(row.tags),
+    fragranceDescription: row.fragrance_description,
     shippingOptions: mapShippingOptions(row.shipping_options),
     isFeatured: row.is_featured,
     createdAt: row.created_at,

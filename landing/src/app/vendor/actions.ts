@@ -330,6 +330,7 @@ async function productPayloadFromForm(formData: FormData, shopId: string, userId
     images,
     tags: parseListInput(formData.get("tags")),
     care_instructions: parseNullableText(formData.get("careInstructions")),
+    fragrance_description: parseNullableText(formData.get("fragranceDescription")),
     shipping_options: parseShippingOptions(formData),
     option_groups: parseJsonArrayInput(formData.get("optionGroupsJson")),
     fulfillment_mode: parseFulfillmentMode(formData.get("fulfillmentMode")),

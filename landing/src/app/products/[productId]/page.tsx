@@ -163,6 +163,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </p>
               </div>
 
+              {product.fragranceDescription ? (
+                <div className="space-y-3">
+                  <h2 className="font-serif text-2xl font-bold text-foreground">Fragrance options</h2>
+                  <p className="rounded-3xl border border-artisan-clay bg-card p-4 leading-7 text-muted-foreground">
+                    {product.fragranceDescription}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="space-y-3">
                 <h2 className="font-serif text-2xl font-bold text-foreground">Shipping options</h2>
                 {enabledShippingOptions.length > 0 ? (

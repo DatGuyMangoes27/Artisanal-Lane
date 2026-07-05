@@ -46,6 +46,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _compareAtPriceController = TextEditingController();
   final _stockController = TextEditingController();
   final _careController = TextEditingController();
+  final _fragranceController = TextEditingController();
   final _marketPickupNameController = TextEditingController();
   final _marketPickupLocationController = TextEditingController();
   final _optionOneNameController = TextEditingController();
@@ -190,6 +191,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _compareAtPriceController.dispose();
     _stockController.dispose();
     _careController.dispose();
+    _fragranceController.dispose();
     _marketPickupNameController.dispose();
     _marketPickupLocationController.dispose();
     _optionOneNameController.dispose();
@@ -226,6 +228,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _selectedTags.addAll(product.tags);
     _isPublished = product.isPublished;
     _careController.text = product.careInstructions ?? '';
+    _fragranceController.text = product.fragranceDescription ?? '';
     _fulfillmentMode = product.fulfillmentMode;
     _allowCustomNote = product.allowCustomNote;
     _madeToOrderPriceController.text = product.madeToOrderPrice != null
@@ -1007,6 +1010,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'compare_at_price': formPricing.compareAtPrice,
         if (_careController.text.trim().isNotEmpty)
           'care_instructions': _careController.text.trim(),
+        'fragrance_description': _fragranceController.text.trim().isNotEmpty
+            ? _fragranceController.text.trim()
+            : null,
         'fulfillment_mode': _fulfillmentMode,
         'made_to_order_price': _madeToOrderPriceController.text.trim().isNotEmpty
             ? tryParseProductPriceText(_madeToOrderPriceController.text)
@@ -1849,6 +1855,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
             // ── Care Instructions ────────────────────────────────
             _buildCareSection(),
+            const SizedBox(height: 16),
+
+            // ── Fragrance Options ────────────────────────────────
+            _buildFragranceSection(),
             const SizedBox(height: 20),
 
             SwitchListTile(
@@ -2046,6 +2056,69 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               decoration: InputDecoration(
                 hintText:
                     'e.g. Hand wash in cold water. Do not bleach. Air dry flat. Store in a cool dry place away from direct sunlight.',
+                hintStyle: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
+                hintMaxLines: 4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFragranceSection() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.local_florist_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          title: Text(
+            'Fragrance Options',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            'Optional · for candles, soaps, creams & other scented goods',
+            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
+          ),
+          children: [
+            TextFormField(
+              controller: _fragranceController,
+              maxLines: 4,
+              textCapitalization: TextCapitalization.sentences,
+              style: GoogleFonts.poppins(fontSize: 13),
+              decoration: InputDecoration(
+                hintText:
+                    'e.g. Lavender & chamomile, vanilla bean, rooibos. Describe the fragrances buyers can choose from.',
                 hintStyle: GoogleFonts.poppins(
                   fontSize: 12,
                   color: AppTheme.textHint,

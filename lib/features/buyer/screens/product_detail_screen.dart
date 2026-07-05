@@ -1037,6 +1037,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 _buildCareCard(product.careInstructions!),
                               ],
 
+                              // Fragrance Options
+                              if (product.fragranceDescription != null &&
+                                  product.fragranceDescription!
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 32),
+                                _buildFragranceCard(
+                                  product.fragranceDescription!,
+                                ),
+                              ],
+
                               // Artisan Card
                               if (product.shopName != null)
                                 Container(
@@ -1424,6 +1434,71 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           children: [
             Text(
               instructions,
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: AppTheme.textSecondary,
+                height: 1.8,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFragranceCard(String description) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.local_florist_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+          title: Text(
+            'Fragrance Options',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            'From the artisan',
+            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
+          ),
+          children: [
+            Text(
+              description,
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: AppTheme.textSecondary,

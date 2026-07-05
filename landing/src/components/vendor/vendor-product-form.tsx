@@ -83,6 +83,18 @@ export function VendorProductForm({
             Care instructions
             <textarea name="careInstructions" defaultValue={product?.careInstructions ?? ""} className="min-h-24 rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
           </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna lg:col-span-2">
+            Fragrance options
+            <textarea
+              name="fragranceDescription"
+              defaultValue={product?.fragranceDescription ?? ""}
+              placeholder="e.g. Lavender & chamomile, vanilla bean, rooibos — describe the fragrances buyers can choose from"
+              className="min-h-24 rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+            <span className="text-xs font-normal text-muted-foreground">
+              Optional — for scented products like candles, soaps, and creams. Shown on the product page.
+            </span>
+          </label>
         </div>
       </section>
 
