@@ -20,6 +20,10 @@ class Shop {
   final DateTime updatedAt;
   final int? productCount;
 
+  // Joined artisan profile (optional; only when the query embeds it).
+  final String? artisanName;
+  final String? artisanAvatarUrl;
+
   const Shop({
     required this.id,
     required this.vendorId,
@@ -39,9 +43,12 @@ class Shop {
     required this.createdAt,
     required this.updatedAt,
     this.productCount,
+    this.artisanName,
+    this.artisanAvatarUrl,
   }) : shippingOptions = shippingOptions ?? const [];
 
   factory Shop.fromJson(Map<String, dynamic> json) {
+    final vendorProfile = json['vendor'] as Map<String, dynamic>?;
     return Shop(
       id: json['id'] as String,
       vendorId: json['vendor_id'] as String,
@@ -65,6 +72,8 @@ class Shop {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       productCount: json['product_count'] as int?,
+      artisanName: vendorProfile?['display_name'] as String?,
+      artisanAvatarUrl: vendorProfile?['avatar_url'] as String?,
     );
   }
 

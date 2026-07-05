@@ -1215,7 +1215,10 @@ class _ShopStoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final storyText = shop.brandStory ?? shop.bio;
-    if (storyText == null || storyText.trim().isEmpty) {
+    final hasStory = storyText != null && storyText.trim().isNotEmpty;
+    final avatarUrl = shop.artisanAvatarUrl;
+    final hasAvatar = avatarUrl != null && avatarUrl.trim().isNotEmpty;
+    if (!hasStory && !hasAvatar) {
       return const SizedBox.shrink();
     }
     return Container(
@@ -1228,23 +1231,52 @@ class _ShopStoryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'The Story',
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 20,
-              color: AppTheme.sienna,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              if (hasAvatar) ...[
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: AppTheme.sand,
+                  backgroundImage: CachedNetworkImageProvider(avatarUrl),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'The Story',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        color: AppTheme.sienna,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (hasAvatar && shop.artisanName != null)
+                      Text(
+                        'with ${shop.artisanName}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            storyText,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: AppTheme.textSecondary,
-              height: 1.6,
+          if (hasStory) ...[
+            const SizedBox(height: 12),
+            Text(
+              storyText,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+                height: 1.6,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

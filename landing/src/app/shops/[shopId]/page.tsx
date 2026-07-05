@@ -245,7 +245,22 @@ export default async function ShopProfilePage({ params }: ShopProfilePageProps) 
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
                 Brand story
               </p>
-              <h2 className="mt-2 font-serif text-2xl font-bold text-foreground sm:text-3xl">Meet the maker</h2>
+              <div className="mt-2 flex items-center gap-4">
+                {shop.artisanAvatarUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={shop.artisanAvatarUrl}
+                    alt={shop.artisanName ?? "The artisan"}
+                    className="h-14 w-14 shrink-0 rounded-full border border-artisan-clay object-cover"
+                  />
+                ) : null}
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground sm:text-3xl">Meet the maker</h2>
+                  {shop.artisanAvatarUrl && shop.artisanName ? (
+                    <p className="text-sm text-muted-foreground">{shop.artisanName}</p>
+                  ) : null}
+                </div>
+              </div>
               <p className="mt-4 leading-8 text-muted-foreground">
                 {shop.brandStory ?? "This artisan has not shared a brand story yet."}
               </p>

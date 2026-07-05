@@ -1342,7 +1342,7 @@ class SupabaseService {
   Future<Shop> getShop(String id) async {
     final data = await _client
         .from('shops')
-        .select()
+        .select('*, vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)')
         .eq('id', id)
         .eq('is_active', true)
         .single();

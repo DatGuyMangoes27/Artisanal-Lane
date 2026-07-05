@@ -86,7 +86,8 @@ const shopSelect = `
   shipping_options,
   is_active,
   is_offline,
-  is_spotlight
+  is_spotlight,
+  vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)
 `;
 
 const uuidPattern =
@@ -118,6 +119,7 @@ type ShopRow = ShopSummaryRow & {
   cover_image_url: string | null;
   shipping_options: unknown;
   is_spotlight: boolean | null;
+  vendor: Relation<{ display_name: string | null; avatar_url: string | null }>;
 };
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -346,6 +348,7 @@ function mapShop(
   products: MarketplaceProduct[] = [],
   productCount = products.length,
 ): MarketplaceShop {
+  const vendor = Array.isArray(row.vendor) ? row.vendor[0] : row.vendor;
   return {
     id: row.id,
     name: row.name,
@@ -356,6 +359,8 @@ function mapShop(
     bio: row.bio,
     brandStory: row.brand_story,
     coverImageUrl: row.cover_image_url,
+    artisanName: vendor?.display_name ?? null,
+    artisanAvatarUrl: vendor?.avatar_url ?? null,
     shippingOptions: mapShippingOptions(row.shipping_options),
     productCount,
     products,

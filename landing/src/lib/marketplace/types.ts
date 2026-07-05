@@ -80,6 +80,8 @@ export type MarketplaceShop = MarketplaceShopSummary & {
   bio: string | null;
   brandStory: string | null;
   coverImageUrl: string | null;
+  artisanName: string | null;
+  artisanAvatarUrl: string | null;
   shippingOptions: ShippingOption[];
   productCount: number;
   products: MarketplaceProduct[];
