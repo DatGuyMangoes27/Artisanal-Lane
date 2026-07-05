@@ -75,11 +75,11 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
               _isOffline ? 'Shop set to Out of Office' : 'Shop is back online',
               style: GoogleFonts.poppins(fontSize: 13),
             ),
-            backgroundColor:
-                _isOffline ? AppTheme.terracotta : AppTheme.baobab,
+            backgroundColor: _isOffline ? AppTheme.terracotta : AppTheme.baobab,
             behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         );
       }
@@ -87,8 +87,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('Failed to update: $e', style: GoogleFonts.poppins(fontSize: 13)),
+            content: Text(
+              'Failed to update: $e',
+              style: GoogleFonts.poppins(fontSize: 13),
+            ),
             backgroundColor: AppTheme.error,
             behavior: SnackBarBehavior.floating,
           ),
@@ -120,10 +122,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            '$error',
-            style: GoogleFonts.poppins(fontSize: 13),
-          ),
+          content: Text('$error', style: GoogleFonts.poppins(fontSize: 13)),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -138,9 +137,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Account',
           style: GoogleFonts.playfairDisplay(
@@ -233,15 +230,13 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                     title: 'New Orders',
                     subtitle: 'Get notified when you receive a new order',
                     value: _orderNotifications,
-                    onChanged: (v) =>
-                        setState(() => _orderNotifications = v),
+                    onChanged: (v) => setState(() => _orderNotifications = v),
                   ),
                   const Divider(height: 1, indent: 16, endIndent: 16),
                   _buildSwitchTile(
                     icon: Icons.person_add_outlined,
                     title: 'New Followers',
-                    subtitle:
-                        'Get notified when someone follows your shop',
+                    subtitle: 'Get notified when someone follows your shop',
                     value: _newFollowerNotifications,
                     onChanged: (v) =>
                         setState(() => _newFollowerNotifications = v),
@@ -292,8 +287,11 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline,
-                              size: 18, color: AppTheme.terracotta),
+                          Icon(
+                            Icons.info_outline,
+                            size: 18,
+                            color: AppTheme.terracotta,
+                          ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -322,17 +320,18 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                            color: AppTheme.error.withValues(alpha: 0.2)),
+                          color: AppTheme.error.withValues(alpha: 0.2),
+                        ),
                       ),
-                      backgroundColor:
-                          AppTheme.error.withValues(alpha: 0.05),
+                      backgroundColor: AppTheme.error.withValues(alpha: 0.05),
                     ),
                     child: Text(
                       'Log Out',
                       style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.error),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.error,
+                      ),
                     ),
                   ),
                 ),
@@ -348,7 +347,8 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                         side: BorderSide(
-                            color: AppTheme.error.withValues(alpha: 0.28)),
+                          color: AppTheme.error.withValues(alpha: 0.28),
+                        ),
                       ),
                       backgroundColor: Colors.white,
                     ),
@@ -364,9 +364,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                         : Text(
                             'Delete Account',
                             style: GoogleFonts.poppins(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.error),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.error,
+                            ),
                           ),
                   ),
                 ),
@@ -375,7 +376,9 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                   child: Text(
                     'Artisan Lane v1.0.0',
                     style: GoogleFonts.poppins(
-                        fontSize: 12, color: AppTheme.textHint),
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -398,8 +401,11 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
         child: Row(
           children: [
-            Icon(Icons.event_available_outlined,
-                size: 22, color: AppTheme.textPrimary),
+            Icon(
+              Icons.event_available_outlined,
+              size: 22,
+              color: AppTheme.textPrimary,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -436,8 +442,7 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                       color: AppTheme.terracotta,
                     ),
                   )
-                : Icon(Icons.chevron_right,
-                    size: 20, color: AppTheme.textHint),
+                : Icon(Icons.chevron_right, size: 20, color: AppTheme.textHint),
           ],
         ),
       ),
@@ -469,7 +474,13 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
           ),
         ],
       ),
-      child: Column(children: children),
+      // ListTiles need their own Material inside a decorated box so ink
+      // splashes render (and the framework assertion stays quiet).
+      child: Material(
+        type: MaterialType.transparency,
+        borderRadius: BorderRadius.circular(16),
+        child: Column(children: children),
+      ),
     );
   }
 
@@ -490,9 +501,10 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
         title: Text(
           title,
           style: GoogleFonts.poppins(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.textPrimary),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
         ),
         subtitle: Text(
           subtitle,
@@ -507,28 +519,33 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Log Out',
           style: GoogleFonts.playfairDisplay(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textPrimary),
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary,
+          ),
         ),
         content: Text(
           'Are you sure you want to log out?',
           style: GoogleFonts.poppins(
-              fontSize: 14, color: AppTheme.textSecondary),
+            fontSize: 14,
+            color: AppTheme.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
-                style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppTheme.textSecondary)),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textSecondary,
+              ),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -540,11 +557,14 @@ class _VendorSettingsScreenState extends ConsumerState<VendorSettingsScreen> {
                 GoRouter.of(context).go('/welcome');
               }
             },
-            child: Text('Log Out',
-                style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.error)),
+            child: Text(
+              'Log Out',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.error,
+              ),
+            ),
           ),
         ],
       ),

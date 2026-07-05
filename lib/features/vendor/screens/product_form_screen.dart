@@ -1014,13 +1014,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             ? _fragranceController.text.trim()
             : null,
         'fulfillment_mode': _fulfillmentMode,
-        'made_to_order_price': _madeToOrderPriceController.text.trim().isNotEmpty
+        'made_to_order_price':
+            _madeToOrderPriceController.text.trim().isNotEmpty
             ? tryParseProductPriceText(_madeToOrderPriceController.text)
             : null,
-        'made_to_order_lead_min_days':
-            int.tryParse(_leadMinController.text.trim()),
-        'made_to_order_lead_max_days':
-            int.tryParse(_leadMaxController.text.trim()),
+        'made_to_order_lead_min_days': int.tryParse(
+          _leadMinController.text.trim(),
+        ),
+        'made_to_order_lead_max_days': int.tryParse(
+          _leadMaxController.text.trim(),
+        ),
         'made_to_order_capacity': int.tryParse(_capacityController.text.trim()),
         'made_to_order_allow_custom_note': _allowCustomNote,
       };
@@ -1619,30 +1622,36 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       : AppTheme.sand.withValues(alpha: 0.4),
                 ),
               ),
-              child: SwitchListTile(
-                value: _hasOptions,
-                onChanged: (value) => _setHasOptions(value),
-                title: Text(
-                  'This product has multiple options',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+              // ListTiles need their own Material inside a decorated box so
+              // ink splashes render (and the framework assertion stays quiet).
+              child: Material(
+                type: MaterialType.transparency,
+                borderRadius: BorderRadius.circular(14),
+                child: SwitchListTile(
+                  value: _hasOptions,
+                  onChanged: (value) => _setHasOptions(value),
+                  title: Text(
+                    'This product has multiple options',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  _hasOptions
-                      ? 'Set up sizes, colours or other combinations below.'
-                      : 'Off by default — turn on if this product comes in variations like size or colour.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                    height: 1.4,
+                  subtitle: Text(
+                    _hasOptions
+                        ? 'Set up sizes, colours or other combinations below.'
+                        : 'Off by default — turn on if this product comes in variations like size or colour.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                      height: 1.4,
+                    ),
                   ),
-                ),
-                activeTrackColor: AppTheme.terracotta,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 4,
+                  activeTrackColor: AppTheme.terracotta,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 4,
+                  ),
                 ),
               ),
             ),

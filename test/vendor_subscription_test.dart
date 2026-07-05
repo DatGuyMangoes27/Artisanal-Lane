@@ -161,11 +161,14 @@ void main() {
   });
 
   test('fresher subscription data wins over stale stream state', () {
+    // Relative dates so this fixture can never expire.
     final olderInactive = activeSubscription(
       status: 'inactive',
-      periodEnd: DateTime(2026, 5, 1),
+      periodEnd: DateTime.now().subtract(const Duration(days: 30)),
     );
-    final newerActive = activeSubscription(periodEnd: DateTime(2026, 6, 1));
+    final newerActive = activeSubscription(
+      periodEnd: DateTime.now().add(const Duration(days: 30)),
+    );
 
     final selected = preferredVendorSubscription(
       streamValue: olderInactive,
