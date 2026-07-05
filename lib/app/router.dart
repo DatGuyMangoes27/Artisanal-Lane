@@ -404,6 +404,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             ],
           ),
           GoRoute(
+            path: '/vendor/notifications',
+            builder: (context, state) => const NotificationsScreen(
+              emptyMessage:
+                  'Order updates, buyer messages, and announcements from '
+                  'Artisan Lane will appear here.',
+            ),
+          ),
+          GoRoute(
             path: '/vendor/profile',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: VendorProfileScreen()),

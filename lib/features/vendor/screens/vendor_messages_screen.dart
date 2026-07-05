@@ -31,6 +31,7 @@ class VendorMessagesScreen extends ConsumerWidget {
         data: (threads) => ChatInboxList(
           threads: threads,
           showBuyerIdentity: true,
+          groupAdminThreads: true,
           emptyTitle: 'No messages yet',
           emptySubtitle:
               'When a buyer or the Artisan Lane team contacts you, the conversation will show up here.',

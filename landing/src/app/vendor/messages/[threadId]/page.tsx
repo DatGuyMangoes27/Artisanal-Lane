@@ -29,9 +29,17 @@ export default async function VendorMessageThreadPage({
   return (
     <div>
       <VendorPageHeader
-        eyebrow="Community"
-        title={thread.buyerName ?? thread.buyerEmail ?? "Buyer conversation"}
-        description="Keep buyer conversations inside the shared chat thread."
+        eyebrow={thread.isAdminThread ? "Artisan Lane" : "Community"}
+        title={
+          thread.isAdminThread
+            ? "Artisan Lane Support"
+            : thread.buyerName ?? thread.buyerEmail ?? "Buyer conversation"
+        }
+        description={
+          thread.isAdminThread
+            ? "Messages from the Artisan Lane team about your shop."
+            : "Keep buyer conversations inside the shared chat thread."
+        }
       />
       <VendorPanel title="Conversation">
         <div className="mb-4">

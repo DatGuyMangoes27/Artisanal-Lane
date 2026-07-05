@@ -202,6 +202,7 @@ export type VendorChatThread = {
   lastMessageSenderId: string | null;
   lastReadAt: string | null;
   createdAt: string;
+  isAdminThread: boolean;
 };
 
 export type VendorChatMessage = {
@@ -742,10 +743,10 @@ export async function listVendorChatThreads(vendorId: string): Promise<VendorCha
   const { data, error } = await admin
     .from("chat_threads")
     .select(
-      "id, buyer_id, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
+      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
     )
     .eq("vendor_id", vendorId)
-    .eq("kind", "buyer_vendor")
+    .in("kind", ["buyer_vendor", "admin_vendor"])
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
@@ -764,11 +765,11 @@ export async function getVendorChatThread(
   const { data, error } = await admin
     .from("chat_threads")
     .select(
-      "id, buyer_id, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
+      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
     )
     .eq("vendor_id", vendorId)
     .eq("id", threadId)
-    .eq("kind", "buyer_vendor")
+    .in("kind", ["buyer_vendor", "admin_vendor"])
     .maybeSingle();
 
   if (error) {
@@ -1083,5 +1084,6 @@ function mapVendorChatThread(row: JsonRecord, vendorId: string): VendorChatThrea
     lastMessageSenderId: toStringOrNull(row.last_message_sender_id),
     lastReadAt: toStringOrNull(read?.last_read_at),
     createdAt: String(row.created_at),
+    isAdminThread: toStringOrNull(row.kind) === "admin_vendor",
   };
 }

@@ -16,6 +16,10 @@ class ChatInboxList extends StatelessWidget {
   final String emptyTitle;
   final String emptySubtitle;
 
+  /// Show Artisan Lane (admin) conversations in their own section above
+  /// customer conversations instead of mixing the two together.
+  final bool groupAdminThreads;
+
   const ChatInboxList({
     super.key,
     required this.threads,
@@ -24,6 +28,7 @@ class ChatInboxList extends StatelessWidget {
     required this.emptyTitle,
     required this.emptySubtitle,
     this.onRefresh,
+    this.groupAdminThreads = false,
   });
 
   @override
@@ -43,19 +48,64 @@ class ChatInboxList extends StatelessWidget {
       );
     }
 
+    final adminThreads = groupAdminThreads
+        ? threads.where((thread) => thread.kind.isAdminVendor).toList()
+        : const <ChatThread>[];
+    final customerThreads = groupAdminThreads
+        ? threads.where((thread) => !thread.kind.isAdminVendor).toList()
+        : threads;
+    final showSections = adminThreads.isNotEmpty;
+
+    Widget tileFor(ChatThread thread) => _InboxTile(
+      thread: thread,
+      showBuyerIdentity: showBuyerIdentity,
+      onTap: () => onTap(thread),
+    );
+
     return RefreshIndicator(
       color: AppTheme.terracotta,
       onRefresh: () async => onRefresh?.call(),
-      child: ListView.separated(
+      child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        itemCount: threads.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (context, index) => _InboxTile(
-          thread: threads[index],
-          showBuyerIdentity: showBuyerIdentity,
-          onTap: () => onTap(threads[index]),
-        ),
+        children: [
+          if (showSections) ...[
+            const _InboxSectionHeader(label: 'Artisan Lane'),
+            const SizedBox(height: 12),
+            for (final thread in adminThreads) ...[
+              tileFor(thread),
+              const SizedBox(height: 12),
+            ],
+            if (customerThreads.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              const _InboxSectionHeader(label: 'Customers'),
+              const SizedBox(height: 12),
+            ],
+          ],
+          for (var i = 0; i < customerThreads.length; i++) ...[
+            tileFor(customerThreads[i]),
+            if (i < customerThreads.length - 1) const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InboxSectionHeader extends StatelessWidget {
+  final String label;
+
+  const _InboxSectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: GoogleFonts.poppins(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 1.6,
+        color: AppTheme.textHint,
       ),
     );
   }

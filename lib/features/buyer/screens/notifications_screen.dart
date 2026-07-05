@@ -8,7 +8,9 @@ import '../../../services/push_notifications_service.dart';
 import '../providers/buyer_providers.dart';
 
 class NotificationsScreen extends ConsumerWidget {
-  const NotificationsScreen({super.key});
+  final String? emptyMessage;
+
+  const NotificationsScreen({super.key, this.emptyMessage});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,7 +41,7 @@ class NotificationsScreen extends ConsumerWidget {
       body: SafeArea(
         child: notifications.when(
           data: (items) => items.isEmpty
-              ? const _EmptyNotifications()
+              ? _EmptyNotifications(message: emptyMessage)
               : _NotificationsList(items: items),
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppTheme.terracotta),
@@ -163,7 +165,9 @@ class _NotificationTile extends StatelessWidget {
 }
 
 class _EmptyNotifications extends StatelessWidget {
-  const _EmptyNotifications();
+  final String? message;
+
+  const _EmptyNotifications({this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +201,8 @@ class _EmptyNotifications extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              "When makers you follow post new items or your orders are updated, you'll see notifications here.",
+              message ??
+                  "When makers you follow post new items or your orders are updated, you'll see notifications here.",
               style: GoogleFonts.poppins(
                 fontSize: 14,
                 color: AppTheme.textSecondary,

@@ -8,6 +8,8 @@ import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/unread_messages_fab.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../buyer/providers/buyer_providers.dart'
+    show notificationsStreamProvider;
 import '../widgets/stationery_sheet_header.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
@@ -259,24 +261,34 @@ class _DashboardContent extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
-                Column(
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Welcome back, Artisan',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Welcome back, Artisan',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            shop.name,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      shop.name,
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
+                    _NotificationsBell(
+                      onTap: () => context.push('/vendor/notifications'),
                     ),
                   ],
                 ),
@@ -1948,6 +1960,59 @@ class _ChecklistRow extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             const Icon(Icons.chevron_right_rounded, color: AppTheme.textHint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsBell extends ConsumerWidget {
+  final VoidCallback onTap;
+
+  const _NotificationsBell({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hasUnread =
+        ref
+            .watch(notificationsStreamProvider)
+            .value
+            ?.any((notification) => notification.isUnread) ??
+        false;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            const Icon(
+              Icons.notifications_outlined,
+              size: 22,
+              color: AppTheme.textPrimary,
+            ),
+            if (hasUnread)
+              Positioned(
+                top: 10,
+                right: 11,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
