@@ -75,6 +75,7 @@ type ProductRecord = {
   is_published: boolean;
   is_featured: boolean;
   featured_at: string | null;
+  archived_at: string | null;
   created_at: string;
 };
 
@@ -374,7 +375,7 @@ export async function listProducts(options: ProductListOptions = {}) {
   const { data } = await admin
     .from("products")
     .select(
-      "id, shop_id, category_id, title, price, stock_qty, images, is_published, is_featured, featured_at, created_at",
+      "id, shop_id, category_id, title, price, stock_qty, images, is_published, is_featured, featured_at, archived_at, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
@@ -396,6 +397,12 @@ export async function listProducts(options: ProductListOptions = {}) {
 
   const query = normalizeQuery(options.query);
   const filtered = rows.filter((product) => {
+    // Archived products only appear under the explicit "archived" filter.
+    if (options.status === "archived") {
+      if (product.archived_at == null) return false;
+    } else if (product.archived_at != null) {
+      return false;
+    }
     if (options.status === "published" && !product.is_published) {
       return false;
     }

@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { EyeOff, RefreshCcw, Star } from "lucide-react";
+import { Archive, ArchiveRestore, EyeOff, RefreshCcw, Star } from "lucide-react";
 
-import { toggleProductFeatured, toggleProductPublish } from "@/app/admin/actions";
+import {
+  toggleProductArchived,
+  toggleProductFeatured,
+  toggleProductPublish,
+} from "@/app/admin/actions";
 import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
@@ -61,6 +65,7 @@ export default async function AdminProductsPage({
             <option value="">All statuses</option>
             <option value="published">Published</option>
             <option value="unpublished">Unpublished</option>
+            <option value="archived">Archived</option>
           </select>
           <select
             className="rounded-2xl border border-artisan-clay bg-white px-4 py-2 text-sm outline-none transition focus:border-artisan-terracotta"
@@ -113,7 +118,13 @@ export default async function AdminProductsPage({
                       {product.title}
                     </h3>
                     <StatusBadge
-                      value={product.is_published ? "published" : "unpublished"}
+                      value={
+                        product.archived_at
+                          ? "archived"
+                          : product.is_published
+                            ? "published"
+                            : "unpublished"
+                      }
                     />
                     {product.is_featured ? <StatusBadge value="featured" /> : null}
                   </div>
@@ -163,27 +174,56 @@ export default async function AdminProductsPage({
                   pendingLabel="Saving..."
                 />
 
+                {product.archived_at == null ? (
+                  <AdminActionButtonForm
+                    action={toggleProductPublish}
+                    buttonClassName={
+                      product.is_published
+                        ? "w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                        : "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                    }
+                    hiddenFields={[
+                      { name: "productId", value: product.id },
+                      { name: "nextValue", value: String(!product.is_published) },
+                    ]}
+                    idleContent={
+                      product.is_published ? (
+                        <>
+                          <EyeOff className="mr-2 h-4 w-4" />
+                          Unpublish
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCcw className="mr-2 h-4 w-4" />
+                          Republish
+                        </>
+                      )
+                    }
+                    pendingLabel="Saving..."
+                  />
+                ) : null}
+
                 <AdminActionButtonForm
-                  action={toggleProductPublish}
+                  action={toggleProductArchived}
                   buttonClassName={
-                    product.is_published
-                      ? "w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
-                      : "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                    product.archived_at
+                      ? "w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                      : "w-full bg-red-800 text-white hover:bg-red-900"
                   }
                   hiddenFields={[
                     { name: "productId", value: product.id },
-                    { name: "nextValue", value: String(!product.is_published) },
+                    { name: "nextValue", value: String(!product.archived_at) },
                   ]}
                   idleContent={
-                    product.is_published ? (
+                    product.archived_at ? (
                       <>
-                        <EyeOff className="mr-2 h-4 w-4" />
-                        Unpublish
+                        <ArchiveRestore className="mr-2 h-4 w-4" />
+                        Restore
                       </>
                     ) : (
                       <>
-                        <RefreshCcw className="mr-2 h-4 w-4" />
-                        Republish
+                        <Archive className="mr-2 h-4 w-4" />
+                        Archive
                       </>
                     )
                   }

@@ -219,6 +219,41 @@ export async function toggleProductPublish(
   }
 }
 
+export async function toggleProductArchived(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+    const productId = String(formData.get("productId"));
+    const nextValue = String(formData.get("nextValue")) === "true";
+
+    const admin = createAdminClient();
+    // Archiving is the "delete" action: hides the product everywhere but
+    // keeps the row so order history stays intact. Restoring leaves the
+    // product unpublished so it can be reviewed before going live again.
+    await admin
+      .from("products")
+      .update(
+        nextValue
+          ? { archived_at: new Date().toISOString(), is_published: false }
+          : { archived_at: null },
+      )
+      .eq("id", productId);
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/products");
+
+    return createSuccessState(
+      nextValue
+        ? "Product archived. It is hidden from buyers but kept in order history."
+        : "Product restored. It stays unpublished until you republish it.",
+    );
+  } catch (error) {
+    return createErrorState(error, "Unable to update product archive state.");
+  }
+}
+
 export async function toggleProductFeatured(
   _previousState: AdminActionState,
   formData: FormData,
