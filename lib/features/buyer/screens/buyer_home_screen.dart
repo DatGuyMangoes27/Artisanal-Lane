@@ -187,10 +187,16 @@ class BuyerHomeScreen extends ConsumerWidget {
                   data: (cats) => ListView.separated(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     scrollDirection: Axis.horizontal,
-                    itemCount: cats.length,
+                    itemCount: cats.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(width: 24),
                     itemBuilder: (context, index) {
-                      final cat = cats[index];
+                      // First item browses the full catalogue.
+                      if (index == 0) {
+                        return _ShopAllChip(
+                          onTap: () => context.push('/home/shop-all'),
+                        );
+                      }
+                      final cat = cats[index - 1];
                       return GestureDetector(
                         onTap: () => context.push(
                           '/home/category/${cat.id}?name=${cat.name}',
@@ -531,6 +537,54 @@ class BuyerHomeScreen extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+/// Leads the home category strip and opens the full catalogue
+/// (`/home/shop-all`). Styled as a filled terracotta circle so it reads as a
+/// "browse everything" action, distinct from the bone-coloured category tiles.
+class _ShopAllChip extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ShopAllChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.storefront_outlined,
+                color: Colors.white,
+                size: 26,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Shop All',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
