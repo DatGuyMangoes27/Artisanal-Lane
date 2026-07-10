@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../buyer/providers/buyer_providers.dart'
+    show notificationsStreamProvider;
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_subscription_setup.dart';
 
@@ -15,6 +17,13 @@ class VendorProfileScreen extends ConsumerWidget {
     final shopAsync = ref.watch(vendorShopProvider);
     final profileAsync = ref.watch(currentProfileProvider);
     final unreadMessages = ref.watch(vendorUnreadThreadsCountProvider);
+    final unreadNotifications =
+        ref
+            .watch(notificationsStreamProvider)
+            .value
+            ?.where((n) => n.isUnread)
+            .length ??
+        0;
     final subscription = preferredVendorSubscription(
       streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
       futureValue: ref.watch(vendorSubscriptionProvider).value,
@@ -141,9 +150,19 @@ class VendorProfileScreen extends ConsumerWidget {
               ),
               _buildMenuItem(
                 context,
+                Icons.notifications_none_rounded,
+                'Notifications',
+                unreadNotifications > 0
+                    ? '$unreadNotifications unread notification${unreadNotifications == 1 ? '' : 's'}'
+                    : 'Order updates, messages and announcements',
+                () => context.push('/vendor/notifications'),
+                badgeCount: unreadNotifications,
+              ),
+              _buildMenuItem(
+                context,
                 Icons.settings_outlined,
                 'Settings',
-                'Notifications and more',
+                'Account preferences and more',
                 () => context.push('/vendor/profile/settings'),
               ),
             ],
