@@ -266,7 +266,11 @@ final categoryProductsProvider =
         featured: filter.featured ? true : null,
         sortBy: filter.sortBy,
         ascending: filter.ascending,
-        limit: 60,
+        // Ceiling, not a page size: the grid filters + sorts this list
+        // client-side, so it must load the full buyer-visible catalogue in one
+        // query (≈94 today). Bump this if the catalogue approaches it; the
+        // durable fix beyond that is server-side filter/sort + pagination.
+        limit: 250,
       );
     });
 
