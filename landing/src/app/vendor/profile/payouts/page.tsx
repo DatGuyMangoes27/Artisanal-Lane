@@ -2,7 +2,13 @@ import { Button } from "@/components/ui/button";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { saveVendorPayoutDetails } from "@/app/vendor/actions";
 import { getVendorPayoutProfile, requireVendorSession } from "@/lib/marketplace/vendor-data";
-import { formatVendorStatus } from "@/lib/marketplace/vendor-utils";
+import {
+  PAYOUT_ACCOUNT_TYPES,
+  PAYOUT_BANKS,
+  formatVendorStatus,
+  isValidPayoutAccountType,
+  isValidPayoutBank,
+} from "@/lib/marketplace/vendor-utils";
 
 export default async function VendorPayoutsPage() {
   const { user } = await requireVendorSession("/vendor/profile/payouts");
@@ -21,10 +27,42 @@ export default async function VendorPayoutsPage() {
       >
         <form action={saveVendorPayoutDetails} className="grid gap-4 lg:grid-cols-2">
           <input name="accountHolderName" required defaultValue={payout?.accountHolderName ?? ""} placeholder="Account holder name" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
-          <input name="bankName" required defaultValue={payout?.bankName ?? ""} placeholder="Bank name" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
+          <select
+            name="bankName"
+            required
+            defaultValue={payout?.bankName && isValidPayoutBank(payout.bankName) ? payout.bankName : ""}
+            className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm"
+          >
+            <option value="" disabled>
+              Bank
+            </option>
+            {PAYOUT_BANKS.map((bank) => (
+              <option key={bank} value={bank}>
+                {bank}
+              </option>
+            ))}
+          </select>
           <input name="accountNumber" required defaultValue={payout?.accountNumber ?? ""} placeholder="Account number" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
           <input name="branchCode" required defaultValue={payout?.branchCode ?? ""} placeholder="Branch code" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
-          <input name="accountType" required defaultValue={payout?.accountType ?? ""} placeholder="Account type" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
+          <select
+            name="accountType"
+            required
+            defaultValue={
+              payout?.accountType && isValidPayoutAccountType(payout.accountType)
+                ? payout.accountType.trim().toLowerCase()
+                : ""
+            }
+            className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm"
+          >
+            <option value="" disabled>
+              Account type
+            </option>
+            {PAYOUT_ACCOUNT_TYPES.map((type) => (
+              <option key={type.value} value={type.value}>
+                {type.label}
+              </option>
+            ))}
+          </select>
           <input name="registeredPhone" required defaultValue={payout?.registeredPhone ?? ""} placeholder="Registered phone" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
           <input name="registeredEmail" required type="email" defaultValue={payout?.registeredEmail ?? ""} placeholder="Registered email" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
           <input name="identityNumber" required defaultValue={payout?.identityNumber ?? ""} placeholder="South African ID number" className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />

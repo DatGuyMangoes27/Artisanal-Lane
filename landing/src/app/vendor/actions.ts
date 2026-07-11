@@ -14,6 +14,8 @@ import {
   requireVendorShop,
 } from "@/lib/marketplace/vendor-data";
 import {
+  isValidPayoutAccountType,
+  isValidPayoutBank,
   isVendorSubscriptionActive,
   parseCurrencyInput,
   parseFulfillmentMode,
@@ -466,14 +468,26 @@ export async function markVendorOrderShipped(formData: FormData) {
 export async function saveVendorPayoutDetails(formData: FormData) {
   const { user } = await requireVendorSession("/vendor/profile/payouts");
   const identityNumber = parseRequiredText(formData.get("identityNumber"));
+
+  // TradeSafe rejects unknown account types, which silently blocks every
+  // checkout for the shop — validate here, not just in the form UI.
+  const bankName = parseRequiredText(formData.get("bankName"));
+  const accountType = parseRequiredText(formData.get("accountType")).toLowerCase();
+  if (!isValidPayoutBank(bankName)) {
+    throw new Error("Please choose your bank from the list.");
+  }
+  if (!isValidPayoutAccountType(accountType)) {
+    throw new Error("Please choose a valid account type (cheque, savings, transmission or bond).");
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.from("vendor_payout_profiles").upsert({
     vendor_id: user.id,
     account_holder_name: parseRequiredText(formData.get("accountHolderName")),
-    bank_name: parseRequiredText(formData.get("bankName")),
+    bank_name: bankName,
     account_number: parseRequiredText(formData.get("accountNumber")),
     branch_code: parseRequiredText(formData.get("branchCode")),
-    account_type: parseRequiredText(formData.get("accountType")),
+    account_type: accountType,
     registered_phone: parseRequiredText(formData.get("registeredPhone")),
     registered_email: parseRequiredText(formData.get("registeredEmail")),
     identity_number: identityNumber,

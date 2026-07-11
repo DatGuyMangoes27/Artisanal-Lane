@@ -22,6 +22,41 @@ export type VendorSetupStatus = {
 
 const activeSubscriptionStatuses = new Set(["active", "trialing"]);
 
+// TradeSafe only accepts these account types (mapped by the create-checkout
+// edge function); anything else blocks every checkout for the shop.
+export const PAYOUT_ACCOUNT_TYPES = [
+  { value: "cheque", label: "Cheque / Current (business accounts use this)" },
+  { value: "savings", label: "Savings" },
+  { value: "transmission", label: "Transmission" },
+  { value: "bond", label: "Bond" },
+] as const;
+
+// Bank names the create-checkout edge function maps to TradeSafe bank codes.
+// "Other" is accepted by TradeSafe; payouts then route by branch code.
+export const PAYOUT_BANKS = [
+  "Absa",
+  "African Bank",
+  "Capitec",
+  "Discovery Bank",
+  "FNB",
+  "Investec",
+  "Nedbank",
+  "Postbank",
+  "Sasfin",
+  "Standard Bank",
+  "TymeBank",
+  "Other",
+] as const;
+
+export function isValidPayoutAccountType(value: string) {
+  return PAYOUT_ACCOUNT_TYPES.some((type) => type.value === value.trim().toLowerCase());
+}
+
+export function isValidPayoutBank(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return PAYOUT_BANKS.some((bank) => bank.toLowerCase() === normalized);
+}
+
 function hasText(value: string | null | undefined) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -45,9 +80,15 @@ export function isVendorSubscriptionActive(subscription: VendorSubscriptionLike 
     return false;
   }
 
+  // Mirror the create-checkout edge function: an "active" row whose paid
+  // period has lapsed must not count as active, or vendors see an enabled
+  // shop while every buyer checkout is rejected.
   const normalized = subscription.status.toLowerCase();
   if (activeSubscriptionStatuses.has(normalized)) {
-    return true;
+    return (
+      subscription.currentPeriodEnd == null ||
+      new Date(subscription.currentPeriodEnd).getTime() > Date.now()
+    );
   }
 
   if (normalized === "cancelled" && subscription.currentPeriodEnd) {
