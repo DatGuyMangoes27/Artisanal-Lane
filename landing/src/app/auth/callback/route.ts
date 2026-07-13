@@ -4,13 +4,18 @@ import {
   PASSWORD_RECOVERY_COOKIE,
   PASSWORD_RECOVERY_COOKIE_MAX_AGE,
   PASSWORD_RECOVERY_PATH,
+  getPasswordRecoveryRequestOrigin,
 } from "@/lib/auth/password-recovery";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const resetUrl = new URL(PASSWORD_RECOVERY_PATH, requestUrl.origin);
+  const publicOrigin = getPasswordRecoveryRequestOrigin(
+    request.url,
+    request.headers,
+  );
+  const resetUrl = new URL(PASSWORD_RECOVERY_PATH, publicOrigin);
 
   if (!code) {
     resetUrl.searchParams.set("status", "invalid-link");

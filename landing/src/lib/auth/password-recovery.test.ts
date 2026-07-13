@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getPasswordRecoveryRedirectUrl,
+  getPasswordRecoveryRequestOrigin,
   validateRecoveryPassword,
 } from "./password-recovery";
 
@@ -10,6 +11,21 @@ describe("password recovery helpers", () => {
     expect(
       getPasswordRecoveryRedirectUrl("https://artisanlanesa.co.za/vendor"),
     ).toBe("https://artisanlanesa.co.za/auth/callback");
+  });
+
+  it("uses Netlify's forwarded public origin for callback redirects", () => {
+    const headers = new Headers({
+      host: "main--artisanlane.netlify.app",
+      "x-forwarded-host": "artisanlanesa.co.za",
+      "x-forwarded-proto": "https",
+    });
+
+    expect(
+      getPasswordRecoveryRequestOrigin(
+        "https://main--artisanlane.netlify.app/auth/callback?code=test",
+        headers,
+      ),
+    ).toBe("https://artisanlanesa.co.za");
   });
 
   it("requires an eight character password", () => {

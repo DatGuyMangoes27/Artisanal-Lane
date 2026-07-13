@@ -8,6 +8,34 @@ export function getPasswordRecoveryRedirectUrl(origin: string) {
   return new URL(PASSWORD_RECOVERY_CALLBACK_PATH, origin).toString();
 }
 
+function getFirstHeaderValue(value: string | null) {
+  return value?.split(",", 1)[0]?.trim() || null;
+}
+
+export function getPasswordRecoveryRequestOrigin(
+  requestUrl: string,
+  headers: Headers,
+) {
+  const url = new URL(requestUrl);
+  const host =
+    getFirstHeaderValue(headers.get("x-forwarded-host")) ??
+    getFirstHeaderValue(headers.get("host"));
+
+  if (!host) {
+    return url.origin;
+  }
+
+  const forwardedProtocol = getFirstHeaderValue(
+    headers.get("x-forwarded-proto"),
+  );
+  const protocol =
+    forwardedProtocol === "http" || forwardedProtocol === "https"
+      ? forwardedProtocol
+      : url.protocol.replace(":", "");
+
+  return new URL(`${protocol}://${host}`).origin;
+}
+
 export function validateRecoveryPassword(
   password: string,
   confirmation: string,
