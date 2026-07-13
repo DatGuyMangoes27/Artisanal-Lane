@@ -161,6 +161,16 @@ export function BuyerLoginForm() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          {mode === "sign-in" ? (
+            <div className="text-right">
+              <Link
+                className="text-sm font-medium text-artisan-terracotta underline-offset-4 hover:underline"
+                href="/forgot-password"
+              >
+                Forgot password?
+              </Link>
+            </div>
+          ) : null}
           {error ? (
             <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
