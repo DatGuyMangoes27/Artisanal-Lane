@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { isPayFastCancellationSuccess } from "./subscription-cancellation.mjs";
+
 const PAYFAST_SANDBOX = (Deno.env.get("PAYFAST_SANDBOX") ?? "false") === "true";
 
 const PAYFAST_PROCESS_URL = PAYFAST_SANDBOX
@@ -312,9 +314,8 @@ export async function cancelPayFastSubscription(token: string) {
     : `${PAYFAST_API_BASE}/subscriptions/${encodeURIComponent(token)}/cancel`;
 
   console.log("cancelPayFastSubscription request", {
-    url,
-    apiHeaders,
-    signature,
+    sandbox: config.sandbox,
+    timestamp,
     signingStringLength: signingString.length,
   });
 
@@ -337,7 +338,7 @@ export async function cancelPayFastSubscription(token: string) {
   }
 
   return {
-    ok: response.ok,
+    ok: isPayFastCancellationSuccess(response.ok, bodyJson),
     status: response.status,
     body: bodyJson ?? bodyText,
   };

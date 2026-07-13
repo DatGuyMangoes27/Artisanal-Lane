@@ -28,6 +28,7 @@ import {
   parseRequiredText,
 } from "@/lib/marketplace/vendor-utils";
 import { SHIPPING_METHOD_KEYS } from "@/lib/marketplace/shipping";
+import { validateVendorProofFiles } from "@/lib/marketplace/vendor-application-files";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -159,9 +160,14 @@ export async function submitVendorApplication(
 
   // Screening needs something to look at: a portfolio link or product photos.
   const portfolioUrl = parseNullableText(formData.get("portfolioUrl"));
-  const hasProofFiles = formData
-    .getAll("proofImages")
-    .some((entry) => entry instanceof File && entry.size > 0);
+  const proofFiles = formData.getAll("proofImages").filter(isFile);
+  const proofFileError = validateVendorProofFiles(proofFiles);
+
+  if (proofFileError) {
+    return { error: proofFileError };
+  }
+
+  const hasProofFiles = proofFiles.length > 0;
 
   if (!portfolioUrl && !hasProofFiles) {
     return {
@@ -170,12 +176,19 @@ export async function submitVendorApplication(
     };
   }
 
-  const proofImageUrls = await getUploadedUrls(
-    formData,
-    "proofImages",
-    "shop-assets",
-    `${userId}/vendor-application`,
-  );
+  let proofImageUrls: string[];
+  try {
+    proofImageUrls = await getUploadedUrls(
+      formData,
+      "proofImages",
+      "shop-assets",
+      `${userId}/vendor-application`,
+    );
+  } catch {
+    return {
+      error: "We couldn't upload your photos. Please try smaller images or use a portfolio link instead.",
+    };
+  }
 
   const { error } = await admin.from("vendor_applications").insert({
     user_id: userId,

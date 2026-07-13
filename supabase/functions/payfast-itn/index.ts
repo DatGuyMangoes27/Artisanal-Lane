@@ -144,6 +144,17 @@ Deno.serve(async (request) => {
   if (config != null) {
     const validate = await callPayFastValidate(config.validateUrl, rawBody);
     console.log("payfast-itn validate response", validate);
+    if (!validate.ok) {
+      if (vendorId != null && !isStationeryPayment) {
+        await admin
+          .from("vendor_subscriptions")
+          .update({
+            status_reason: "PayFast ITN server validation failed.",
+          })
+          .eq("vendor_id", vendorId);
+      }
+      return textResponse("OK");
+    }
   }
 
   if (vendorId == null) {
@@ -193,15 +204,31 @@ Deno.serve(async (request) => {
     return textResponse("OK");
   }
 
-  const { data: existingSubscription } = await admin
-    .from("vendor_subscriptions")
-    .select(
-      "vendor_id, status, current_period_start, current_period_end, payfast_payment_id, payfast_subscription_id, payfast_token, started_at, last_payment_at",
-    )
-    .eq("vendor_id", vendorId)
-    .maybeSingle();
+  const { data: existingSubscription, error: existingSubscriptionError } =
+    await admin
+      .from("vendor_subscriptions")
+      .select(
+        "vendor_id, status, current_period_start, current_period_end, payfast_payment_id, payfast_subscription_id, payfast_token, started_at, last_payment_at, cancelled_at",
+      )
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
 
-  let nextStatus = mapPayFastSubscriptionStatus(paymentStatus);
+  if (existingSubscriptionError != null) {
+    console.error("payfast-itn subscription lookup failed", {
+      vendorId,
+      message: existingSubscriptionError.message,
+    });
+    return textResponse("Database error", { status: 500 });
+  }
+
+  const mappedPayFastStatus = mapPayFastSubscriptionStatus(paymentStatus);
+  let nextStatus = mappedPayFastStatus;
+  const preserveConfirmedCancellation =
+    existingSubscription?.status === "cancelled" &&
+    mappedPayFastStatus === "active";
+  if (preserveConfirmedCancellation) {
+    nextStatus = "cancelled";
+  }
   const hasProvisionedSubscription = existingSubscription != null &&
     (
       existingSubscription.started_at != null ||
@@ -225,7 +252,8 @@ Deno.serve(async (request) => {
   // ITNs (real monthly charges) extend by one month as before.
   const isInitialActivation = existingSubscription?.started_at == null &&
     existingSubscription?.last_payment_at == null;
-  const nextPeriodEnd = nextStatus === "active" && !isDuplicatePayment
+  const receivedSuccessfulPayment = mappedPayFastStatus === "active";
+  const nextPeriodEnd = receivedSuccessfulPayment && !isDuplicatePayment
     ? (isInitialActivation
       ? initialSubscriptionPeriodEnd()
       : nextSubscriptionPeriodEnd(
@@ -233,7 +261,7 @@ Deno.serve(async (request) => {
       ))
     : existingSubscription?.current_period_end ?? null;
 
-  await admin
+  const { error: upsertError } = await admin
     .from("vendor_subscriptions")
     .upsert({
       vendor_id: vendorId,
@@ -242,21 +270,27 @@ Deno.serve(async (request) => {
       currency: "ZAR",
       status: nextStatus,
       checkout_reference: checkoutReference,
-      payfast_subscription_id: payfastSubscriptionId,
-      payfast_token: payfastToken,
+      payfast_subscription_id: payfastSubscriptionId ??
+        existingSubscription?.payfast_subscription_id ?? null,
+      payfast_token: payfastToken ?? existingSubscription?.payfast_token ??
+        null,
       payfast_payment_id: payfastPaymentId,
       payfast_email: params.get("email_address"),
-      current_period_start: nextStatus === "active" && !isDuplicatePayment
+      current_period_start: receivedSuccessfulPayment && !isDuplicatePayment
         ? nowIso
         : existingSubscription?.current_period_start ?? null,
       current_period_end: nextPeriodEnd,
       started_at: existingSubscription?.started_at ??
-        (nextStatus === "active" ? nowIso : null),
-      last_payment_at: nextStatus === "active" && !isDuplicatePayment
+        (receivedSuccessfulPayment ? nowIso : null),
+      last_payment_at: receivedSuccessfulPayment && !isDuplicatePayment
         ? nowIso
         : existingSubscription?.last_payment_at ?? null,
-      cancelled_at: nextStatus === "cancelled" ? nowIso : null,
-      status_reason: nextStatus === "past_due"
+      cancelled_at: nextStatus === "cancelled"
+        ? existingSubscription?.cancelled_at ?? nowIso
+        : null,
+      status_reason: preserveConfirmedCancellation
+        ? "PayFast payment received after cancellation; cancellation remains in effect."
+        : nextStatus === "past_due"
         ? "PayFast marked the subscription payment as failed."
         : nextStatus === "cancelled"
         ? "PayFast marked the subscription as cancelled."
@@ -271,6 +305,14 @@ Deno.serve(async (request) => {
         received_at: nowIso,
       },
     });
+
+  if (upsertError != null) {
+    console.error("payfast-itn subscription upsert failed", {
+      vendorId,
+      message: upsertError.message,
+    });
+    return textResponse("Database error", { status: 500 });
+  }
 
   return textResponse("OK");
 });
