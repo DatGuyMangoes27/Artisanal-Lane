@@ -168,6 +168,8 @@ type ProductListOptions = {
   status?: string;
   shop?: string;
   sort?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 type ShopListOptions = {
@@ -200,6 +202,10 @@ function parseStringArray(value: unknown): string[] {
 
 function normalizeQuery(value: string | undefined) {
   return value?.trim().toLowerCase() ?? "";
+}
+
+function sanitizePostgrestSearch(value: string | undefined) {
+  return value?.trim().replace(/[,()%]/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
 
 const disputeAttachmentBucket = "dispute-attachments";
@@ -370,15 +376,156 @@ export async function listVendorApplications() {
   }));
 }
 
-export async function listProducts(options: ProductListOptions = {}) {
+export type AdminProductPage = {
+  items: Array<
+    ProductRecord & {
+      images: string[];
+      shop: ShopRecord | null;
+      category: CategoryRecord | null;
+    }
+  >;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+export async function listProducts(
+  options: ProductListOptions = {},
+): Promise<AdminProductPage> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const requestedPage = Math.max(1, Math.floor(options.page ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(options.pageSize ?? 20)));
+  const searchTerm = sanitizePostgrestSearch(options.query);
+
+  let matchingShopIds: string[] = [];
+  let matchingCategoryIds: string[] = [];
+
+  if (searchTerm) {
+    const [shopResult, categoryResult] = await Promise.all([
+      admin
+        .from("shops")
+        .select("id")
+        .ilike("name", `%${searchTerm}%`)
+        .limit(1000),
+      admin
+        .from("categories")
+        .select("id")
+        .ilike("name", `%${searchTerm}%`)
+        .limit(1000),
+    ]);
+
+    if (shopResult.error) {
+      throw new Error(`Unable to search product shops: ${shopResult.error.message}`);
+    }
+    if (categoryResult.error) {
+      throw new Error(`Unable to search product categories: ${categoryResult.error.message}`);
+    }
+
+    matchingShopIds = (shopResult.data ?? []).map((shop) => shop.id);
+    matchingCategoryIds = (categoryResult.data ?? []).map(
+      (category) => category.id,
+    );
+  }
+
+  let selectedShopIds: string[] | null = null;
+  if (options.shop) {
+    const { data: shopRows, error: shopError } = await admin
+      .from("shops")
+      .select("id")
+      .eq("name", options.shop)
+      .limit(1000);
+
+    if (shopError) {
+      throw new Error(`Unable to filter product shops: ${shopError.message}`);
+    }
+
+    selectedShopIds = (shopRows ?? []).map((shop) => shop.id);
+    if (selectedShopIds.length === 0) {
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize,
+        totalPages: 1,
+      };
+    }
+  }
+
+  let productQuery = admin
     .from("products")
     .select(
       "id, shop_id, category_id, title, price, stock_qty, images, is_published, is_featured, featured_at, archived_at, created_at",
-    )
-    .order("created_at", { ascending: false })
-    .limit(100);
+      { count: "exact" },
+    );
+
+  if (options.status === "archived") {
+    productQuery = productQuery.not("archived_at", "is", null);
+  } else {
+    productQuery = productQuery.is("archived_at", null);
+  }
+
+  if (options.status === "published") {
+    productQuery = productQuery.eq("is_published", true);
+  } else if (options.status === "unpublished") {
+    productQuery = productQuery.eq("is_published", false);
+  }
+
+  if (selectedShopIds) {
+    productQuery = productQuery.in("shop_id", selectedShopIds);
+  }
+
+  if (searchTerm) {
+    const searchFilters = [`title.ilike.%${searchTerm}%`];
+    if (matchingShopIds.length > 0) {
+      searchFilters.push(`shop_id.in.(${matchingShopIds.join(",")})`);
+    }
+    if (matchingCategoryIds.length > 0) {
+      searchFilters.push(`category_id.in.(${matchingCategoryIds.join(",")})`);
+    }
+    productQuery = productQuery.or(searchFilters.join(","));
+  }
+
+  switch (options.sort) {
+    case "featured":
+      productQuery = productQuery
+        .order("is_featured", { ascending: false })
+        .order("created_at", { ascending: false });
+      break;
+    case "oldest":
+      productQuery = productQuery.order("created_at", { ascending: true });
+      break;
+    case "price-high":
+      productQuery = productQuery.order("price", { ascending: false });
+      break;
+    case "price-low":
+      productQuery = productQuery.order("price", { ascending: true });
+      break;
+    case "stock-high":
+      productQuery = productQuery.order("stock_qty", { ascending: false });
+      break;
+    case "title":
+      productQuery = productQuery.order("title", { ascending: true });
+      break;
+    default:
+      productQuery = productQuery.order("created_at", { ascending: false });
+  }
+
+  const rangeStart = (requestedPage - 1) * pageSize;
+  const { data, error, count } = await productQuery
+    .order("id", { ascending: true })
+    .range(rangeStart, rangeStart + pageSize - 1);
+
+  if (error) {
+    throw new Error(`Unable to load admin products: ${error.message}`);
+  }
+
+  const total = count ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (total > 0 && requestedPage > totalPages) {
+    return listProducts({ ...options, page: totalPages, pageSize });
+  }
 
   const products = (data ?? []) as ProductRecord[];
   const [shops, categories] = await Promise.all([
@@ -386,7 +533,7 @@ export async function listProducts(options: ProductListOptions = {}) {
     getCategoriesMap(products.map((row) => row.category_id ?? "")),
   ]);
 
-  const rows = products.map((product) => ({
+  const items = products.map((product) => ({
     ...product,
     images: parseStringArray(product.images),
     shop: product.shop_id ? shops.get(product.shop_id) ?? null : null,
@@ -395,58 +542,13 @@ export async function listProducts(options: ProductListOptions = {}) {
       : null,
   }));
 
-  const query = normalizeQuery(options.query);
-  const filtered = rows.filter((product) => {
-    // Archived products only appear under the explicit "archived" filter.
-    if (options.status === "archived") {
-      if (product.archived_at == null) return false;
-    } else if (product.archived_at != null) {
-      return false;
-    }
-    if (options.status === "published" && !product.is_published) {
-      return false;
-    }
-    if (options.status === "unpublished" && product.is_published) {
-      return false;
-    }
-    if (options.shop && product.shop?.name !== options.shop) {
-      return false;
-    }
-    if (!query) {
-      return true;
-    }
-
-    const haystack = [
-      product.title,
-      product.shop?.name ?? "",
-      product.category?.name ?? "",
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(query);
-  });
-
-  filtered.sort((a, b) => {
-    switch (options.sort) {
-      case "featured":
-        return Number(b.is_featured) - Number(a.is_featured);
-      case "oldest":
-        return a.created_at.localeCompare(b.created_at);
-      case "price-high":
-        return b.price - a.price;
-      case "price-low":
-        return a.price - b.price;
-      case "stock-high":
-        return b.stock_qty - a.stock_qty;
-      case "title":
-        return a.title.localeCompare(b.title);
-      default:
-        return b.created_at.localeCompare(a.created_at);
-    }
-  });
-
-  return filtered;
+  return {
+    items,
+    total,
+    page: requestedPage,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function listShops(options: ShopListOptions = {}) {
@@ -978,4 +1080,3 @@ export async function searchNotificationRecipients(
     role: String(row.role ?? "buyer"),
   }));
 }
-

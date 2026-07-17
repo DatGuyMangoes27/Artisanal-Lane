@@ -26,6 +26,25 @@ function readParam(
   return typeof value === "string" ? value : fallback;
 }
 
+function readPage(value: string | string[] | undefined) {
+  const page = Number(readParam(value, "1"));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function buildPageHref(
+  filters: { query: string; status: string; sort: string },
+  page: number,
+) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("query", filters.query);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.sort !== "newest") params.set("sort", filters.sort);
+  if (page > 1) params.set("page", String(page));
+
+  const queryString = params.toString();
+  return queryString ? `/admin/products?${queryString}` : "/admin/products";
+}
+
 export default async function AdminProductsPage({
   searchParams,
 }: {
@@ -35,7 +54,17 @@ export default async function AdminProductsPage({
   const query = readParam(params.query);
   const status = readParam(params.status);
   const sort = readParam(params.sort, "newest");
-  const products = await listProducts({ query, status, sort });
+  const requestedPage = readPage(params.page);
+  const productPage = await listProducts({
+    query,
+    status,
+    sort,
+    page: requestedPage,
+  });
+  const { items: products, page, pageSize, total, totalPages } = productPage;
+  const firstProduct = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastProduct = Math.min(page * pageSize, total);
+  const pageFilters = { query, status, sort };
 
   return (
     <>
@@ -62,7 +91,7 @@ export default async function AdminProductsPage({
             defaultValue={status}
             name="status"
           >
-            <option value="">All statuses</option>
+            <option value="">All active statuses</option>
             <option value="published">Published</option>
             <option value="unpublished">Unpublished</option>
             <option value="archived">Archived</option>
@@ -89,6 +118,19 @@ export default async function AdminProductsPage({
             </Button>
           </div>
         </form>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <p>
+            {total === 0
+              ? "No products found"
+              : `Showing ${firstProduct}-${lastProduct} of ${total} products`}
+          </p>
+          {total > 0 ? (
+            <p>
+              Page {page} of {totalPages}
+            </p>
+          ) : null}
+        </div>
 
         <div className="space-y-4">
           {products.length === 0 ? (
@@ -233,6 +275,37 @@ export default async function AdminProductsPage({
             </div>
           ))}
         </div>
+
+        {total > 0 && totalPages > 1 ? (
+          <nav
+            aria-label="Product catalogue pagination"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-artisan-clay pt-5"
+          >
+            {page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={buildPageHref(pageFilters, page - 1)}>Previous</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Previous
+              </Button>
+            )}
+
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+
+            {page < totalPages ? (
+              <Button asChild variant="outline">
+                <Link href={buildPageHref(pageFilters, page + 1)}>Next</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Next
+              </Button>
+            )}
+          </nav>
+        ) : null}
       </PanelCard>
     </>
   );
