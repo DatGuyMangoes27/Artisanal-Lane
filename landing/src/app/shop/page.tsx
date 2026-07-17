@@ -55,7 +55,9 @@ function buildPageHref(params: ShopSearchParams | undefined, page: number) {
   }
 
   const queryString = nextParams.toString();
-  return queryString ? `/shop?${queryString}` : "/shop";
+  return queryString
+    ? `/shop?${queryString}#all-products`
+    : "/shop#all-products";
 }
 
 function SearchControlsFallback() {
@@ -212,7 +214,10 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         </Suspense>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <section
+        id="all-products"
+        className="mx-auto max-w-7xl scroll-mt-24 px-4 py-10 sm:px-6 lg:px-8"
+      >
         <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
