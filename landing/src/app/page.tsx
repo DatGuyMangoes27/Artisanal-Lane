@@ -20,6 +20,7 @@ import {
   Star,
   Check,
   Apple,
+  Play,
   Palette,
   Sparkles,
   Users,
@@ -41,6 +42,8 @@ import { createClient } from "@/lib/supabase/server";
 
 const IOS_APP_STORE_URL =
   "https://apps.apple.com/za/app/artisan-lane/id6760702139";
+const GOOGLE_PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.artisanallane.artisanal_lane&pcampaignid=web_share";
 
 function PhoneFrame({
   src,
@@ -831,6 +834,24 @@ function CTASection() {
                   </div>
                 </Link>
               </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="rounded-xl px-6 h-14 border-2 w-full sm:w-[260px]"
+              >
+                <Link
+                  href={GOOGLE_PLAY_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Play className="w-6 h-6 mr-3 fill-current" />
+                  <div className="text-left">
+                    <span className="text-[10px] block opacity-70">Get it on</span>
+                    <span className="font-semibold">Google Play</span>
+                  </div>
+                </Link>
+              </Button>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
@@ -910,6 +931,8 @@ function Footer() {
               <li><Link href="/about" className="hover:text-[#7A0000] transition-colors">Meet the Founder</Link></li>
               <li><Link href="#faq" className="hover:text-[#7A0000] transition-colors">FAQ</Link></li>
               <li><Link href="mailto:nicky@artisanlanesa.com" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
+              <li><Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#7A0000] transition-colors">Download for iOS</Link></li>
+              <li><Link href={GOOGLE_PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#7A0000] transition-colors">Download for Android</Link></li>
               <li><Link href="/admin/login" className="hover:text-[#7A0000] transition-colors">Admin Portal</Link></li>
               <li><Link href="/privacy" className="hover:text-[#7A0000] transition-colors">Privacy Policy</Link></li>
               <li><Link href="/terms" className="hover:text-[#7A0000] transition-colors">Terms of Service</Link></li>
