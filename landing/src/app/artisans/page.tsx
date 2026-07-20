@@ -4,10 +4,138 @@ import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ShopCard } from "@/components/marketplace/shop-card";
 import { getMarketplaceShops } from "@/lib/marketplace/catalog";
 
-export default async function ArtisansPage() {
-  const shops = await getMarketplaceShops(48);
+type ArtisanSearchParams = {
+  listedPage?: string;
+  settingUpPage?: string;
+};
+
+const artisansPerPage = 20;
+
+function parsePage(value: string | undefined) {
+  const page = Number(value);
+  return Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
+}
+
+function buildPageHref(
+  params: ArtisanSearchParams | undefined,
+  pageKey: keyof ArtisanSearchParams,
+  page: number,
+  sectionId: string,
+) {
+  const nextParams = new URLSearchParams(
+    Object.entries(params ?? {}).filter((entry): entry is [string, string] => (
+      typeof entry[1] === "string" && entry[1].length > 0
+    )),
+  );
+
+  if (page <= 1) {
+    nextParams.delete(pageKey);
+  } else {
+    nextParams.set(pageKey, String(page));
+  }
+
+  const queryString = nextParams.toString();
+  return queryString
+    ? `/artisans?${queryString}#${sectionId}`
+    : `/artisans#${sectionId}`;
+}
+
+function SectionPagination({
+  label,
+  page,
+  totalPages,
+  previousHref,
+  nextHref,
+}: {
+  label: string;
+  page: number;
+  totalPages: number;
+  previousHref: string;
+  nextHref: string;
+}) {
+  if (totalPages <= 1) {
+    return null;
+  }
+
+  return (
+    <nav
+      aria-label={`${label} pagination`}
+      className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-artisan-clay pt-5 sm:flex-row"
+    >
+      {page > 1 ? (
+        <Link
+          href={previousHref}
+          className="inline-flex h-10 items-center justify-center rounded-full border border-artisan-clay bg-card px-5 text-sm font-semibold text-foreground shadow-sm transition hover:bg-secondary"
+        >
+          Previous
+        </Link>
+      ) : (
+        <span
+          aria-disabled="true"
+          className="inline-flex h-10 items-center justify-center rounded-full border border-artisan-clay bg-card px-5 text-sm font-semibold text-muted-foreground opacity-50"
+        >
+          Previous
+        </span>
+      )}
+
+      <span className="text-sm text-muted-foreground">
+        Page {page} of {totalPages}
+      </span>
+
+      {page < totalPages ? (
+        <Link
+          href={nextHref}
+          className="inline-flex h-10 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-artisan-terracotta-dark"
+        >
+          Next
+        </Link>
+      ) : (
+        <span
+          aria-disabled="true"
+          className="inline-flex h-10 items-center justify-center rounded-full border border-artisan-clay bg-card px-5 text-sm font-semibold text-muted-foreground opacity-50"
+        >
+          Next
+        </span>
+      )}
+    </nav>
+  );
+}
+
+export default async function ArtisansPage({
+  searchParams,
+}: {
+  searchParams?: Promise<ArtisanSearchParams>;
+}) {
+  const params = await searchParams;
+  const shops = await getMarketplaceShops(1000);
   const activeShops = shops.filter((shop) => shop.productCount > 0);
   const comingSoonShops = shops.filter((shop) => shop.productCount === 0);
+  const activeTotalPages = Math.max(
+    1,
+    Math.ceil(activeShops.length / artisansPerPage),
+  );
+  const comingSoonTotalPages = Math.max(
+    1,
+    Math.ceil(comingSoonShops.length / artisansPerPage),
+  );
+  const activePage = Math.min(
+    parsePage(params?.listedPage),
+    activeTotalPages,
+  );
+  const comingSoonPage = Math.min(
+    parsePage(params?.settingUpPage),
+    comingSoonTotalPages,
+  );
+  const activePageShops = activeShops.slice(
+    (activePage - 1) * artisansPerPage,
+    activePage * artisansPerPage,
+  );
+  const comingSoonPageShops = comingSoonShops.slice(
+    (comingSoonPage - 1) * artisansPerPage,
+    comingSoonPage * artisansPerPage,
+  );
+  const activeSectionId = "listed-artisans";
+  const settingUpSectionId = "setting-up-artisans";
 
   return (
     <div className="min-h-screen bg-background">
@@ -54,7 +182,10 @@ export default async function ArtisansPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <section
+          id={activeSectionId}
+          className="mx-auto max-w-7xl scroll-mt-24 px-4 py-10 sm:px-6 sm:py-14 lg:px-8"
+        >
           <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
@@ -69,7 +200,7 @@ export default async function ArtisansPage() {
 
           {activeShops.length > 0 ? (
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {activeShops.map((shop) => (
+              {activePageShops.map((shop) => (
                 <ShopCard key={shop.id} shop={shop} />
               ))}
             </div>
@@ -79,8 +210,29 @@ export default async function ArtisansPage() {
             </p>
           )}
 
+          <SectionPagination
+            label="Listed artisans"
+            page={activePage}
+            totalPages={activeTotalPages}
+            previousHref={buildPageHref(
+              params,
+              "listedPage",
+              activePage - 1,
+              activeSectionId,
+            )}
+            nextHref={buildPageHref(
+              params,
+              "listedPage",
+              activePage + 1,
+              activeSectionId,
+            )}
+          />
+
           {comingSoonShops.length > 0 ? (
-            <div className="mt-12">
+            <div
+              id={settingUpSectionId}
+              className="mt-12 scroll-mt-24"
+            >
               <div className="mb-6">
                 <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
                   Coming soon
@@ -93,10 +245,27 @@ export default async function ArtisansPage() {
                 </p>
               </div>
               <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {comingSoonShops.map((shop) => (
+                {comingSoonPageShops.map((shop) => (
                   <ShopCard key={shop.id} shop={shop} />
                 ))}
               </div>
+              <SectionPagination
+                label="Artisans setting up"
+                page={comingSoonPage}
+                totalPages={comingSoonTotalPages}
+                previousHref={buildPageHref(
+                  params,
+                  "settingUpPage",
+                  comingSoonPage - 1,
+                  settingUpSectionId,
+                )}
+                nextHref={buildPageHref(
+                  params,
+                  "settingUpPage",
+                  comingSoonPage + 1,
+                  settingUpSectionId,
+                )}
+              />
             </div>
           ) : null}
         </section>

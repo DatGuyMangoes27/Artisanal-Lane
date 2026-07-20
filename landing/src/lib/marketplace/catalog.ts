@@ -39,7 +39,7 @@ type ProductQueryOptions = MarketplaceProductOptions & {
 const defaultProductLimit = 24;
 const maxProductLimit = 96;
 const defaultShopLimit = 24;
-const maxShopLimit = 96;
+const maxShopLimit = 1000;
 
 // A product is buyable when it has stock, or when it is made-to-order
 // (which stays available even at zero inventory).
