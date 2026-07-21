@@ -205,13 +205,53 @@ export async function signOutBuyerAccount() {
   redirect("/login?signedOut=1");
 }
 
-export async function deleteBuyerAccount() {
+type DeleteAccountState = {
+  error: string | null;
+};
+
+async function getDeleteAccountErrorMessage(
+  data: unknown,
+  error: unknown,
+) {
+  const payload = data as { error?: unknown } | null;
+  if (typeof payload?.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+
+  const context = (error as { context?: unknown } | null)?.context;
+  if (context instanceof Response) {
+    try {
+      const responsePayload = (await context.json()) as { error?: unknown };
+      if (
+        typeof responsePayload.error === "string" &&
+        responsePayload.error.trim()
+      ) {
+        return responsePayload.error;
+      }
+    } catch {
+      // Fall back to the generic message below when the function response is
+      // not JSON.
+    }
+  }
+
+  return "Could not delete your account. Please try again or contact support.";
+}
+
+export async function deleteBuyerAccount(
+  _previousState: DeleteAccountState,
+  _formData: FormData,
+): Promise<DeleteAccountState> {
+  void _previousState;
+  void _formData;
+
   const { supabase } = await requireUser("/account/settings");
   const { data, error } = await supabase.functions.invoke("delete-account");
-  const payload = data as { error?: string } | null;
+  const payload = data as { error?: string; success?: boolean } | null;
 
-  if (error || payload?.error) {
-    throw new Error(payload?.error ?? error?.message ?? "Could not delete your account.");
+  if (error || payload?.error || payload?.success !== true) {
+    return {
+      error: await getDeleteAccountErrorMessage(data, error),
+    };
   }
 
   await supabase.auth.signOut();

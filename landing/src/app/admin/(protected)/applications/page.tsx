@@ -58,10 +58,10 @@ export default async function AdminApplicationsPage() {
             return (
               <div
                 key={application.id}
-                className="rounded-3xl border border-artisan-clay bg-artisan-bone/35 p-5"
+                className="min-w-0 overflow-hidden rounded-3xl border border-artisan-clay bg-artisan-bone/35 p-4 sm:p-5"
               >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="space-y-3">
+                <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_11rem] xl:items-start">
+                  <div className="min-w-0 space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <h3 className="text-2xl font-semibold text-artisan-sienna">
                       {application.business_name}
@@ -69,19 +69,19 @@ export default async function AdminApplicationsPage() {
                     <StatusBadge value={displayStatus} />
                   </div>
                   <div className="grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
-                    <p>
+                    <p className="min-w-0 break-words">
                       <span className="font-medium text-artisan-sienna">Applicant:</span>{" "}
                       {applicantDisplay.name}
                     </p>
-                    <p>
+                    <p className="min-w-0 break-words">
                       <span className="font-medium text-artisan-sienna">Email:</span>{" "}
                       {applicantDisplay.email}
                     </p>
-                    <p>
+                    <p className="min-w-0 break-words">
                       <span className="font-medium text-artisan-sienna">Location:</span>{" "}
                       {application.location ?? "Not provided"}
                     </p>
-                    <p>
+                    <p className="min-w-0 break-words">
                       <span className="font-medium text-artisan-sienna">Account:</span>{" "}
                       {applicantDisplay.accountStatus}
                       {applicantDisplay.deletedAt
@@ -113,7 +113,7 @@ export default async function AdminApplicationsPage() {
                         Submitted portfolio:
                       </span>{" "}
                       <a
-                        className="font-medium text-artisan-terracotta hover:underline"
+                        className="break-all font-medium text-artisan-terracotta hover:underline"
                         href={getPortfolioHref(application.portfolio_url)}
                       >
                         {getPortfolioDisplay(application.portfolio_url)}
@@ -147,11 +147,11 @@ export default async function AdminApplicationsPage() {
                   </div>
 
                   {reviewActions.length > 0 ? (
-                    <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
+                    <div className="flex min-w-0 flex-wrap items-start gap-3 xl:flex-col xl:items-stretch">
                       {application.user_id && !applicantDisplay.deletedAt ? (
                         <Button
                           asChild
-                          className="w-full bg-artisan-sienna text-white hover:bg-artisan-sienna/90"
+                          className="w-auto max-w-full bg-artisan-sienna text-white hover:bg-artisan-sienna/90 xl:w-full"
                         >
                           <Link href={`/admin/applications/${application.user_id}/messages`}>
                             <MessageSquare className="mr-2 h-4 w-4" />
@@ -162,7 +162,8 @@ export default async function AdminApplicationsPage() {
                       {reviewActions.includes("approve") && application.user_id ? (
                         <AdminActionButtonForm
                           action={approveApplication}
-                          buttonClassName="w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90"
+                          buttonClassName="w-auto max-w-full bg-artisan-baobab text-white hover:bg-artisan-baobab/90 xl:w-full"
+                          formClassName="space-y-2"
                           hiddenFields={[
                             { name: "applicationId", value: application.id },
                             { name: "userId", value: application.user_id },
@@ -181,7 +182,8 @@ export default async function AdminApplicationsPage() {
                       {reviewActions.includes("reject") ? (
                         <AdminActionButtonForm
                           action={rejectApplication}
-                          buttonClassName="w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
+                          buttonClassName="w-auto max-w-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark xl:w-full"
+                          formClassName="space-y-2"
                           hiddenFields={[{ name: "applicationId", value: application.id }]}
                           idleContent={
                             <>
@@ -195,7 +197,8 @@ export default async function AdminApplicationsPage() {
                       {reviewActions.includes("restore") ? (
                         <AdminActionButtonForm
                           action={restoreApplication}
-                          buttonClassName="w-full border border-artisan-terracotta bg-white text-artisan-terracotta hover:bg-artisan-bone"
+                          buttonClassName="w-auto max-w-full border border-artisan-terracotta bg-white text-artisan-terracotta hover:bg-artisan-bone xl:w-full"
+                          formClassName="space-y-2"
                           hiddenFields={[{ name: "applicationId", value: application.id }]}
                           idleContent={
                             <>

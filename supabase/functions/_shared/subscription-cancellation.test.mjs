@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   getPayFastCancellationToken,
+  hasPayFastBillingReference,
   isPayFastCancellationSuccess,
 } from "./subscription-cancellation.mjs";
 
@@ -19,6 +20,32 @@ test("uses only the official PayFast token for cancellation", () => {
       payfast_subscription_id: "subscription-id-456",
     }),
     null,
+  );
+});
+
+test("distinguishes complimentary subscriptions from PayFast billing agreements", () => {
+  assert.equal(
+    hasPayFastBillingReference({
+      status: "active",
+      payfast_token: null,
+      payfast_subscription_id: null,
+      payfast_payment_id: null,
+      checkout_reference: null,
+    }),
+    false,
+  );
+  assert.equal(
+    hasPayFastBillingReference({
+      payfast_token: null,
+      payfast_subscription_id: "subscription-123",
+    }),
+    true,
+  );
+  assert.equal(
+    hasPayFastBillingReference({
+      payfast_payment_id: "payment-123",
+    }),
+    true,
   );
 });
 

@@ -166,7 +166,7 @@ export function AdminShell({
           </div>
         </aside>
 
-        <div className="flex min-h-screen flex-1 flex-col">
+        <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="mb-4 rounded-3xl border border-artisan-clay/70 bg-white/80 px-5 py-4 shadow-lg backdrop-blur lg:hidden">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -223,7 +223,7 @@ export function AdminShell({
             </div>
           </header>
 
-          <main className="flex-1">{children}</main>
+          <main className="min-w-0 flex-1">{children}</main>
         </div>
       </div>
     </div>

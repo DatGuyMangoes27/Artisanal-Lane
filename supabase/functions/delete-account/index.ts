@@ -2,7 +2,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
 import { cancelPayFastSubscription } from "../_shared/payfast.ts";
-import { getPayFastCancellationToken } from "../_shared/subscription-cancellation.mjs";
+import {
+  getPayFastCancellationToken,
+  hasPayFastBillingReference,
+} from "../_shared/subscription-cancellation.mjs";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -235,7 +238,9 @@ Deno.serve(async (request) => {
 
     const { data: subscription, error: subscriptionError } = await admin
       .from("vendor_subscriptions")
-      .select("status, payfast_token, payfast_subscription_id")
+      .select(
+        "status, payfast_token, payfast_subscription_id, payfast_payment_id, checkout_reference",
+      )
       .eq("vendor_id", user.id)
       .maybeSingle();
 
@@ -248,11 +253,12 @@ Deno.serve(async (request) => {
 
     if (subscription != null) {
       const token = getPayFastCancellationToken(subscription);
-      const statusMayStillBill = ["active", "past_due", "cancelled"].includes(
+      const statusMayStillBill = ["active", "past_due"].includes(
         subscription.status,
       );
+      const hasPayFastReference = hasPayFastBillingReference(subscription);
 
-      if (token == null && statusMayStillBill) {
+      if (token == null && statusMayStillBill && hasPayFastReference) {
         console.error("delete-account: PayFast token is missing", {
           userId: user.id,
           subscriptionStatus: subscription.status,
@@ -263,6 +269,16 @@ Deno.serve(async (request) => {
               "We could not verify your PayFast subscription token, so your account was not deleted. Please contact support.",
           },
           { status: 409 },
+        );
+      }
+
+      if (token == null && statusMayStillBill && !hasPayFastReference) {
+        console.log(
+          "delete-account: complimentary subscription has no PayFast billing agreement",
+          {
+            userId: user.id,
+            subscriptionStatus: subscription.status,
+          },
         );
       }
 

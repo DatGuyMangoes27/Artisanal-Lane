@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { deleteBuyerAccount, signOutBuyerAccount } from "@/app/account/actions";
+import { signOutBuyerAccount } from "@/app/account/actions";
+import { DeleteAccountForm } from "@/components/account/delete-account-form";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,15 +49,7 @@ export default async function BuyerSettingsPage() {
               Deleting your account is permanent and removes your login. Order and application records
               needed for marketplace history may be preserved.
             </p>
-            <form action={deleteBuyerAccount}>
-              <Button
-                type="submit"
-                variant="outline"
-                className="rounded-full border-red-200 text-red-700 hover:text-red-800"
-              >
-                Delete my account
-              </Button>
-            </form>
+            <DeleteAccountForm />
           </CardContent>
         </Card>
       </main>
