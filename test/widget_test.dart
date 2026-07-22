@@ -1583,6 +1583,21 @@ void main() {
     );
   });
 
+  test('Product option pricing does not parse an empty fallback price', () {
+    expect(
+      productSummaryPricingForSave(
+        hasOptions: true,
+        currentPriceText: '',
+        salePriceText: '',
+        firstVariantPricing: const ProductPricingValues(
+          price: 195,
+          compareAtPrice: 250,
+        ),
+      ),
+      const ProductPricingValues(price: 195, compareAtPrice: 250),
+    );
+  });
+
   test('Product form pricing loads sale values into the correct fields', () {
     expect(
       pricingFieldsFromStoredValues(price: 190, compareAtPrice: 250),

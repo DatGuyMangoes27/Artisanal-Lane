@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
@@ -71,7 +72,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Payment failed: $e',
+              'Payment failed: ${_checkoutErrorMessage(e)}',
               style: GoogleFonts.poppins(color: Colors.white),
             ),
             backgroundColor: AppTheme.error,
@@ -83,6 +84,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         );
       }
     }
+  }
+
+  /// Turns a checkout failure into a message the buyer can act on. The
+  /// `create-checkout` edge function throws [FunctionException] for any
+  /// non-2xx response with the real reason in `details['error']` (e.g. the
+  /// artisan's subscription/payout setup, cart/stock issues). Surface that
+  /// instead of the raw "FunctionException(status: …)" string.
+  String _checkoutErrorMessage(Object error) {
+    if (error is FunctionException) {
+      final details = error.details;
+      final serverMessage = details is Map && details['error'] != null
+          ? details['error'].toString()
+          : null;
+      if (serverMessage != null && serverMessage.trim().isNotEmpty) {
+        return serverMessage;
+      }
+      return 'We could not start your payment (code ${error.status}). '
+          'Please try again shortly.';
+    }
+    return error.toString();
   }
 
   @override

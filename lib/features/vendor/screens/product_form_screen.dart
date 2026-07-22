@@ -98,6 +98,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return null;
   }
 
+  String? _optionalPriceValidator(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    if (tryParseProductPriceText(value) == null) return 'Invalid';
+    return null;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -908,12 +914,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       final List<Map<String, dynamic>> variantPayloads;
       final List<Map<String, dynamic>> optionGroups;
       final List<String> coverImages;
-      final double fallbackPrice;
+      final ProductPricingValues summaryPricing;
       final int fallbackStock;
-      final formPricing = normalizeProductPricingForSave(
-        currentPriceText: _priceController.text.trim(),
-        salePriceText: _compareAtPriceController.text.trim(),
-      );
 
       if (_hasOptions) {
         final optionOneName = _optionOneNameController.text.trim();
@@ -970,11 +972,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         coverImages = _imageUrls.isNotEmpty
             ? _imageUrls
             : List<String>.from(variantPayloads.first['images'] as List);
-        fallbackPrice =
-            (_priceController.text.trim().isNotEmpty
-                ? tryParseProductPriceText(_priceController.text)
-                : null) ??
-            (variantPayloads.first['price'] as double);
+        summaryPricing = productSummaryPricingForSave(
+          hasOptions: true,
+          currentPriceText: _priceController.text,
+          salePriceText: _compareAtPriceController.text,
+          firstVariantPricing: ProductPricingValues(
+            price: (variantPayloads.first['price'] as num).toDouble(),
+            compareAtPrice: (variantPayloads.first['compare_at_price'] as num?)
+                ?.toDouble(),
+          ),
+        );
         fallbackStock =
             (_stockController.text.trim().isNotEmpty
                 ? int.tryParse(_stockController.text.trim())
@@ -985,17 +992,21 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   sum + int.parse(variant.stockController.text.trim()),
             );
       } else {
+        summaryPricing = productSummaryPricingForSave(
+          hasOptions: false,
+          currentPriceText: _priceController.text.trim(),
+          salePriceText: _compareAtPriceController.text.trim(),
+        );
         variantPayloads = const <Map<String, dynamic>>[];
         optionGroups = const <Map<String, dynamic>>[];
         coverImages = List<String>.from(_imageUrls);
-        fallbackPrice = formPricing.price;
         fallbackStock = int.parse(_stockController.text.trim());
       }
 
       final data = {
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
-        'price': fallbackPrice,
+        'price': summaryPricing.price,
         'stock_qty': fallbackStock,
         'is_published': _isPublished,
         'images': coverImages,
@@ -1007,7 +1018,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'variants': variantPayloads,
         if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
         'subcategory_id': _selectedSubcategoryId,
-        'compare_at_price': formPricing.compareAtPrice,
+        'compare_at_price': summaryPricing.compareAtPrice,
         if (_careController.text.trim().isNotEmpty)
           'care_instructions': _careController.text.trim(),
         'fragrance_description': _fragranceController.text.trim().isNotEmpty
@@ -1823,6 +1834,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                         controller: _compareAtPriceController,
                         keyboardType: _priceKeyboard,
                         inputFormatters: _priceInputFormatters,
+                        validator: _optionalPriceValidator,
                         onChanged: (_) => setState(() {}),
                         decoration: const InputDecoration(
                           hintText: 'Optional discounted price',
@@ -2544,6 +2556,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                       controller: variant.compareAtPriceController,
                       keyboardType: _priceKeyboard,
                       inputFormatters: _priceInputFormatters,
+                      validator: _optionalPriceValidator,
                       onChanged: (_) => setState(() {}),
                       decoration: const InputDecoration(
                         hintText: 'Optional discounted price',
