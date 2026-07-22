@@ -186,7 +186,7 @@ final curatedCollectionProductsProvider = FutureProvider<List<Product>>((
   ref,
 ) async {
   final service = ref.read(supabaseServiceProvider);
-  return service.getFeaturedProducts(limit: 60);
+  return service.getAllProducts(featured: true, sortBy: 'featured_at');
 });
 
 final onSaleProductsProvider = FutureProvider<List<Product>>((ref) async {
@@ -257,7 +257,7 @@ final categoryProductsProvider =
       filter,
     ) async {
       final service = ref.read(supabaseServiceProvider);
-      return service.getProducts(
+      return service.getAllProducts(
         // An empty categoryId means "shop all": no category filter.
         categoryId: filter.categoryId.isEmpty ? null : filter.categoryId,
         subcategoryId: filter.subcategoryId,
@@ -266,11 +266,6 @@ final categoryProductsProvider =
         featured: filter.featured ? true : null,
         sortBy: filter.sortBy,
         ascending: filter.ascending,
-        // Ceiling, not a page size: the grid filters + sorts this list
-        // client-side, so it must load the full buyer-visible catalogue in one
-        // query (≈94 today). Bump this if the catalogue approaches it; the
-        // durable fix beyond that is server-side filter/sort + pagination.
-        limit: 250,
       );
     });
 
@@ -279,7 +274,7 @@ final shopProductsProvider = FutureProvider.family<List<Product>, String>((
   shopId,
 ) async {
   final service = ref.read(supabaseServiceProvider);
-  return service.getProducts(shopId: shopId);
+  return service.getAllProducts(shopId: shopId);
 });
 
 final productDetailProvider = FutureProvider.family<Product, String>((

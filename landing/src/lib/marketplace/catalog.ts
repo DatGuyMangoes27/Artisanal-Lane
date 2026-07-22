@@ -38,6 +38,7 @@ type ProductQueryOptions = MarketplaceProductOptions & {
 
 const defaultProductLimit = 24;
 const maxProductLimit = 96;
+const allProductsPageSize = maxProductLimit;
 const defaultShopLimit = 24;
 const maxShopLimit = 1000;
 
@@ -530,6 +531,10 @@ async function loadProducts(options: ProductQueryOptions = {}) {
       break;
   }
 
+  // Keep range-based pagination stable when multiple products share the same
+  // primary sort value.
+  query = query.order("id", { ascending: true });
+
   const limit = boundedLimit(options.limit, defaultProductLimit, maxProductLimit);
   const offset = Math.max(Math.trunc(options.offset ?? 0), 0);
   const { data, error } = offset > 0
@@ -645,11 +650,32 @@ export async function getMarketplaceProductsByIds(
 }
 
 export async function getMarketplaceProductsForShop(shopId: string, limit?: number) {
-  return loadProducts({
-    sort: "newest",
-    limit: boundedLimit(limit, defaultProductLimit, maxProductLimit),
-    shopId,
-  });
+  if (limit != null) {
+    return loadProducts({
+      sort: "newest",
+      limit: boundedLimit(limit, defaultProductLimit, maxProductLimit),
+      shopId,
+    });
+  }
+
+  const products: MarketplaceProduct[] = [];
+  let offset = 0;
+
+  while (true) {
+    const page = await loadProducts({
+      sort: "newest",
+      limit: allProductsPageSize,
+      offset,
+      shopId,
+    });
+    products.push(...page);
+
+    if (page.length < allProductsPageSize) {
+      return products;
+    }
+
+    offset += page.length;
+  }
 }
 
 export async function getMarketplaceCategories() {
@@ -808,7 +834,7 @@ export async function getMarketplaceShop(shopIdOrSlug: string) {
   }
 
   const shop = data as ShopRow;
-  const products = await getMarketplaceProductsForShop(shop.id, 48);
+  const products = await getMarketplaceProductsForShop(shop.id);
 
   return mapShop(shop, products);
 }

@@ -71,6 +71,25 @@ ProductPricingValues normalizeProductPricingForSave({
   return ProductPricingValues(price: livePrice, compareAtPrice: originalPrice);
 }
 
+ProductPricingValues productSummaryPricingForSave({
+  required bool hasOptions,
+  required String currentPriceText,
+  required String salePriceText,
+  ProductPricingValues? firstVariantPricing,
+}) {
+  if (hasOptions) {
+    if (firstVariantPricing == null) {
+      throw ArgumentError('Variant pricing is required for option products.');
+    }
+    return firstVariantPricing;
+  }
+
+  return normalizeProductPricingForSave(
+    currentPriceText: currentPriceText,
+    salePriceText: salePriceText,
+  );
+}
+
 double parseProductPriceText(String value) {
   return double.parse(value.trim().replaceAll(',', '.'));
 }

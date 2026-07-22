@@ -267,7 +267,44 @@ describe("marketplace catalog helpers", () => {
       "or",
       "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
     ]);
-    expect(supabase.queries[1].calls).toContainEqual(["limit", 48]);
+    expect(supabase.queries[1].calls).toContainEqual(["limit", 96]);
+  });
+
+  it("loads every public shop product across multiple response pages", async () => {
+    const shopRow = {
+      id: "shop-1",
+      name: "Artisan Shop",
+      slug: "artisan-shop",
+      bio: "Bio",
+      brand_story: "Story",
+      cover_image_url: "cover.jpg",
+      logo_url: null,
+      location: "Cape Town",
+      shipping_options: [],
+      is_offline: false,
+      is_active: true,
+    };
+    const firstPage = Array.from({ length: 96 }, (_, index) => ({
+      ...productRow,
+      id: `product-${index + 1}`,
+    }));
+    const secondPage = Array.from({ length: 5 }, (_, index) => ({
+      ...productRow,
+      id: `product-${index + 97}`,
+    }));
+    const supabase = createSupabaseMock([
+      { data: shopRow, error: null },
+      { data: firstPage, error: null },
+      { data: secondPage, error: null },
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    const shop = await getMarketplaceShop("artisan-shop");
+
+    expect(shop?.products).toHaveLength(101);
+    expect(shop?.productCount).toBe(101);
+    expect(supabase.queries[1].calls).toContainEqual(["limit", 96]);
+    expect(supabase.queries[2].calls).toContainEqual(["range", 96, 191]);
   });
 
   it("loads public products by id for guest cart hydration", async () => {

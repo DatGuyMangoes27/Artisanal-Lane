@@ -1278,9 +1278,53 @@ class SupabaseService {
 
     final data = await query
         .order(sortBy, ascending: ascending)
+        .order('id', ascending: true)
         .range(offset, offset + limit - 1);
 
     return (data as List).map((e) => Product.fromJson(e)).toList();
+  }
+
+  /// Loads every buyer-visible product matching the supplied filters.
+  ///
+  /// PostgREST responses are intentionally paged so this remains reliable
+  /// when a shop or collection grows beyond a single response limit.
+  Future<List<Product>> getAllProducts({
+    String? categoryId,
+    String? subcategoryId,
+    String? shopId,
+    String? search,
+    List<String>? tags,
+    bool? onSale,
+    bool? featured,
+    String sortBy = 'created_at',
+    bool ascending = false,
+  }) async {
+    const pageSize = 100;
+    final products = <Product>[];
+    var offset = 0;
+
+    while (true) {
+      final page = await getProducts(
+        categoryId: categoryId,
+        subcategoryId: subcategoryId,
+        shopId: shopId,
+        search: search,
+        tags: tags,
+        onSale: onSale,
+        featured: featured,
+        sortBy: sortBy,
+        ascending: ascending,
+        limit: pageSize,
+        offset: offset,
+      );
+      products.addAll(page);
+
+      if (page.length < pageSize) {
+        return products;
+      }
+
+      offset += page.length;
+    }
   }
 
   Future<List<Product>> getFeaturedProducts({int limit = 10}) async {
