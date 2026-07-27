@@ -4,6 +4,7 @@ import {
   getLearningEmbedUrl,
   getSpotifyEmbedUrl,
   getYouTubeEmbedUrl,
+  isDirectVideoUrl,
 } from "./learning-embed";
 
 describe("learning embed helpers", () => {
@@ -32,5 +33,15 @@ describe("learning embed helpers", () => {
     expect(getYouTubeEmbedUrl("https://example.com/video")).toBeNull();
     expect(getSpotifyEmbedUrl("not a url")).toBeNull();
     expect(getLearningEmbedUrl("https://example.com/article")).toBeNull();
+  });
+
+  it("recognises direct video files even when the URL has query parameters", () => {
+    expect(
+      isDirectVideoUrl(
+        "https://example.supabase.co/storage/v1/object/public/videos/tutorial.mp4?version=2",
+      ),
+    ).toBe(true);
+    expect(isDirectVideoUrl("https://youtu.be/abc123")).toBe(false);
+    expect(isDirectVideoUrl("not a url")).toBe(false);
   });
 });

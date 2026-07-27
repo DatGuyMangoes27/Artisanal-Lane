@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Headphones, PlayCircle, BookOpen, ArrowUpRight } from "lucide-react";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import { LearningVideoModal } from "@/components/marketplace/learning-video-modal";
 import { getPublishedLearningResources, type LearningResource, type LearningResourceType } from "@/lib/learning";
 import { requireVendorSession } from "@/lib/marketplace/vendor-data";
 import { getLearningEmbedUrl } from "@/lib/learning-embed";
@@ -31,13 +32,8 @@ const sectionOrder: { type: LearningResourceType; title: string; blurb: string }
 function ResourceCard({ resource }: { resource: LearningResource }) {
   const meta = typeMeta[resource.type];
   const { Icon } = meta;
-  return (
-    <a
-      href={resource.contentUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex flex-col overflow-hidden rounded-3xl border border-artisan-clay bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-    >
+  const cardContent = (
+    <>
       <div className="relative aspect-video overflow-hidden bg-secondary">
         {resource.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -71,6 +67,32 @@ function ResourceCard({ resource }: { resource: LearningResource }) {
           </span>
         </div>
       </div>
+    </>
+  );
+  const cardClassName =
+    "group flex flex-col overflow-hidden rounded-3xl border border-artisan-clay bg-card shadow-sm transition hover:-translate-y-1 hover:shadow-md";
+
+  if (resource.type === "video") {
+    return (
+      <LearningVideoModal
+        title={resource.title}
+        url={resource.contentUrl}
+        thumbnailUrl={resource.thumbnailUrl}
+        className={cardClassName}
+      >
+        {cardContent}
+      </LearningVideoModal>
+    );
+  }
+
+  return (
+    <a
+      href={resource.contentUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cardClassName}
+    >
+      {cardContent}
     </a>
   );
 }
@@ -116,15 +138,27 @@ function FeaturedResource({ resource }: { resource: LearningResource }) {
         <span className="text-xs text-muted-foreground">
           {[resource.author, resource.durationLabel].filter(Boolean).join(" \u00b7 ")}
         </span>
-        <a
-          href={resource.contentUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 flex w-fit items-center gap-1.5 rounded-full bg-artisan-terracotta px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-artisan-terracotta/90"
-        >
-          {meta.action}
-          <ArrowUpRight className="h-4 w-4" />
-        </a>
+        {resource.type === "video" ? (
+          <LearningVideoModal
+            title={resource.title}
+            url={resource.contentUrl}
+            thumbnailUrl={resource.thumbnailUrl}
+            className="mt-1 flex w-fit items-center gap-1.5 rounded-full bg-artisan-terracotta px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-artisan-terracotta/90"
+          >
+            {meta.action}
+            <PlayCircle className="h-4 w-4" />
+          </LearningVideoModal>
+        ) : (
+          <a
+            href={resource.contentUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex w-fit items-center gap-1.5 rounded-full bg-artisan-terracotta px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-artisan-terracotta/90"
+          >
+            {meta.action}
+            <ArrowUpRight className="h-4 w-4" />
+          </a>
+        )}
       </div>
     </div>
   );

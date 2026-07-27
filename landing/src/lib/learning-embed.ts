@@ -52,3 +52,12 @@ export function getSpotifyEmbedUrl(url: string): string | null {
 export function getLearningEmbedUrl(url: string): string | null {
   return getYouTubeEmbedUrl(url) ?? getSpotifyEmbedUrl(url);
 }
+
+export function isDirectVideoUrl(url: string): boolean {
+  try {
+    const pathname = new URL(url).pathname.toLowerCase();
+    return /\.(mp4|webm|ogv|ogg|mov|m4v)$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
