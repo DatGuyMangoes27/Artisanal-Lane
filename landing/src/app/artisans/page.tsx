@@ -109,7 +109,9 @@ export default async function ArtisansPage({
   const params = await searchParams;
   const shops = await getMarketplaceShops(1000);
   const activeShops = shops.filter((shop) => shop.productCount > 0);
-  const comingSoonShops = shops.filter((shop) => shop.productCount === 0);
+  const comingSoonShops = shops
+    .filter((shop) => shop.productCount === 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
   const activeTotalPages = Math.max(
     1,
     Math.ceil(activeShops.length / artisansPerPage),
