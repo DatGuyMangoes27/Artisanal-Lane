@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Headphones, PlayCircle, BookOpen, ArrowUpRight } from "lucide-react";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import { LearningTutorialBrowser } from "@/components/marketplace/learning-tutorial-browser";
 import { LearningVideoModal } from "@/components/marketplace/learning-video-modal";
 import { getPublishedLearningResources, type LearningResource, type LearningResourceType } from "@/lib/learning";
 import { requireVendorSession } from "@/lib/marketplace/vendor-data";
@@ -25,7 +26,6 @@ const typeMeta: Record<
 
 const sectionOrder: { type: LearningResourceType; title: string; blurb: string }[] = [
   { type: "podcast", title: "Podcasts", blurb: "Conversations and stories from the craft world." },
-  { type: "video", title: "Video tutorials", blurb: "Watch and learn new skills and techniques." },
   { type: "article", title: "Articles & guides", blurb: "Business-learning reads to grow your craft." },
 ];
 
@@ -174,7 +174,10 @@ export default async function LearnPage() {
   }
 
   const resources = await getPublishedLearningResources();
-  const featured = resources.filter((item) => item.isFeatured).slice(0, 2);
+  const videos = resources.filter((item) => item.type === "video");
+  const featured = resources
+    .filter((item) => item.isFeatured && item.type !== "video")
+    .slice(0, 2);
 
   return (
     <div className="min-h-screen bg-background">
@@ -206,6 +209,8 @@ export default async function LearnPage() {
             ))}
           </section>
         ) : null}
+
+        {videos.length > 0 ? <LearningTutorialBrowser resources={videos} /> : null}
 
         {sectionOrder.map(({ type, title, blurb }) => {
           const items = resources.filter((resource) => resource.type === type);
