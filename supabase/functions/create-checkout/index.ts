@@ -27,6 +27,21 @@ function firstNonEmptyString(...values: Array<unknown>) {
   return null;
 }
 
+function errorMessage(error: unknown, fallback = "Checkout failed.") {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  if (
+    typeof error === "object" && error != null && "message" in error &&
+    typeof error.message === "string" && error.message.trim().length > 0
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 Deno.serve(async (request) => {
   try {
     if (request.method === "OPTIONS") {
@@ -481,84 +496,98 @@ Deno.serve(async (request) => {
     const orderId = orderRow.id as string;
     const paymentReference = `order-${orderId}`;
 
-    const { error: orderItemsError } = await admin.from("order_items").insert(
-      items.map((item) => ({
-        order_id: orderId,
-        product_id: item.productId,
-        variant_id: item.variantId,
-        variant_name: item.variant?.display_name ?? item.variant?.color_name ?? null,
-        variant_image:
-          item.variant?.images && item.variant.images.length > 0
-            ? item.variant.images[0]
+    try {
+      const { error: orderItemsError } = await admin.from("order_items").insert(
+        items.map((item) => ({
+          order_id: orderId,
+          product_id: item.productId,
+          variant_id: item.variantId,
+          variant_name: item.variant?.display_name ?? item.variant?.color_name ??
+            null,
+          variant_image:
+            item.variant?.images && item.variant.images.length > 0
+              ? item.variant.images[0]
+              : null,
+          quantity: item.quantity,
+          unit_price: unitPriceFor(item),
+          is_made_to_order: item.isMadeToOrder,
+          custom_note: item.isMadeToOrder ? item.customNote : null,
+          lead_time_min_days: item.isMadeToOrder
+            ? item.product.made_to_order_lead_min_days
             : null,
-        quantity: item.quantity,
-        unit_price: unitPriceFor(item),
-        is_made_to_order: item.isMadeToOrder,
-        custom_note: item.isMadeToOrder ? item.customNote : null,
-        lead_time_min_days: item.isMadeToOrder
-          ? item.product.made_to_order_lead_min_days
-          : null,
-        lead_time_max_days: item.isMadeToOrder
-          ? item.product.made_to_order_lead_max_days
-          : null,
-      })),
-    );
-
-    if (orderItemsError) {
-      throw orderItemsError;
-    }
-
-    if (reservationToken != null) {
-      const { error: consumeReservationError } = await admin.rpc(
-        "consume_product_reservations",
-        {
-          reservation_token_input: reservationToken,
-          order_id_input: orderId,
-        },
+          lead_time_max_days: item.isMadeToOrder
+            ? item.product.made_to_order_lead_max_days
+            : null,
+        })),
       );
 
-      if (consumeReservationError) {
-        throw consumeReservationError;
+      if (orderItemsError) {
+        throw orderItemsError;
       }
-    } else {
-      for (const item of items) {
-        // Made-to-order lines never decrement stock.
-        if (item.isMadeToOrder) {
-          continue;
+
+      const hasReservableItems = items.some((item) => !item.isMadeToOrder);
+      if (reservationToken != null && hasReservableItems) {
+        const { error: consumeReservationError } = await admin.rpc(
+          "consume_product_reservations",
+          {
+            reservation_token_input: reservationToken,
+            order_id_input: orderId,
+          },
+        );
+
+        if (consumeReservationError) {
+          throw consumeReservationError;
         }
+      } else if (reservationToken == null) {
+        for (const item of items) {
+          // Made-to-order lines never decrement stock.
+          if (item.isMadeToOrder) {
+            continue;
+          }
 
-        const { error: decrementError } = item.variantId
-          ? await admin.rpc("decrement_variant_stock", {
-            variant_id_input: item.variantId,
-            qty_input: item.quantity,
-          })
-          : await admin.rpc("decrement_product_stock", {
-            product_id_input: item.productId,
-            qty_input: item.quantity,
-          });
+          const { error: decrementError } = item.variantId
+            ? await admin.rpc("decrement_variant_stock", {
+              variant_id_input: item.variantId,
+              qty_input: item.quantity,
+            })
+            : await admin.rpc("decrement_product_stock", {
+              product_id_input: item.productId,
+              qty_input: item.quantity,
+            });
 
-        if (decrementError) {
-          // The unit was claimed by a concurrent checkout between the
-          // availability check above and this atomic decrement. Roll back the
-          // half-created order (order_items cascade) so the stale-checkout
-          // cleanup can never "restore" stock that was never taken, and so we
-          // never oversell or leave the item showing as in stock after a sale.
-          console.log(
-            `[checkout-debug] stock decrement failed orderId=${orderId} productId=${item.productId} variantId=${item.variantId ?? "none"} error=${decrementError.message}`,
-          );
-          await admin.from("orders").delete().eq("id", orderId);
-          return jsonResponse(
-            {
-              error: `${
-                item.variant?.display_name ??
-                  item.variant?.color_name ??
-                  item.product.title
-              } is low on stock. Please update your basket and try again.`,
-            },
-            { status: 400 },
-          );
+          if (decrementError) {
+            // The unit was claimed by a concurrent checkout between the
+            // availability check above and this atomic decrement. Roll back the
+            // half-created order (order_items cascade) so the stale-checkout
+            // cleanup can never "restore" stock that was never taken, and so we
+            // never oversell or leave the item showing as in stock after a sale.
+            console.log(
+              `[checkout-debug] stock decrement failed orderId=${orderId} productId=${item.productId} variantId=${item.variantId ?? "none"} error=${decrementError.message}`,
+            );
+            await admin.from("orders").delete().eq("id", orderId);
+            return jsonResponse(
+              {
+                error: `${
+                  item.variant?.display_name ??
+                    item.variant?.color_name ??
+                    item.product.title
+                } is low on stock. Please update your basket and try again.`,
+              },
+              { status: 400 },
+            );
+          }
         }
       }
+    } catch (error) {
+      const failureMessage = errorMessage(error);
+      const { error: rollbackError } = await admin
+        .from("orders")
+        .delete()
+        .eq("id", orderId);
+      console.log(
+        `[checkout-debug] checkout setup rollback orderId=${orderId} cause=${failureMessage} rollbackError=${rollbackError?.message ?? "none"}`,
+      );
+      throw new Error(failureMessage);
     }
 
     const transaction = await createTradeSafeTransaction({
@@ -604,12 +633,13 @@ Deno.serve(async (request) => {
       transactionId: transaction.transactionId,
     });
   } catch (error) {
+    const failureMessage = errorMessage(error);
     console.log(
-      `[checkout-debug] create-checkout fatal error ${error instanceof Error ? error.message : String(error)}`,
+      `[checkout-debug] create-checkout fatal error ${failureMessage}`,
     );
     return jsonResponse(
       {
-        error: error instanceof Error ? error.message : "Checkout failed.",
+        error: failureMessage,
       },
       { status: 500 },
     );
