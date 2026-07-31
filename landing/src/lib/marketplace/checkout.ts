@@ -153,7 +153,7 @@ export function getAvailableShippingOptionsForCart(lines: CartLine[]) {
 }
 
 export function calculateShippingTotal(lines: CartLine[], methodKey: string) {
-  return lines.reduce((total, line) => {
+  return lines.reduce((highestPrice, line) => {
     const option = line.shippingOptions.find(
       (candidate) => candidate.key === methodKey && candidate.enabled,
     );
@@ -162,7 +162,7 @@ export function calculateShippingTotal(lines: CartLine[], methodKey: string) {
       throw new Error(`Shipping method ${methodKey} is not available.`);
     }
 
-    return total + option.price * line.quantity;
+    return Math.max(highestPrice, option.price);
   }, 0);
 }
 

@@ -42,6 +42,43 @@ function errorMessage(error: unknown, fallback = "Checkout failed.") {
   return fallback;
 }
 
+type ProductShippingOption = {
+  key?: unknown;
+  enabled?: unknown;
+  price?: unknown;
+};
+
+function calculateShopShippingCost(
+  items: Array<{ product: { shipping_options: unknown } }>,
+  methodKey: string,
+) {
+  let highestPrice = 0;
+
+  for (const item of items) {
+    if (!Array.isArray(item.product.shipping_options)) {
+      throw new Error(
+        `Shipping method ${methodKey} is not available for every product.`,
+      );
+    }
+
+    const option = (item.product.shipping_options as ProductShippingOption[])
+      .find((candidate) =>
+        candidate.key === methodKey && candidate.enabled !== false
+      );
+    const price = Number(option?.price);
+
+    if (!option || !Number.isFinite(price) || price < 0) {
+      throw new Error(
+        `Shipping method ${methodKey} is not available for every product.`,
+      );
+    }
+
+    highestPrice = Math.max(highestPrice, price);
+  }
+
+  return highestPrice;
+}
+
 Deno.serve(async (request) => {
   try {
     if (request.method === "OPTIONS") {
@@ -138,7 +175,7 @@ Deno.serve(async (request) => {
     const { data: cartItems, error: cartError } = await admin
       .from("cart_items")
       .select(
-        "id, product_id, variant_id, quantity, is_made_to_order, custom_note, products(id, title, price, shop_id, stock_qty, fulfillment_mode, made_to_order_price, made_to_order_lead_min_days, made_to_order_lead_max_days, made_to_order_capacity), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
+        "id, product_id, variant_id, quantity, is_made_to_order, custom_note, products(id, title, price, shop_id, stock_qty, fulfillment_mode, made_to_order_price, made_to_order_lead_min_days, made_to_order_lead_max_days, made_to_order_capacity, shipping_options), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
       )
       .eq("cart_id", cartRow.id);
 
@@ -168,6 +205,7 @@ Deno.serve(async (request) => {
         made_to_order_lead_min_days: number | null;
         made_to_order_lead_max_days: number | null;
         made_to_order_capacity: number | null;
+        shipping_options: unknown;
       },
       variant: item.product_variants as
         | {
@@ -194,7 +232,32 @@ Deno.serve(async (request) => {
     }
 
     const shopId = Array.from(shopIds)[0];
-    const shippingCost = Number(body.shippingCost ?? 0);
+    const shippingMethod = firstNonEmptyString(body.shippingMethod);
+    if (shippingMethod == null) {
+      return jsonResponse(
+        { error: "Please select a shipping method." },
+        { status: 400 },
+      );
+    }
+
+    let shippingCost: number;
+    try {
+      shippingCost = calculateShopShippingCost(items, shippingMethod);
+    } catch (error) {
+      return jsonResponse(
+        { error: errorMessage(error, "The selected shipping method is unavailable.") },
+        { status: 400 },
+      );
+    }
+    const clientShippingCost = Number(body.shippingCost ?? 0);
+    if (
+      Number.isFinite(clientShippingCost) &&
+      Math.abs(clientShippingCost - shippingCost) > 0.009
+    ) {
+      console.log(
+        `[checkout-debug] corrected client shipping cost client=${clientShippingCost} server=${shippingCost}`,
+      );
+    }
     const giftFee = body.isGift === true ? GIFT_SERVICE_FEE : 0;
     // Made-to-order lines use the product MTO price override when set,
     // otherwise the normal variant/product price.
@@ -474,7 +537,7 @@ Deno.serve(async (request) => {
         status: "pending",
         total: subtotal,
         shipping_cost: shippingCost,
-        shipping_method: body.shippingMethod as string | null,
+        shipping_method: shippingMethod,
         shipping_address: shippingAddress,
         is_gift: body.isGift === true,
         gift_recipient: body.giftRecipient as string | null,

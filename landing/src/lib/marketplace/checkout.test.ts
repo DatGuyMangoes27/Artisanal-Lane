@@ -165,7 +165,7 @@ describe("marketplace checkout helpers", () => {
     );
   });
 
-  it("uses shipping methods shared by all cart products and totals per quantity", () => {
+  it("charges a shared shipping method once per shop", () => {
     const lines = buildCartLines(
       [
         { key: "product-1", productId: "product-1", variantId: null, quantity: 2 },
@@ -186,7 +186,7 @@ describe("marketplace checkout helpers", () => {
     expect(getAvailableShippingOptionsForCart(lines).map((option) => option.key)).toEqual([
       "courier_guy",
     ]);
-    expect(calculateShippingTotal(lines, "courier_guy")).toBe(218);
+    expect(calculateShippingTotal(lines, "courier_guy")).toBe(80);
   });
 
   it("knows which shipping methods need address or pickup details", () => {

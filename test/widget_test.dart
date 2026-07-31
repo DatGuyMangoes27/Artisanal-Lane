@@ -2165,17 +2165,16 @@ void main() {
     },
   );
 
-  test('Product shipping checkout totals selected shipping per cart item', () {
+  test('Product shipping checkout charges selected shipping once per shop', () {
     final total = calculateProductShippingTotal(
       methodKey: 'courier_guy',
-      itemQuantities: const [2, 1],
       productShippingOptions: const [
         [ShippingOption(key: 'courier_guy', enabled: true, price: 80)],
         [ShippingOption(key: 'courier_guy', enabled: true, price: 50)],
       ],
     );
 
-    expect(total, 210);
+    expect(total, 80);
   });
 
   test('Product parses product-level shipping options', () {

@@ -102,15 +102,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   double _selectedShippingCost({
-    required List<CartItem> items,
     required List<List<ShippingOption>> productShippingOptions,
   }) {
     if (_selectedShipping == null) return 0;
     return calculateProductShippingTotal(
       methodKey: _selectedShipping!,
-      itemQuantities: items
-          .map((item) => item.quantity)
-          .toList(growable: false),
       productShippingOptions: productShippingOptions,
     );
   }
@@ -549,7 +545,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           );
           final giftFee = giftFeeForSelection(isGift: isGift);
           final shippingCost = _selectedShippingCost(
-            items: items,
             productShippingOptions: productShippingOptions,
           );
           final total = calculateCheckoutTotal(
