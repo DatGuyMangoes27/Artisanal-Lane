@@ -40,6 +40,7 @@ function product(overrides: Partial<MarketplaceProduct> = {}): MarketplaceProduc
       logoUrl: null,
       location: "Western Cape",
       isOffline: false,
+      combinedShippingEnabled: true,
     },
     category: null,
     subcategory: null,
@@ -187,6 +188,45 @@ describe("marketplace checkout helpers", () => {
       "courier_guy",
     ]);
     expect(calculateShippingTotal(lines, "courier_guy")).toBe(80);
+  });
+
+  it("charges shipping per item when the seller turns combined shipping off", () => {
+    const lines = buildCartLines(
+      [
+        { key: "product-1", productId: "product-1", variantId: null, quantity: 2 },
+        { key: "product-2", productId: "product-2", variantId: null, quantity: 1 },
+      ],
+      [
+        product({
+          shop: {
+            id: "shop-1",
+            name: "StellieScent",
+            slug: "stelliescent",
+            logoUrl: null,
+            location: "Western Cape",
+            isOffline: false,
+            combinedShippingEnabled: false,
+          },
+        }),
+        product({
+          id: "product-2",
+          shop: {
+            id: "shop-1",
+            name: "StellieScent",
+            slug: "stelliescent",
+            logoUrl: null,
+            location: "Western Cape",
+            isOffline: false,
+            combinedShippingEnabled: false,
+          },
+          shippingOptions: [
+            { key: "courier_guy", enabled: true, price: 80, marketName: null, marketLocation: null, marketProvince: null },
+          ],
+        }),
+      ],
+    );
+
+    expect(calculateShippingTotal(lines, "courier_guy")).toBe(218);
   });
 
   it("knows which shipping methods need address or pickup details", () => {

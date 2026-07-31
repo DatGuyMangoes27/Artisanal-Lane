@@ -16,6 +16,7 @@ class Shop {
   final DateTime? backToWorkDate;
   final DateTime? spotlightedAt;
   final List<ShippingOption> shippingOptions;
+  final bool combinedShippingEnabled;
   final DateTime createdAt;
   final DateTime updatedAt;
   final int? productCount;
@@ -40,6 +41,7 @@ class Shop {
     this.backToWorkDate,
     this.spotlightedAt,
     List<ShippingOption>? shippingOptions,
+    this.combinedShippingEnabled = true,
     required this.createdAt,
     required this.updatedAt,
     this.productCount,
@@ -69,6 +71,8 @@ class Shop {
           ? DateTime.parse(json['spotlighted_at'] as String)
           : null,
       shippingOptions: ShippingOption.listFromJson(json['shipping_options']),
+      combinedShippingEnabled:
+          json['combined_shipping_enabled'] as bool? ?? true,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       productCount: json['product_count'] as int?,
@@ -82,20 +86,21 @@ class Shop {
       shippingOptions.where((o) => o.enabled).toList();
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'vendor_id': vendorId,
-        'name': name,
-        'slug': slug,
-        'bio': bio,
-        'brand_story': brandStory,
-        'cover_image_url': coverImageUrl,
-        'logo_url': logoUrl,
-        'location': location,
-        'is_active': isActive,
-        'is_offline': isOffline,
-        'is_spotlight': isSpotlight,
-        'spotlighted_at': spotlightedAt?.toIso8601String(),
-        'back_to_work_date': backToWorkDate?.toIso8601String().split('T').first,
-        'shipping_options': shippingOptions.map((o) => o.toJson()).toList(),
-      };
+    'id': id,
+    'vendor_id': vendorId,
+    'name': name,
+    'slug': slug,
+    'bio': bio,
+    'brand_story': brandStory,
+    'cover_image_url': coverImageUrl,
+    'logo_url': logoUrl,
+    'location': location,
+    'is_active': isActive,
+    'is_offline': isOffline,
+    'is_spotlight': isSpotlight,
+    'spotlighted_at': spotlightedAt?.toIso8601String(),
+    'back_to_work_date': backToWorkDate?.toIso8601String().split('T').first,
+    'shipping_options': shippingOptions.map((o) => o.toJson()).toList(),
+    'combined_shipping_enabled': combinedShippingEnabled,
+  };
 }

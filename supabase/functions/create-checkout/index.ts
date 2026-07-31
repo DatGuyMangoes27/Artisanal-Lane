@@ -49,10 +49,14 @@ type ProductShippingOption = {
 };
 
 function calculateShopShippingCost(
-  items: Array<{ product: { shipping_options: unknown } }>,
+  items: Array<{
+    quantity: number;
+    product: { shipping_options: unknown };
+  }>,
   methodKey: string,
+  combinedShippingEnabled: boolean,
 ) {
-  let highestPrice = 0;
+  let total = 0;
 
   for (const item of items) {
     if (!Array.isArray(item.product.shipping_options)) {
@@ -73,10 +77,12 @@ function calculateShopShippingCost(
       );
     }
 
-    highestPrice = Math.max(highestPrice, price);
+    total = combinedShippingEnabled
+      ? Math.max(total, price)
+      : total + price * item.quantity;
   }
 
-  return highestPrice;
+  return total;
 }
 
 Deno.serve(async (request) => {
@@ -175,7 +181,7 @@ Deno.serve(async (request) => {
     const { data: cartItems, error: cartError } = await admin
       .from("cart_items")
       .select(
-        "id, product_id, variant_id, quantity, is_made_to_order, custom_note, products(id, title, price, shop_id, stock_qty, fulfillment_mode, made_to_order_price, made_to_order_lead_min_days, made_to_order_lead_max_days, made_to_order_capacity, shipping_options), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
+        "id, product_id, variant_id, quantity, is_made_to_order, custom_note, products(id, title, price, shop_id, stock_qty, fulfillment_mode, made_to_order_price, made_to_order_lead_min_days, made_to_order_lead_max_days, made_to_order_capacity, shipping_options, shops(combined_shipping_enabled)), product_variants(id, color_name, display_name, option_values, price, stock_qty, images)",
       )
       .eq("cart_id", cartRow.id);
 
@@ -206,6 +212,9 @@ Deno.serve(async (request) => {
         made_to_order_lead_max_days: number | null;
         made_to_order_capacity: number | null;
         shipping_options: unknown;
+        shops: {
+          combined_shipping_enabled: boolean;
+        } | null;
       },
       variant: item.product_variants as
         | {
@@ -241,8 +250,14 @@ Deno.serve(async (request) => {
     }
 
     let shippingCost: number;
+    const combinedShippingEnabled =
+      items[0]?.product.shops?.combined_shipping_enabled !== false;
     try {
-      shippingCost = calculateShopShippingCost(items, shippingMethod);
+      shippingCost = calculateShopShippingCost(
+        items,
+        shippingMethod,
+        combinedShippingEnabled,
+      );
     } catch (error) {
       return jsonResponse(
         { error: errorMessage(error, "The selected shipping method is unavailable.") },
@@ -274,7 +289,7 @@ Deno.serve(async (request) => {
     );
     const grandTotal = subtotal + shippingCost + giftFee;
     console.log(
-      `[checkout-debug] totals subtotal=${subtotal} shippingCost=${shippingCost} giftFee=${giftFee} grandTotal=${grandTotal}`,
+      `[checkout-debug] totals subtotal=${subtotal} shippingCost=${shippingCost} combinedShippingEnabled=${combinedShippingEnabled} giftFee=${giftFee} grandTotal=${grandTotal}`,
     );
 
     for (const item of items) {

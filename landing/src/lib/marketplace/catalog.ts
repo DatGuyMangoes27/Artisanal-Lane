@@ -68,7 +68,7 @@ const productSelect = `
   made_to_order_lead_max_days,
   made_to_order_capacity,
   made_to_order_allow_custom_note,
-  shops!inner(id, name, slug, logo_url, location, is_active, is_offline),
+  shops!inner(id, name, slug, logo_url, location, is_active, is_offline, combined_shipping_enabled),
   categories(id, name, slug),
   subcategories(id, name, slug),
   product_variants(id, product_id, display_name, option_values, price, compare_at_price, stock_qty, images, is_active, sort_order)
@@ -87,6 +87,7 @@ const shopSelect = `
   shipping_options,
   is_active,
   is_offline,
+  combined_shipping_enabled,
   is_spotlight,
   vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)
 `;
@@ -111,6 +112,7 @@ type ShopSummaryRow = {
   location: string | null;
   is_active?: boolean;
   is_offline: boolean;
+  combined_shipping_enabled?: boolean;
 };
 
 type ShopRow = ShopSummaryRow & {
@@ -264,6 +266,7 @@ function mapShopSummary(row: Relation<ShopSummaryRow>): MarketplaceShopSummary |
     logoUrl: shop.logo_url,
     location: shop.location,
     isOffline: shop.is_offline,
+    combinedShippingEnabled: shop.combined_shipping_enabled !== false,
   };
 }
 
@@ -357,6 +360,7 @@ function mapShop(
     logoUrl: row.logo_url,
     location: row.location,
     isOffline: row.is_offline,
+    combinedShippingEnabled: row.combined_shipping_enabled !== false,
     bio: row.bio,
     brandStory: row.brand_story,
     coverImageUrl: row.cover_image_url,

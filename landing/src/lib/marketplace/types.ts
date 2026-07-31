@@ -14,6 +14,7 @@ export type MarketplaceShopSummary = {
   logoUrl: string | null;
   location: string | null;
   isOffline: boolean;
+  combinedShippingEnabled?: boolean;
 };
 
 export type MarketplaceCategorySummary = {

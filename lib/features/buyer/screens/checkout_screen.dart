@@ -102,12 +102,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   double _selectedShippingCost({
+    required List<CartItem> items,
     required List<List<ShippingOption>> productShippingOptions,
+    required bool combinedShippingEnabled,
   }) {
     if (_selectedShipping == null) return 0;
     return calculateProductShippingTotal(
       methodKey: _selectedShipping!,
+      itemQuantities: items
+          .map((item) => item.quantity)
+          .toList(growable: false),
       productShippingOptions: productShippingOptions,
+      combinedShippingEnabled: combinedShippingEnabled,
     );
   }
 
@@ -534,6 +540,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                     item.product?.shippingOptions ?? const <ShippingOption>[],
               )
               .toList(growable: false);
+          final shopId = items.first.product?.shopId;
+          final combinedShippingEnabled = shopId == null
+              ? true
+              : ref
+                        .watch(shopDetailProvider(shopId))
+                        .asData
+                        ?.value
+                        .combinedShippingEnabled ??
+                    true;
           final enabledOptions = availableShippingOptionsForProducts(
             productShippingOptions,
           );
@@ -545,7 +560,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           );
           final giftFee = giftFeeForSelection(isGift: isGift);
           final shippingCost = _selectedShippingCost(
+            items: items,
             productShippingOptions: productShippingOptions,
+            combinedShippingEnabled: combinedShippingEnabled,
           );
           final total = calculateCheckoutTotal(
             subtotal: subtotal,

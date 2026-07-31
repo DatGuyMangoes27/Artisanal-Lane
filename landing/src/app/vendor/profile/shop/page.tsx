@@ -137,6 +137,25 @@ export default async function VendorShopSettingsPage() {
           </div>
 
           <div className="grid gap-4">
+            <label className="flex items-start gap-3 rounded-2xl border border-artisan-clay/70 bg-artisan-bone/30 p-4">
+              <input
+                name="combinedShippingEnabled"
+                type="checkbox"
+                defaultChecked={shop?.combinedShippingEnabled ?? true}
+                className="mt-1"
+              />
+              <span className="grid gap-1">
+                <span className="text-sm font-semibold text-artisan-sienna">
+                  Combine shipping for products in the same order
+                </span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  Recommended. Buyers pay one delivery fee when ordering multiple products
+                  from your shop. We use the highest applicable delivery rate. Turn this off
+                  only if every item must be packed and shipped separately.
+                </span>
+              </span>
+            </label>
+
             {shippingMethods.map(([key, label]) => {
               const option = shop?.shippingOptions.find((item) => item.key === key);
               return (

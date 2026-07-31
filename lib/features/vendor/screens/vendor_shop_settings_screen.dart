@@ -53,6 +53,7 @@ class _VendorShopSettingsScreenState
   bool _isInitialized = false;
   bool _marketEventsInitialized = false;
   bool _isOffline = false;
+  bool _combinedShippingEnabled = true;
   DateTime? _backToWorkDate;
   String? _marketPickupProvince;
   List<ShippingOption> _shippingOptions = ShippingOption.defaults();
@@ -301,6 +302,7 @@ class _VendorShopSettingsScreenState
             ? _locationController.text.trim()
             : null,
         'shipping_options': updatedShipping.map((o) => o.toJson()).toList(),
+        'combined_shipping_enabled': _combinedShippingEnabled,
       });
       await service.setShopOfflineMode(
         shop.id,
@@ -370,6 +372,7 @@ class _VendorShopSettingsScreenState
         _logoUrl = shop.logoUrl;
         _coverUrl = shop.coverImageUrl;
         _isOffline = shop.isOffline;
+        _combinedShippingEnabled = shop.combinedShippingEnabled;
         _backToWorkDate = shop.backToWorkDate;
         _shippingOptions = shop.shippingOptions.isNotEmpty
             ? shop.shippingOptions
@@ -704,6 +707,35 @@ class _VendorShopSettingsScreenState
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppTheme.textHint,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBg,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppTheme.borderColor),
+                  ),
+                  child: SwitchListTile.adaptive(
+                    value: _combinedShippingEnabled,
+                    activeTrackColor: AppTheme.terracotta,
+                    onChanged: (value) =>
+                        setState(() => _combinedShippingEnabled = value),
+                    title: Text(
+                      'Combine shipping for one order',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Recommended. Buyers pay one delivery fee when ordering multiple products from your shop. We use the highest applicable rate. Turn this off only when every item must ship separately.',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),

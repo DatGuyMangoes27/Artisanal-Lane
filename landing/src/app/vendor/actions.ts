@@ -236,6 +236,7 @@ export async function updateVendorShopSettings(formData: FormData) {
     back_to_work_date: isTruthy(formData.get("isOffline"))
       ? parseNullableText(formData.get("backToWorkDate"))
       : null,
+    combined_shipping_enabled: isTruthy(formData.get("combinedShippingEnabled")),
     shipping_options: parseShippingOptions(formData),
   };
 

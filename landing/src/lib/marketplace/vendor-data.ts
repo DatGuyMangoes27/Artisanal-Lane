@@ -49,6 +49,7 @@ export type VendorShop = {
   logoUrl: string | null;
   location: string | null;
   shippingOptions: VendorShippingOption[];
+  combinedShippingEnabled: boolean;
   isActive: boolean;
   isOffline: boolean;
   backToWorkDate: string | null;
@@ -390,7 +391,7 @@ export async function getVendorShop(vendorId: string): Promise<VendorShop | null
   const { data, error } = await admin
     .from("shops")
     .select(
-      "id, vendor_id, name, slug, bio, brand_story, cover_image_url, logo_url, location, shipping_options, is_active, is_offline, back_to_work_date, created_at",
+      "id, vendor_id, name, slug, bio, brand_story, cover_image_url, logo_url, location, shipping_options, combined_shipping_enabled, is_active, is_offline, back_to_work_date, created_at",
     )
     .eq("vendor_id", vendorId)
     .maybeSingle();
@@ -908,6 +909,7 @@ function mapVendorShop(row: JsonRecord): VendorShop {
     logoUrl: toStringOrNull(row.logo_url),
     location: toStringOrNull(row.location),
     shippingOptions: normalizeShippingOptions(row.shipping_options),
+    combinedShippingEnabled: row.combined_shipping_enabled !== false,
     isActive: row.is_active !== false,
     isOffline: row.is_offline === true,
     backToWorkDate: toStringOrNull(row.back_to_work_date),

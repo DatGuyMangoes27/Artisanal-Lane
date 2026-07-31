@@ -28,10 +28,19 @@ List<ShippingOption> availableShippingOptionsForProducts(
 
 double calculateProductShippingTotal({
   required String methodKey,
+  required List<int> itemQuantities,
   required List<List<ShippingOption>> productShippingOptions,
+  bool combinedShippingEnabled = true,
 }) {
-  var highestPrice = 0.0;
-  for (final options in productShippingOptions) {
+  if (itemQuantities.length != productShippingOptions.length) {
+    throw ArgumentError(
+      'itemQuantities and productShippingOptions must have the same length.',
+    );
+  }
+
+  var total = 0.0;
+  for (var index = 0; index < productShippingOptions.length; index++) {
+    final options = productShippingOptions[index];
     ShippingOption? match;
     for (final option in options) {
       if (option.key == methodKey) {
@@ -42,9 +51,9 @@ double calculateProductShippingTotal({
     if (match == null || !match.enabled) {
       throw ArgumentError('Shipping method $methodKey is not available.');
     }
-    if (match.price > highestPrice) {
-      highestPrice = match.price;
-    }
+    total = combinedShippingEnabled
+        ? (match.price > total ? match.price : total)
+        : total + match.price * itemQuantities[index];
   }
-  return highestPrice;
+  return total;
 }

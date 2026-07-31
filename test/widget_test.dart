@@ -2168,6 +2168,7 @@ void main() {
   test('Product shipping checkout charges selected shipping once per shop', () {
     final total = calculateProductShippingTotal(
       methodKey: 'courier_guy',
+      itemQuantities: const [2, 1],
       productShippingOptions: const [
         [ShippingOption(key: 'courier_guy', enabled: true, price: 80)],
         [ShippingOption(key: 'courier_guy', enabled: true, price: 50)],
@@ -2175,6 +2176,20 @@ void main() {
     );
 
     expect(total, 80);
+  });
+
+  test('Product shipping checkout can charge shipping per item', () {
+    final total = calculateProductShippingTotal(
+      methodKey: 'courier_guy',
+      itemQuantities: const [2, 1],
+      productShippingOptions: const [
+        [ShippingOption(key: 'courier_guy', enabled: true, price: 80)],
+        [ShippingOption(key: 'courier_guy', enabled: true, price: 50)],
+      ],
+      combinedShippingEnabled: false,
+    );
+
+    expect(total, 210);
   });
 
   test('Product parses product-level shipping options', () {
