@@ -7,7 +7,6 @@ import { SearchControls } from "@/components/marketplace/search-controls";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
 import {
   getFreshMarketplaceProducts,
-  getFreshMarketplaceProductCount,
   getMarketplaceCategories,
   getMarketplaceProducts,
   getMarketplaceProductCount,
@@ -90,7 +89,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [categories, subcategories, products, freshProducts, shopCount, productCount, freshCount, trendingTerms, favouriteIds] = await Promise.all([
+  const [categories, subcategories, products, freshProducts, shopCount, productCount, trendingTerms, favouriteIds] = await Promise.all([
     getMarketplaceCategories(),
     getMarketplaceSubcategories(),
     getMarketplaceProducts({
@@ -106,10 +105,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     getFreshMarketplaceProducts(8),
     getMarketplaceShopCount(),
     getMarketplaceProductCount(),
-    getFreshMarketplaceProductCount(),
     getTrendingSearchTerms(8),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
   ]);
+  // Keep the marketplace highlight aligned with the products actually shown
+  // in the Fresh arrivals carousel instead of counting a month of bulk uploads.
+  const freshCount = freshProducts.length;
   const pageProducts = products.slice(0, productsPerPage);
   const hasNextPage = products.length > productsPerPage;
   const previousPageHref = buildPageHref(params, currentPage - 1);
