@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { getMarketplaceProducts, getMarketplaceProductsByIds, getMarketplaceShop } from "./catalog";
+import {
+  getFreshMarketplaceProductCount,
+  getFreshMarketplaceProducts,
+  getMarketplaceProducts,
+  getMarketplaceProductsByIds,
+  getMarketplaceShop,
+} from "./catalog";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
@@ -12,6 +18,7 @@ vi.mock("@/lib/supabase/server", () => ({
 type QueryResult = {
   data: unknown;
   error: Error | null;
+  count?: number | null;
 };
 
 type SupabaseClientMock = Awaited<ReturnType<typeof createClient>>;
@@ -225,6 +232,29 @@ describe("marketplace catalog helpers", () => {
     expect(calls).toContainEqual(["ilike", "title", "%Basket%"]);
     expect(calls).toContainEqual(["order", "price", { ascending: true }]);
     expect(calls).toContainEqual(["limit", 12]);
+  });
+
+  it("limits fresh products and their count to the last seven days", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-02T12:00:00.000Z"));
+
+    try {
+      const supabase = createSupabaseMock([
+        { data: [productRow], error: null },
+        { data: null, error: null, count: 1 },
+      ]);
+      vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+      await getFreshMarketplaceProducts(8);
+      await getFreshMarketplaceProductCount();
+
+      const cutoff = "2026-07-26T12:00:00.000Z";
+      expect(supabase.queries[0].calls).toContainEqual(["gte", "created_at", cutoff]);
+      expect(supabase.queries[0].calls).toContainEqual(["limit", 8]);
+      expect(supabase.queries[1].calls).toContainEqual(["gte", "created_at", cutoff]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("loads a shop by id or slug before fetching that shop's products", async () => {

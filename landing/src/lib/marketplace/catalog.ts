@@ -34,6 +34,7 @@ export type MarketplaceProductOptions = {
 
 type ProductQueryOptions = MarketplaceProductOptions & {
   shopId?: string;
+  createdAfter?: string;
 };
 
 const defaultProductLimit = 24;
@@ -496,6 +497,10 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     query = query.eq("shop_id", options.shopId);
   }
 
+  if (options.createdAfter) {
+    query = query.gte("created_at", options.createdAfter);
+  }
+
   if (options.tag) {
     query = query.contains("tags", [options.tag]);
   }
@@ -601,8 +606,16 @@ export async function getFeaturedMarketplaceProducts(limit?: number) {
   return ((data ?? []) as ProductRow[]).map(mapProduct);
 }
 
-export async function getFreshMarketplaceProducts(limit?: number) {
-  return loadProducts({ sort: "newest", limit: boundedLimit(limit, 12, maxProductLimit) });
+function freshMarketplaceCutoff(days = 7) {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export async function getFreshMarketplaceProducts(limit?: number, days = 7) {
+  return loadProducts({
+    sort: "newest",
+    limit: boundedLimit(limit, 12, maxProductLimit),
+    createdAfter: freshMarketplaceCutoff(days),
+  });
 }
 
 export async function getMarketplaceProduct(productId: string) {
@@ -798,11 +811,11 @@ export async function getMarketplaceProductCount() {
   return count ?? 0;
 }
 
-// Number of visible products added within the recent "fresh" window (default 30
-// days), counted directly from the database.
-export async function getFreshMarketplaceProductCount(days = 30) {
+// Number of visible products added within the seven-day "fresh" window,
+// counted directly from the database.
+export async function getFreshMarketplaceProductCount(days = 7) {
   const supabase = await createClient();
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const since = freshMarketplaceCutoff(days);
   const { count, error } = await supabase
     .from("products")
     .select("id, shops!inner(id)", { count: "exact", head: true })
