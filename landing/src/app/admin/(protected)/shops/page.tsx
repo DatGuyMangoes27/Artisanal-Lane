@@ -14,6 +14,31 @@ function readParam(
   return typeof value === "string" ? value : fallback;
 }
 
+function readPage(value: string | string[] | undefined) {
+  const page = Number(readParam(value, "1"));
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function buildPageHref(
+  filters: {
+    query: string;
+    status: string;
+    availability: string;
+    sort: string;
+  },
+  page: number,
+) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("query", filters.query);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.availability) params.set("availability", filters.availability);
+  if (filters.sort !== "newest") params.set("sort", filters.sort);
+  if (page > 1) params.set("page", String(page));
+
+  const queryString = params.toString();
+  return queryString ? `/admin/shops?${queryString}` : "/admin/shops";
+}
+
 export default async function AdminShopsPage({
   searchParams,
 }: {
@@ -24,7 +49,19 @@ export default async function AdminShopsPage({
   const status = readParam(params.status);
   const availability = readParam(params.availability);
   const sort = readParam(params.sort, "newest");
-  const shops = await listShops({ query, status, availability, sort });
+  const requestedPage = readPage(params.page);
+  const shopPage = await listShops({
+    query,
+    status,
+    availability,
+    sort,
+    page: requestedPage,
+    pageSize: 20,
+  });
+  const { items: shops, page, pageSize, total, totalPages } = shopPage;
+  const firstShop = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const lastShop = Math.min(page * pageSize, total);
+  const pageFilters = { query, status, availability, sort };
 
   return (
     <>
@@ -84,6 +121,19 @@ export default async function AdminShopsPage({
             </Button>
           </div>
         </form>
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+          <p>
+            {total === 0
+              ? "No shops found"
+              : `Showing ${firstShop}-${lastShop} of ${total} shops`}
+          </p>
+          {total > 0 ? (
+            <p>
+              Page {page} of {totalPages}
+            </p>
+          ) : null}
+        </div>
 
         <div className="space-y-4">
           {shops.length === 0 ? (
@@ -231,6 +281,37 @@ export default async function AdminShopsPage({
             </div>
           ))}
         </div>
+
+        {total > 0 && totalPages > 1 ? (
+          <nav
+            aria-label="Store directory pagination"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-artisan-clay pt-5"
+          >
+            {page > 1 ? (
+              <Button asChild variant="outline">
+                <Link href={buildPageHref(pageFilters, page - 1)}>Previous</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Previous
+              </Button>
+            )}
+
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+
+            {page < totalPages ? (
+              <Button asChild variant="outline">
+                <Link href={buildPageHref(pageFilters, page + 1)}>Next</Link>
+              </Button>
+            ) : (
+              <Button disabled variant="outline">
+                Next
+              </Button>
+            )}
+          </nav>
+        ) : null}
       </PanelCard>
     </>
   );

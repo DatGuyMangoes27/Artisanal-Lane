@@ -177,6 +177,8 @@ type ShopListOptions = {
   status?: string;
   availability?: string;
   sort?: string;
+  page?: number;
+  pageSize?: number;
 };
 
 type OrderListOptions = {
@@ -246,12 +248,22 @@ async function getProfilesMap(ids: Array<string | null | undefined>) {
   }
 
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("profiles")
-    .select("id, display_name, email, role")
-    .in("id", uniqueIds);
+  const profiles: ProfileRecord[] = [];
 
-  return new Map((data ?? []).map((profile) => [profile.id, profile]));
+  for (let offset = 0; offset < uniqueIds.length; offset += 500) {
+    const { data, error } = await admin
+      .from("profiles")
+      .select("id, display_name, email, role")
+      .in("id", uniqueIds.slice(offset, offset + 500));
+
+    if (error) {
+      throw new Error(`Unable to load profiles: ${error.message}`);
+    }
+
+    profiles.push(...((data ?? []) as ProfileRecord[]));
+  }
+
+  return new Map(profiles.map((profile) => [profile.id, profile]));
 }
 
 async function getShopsMap(ids: string[]) {
@@ -551,66 +563,135 @@ export async function listProducts(
   };
 }
 
-export async function listShops(options: ShopListOptions = {}) {
+type AdminShopRow = ShopRecord & {
+  vendor: ProfileRecord | null;
+  productCount: number;
+  totalPostCount: number;
+  publishedPostCount: number;
+};
+
+export type AdminShopPage = {
+  items: AdminShopRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+async function loadAllAdminShops() {
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("shops")
-    .select(
-      "id, name, vendor_id, location, logo_url, is_active, is_offline, is_spotlight, spotlighted_at, back_to_work_date, created_at",
-    )
-    .order("created_at", { ascending: false })
-    .limit(100);
+  const shops: ShopRecord[] = [];
+  const batchSize = 500;
 
-  const shops = (data ?? []) as ShopRecord[];
-  const shopIds = shops.map((shop) => shop.id);
+  for (let offset = 0;; offset += batchSize) {
+    const { data, error } = await admin
+      .from("shops")
+      .select(
+        "id, name, vendor_id, location, logo_url, is_active, is_offline, is_spotlight, spotlighted_at, back_to_work_date, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + batchSize - 1);
 
-  const [profiles, productsResult, postsResult] = await Promise.all([
-    getProfilesMap(shops.map((shop) => shop.vendor_id ?? "")),
-    shopIds.length
-      ? admin.from("products").select("id, shop_id").in("shop_id", shopIds)
-      : Promise.resolve({ data: [] as { id: string; shop_id: string | null }[] }),
-    shopIds.length
-      ? admin
-          .from("shop_posts")
-          .select("id, shop_id, is_published")
-          .in("shop_id", shopIds)
-      : Promise.resolve(
-          { data: [] as { id: string; shop_id: string; is_published: boolean }[] },
-        ),
-  ]);
-
-  const productCounts = new Map<string, number>();
-  for (const product of productsResult.data ?? []) {
-    if (!product.shop_id) {
-      continue;
+    if (error) {
+      throw new Error(`Unable to load admin shops: ${error.message}`);
     }
 
-    productCounts.set(product.shop_id, (productCounts.get(product.shop_id) ?? 0) + 1);
+    const batch = (data ?? []) as ShopRecord[];
+    shops.push(...batch);
+    if (batch.length < batchSize) {
+      return shops;
+    }
   }
+}
 
+async function loadShopContentCounts(shopIds: string[]) {
+  const admin = createAdminClient();
+  const productCounts = new Map<string, number>();
   const publishedPostCounts = new Map<string, number>();
   const totalPostCounts = new Map<string, number>();
-  for (const post of postsResult.data ?? []) {
-    totalPostCounts.set(post.shop_id, (totalPostCounts.get(post.shop_id) ?? 0) + 1);
+  const uniqueShopIds = Array.from(new Set(shopIds.filter(Boolean)));
+  const idBatchSize = 100;
+  const rowBatchSize = 1000;
 
-    if (post.is_published) {
-      publishedPostCounts.set(
-        post.shop_id,
-        (publishedPostCounts.get(post.shop_id) ?? 0) + 1,
-      );
+  for (let idOffset = 0; idOffset < uniqueShopIds.length; idOffset += idBatchSize) {
+    const idBatch = uniqueShopIds.slice(idOffset, idOffset + idBatchSize);
+
+    for (let rowOffset = 0;; rowOffset += rowBatchSize) {
+      const { data, error } = await admin
+        .from("products")
+        .select("shop_id")
+        .in("shop_id", idBatch)
+        .range(rowOffset, rowOffset + rowBatchSize - 1);
+
+      if (error) {
+        throw new Error(`Unable to count shop products: ${error.message}`);
+      }
+
+      const batch = data ?? [];
+      for (const product of batch) {
+        if (product.shop_id) {
+          productCounts.set(
+            product.shop_id,
+            (productCounts.get(product.shop_id) ?? 0) + 1,
+          );
+        }
+      }
+      if (batch.length < rowBatchSize) break;
+    }
+
+    for (let rowOffset = 0;; rowOffset += rowBatchSize) {
+      const { data, error } = await admin
+        .from("shop_posts")
+        .select("shop_id, is_published")
+        .in("shop_id", idBatch)
+        .range(rowOffset, rowOffset + rowBatchSize - 1);
+
+      if (error) {
+        throw new Error(`Unable to count shop posts: ${error.message}`);
+      }
+
+      const batch = data ?? [];
+      for (const post of batch) {
+        totalPostCounts.set(
+          post.shop_id,
+          (totalPostCounts.get(post.shop_id) ?? 0) + 1,
+        );
+        if (post.is_published) {
+          publishedPostCounts.set(
+            post.shop_id,
+            (publishedPostCounts.get(post.shop_id) ?? 0) + 1,
+          );
+        }
+      }
+      if (batch.length < rowBatchSize) break;
     }
   }
 
-  const rows = shops.map((shop) => ({
+  return { productCounts, publishedPostCounts, totalPostCounts };
+}
+
+export async function listShops(
+  options: ShopListOptions = {},
+): Promise<AdminShopPage> {
+  const requestedPage = Math.max(1, Math.floor(options.page ?? 1));
+  const pageSize = Math.min(100, Math.max(1, Math.floor(options.pageSize ?? 20)));
+  const shops = await loadAllAdminShops();
+
+  const profiles = await getProfilesMap(
+    shops.map((shop) => shop.vendor_id ?? ""),
+  );
+
+  let rows: AdminShopRow[] = shops.map((shop) => ({
     ...shop,
     vendor: shop.vendor_id ? profiles.get(shop.vendor_id) ?? null : null,
-    productCount: productCounts.get(shop.id) ?? 0,
-    totalPostCount: totalPostCounts.get(shop.id) ?? 0,
-    publishedPostCount: publishedPostCounts.get(shop.id) ?? 0,
+    productCount: 0,
+    totalPostCount: 0,
+    publishedPostCount: 0,
   }));
 
   const query = normalizeQuery(options.query);
-  const filtered = rows.filter((shop) => {
+  rows = rows.filter((shop) => {
     if (options.status === "active" && !shop.is_active) {
       return false;
     }
@@ -639,7 +720,24 @@ export async function listShops(options: ShopListOptions = {}) {
     return haystack.includes(query);
   });
 
-  filtered.sort((a, b) => {
+  const requiresGlobalContentCounts =
+    options.sort === "products-high" || options.sort === "posts-high";
+  let contentCounts = requiresGlobalContentCounts
+    ? await loadShopContentCounts(rows.map((shop) => shop.id))
+    : null;
+
+  const globalContentCounts = contentCounts;
+  if (globalContentCounts) {
+    rows = rows.map((shop) => ({
+      ...shop,
+      productCount: globalContentCounts.productCounts.get(shop.id) ?? 0,
+      totalPostCount: globalContentCounts.totalPostCounts.get(shop.id) ?? 0,
+      publishedPostCount:
+        globalContentCounts.publishedPostCounts.get(shop.id) ?? 0,
+    }));
+  }
+
+  rows.sort((a, b) => {
     switch (options.sort) {
       case "oldest":
         return (a.created_at ?? "").localeCompare(b.created_at ?? "");
@@ -657,7 +755,31 @@ export async function listShops(options: ShopListOptions = {}) {
     }
   });
 
-  return filtered;
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (total > 0 && requestedPage > totalPages) {
+    return listShops({ ...options, page: totalPages, pageSize });
+  }
+
+  const rangeStart = (requestedPage - 1) * pageSize;
+  let items = rows.slice(rangeStart, rangeStart + pageSize);
+  if (!contentCounts && items.length > 0) {
+    contentCounts = await loadShopContentCounts(items.map((shop) => shop.id));
+    items = items.map((shop) => ({
+      ...shop,
+      productCount: contentCounts!.productCounts.get(shop.id) ?? 0,
+      totalPostCount: contentCounts!.totalPostCounts.get(shop.id) ?? 0,
+      publishedPostCount: contentCounts!.publishedPostCounts.get(shop.id) ?? 0,
+    }));
+  }
+
+  return {
+    items,
+    total,
+    page: requestedPage,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function getShopDetail(shopId: string) {
