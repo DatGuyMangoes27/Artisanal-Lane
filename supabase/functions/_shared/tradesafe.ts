@@ -437,38 +437,7 @@ export async function createTradeSafeTransaction(input: {
       allocations: Array<{ id: string; title: string; value: number; state: string }>;
     };
   }>("transactionCreate", mutation, {
-    input: {
-      reference: input.reference,
-      title: input.title,
-      description: input.description,
-      industry: "GENERAL_GOODS_SERVICES",
-      currency: "ZAR",
-      workflow: "STANDARD",
-      feeAllocation: "BUYER",
-      allocations: {
-        create: [
-          {
-            title: "Order Payment",
-            description: input.description,
-            value: input.amount,
-            daysToDeliver: 7,
-            daysToInspect: 7,
-          },
-        ],
-      },
-      parties: {
-        create: [
-          {
-            token: input.buyerTokenId,
-            role: "BUYER",
-          },
-          {
-            token: input.sellerTokenId,
-            role: "SELLER",
-          },
-        ],
-      },
-    },
+    input: buildTradeSafeTransactionInput(input),
   });
 
   const allocation = result.transactionCreate.allocations[0];
@@ -482,6 +451,50 @@ export async function createTradeSafeTransaction(input: {
     transactionState: result.transactionCreate.state,
     allocationId: allocation.id,
     allocationState: allocation.state,
+  };
+}
+
+export function buildTradeSafeTransactionInput(input: {
+  reference: string;
+  title: string;
+  description: string;
+  buyerTokenId: string;
+  sellerTokenId: string;
+  amount: number;
+}) {
+  return {
+    reference: input.reference,
+    title: input.title,
+    description: input.description,
+    industry: "GENERAL_GOODS_SERVICES",
+    currency: "ZAR",
+    workflow: "STANDARD",
+    // TradeSafe's BUYER_SELLER allocation divides the payment-method
+    // integration fee equally between both parties.
+    feeAllocation: "BUYER_SELLER",
+    allocations: {
+      create: [
+        {
+          title: "Order Payment",
+          description: input.description,
+          value: input.amount,
+          daysToDeliver: 7,
+          daysToInspect: 7,
+        },
+      ],
+    },
+    parties: {
+      create: [
+        {
+          token: input.buyerTokenId,
+          role: "BUYER",
+        },
+        {
+          token: input.sellerTokenId,
+          role: "SELLER",
+        },
+      ],
+    },
   };
 }
 

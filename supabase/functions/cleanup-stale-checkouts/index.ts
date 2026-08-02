@@ -10,6 +10,7 @@ import {
   mapTradeSafeEscrowStatus,
   mapTradeSafeOrderStatus,
 } from "../_shared/tradesafe-order-status.ts";
+import { sendInternalPushRequest } from "../_shared/push.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -110,6 +111,16 @@ async function reconcilePaidTradeSafeTransactions(
           },
           { onConflict: "shop_id,buyer_id", ignoreDuplicates: true },
         );
+
+      await sendInternalPushRequest({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceRoleKey,
+        body: {
+          type: "order_update",
+          orderId: order.id,
+          event: "paid",
+        },
+      });
 
       reconciled.push(order.id);
     } catch (error) {

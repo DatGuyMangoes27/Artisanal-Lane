@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.tradesafe-callback]
 verify_jwt = false
+
+[functions.cleanup-stale-checkouts]
+verify_jwt = false
+
+[functions.send-receipt-reminders]
+verify_jwt = false

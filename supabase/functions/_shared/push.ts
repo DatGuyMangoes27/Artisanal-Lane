@@ -178,16 +178,29 @@ export async function sendInternalPushRequest({
   body: Record<string, unknown>;
 }) {
   try {
-    await fetch(`${supabaseUrl}/functions/v1/send-push-notification`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/send-push-notification`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+    );
+
+    if (!response.ok) {
+      const responseBody = await response.text().catch(() => "");
+      throw new Error(
+        `send-push-notification returned ${response.status}${
+          responseBody ? `: ${responseBody.slice(0, 500)}` : ""
+        }`,
+      );
+    }
   } catch (error) {
     console.error("Unable to send push notification", error);
+    throw error;
   }
 }
 

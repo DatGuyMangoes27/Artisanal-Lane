@@ -361,7 +361,11 @@ async function sendRecipientPayloads({
 
   for (const recipient of recipients) {
     const payload = payloadForRecipient(recipient.role);
-    await storeNotification(admin, recipient.userId, payload);
+    const created = await storeNotification(admin, recipient.userId, payload);
+    if (!created) {
+      skipped += 1;
+      continue;
+    }
 
     const { data: tokens } = await admin
       .from("user_push_tokens")
@@ -437,16 +441,20 @@ async function storeNotification(
   payload: PushPayload,
 ) {
   const notification = buildStoredNotification(userId, payload);
-  const { error } = await admin
+  const { data, error } = await admin
     .from("notifications")
     .upsert(notification, {
       onConflict: "user_id,event_key",
       ignoreDuplicates: true,
-    });
+    })
+    .select("id")
+    .maybeSingle();
 
   if (error != null) {
-    console.error("Unable to store notification", error.message);
+    throw new Error(`Unable to store notification: ${error.message}`);
   }
+
+  return data != null;
 }
 
 function normalizeMessageIds(input: unknown) {

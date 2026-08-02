@@ -1,6 +1,9 @@
 import { assertEquals } from "jsr:@std/assert@1";
 
-import { buildTokenInput } from "./tradesafe.ts";
+import {
+  buildTokenInput,
+  buildTradeSafeTransactionInput,
+} from "./tradesafe.ts";
 
 Deno.test("seller TradeSafe token input includes bank details and immediate payout settings", () => {
   const input = buildTokenInput({
@@ -30,4 +33,17 @@ Deno.test("seller TradeSafe token input includes bank details and immediate payo
       refund: "IMMEDIATE",
     },
   });
+});
+
+Deno.test("TradeSafe checkout splits the integration fee between buyer and seller", () => {
+  const input = buildTradeSafeTransactionInput({
+    reference: "order-1",
+    title: "Artisan Lane order",
+    description: "Handmade item",
+    buyerTokenId: "buyer-token",
+    sellerTokenId: "seller-token",
+    amount: 250,
+  });
+
+  assertEquals(input.feeAllocation, "BUYER_SELLER");
 });

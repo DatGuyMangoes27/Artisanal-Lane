@@ -11,12 +11,28 @@ import {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const callbackSecret = Deno.env.get("TRADESAFE_CALLBACK_SECRET");
+const tradeSafeProductionCallbackIps = new Set([
+  "13.244.170.245",
+  "13.244.43.204",
+]);
+
+function isAuthorizedCallback(request: Request, url: URL) {
+  const suppliedSecret = url.searchParams.get("secret");
+  if (callbackSecret && suppliedSecret === callbackSecret) {
+    return true;
+  }
+
+  // TradeSafe documents these as its production callback IPs. Supabase's
+  // Cloudflare gateway supplies cf-connecting-ip, so callers cannot choose it.
+  const sourceIp = request.headers.get("cf-connecting-ip")?.trim();
+  return sourceIp != null && tradeSafeProductionCallbackIps.has(sourceIp);
+}
 
 Deno.serve(async (request) => {
   try {
     const url = new URL(request.url);
 
-    if (callbackSecret && url.searchParams.get("secret") !== callbackSecret) {
+    if (!isAuthorizedCallback(request, url)) {
       return jsonResponse({ error: "Unauthorized callback." }, { status: 401 });
     }
 
@@ -129,10 +145,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    if (
-      order.status !== orderStatus &&
-      (orderStatus === "paid" || orderStatus === "cancelled")
-    ) {
+    if (orderStatus === "paid" || orderStatus === "cancelled") {
       await sendInternalPushRequest({
         supabaseUrl,
         serviceRoleKey: supabaseServiceRoleKey,
