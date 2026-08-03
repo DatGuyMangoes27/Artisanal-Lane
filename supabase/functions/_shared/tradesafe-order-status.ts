@@ -55,7 +55,7 @@ export function shouldIgnoreTradeSafeCallback({
 
   if (
     fulfilledLocalStatuses.has(currentOrderStatus) &&
-    incomingOrderStatus === "pending"
+    (incomingOrderStatus === "pending" || incomingOrderStatus === "paid")
   ) {
     return true;
   }

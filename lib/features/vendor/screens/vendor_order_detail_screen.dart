@@ -23,6 +23,17 @@ class _VendorOrderDetailScreenState
   final _trackingUrlController = TextEditingController();
   bool _isShipping = false;
 
+  String _friendlyError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('failed host lookup') ||
+        message.contains('socketexception') ||
+        message.contains('clientexception') ||
+        message.contains('network')) {
+      return 'Connection problem. Check your internet connection and try again.';
+    }
+    return 'We could not update this order. Please try again.';
+  }
+
   @override
   void dispose() {
     _trackingController.dispose();
@@ -62,7 +73,10 @@ class _VendorOrderDetailScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text(_friendlyError(e)),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     } finally {
@@ -528,7 +542,10 @@ class _VendorOrderDetailScreenState
             strokeWidth: 2,
           ),
         ),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => _OrderLoadError(
+          onRetry: () =>
+              ref.invalidate(vendorOrderDetailStreamProvider(widget.orderId)),
+        ),
       ),
     );
   }
@@ -563,6 +580,52 @@ class _VendorOrderDetailScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OrderLoadError extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _OrderLoadError({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 44, color: AppTheme.textHint),
+            const SizedBox(height: 14),
+            Text(
+              'Unable to load this order',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Check your internet connection, then try again.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Try again'),
+            ),
+          ],
+        ),
       ),
     );
   }

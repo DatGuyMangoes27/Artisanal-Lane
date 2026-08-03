@@ -71,7 +71,7 @@ Deno.serve(async (request) => {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "id, shop_id, status, shipping_method, tradesafe_allocation_id, payment_state",
+        "id, shop_id, status, shipping_method, tradesafe_allocation_id, payment_state, shipped_at, tracking_number, tracking_url",
       )
       .eq("id", orderId)
       .single();
@@ -83,6 +83,41 @@ Deno.serve(async (request) => {
     if (!shop || order.shop_id !== shop.id) {
       return jsonResponse({ error: "You cannot update this order." }, {
         status: 403,
+      });
+    }
+
+    if (["shipped", "delivered", "completed"].includes(order.status)) {
+      return jsonResponse({
+        ok: true,
+        alreadyShipped: true,
+        paymentState: order.payment_state,
+        shippedAt: order.shipped_at,
+      });
+    }
+
+    // A provider callback used to be able to downgrade a locally shipped
+    // order back to `paid`. The existing shipped timestamp proves the seller's
+    // action completed, so make retries repair the local status without
+    // attempting TradeSafe's start-delivery mutation a second time.
+    if (order.status === "paid" && order.shipped_at != null) {
+      const repairUpdates: Record<string, string> = { status: "shipped" };
+      if (trackingNumber != null) repairUpdates.tracking_number = trackingNumber;
+      if (trackingUrl != null) repairUpdates.tracking_url = trackingUrl;
+
+      const { error: repairError } = await admin
+        .from("orders")
+        .update(repairUpdates)
+        .eq("id", orderId);
+
+      if (repairError) {
+        throw new Error(`Unable to restore shipped order: ${repairError.message}`);
+      }
+
+      return jsonResponse({
+        ok: true,
+        repaired: true,
+        paymentState: order.payment_state,
+        shippedAt: order.shipped_at,
       });
     }
 
@@ -131,17 +166,27 @@ Deno.serve(async (request) => {
           .eq("order_id", orderId),
       );
     }
-    await Promise.all(updates);
+    const updateResults = await Promise.all(updates);
+    const updateError = updateResults.find((result) => result.error)?.error;
+    if (updateError) {
+      throw new Error(`Unable to save shipped order: ${updateError.message}`);
+    }
 
-    await sendInternalPushRequest({
-      supabaseUrl,
-      serviceRoleKey: supabaseServiceRoleKey,
-      body: {
-        type: "order_update",
-        orderId,
-        event: "shipped",
-      },
-    });
+    try {
+      await sendInternalPushRequest({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceRoleKey,
+        body: {
+          type: "order_update",
+          orderId,
+          event: "shipped",
+        },
+      });
+    } catch (pushError) {
+      // Notification delivery must not turn a completed shipping update into
+      // a 500 response that encourages the seller to submit it repeatedly.
+      console.error("Unable to send shipped notification", pushError);
+    }
 
     return jsonResponse({ ok: true, paymentState: allocationState, shippedAt });
   } catch (error) {

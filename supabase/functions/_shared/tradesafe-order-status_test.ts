@@ -74,6 +74,24 @@ Deno.test("late non-terminal TradeSafe callbacks do not downgrade fulfilled orde
 
   assertEquals(
     shouldIgnoreTradeSafeCallback({
+      currentOrderStatus: "shipped",
+      currentPaymentState: "DELIVERY_STARTED",
+      incomingTradeSafeState: "FUNDS_RECEIVED",
+    }),
+    true,
+  );
+
+  assertEquals(
+    shouldIgnoreTradeSafeCallback({
+      currentOrderStatus: "delivered",
+      currentPaymentState: "DELIVERY_ACCEPTED",
+      incomingTradeSafeState: "FUNDS_RECEIVED",
+    }),
+    true,
+  );
+
+  assertEquals(
+    shouldIgnoreTradeSafeCallback({
       currentOrderStatus: "pending",
       currentPaymentState: "CREATED",
       incomingTradeSafeState: "INITIATED",
