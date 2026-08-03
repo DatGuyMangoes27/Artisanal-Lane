@@ -2406,6 +2406,8 @@ class SupabaseService {
     required String scope,
     required double minimumSubtotal,
     String? description,
+    DateTime? startsAt,
+    DateTime? endsAt,
     List<String> productIds = const [],
   }) async {
     final coupon = await _client
@@ -2420,6 +2422,8 @@ class SupabaseService {
           'discount_value': discountValue,
           'scope': scope,
           'minimum_subtotal': minimumSubtotal,
+          'starts_at': startsAt?.toUtc().toIso8601String(),
+          'ends_at': endsAt?.toUtc().toIso8601String(),
           'is_active': true,
         })
         .select('id')
