@@ -40,6 +40,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         isGift: gift.isGift,
         giftRecipient: gift.recipient,
         giftMessage: gift.message,
+        couponCode: data['couponCode'] as String?,
       );
 
       // Reset gift state after order is placed

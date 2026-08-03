@@ -136,6 +136,13 @@ class VendorProfileScreen extends ConsumerWidget {
               ),
               _buildMenuItem(
                 context,
+                Icons.sell_outlined,
+                'Discount Codes',
+                'Create shop-wide or product-specific offers',
+                () => context.push('/vendor/coupons'),
+              ),
+              _buildMenuItem(
+                context,
                 Icons.inventory_2_outlined,
                 'Stationery Requests',
                 'Track branded packaging orders and fulfilment',

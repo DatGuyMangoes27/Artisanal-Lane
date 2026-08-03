@@ -148,6 +148,7 @@ export function CheckoutForm() {
   const [isGift, setIsGift] = useState(false);
   const [giftRecipient, setGiftRecipient] = useState("");
   const [giftMessage, setGiftMessage] = useState("");
+  const [couponCode, setCouponCode] = useState("");
   const [pickupPointText, setPickupPointText] = useState("");
   const [courierGuyLockerProvince, setCourierGuyLockerProvince] = useState("");
   const [courierGuySearch, setCourierGuySearch] = useState("");
@@ -497,6 +498,7 @@ export function CheckoutForm() {
             isGift,
             giftRecipient: isGift ? giftRecipient.trim() || null : null,
             giftMessage: isGift ? giftMessage.trim() || null : null,
+            couponCode: couponCode.trim().toUpperCase() || null,
           },
         },
       );
@@ -959,6 +961,19 @@ export function CheckoutForm() {
 
       <aside className="h-fit rounded-[2rem] border border-artisan-clay bg-card p-6 shadow-sm">
         <h2 className="font-serif text-2xl font-bold text-foreground">Payment summary</h2>
+        <label className="mt-5 block space-y-2 text-sm font-medium text-foreground">
+          Discount code
+          <input
+            value={couponCode}
+            onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+            className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2 uppercase"
+            placeholder="Enter shop code"
+            maxLength={32}
+          />
+          <span className="block text-xs font-normal text-muted-foreground">
+            Your code is checked securely and the discount is applied before TradeSafe payment.
+          </span>
+        </label>
         <div className="mt-6 space-y-3 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Subtotal</span>

@@ -720,3 +720,95 @@ export async function deleteVendorPost(formData: FormData) {
   redirect("/vendor/profile/posts");
 }
 
+export async function createVendorCoupon(formData: FormData) {
+  const { shop } = await requireVendorShop("/vendor/coupons");
+  const admin = createAdminClient();
+  const code = parseRequiredText(formData.get("code")).trim().toUpperCase();
+  const discountType = formData.get("discountType") === "fixed" ? "fixed" : "percentage";
+  const scope = formData.get("scope") === "products" ? "products" : "store";
+  const discountValue = parseCurrencyInput(formData.get("discountValue"));
+  const minimumSubtotal = parseCurrencyInput(formData.get("minimumSubtotal"));
+  const productIds = formData.getAll("productIds").map(String).filter(Boolean);
+  const startsAt = parseNullableText(formData.get("startsAt"));
+  const endsAt = parseNullableText(formData.get("endsAt"));
+
+  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {
+    throw new Error("Codes must be 3-32 characters using letters, numbers, hyphens, or underscores.");
+  }
+  if (discountValue <= 0 || (discountType === "percentage" && discountValue > 100)) {
+    throw new Error("Enter a valid discount amount.");
+  }
+  if (scope === "products" && productIds.length === 0) {
+    throw new Error("Choose at least one product for this code.");
+  }
+
+  if (productIds.length > 0) {
+    const { data: ownedProducts, error: productsError } = await admin
+      .from("products")
+      .select("id")
+      .eq("shop_id", shop.id)
+      .in("id", productIds);
+    if (productsError || (ownedProducts?.length ?? 0) !== new Set(productIds).size) {
+      throw new Error("One or more selected products do not belong to this shop.");
+    }
+  }
+
+  const { data: coupon, error } = await admin
+    .from("shop_coupons")
+    .insert({
+      shop_id: shop.id,
+      code,
+      description: parseNullableText(formData.get("description")),
+      discount_type: discountType,
+      discount_value: discountValue,
+      scope,
+      minimum_subtotal: minimumSubtotal,
+      starts_at: startsAt ? new Date(startsAt).toISOString() : null,
+      ends_at: endsAt ? new Date(endsAt).toISOString() : null,
+      is_active: true,
+    })
+    .select("id")
+    .single();
+
+  if (error || !coupon) {
+    if (error?.code === "23505") throw new Error("That discount code already exists for your shop.");
+    throw new Error("Unable to create the discount code.", { cause: error });
+  }
+
+  if (scope === "products") {
+    const { error: linksError } = await admin.from("shop_coupon_products").insert(
+      productIds.map((productId) => ({ coupon_id: coupon.id, product_id: productId })),
+    );
+    if (linksError) {
+      await admin.from("shop_coupons").delete().eq("id", coupon.id);
+      throw new Error("Unable to attach the selected products.", { cause: linksError });
+    }
+  }
+
+  revalidatePath("/vendor/coupons");
+}
+
+export async function toggleVendorCoupon(formData: FormData) {
+  const { shop } = await requireVendorShop("/vendor/coupons");
+  const couponId = requireId(formData, "couponId");
+  const { error } = await createAdminClient()
+    .from("shop_coupons")
+    .update({ is_active: isTruthy(formData.get("isActive")) })
+    .eq("id", couponId)
+    .eq("shop_id", shop.id);
+  if (error) throw new Error("Unable to update the discount code.", { cause: error });
+  revalidatePath("/vendor/coupons");
+}
+
+export async function deleteVendorCoupon(formData: FormData) {
+  const { shop } = await requireVendorShop("/vendor/coupons");
+  const couponId = requireId(formData, "couponId");
+  const { error } = await createAdminClient()
+    .from("shop_coupons")
+    .delete()
+    .eq("id", couponId)
+    .eq("shop_id", shop.id);
+  if (error) throw new Error("Unable to delete the discount code.", { cause: error });
+  revalidatePath("/vendor/coupons");
+}
+

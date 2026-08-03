@@ -61,6 +61,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _cityController = TextEditingController(text: '');
   final _postalController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
+  final _couponController = TextEditingController(text: '');
   final _pickupPointController = TextEditingController(text: '');
   final _courierGuySearchController = TextEditingController(text: '');
   final _pargoSearchController = TextEditingController(text: '');
@@ -95,6 +96,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _cityController.dispose();
     _postalController.dispose();
     _phoneController.dispose();
+    _couponController.dispose();
     _pickupPointController.dispose();
     _courierGuySearchController.dispose();
     _pargoSearchController.dispose();
@@ -469,6 +471,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       'shippingCost': shippingCost,
       'shippingMethod': _selectedShipping,
       'total': total,
+      'couponCode': _couponController.text.trim().toUpperCase(),
       'address': address,
     };
 
@@ -708,6 +711,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                       child: Column(
                         children: [
+                          TextFormField(
+                            controller: _couponController,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 32,
+                            decoration: InputDecoration(
+                              labelText: 'Discount code (optional)',
+                              hintText: 'Enter shop code',
+                              counterText: '',
+                              prefixIcon: const Icon(Icons.sell_outlined),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            style: GoogleFonts.poppins(fontSize: 14),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'The code will be checked securely and applied before TradeSafe payment.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
                           _summaryRow(
                             'Subtotal (${items.length} items)',
                             'R${subtotal.toStringAsFixed(0)}',

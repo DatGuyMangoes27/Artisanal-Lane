@@ -11,6 +11,7 @@ import {
   Package,
   PackageOpen,
   ReceiptText,
+  Tags,
   Settings,
   Store,
 } from "lucide-react";
@@ -25,6 +26,7 @@ const navSections = [
     items: [
       { href: "/vendor", label: "Dashboard", icon: Home },
       { href: "/vendor/products", label: "Products", icon: Package },
+      { href: "/vendor/coupons", label: "Discount codes", icon: Tags },
       { href: "/vendor/orders", label: "Orders", icon: ReceiptText },
       { href: "/vendor/messages", label: "Messages", icon: Inbox },
       { href: "/vendor/earnings", label: "Earnings", icon: BarChart3 },

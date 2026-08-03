@@ -7,6 +7,7 @@ export 'dispute_case.dart';
 export 'subcategory.dart';
 export 'shop.dart';
 export 'shop_market_event.dart';
+export 'shop_coupon.dart';
 export 'shipping_option.dart';
 export 'shop_post.dart';
 export 'product.dart';

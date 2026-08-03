@@ -1395,7 +1395,9 @@ class SupabaseService {
   Future<Shop> getShop(String id) async {
     final data = await _client
         .from('shops')
-        .select('*, vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)')
+        .select(
+          '*, vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)',
+        )
         .eq('id', id)
         .eq('is_active', true)
         .single();
@@ -1740,10 +1742,7 @@ class SupabaseService {
       }
       await _client
           .from('cart_items')
-          .update({
-            'quantity': newQty,
-            if (note != null) 'custom_note': note,
-          })
+          .update({'quantity': newQty, if (note != null) 'custom_note': note})
           .eq('id', existing['id'] as String);
     } else {
       if (!isMadeToOrder) {
@@ -2134,6 +2133,7 @@ class SupabaseService {
     bool isGift = false,
     String? giftRecipient,
     String? giftMessage,
+    String? couponCode,
   }) async {
     final userId = _client.auth.currentUser?.id;
     final session = _client.auth.currentSession;
@@ -2165,6 +2165,7 @@ class SupabaseService {
         'isGift': isGift,
         'giftRecipient': giftRecipient,
         'giftMessage': giftMessage,
+        'couponCode': couponCode?.trim().toUpperCase(),
       },
     );
 
@@ -2384,6 +2385,76 @@ class SupabaseService {
         .filter('archived_at', 'is', null)
         .order('created_at', ascending: false);
     return (data as List).map((e) => Product.fromJson(e)).toList();
+  }
+
+  Future<List<ShopCoupon>> getShopCoupons(String shopId) async {
+    final data = await _client
+        .from('shop_coupons')
+        .select('*, shop_coupon_products(product_id)')
+        .eq('shop_id', shopId)
+        .order('created_at', ascending: false);
+    return (data as List)
+        .map((row) => ShopCoupon.fromJson(Map<String, dynamic>.from(row)))
+        .toList(growable: false);
+  }
+
+  Future<void> createShopCoupon({
+    required String shopId,
+    required String code,
+    required String discountType,
+    required double discountValue,
+    required String scope,
+    required double minimumSubtotal,
+    String? description,
+    List<String> productIds = const [],
+  }) async {
+    final coupon = await _client
+        .from('shop_coupons')
+        .insert({
+          'shop_id': shopId,
+          'code': code.trim().toUpperCase(),
+          'description': description?.trim().isEmpty == true
+              ? null
+              : description?.trim(),
+          'discount_type': discountType,
+          'discount_value': discountValue,
+          'scope': scope,
+          'minimum_subtotal': minimumSubtotal,
+          'is_active': true,
+        })
+        .select('id')
+        .single();
+    final couponId = coupon['id'] as String;
+    if (scope == 'products' && productIds.isNotEmpty) {
+      try {
+        await _client
+            .from('shop_coupon_products')
+            .insert(
+              productIds
+                  .map(
+                    (productId) => {
+                      'coupon_id': couponId,
+                      'product_id': productId,
+                    },
+                  )
+                  .toList(growable: false),
+            );
+      } catch (_) {
+        await _client.from('shop_coupons').delete().eq('id', couponId);
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> setShopCouponActive(String couponId, bool isActive) async {
+    await _client
+        .from('shop_coupons')
+        .update({'is_active': isActive})
+        .eq('id', couponId);
+  }
+
+  Future<void> deleteShopCoupon(String couponId) async {
+    await _client.from('shop_coupons').delete().eq('id', couponId);
   }
 
   Future<Product> createProduct(

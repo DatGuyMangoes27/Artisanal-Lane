@@ -63,13 +63,14 @@ final vendorThreadMessagesProvider =
       return service.watchThreadMessages(threadId);
     });
 
-final vendorActiveDisputeProvider =
-    FutureProvider.family<DisputeCase?, String>((ref, orderId) async {
-      final userId = ref.watch(currentUserIdProvider);
-      if (userId == null) return null;
-      final service = ref.read(supabaseServiceProvider);
-      return service.getActiveDisputeForOrder(orderId, userId);
-    });
+final vendorActiveDisputeProvider = FutureProvider.family<DisputeCase?, String>(
+  (ref, orderId) async {
+    final userId = ref.watch(currentUserIdProvider);
+    if (userId == null) return null;
+    final service = ref.read(supabaseServiceProvider);
+    return service.getActiveDisputeForOrder(orderId, userId);
+  },
+);
 
 final vendorActiveDisputeStreamProvider =
     StreamProvider.family<DisputeCase?, String>((ref, orderId) {
@@ -91,6 +92,12 @@ final vendorProductsProvider = FutureProvider<List<Product>>((ref) async {
   if (shop == null) return [];
   final service = ref.read(supabaseServiceProvider);
   return service.getVendorProducts(shop.id);
+});
+
+final vendorCouponsProvider = FutureProvider<List<ShopCoupon>>((ref) async {
+  final shop = await ref.watch(vendorShopProvider.future);
+  if (shop == null) return [];
+  return ref.read(supabaseServiceProvider).getShopCoupons(shop.id);
 });
 
 // ── Vendor Orders ───────────────────────────────────────────────
@@ -137,31 +144,38 @@ final vendorEarningsProvider = FutureProvider<Map<String, double>>((ref) async {
   return service.getShopEarnings(shop.id);
 });
 
-final vendorPayoutProfileProvider = FutureProvider<VendorPayoutProfile?>((ref) async {
+final vendorPayoutProfileProvider = FutureProvider<VendorPayoutProfile?>((
+  ref,
+) async {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return null;
   final service = ref.read(supabaseServiceProvider);
   return service.getVendorPayoutProfile(userId);
 });
 
-final vendorPayoutProfileStreamProvider =
-    StreamProvider<VendorPayoutProfile?>((ref) {
-      final userId = ref.watch(currentUserIdProvider);
-      if (userId == null) {
-        return Stream.value(null);
-      }
-      final service = ref.read(supabaseServiceProvider);
-      return service.watchVendorPayoutProfile(userId);
-    });
+final vendorPayoutProfileStreamProvider = StreamProvider<VendorPayoutProfile?>((
+  ref,
+) {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) {
+    return Stream.value(null);
+  }
+  final service = ref.read(supabaseServiceProvider);
+  return service.watchVendorPayoutProfile(userId);
+});
 
-final vendorSubscriptionProvider = FutureProvider<VendorSubscription?>((ref) async {
+final vendorSubscriptionProvider = FutureProvider<VendorSubscription?>((
+  ref,
+) async {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return null;
   final service = ref.read(supabaseServiceProvider);
   return service.getVendorSubscription(userId);
 });
 
-final vendorSubscriptionStreamProvider = StreamProvider<VendorSubscription?>((ref) {
+final vendorSubscriptionStreamProvider = StreamProvider<VendorSubscription?>((
+  ref,
+) {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) {
     return Stream.value(null);

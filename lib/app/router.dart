@@ -58,6 +58,7 @@ import '../features/vendor/screens/vendor_payout_details_screen.dart';
 import '../features/vendor/screens/vendor_subscription_screen.dart';
 import '../features/vendor/screens/vendor_dispute_screen.dart';
 import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
+import '../features/vendor/screens/vendor_coupons_screen.dart';
 
 import '../widgets/buyer_shell.dart';
 import '../widgets/vendor_shell.dart';
@@ -370,6 +371,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
               ),
             ],
+          ),
+          GoRoute(
+            path: '/vendor/coupons',
+            builder: (context, state) => const VendorCouponsScreen(),
           ),
           GoRoute(
             path: '/vendor/orders',

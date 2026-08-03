@@ -12,6 +12,10 @@ import {
 
 const GIFT_SERVICE_FEE = 30;
 
+function roundCurrency(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -99,6 +103,7 @@ Deno.serve(async (request) => {
       typeof body.userId === "string" && body.userId.trim().length > 0
         ? body.userId.trim()
         : null;
+    const couponCode = firstNonEmptyString(body.couponCode)?.toUpperCase() ?? null;
 
     let userId = requestUserId;
     const authHeader = request.headers.get("Authorization");
@@ -111,6 +116,7 @@ Deno.serve(async (request) => {
         shippingCost: body.shippingCost ?? null,
         isGift: body.isGift === true,
         hasReservationToken: reservationToken != null,
+        hasCouponCode: couponCode != null,
         shippingAddressKeys: Object.keys(shippingAddress),
       }),
     );
@@ -287,9 +293,103 @@ Deno.serve(async (request) => {
       (sum, item) => sum + unitPriceFor(item) * item.quantity,
       0,
     );
-    const grandTotal = subtotal + shippingCost + giftFee;
+    let appliedCoupon: {
+      id: string;
+      code: string;
+      discount_type: "percentage" | "fixed";
+      discount_value: number;
+      scope: "store" | "products";
+      minimum_subtotal: number;
+      starts_at: string | null;
+      ends_at: string | null;
+      is_active: boolean;
+    } | null = null;
+    let discountAmount = 0;
+
+    if (couponCode != null) {
+      const { data: coupon, error: couponError } = await admin
+        .from("shop_coupons")
+        .select(
+          "id, code, discount_type, discount_value, scope, minimum_subtotal, starts_at, ends_at, is_active",
+        )
+        .eq("shop_id", shopId)
+        .eq("code", couponCode)
+        .maybeSingle();
+
+      if (couponError) {
+        throw couponError;
+      }
+      if (!coupon || coupon.is_active !== true) {
+        return jsonResponse(
+          { error: "This discount code is not valid for this shop." },
+          { status: 400 },
+        );
+      }
+
+      const now = Date.now();
+      if (coupon.starts_at && new Date(coupon.starts_at).getTime() > now) {
+        return jsonResponse(
+          { error: "This discount code is not active yet." },
+          { status: 400 },
+        );
+      }
+      if (coupon.ends_at && new Date(coupon.ends_at).getTime() <= now) {
+        return jsonResponse(
+          { error: "This discount code has expired." },
+          { status: 400 },
+        );
+      }
+
+      const minimumSubtotal = Number(coupon.minimum_subtotal ?? 0);
+      if (subtotal + 0.0001 < minimumSubtotal) {
+        return jsonResponse(
+          {
+            error: `This code requires a minimum product total of R${minimumSubtotal.toFixed(2)}.`,
+          },
+          { status: 400 },
+        );
+      }
+
+      let eligibleProductIds: Set<string> | null = null;
+      if (coupon.scope === "products") {
+        const { data: couponProducts, error: couponProductsError } = await admin
+          .from("shop_coupon_products")
+          .select("product_id")
+          .eq("coupon_id", coupon.id);
+        if (couponProductsError) {
+          throw couponProductsError;
+        }
+        eligibleProductIds = new Set(
+          (couponProducts ?? []).map((row) => row.product_id as string),
+        );
+      }
+
+      const eligibleSubtotal = items.reduce((sum, item) => {
+        if (eligibleProductIds != null && !eligibleProductIds.has(item.productId)) {
+          return sum;
+        }
+        return sum + unitPriceFor(item) * item.quantity;
+      }, 0);
+
+      if (eligibleSubtotal <= 0) {
+        return jsonResponse(
+          { error: "This discount code does not apply to the products in your basket." },
+          { status: 400 },
+        );
+      }
+
+      const discountValue = Number(coupon.discount_value);
+      const rawDiscount = coupon.discount_type === "percentage"
+        ? eligibleSubtotal * discountValue / 100
+        : discountValue;
+      discountAmount = roundCurrency(Math.min(eligibleSubtotal, rawDiscount));
+      appliedCoupon = coupon as typeof appliedCoupon;
+    }
+
+    const discountedSubtotal = roundCurrency(subtotal - discountAmount);
+    const grandTotal = roundCurrency(discountedSubtotal + shippingCost + giftFee);
     console.log(
-      `[checkout-debug] totals subtotal=${subtotal} shippingCost=${shippingCost} combinedShippingEnabled=${combinedShippingEnabled} giftFee=${giftFee} grandTotal=${grandTotal}`,
+      `[checkout-debug] totals subtotal=${subtotal} discount=${discountAmount} coupon=${appliedCoupon?.code ?? "none"} shippingCost=${shippingCost} combinedShippingEnabled=${combinedShippingEnabled} giftFee=${giftFee} grandTotal=${grandTotal}`,
     );
 
     for (const item of items) {
@@ -550,7 +650,11 @@ Deno.serve(async (request) => {
         buyer_id: userId,
         shop_id: shopId,
         status: "pending",
-        total: subtotal,
+        total: discountedSubtotal,
+        subtotal_before_discount: subtotal,
+        discount_amount: discountAmount,
+        coupon_id: appliedCoupon?.id ?? null,
+        coupon_code: appliedCoupon?.code ?? null,
         shipping_cost: shippingCost,
         shipping_method: shippingMethod,
         shipping_address: shippingAddress,
@@ -709,6 +813,10 @@ Deno.serve(async (request) => {
       orderId,
       checkoutUrl,
       transactionId: transaction.transactionId,
+      couponCode: appliedCoupon?.code ?? null,
+      discountAmount,
+      subtotalBeforeDiscount: subtotal,
+      discountedSubtotal,
     });
   } catch (error) {
     const failureMessage = errorMessage(error);

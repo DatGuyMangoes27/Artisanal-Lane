@@ -126,6 +126,22 @@ export type VendorProduct = {
   variants: VendorProductVariant[];
 };
 
+export type VendorCoupon = {
+  id: string;
+  shopId: string;
+  code: string;
+  description: string | null;
+  discountType: "percentage" | "fixed";
+  discountValue: number;
+  scope: "store" | "products";
+  minimumSubtotal: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  isActive: boolean;
+  productIds: string[];
+  createdAt: string;
+};
+
 export type VendorCategory = {
   id: string;
   name: string;
@@ -588,6 +604,37 @@ export async function listVendorProducts(shopId: string): Promise<VendorProduct[
   }
 
   return ((data ?? []) as JsonRecord[]).map(mapVendorProduct);
+}
+
+export async function listVendorCoupons(shopId: string): Promise<VendorCoupon[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("shop_coupons")
+    .select("id, shop_id, code, description, discount_type, discount_value, scope, minimum_subtotal, starts_at, ends_at, is_active, created_at, shop_coupon_products(product_id)")
+    .eq("shop_id", shopId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw new Error("Failed to load discount codes.", { cause: error });
+  }
+
+  return ((data ?? []) as JsonRecord[]).map((row) => ({
+    id: String(row.id),
+    shopId: String(row.shop_id),
+    code: String(row.code),
+    description: toStringOrNull(row.description),
+    discountType: row.discount_type === "fixed" ? "fixed" : "percentage",
+    discountValue: Number(row.discount_value ?? 0),
+    scope: row.scope === "products" ? "products" : "store",
+    minimumSubtotal: Number(row.minimum_subtotal ?? 0),
+    startsAt: toStringOrNull(row.starts_at),
+    endsAt: toStringOrNull(row.ends_at),
+    isActive: row.is_active === true,
+    productIds: Array.isArray(row.shop_coupon_products)
+      ? (row.shop_coupon_products as JsonRecord[]).map((item) => String(item.product_id))
+      : [],
+    createdAt: String(row.created_at),
+  }));
 }
 
 export async function getVendorProduct(
