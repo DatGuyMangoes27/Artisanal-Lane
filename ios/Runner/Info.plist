@@ -62,13 +62,15 @@
 	<key>FacebookDisplayName</key>
 	<string>Artisan Lane</string>
 	<key>FacebookAutoLogAppEventsEnabled</key>
-	<true/>
+	<false/>
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<false/>
 	<key>GIDServerClientID</key>
 	<string>1047012816139-8tott1eo69fltvgbgimg8fflqb95co3k.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSUserTrackingUsageDescription</key>
-	<string>We use app activity to measure which ads help artisans and buyers discover Artisan Lane.</string>
+	<string>Your permission allows Artisan Lane to measure which ads help buyers discover local artisans. You can continue using every app feature if you choose not to allow tracking.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

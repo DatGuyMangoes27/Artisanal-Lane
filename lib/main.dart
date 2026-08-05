@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -53,31 +55,58 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
   void initState() {
     super.initState();
     _appLinks = AppLinks();
-    ref.read(metaAppEventsServiceProvider).initialize();
     _pushNotificationsService = PushNotificationsService(
       supabaseService: ref.read(supabaseServiceProvider),
     );
-    unawaited(
-      _pushNotificationsService?.initialize(
-            onOpenRoute: (route) {
-              final router = ref.read(routerProvider);
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                router.go(route);
-              });
-            },
-          ) ??
-          Future.value(),
-    );
-    if (Supabase.instance.client.auth.currentUser != null) {
-      unawaited(
-        _pushNotificationsService?.registerCurrentDevice() ?? Future.value(),
-      );
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_initializePrivacyAndServices());
+    });
     unawaited(_handleInitialDeepLink());
     _paymentDeepLinkSubscription = _appLinks.uriLinkStream.listen(
       _handleIncomingDeepLink,
     );
+  }
+
+  Future<void> _initializePrivacyAndServices() async {
+    final trackingAuthorized = await _requestTrackingAuthorization();
+    if (!mounted) return;
+
+    await ref
+        .read(metaAppEventsServiceProvider)
+        .initialize(trackingAuthorized: trackingAuthorized);
+    if (!mounted) return;
+
+    await _pushNotificationsService?.initialize(
+      onOpenRoute: (route) {
+        final router = ref.read(routerProvider);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          router.go(route);
+        });
+      },
+    );
+    if (!mounted) return;
+
+    if (Supabase.instance.client.auth.currentUser != null) {
+      await _pushNotificationsService?.registerCurrentDevice();
+    }
+  }
+
+  Future<bool> _requestTrackingAuthorization() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS) return true;
+
+    try {
+      var status = await AppTrackingTransparency.trackingAuthorizationStatus;
+      if (status == TrackingStatus.notDetermined) {
+        // Let the first frame settle so iOS can present its system dialog.
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        status = await AppTrackingTransparency.requestTrackingAuthorization();
+      }
+      return status == TrackingStatus.authorized;
+    } catch (_) {
+      // Tracking must remain disabled if iOS cannot return a permission state.
+      return false;
+    }
   }
 
   Future<void> _handleInitialDeepLink() async {

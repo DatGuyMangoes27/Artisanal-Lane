@@ -64,6 +64,11 @@ abstract class MetaAppEventsClient {
   });
 
   Future<void> setAutoLogAppEventsEnabled(bool enabled);
+
+  Future<void> setAdvertiserTracking({
+    required bool enabled,
+    bool collectId = true,
+  });
 }
 
 class FacebookMetaAppEventsClient implements MetaAppEventsClient {
@@ -182,6 +187,17 @@ class FacebookMetaAppEventsClient implements MetaAppEventsClient {
   Future<void> setAutoLogAppEventsEnabled(bool enabled) {
     return _events.setAutoLogAppEventsEnabled(enabled);
   }
+
+  @override
+  Future<void> setAdvertiserTracking({
+    required bool enabled,
+    bool collectId = true,
+  }) {
+    return _events.setAdvertiserTracking(
+      enabled: enabled,
+      collectId: collectId,
+    );
+  }
 }
 
 class MetaAppEventsService {
@@ -191,11 +207,19 @@ class MetaAppEventsService {
   final MetaAppEventsClient _client;
   final Set<String> _trackedProductViews = <String>{};
   final Set<String> _trackedPurchases = <String>{};
+  bool _isEnabled = false;
 
-  Future<void> initialize() async {
+  Future<void> initialize({required bool trackingAuthorized}) async {
+    _isEnabled = trackingAuthorized;
     await _safe(() async {
-      await _client.setAutoLogAppEventsEnabled(true);
-      await _client.activateApp();
+      await _client.setAdvertiserTracking(
+        enabled: trackingAuthorized,
+        collectId: trackingAuthorized,
+      );
+      await _client.setAutoLogAppEventsEnabled(trackingAuthorized);
+      if (trackingAuthorized) {
+        await _client.activateApp();
+      }
     });
   }
 
@@ -203,6 +227,7 @@ class MetaAppEventsService {
     required String registrationMethod,
     required String requestedRole,
   }) async {
+    if (!_isEnabled) return;
     final normalizedMethod = registrationMethod.trim();
     if (normalizedMethod.isEmpty) return;
 
@@ -215,6 +240,7 @@ class MetaAppEventsService {
   }
 
   Future<void> logSearch({required String query}) async {
+    if (!_isEnabled) return;
     final normalizedQuery = query.trim();
     if (normalizedQuery.isEmpty) return;
 
@@ -229,7 +255,11 @@ class MetaAppEventsService {
     });
   }
 
-  Future<void> logViewedProduct(Product product, {ProductVariant? variant}) async {
+  Future<void> logViewedProduct(
+    Product product, {
+    ProductVariant? variant,
+  }) async {
+    if (!_isEnabled) return;
     final contentItem = _MetaContentItem.fromProduct(
       product,
       variant: variant,
@@ -262,6 +292,7 @@ class MetaAppEventsService {
     ProductVariant? variant,
     int quantity = 1,
   }) async {
+    if (!_isEnabled) return;
     if (quantity <= 0) return;
     final contentItem = _MetaContentItem.fromProduct(
       product,
@@ -292,6 +323,7 @@ class MetaAppEventsService {
     required double totalPrice,
     String? shippingMethod,
   }) async {
+    if (!_isEnabled) return;
     if (items.isEmpty) return;
     final contentItems = items
         .map(_MetaContentItem.fromCartItem)
@@ -316,11 +348,11 @@ class MetaAppEventsService {
   }
 
   Future<void> logPurchasedOrder(Order order) async {
+    if (!_isEnabled) return;
     if (order.status == 'pending' || !_trackedPurchases.add(order.id)) return;
-    final contentItems =
-        (order.items ?? const <OrderItem>[])
-            .map(_MetaContentItem.fromOrderItem)
-            .toList(growable: false);
+    final contentItems = (order.items ?? const <OrderItem>[])
+        .map(_MetaContentItem.fromOrderItem)
+        .toList(growable: false);
 
     await _safe(() async {
       await _client.logPurchase(

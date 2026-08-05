@@ -100,19 +100,34 @@ void main() {
     );
   }
 
-  test('initialize activates app logging and enables auto log events', () async {
+  test('authorized initialization enables advertiser and app events', () async {
     final client = _FakeMetaAppEventsClient();
     final service = MetaAppEventsService(client: client);
 
-    await service.initialize();
+    await service.initialize(trackingAuthorized: true);
 
     expect(client.activateCalls, 1);
     expect(client.autoLogEnabledStates, [true]);
+    expect(client.advertiserTrackingStates, [true]);
+  });
+
+  test('denied tracking keeps Meta collection disabled', () async {
+    final client = _FakeMetaAppEventsClient();
+    final service = MetaAppEventsService(client: client);
+
+    await service.initialize(trackingAuthorized: false);
+    await service.logSearch(query: 'ceramics');
+
+    expect(client.activateCalls, 0);
+    expect(client.autoLogEnabledStates, [false]);
+    expect(client.advertiserTrackingStates, [false]);
+    expect(client.eventCalls, isEmpty);
   });
 
   test('search events use the standard Meta searched event shape', () async {
     final client = _FakeMetaAppEventsClient();
     final service = MetaAppEventsService(client: client);
+    await service.initialize(trackingAuthorized: true);
 
     await service.logSearch(query: '  ceramic mugs  ');
 
@@ -126,6 +141,7 @@ void main() {
   test('viewed product is deduped and prefers selected variant data', () async {
     final client = _FakeMetaAppEventsClient();
     final service = MetaAppEventsService(client: client);
+    await service.initialize(trackingAuthorized: true);
     final item = product();
     final selectedVariant = variant();
 
@@ -150,14 +166,11 @@ void main() {
   test('add to cart logs product content with quantity and price', () async {
     final client = _FakeMetaAppEventsClient();
     final service = MetaAppEventsService(client: client);
+    await service.initialize(trackingAuthorized: true);
     final item = product();
     final selectedVariant = variant();
 
-    await service.logAddToCart(
-      item,
-      variant: selectedVariant,
-      quantity: 3,
-    );
+    await service.logAddToCart(item, variant: selectedVariant, quantity: 3);
 
     final call = client.addToCartCalls.single;
     expect(call.id, selectedVariant.id);
@@ -175,6 +188,7 @@ void main() {
   test('initiate checkout serializes basket contents for Meta', () async {
     final client = _FakeMetaAppEventsClient();
     final service = MetaAppEventsService(client: client);
+    await service.initialize(trackingAuthorized: true);
     final basketItems = [
       cartItem(product: product(id: 'prod-1', price: 99), quantity: 2),
       cartItem(
@@ -196,58 +210,53 @@ void main() {
     expect(call.contentType, 'product');
     expect(call.numItems, 3);
     expect(call.parameters['shipping_method'], 'courier_guy');
-    expect(
-      jsonDecode(call.parameters['fb_content'] as String),
-      [
-        {'id': 'prod-1', 'quantity': 2, 'item_price': 99.0},
-        {'id': 'var-2', 'quantity': 1, 'item_price': 50.0},
-      ],
-    );
+    expect(jsonDecode(call.parameters['fb_content'] as String), [
+      {'id': 'prod-1', 'quantity': 2, 'item_price': 99.0},
+      {'id': 'var-2', 'quantity': 1, 'item_price': 50.0},
+    ]);
   });
 
-  test('purchase logging is deduped per order id and includes totals', () async {
-    final client = _FakeMetaAppEventsClient();
-    final service = MetaAppEventsService(client: client);
-    final paidOrder = order(
-      items: [
-        orderItem(productId: 'prod-1', quantity: 2, unitPrice: 99),
-        orderItem(
-          id: 'order-item-2',
-          productId: 'prod-2',
-          variantId: 'var-2',
-          quantity: 1,
-          unitPrice: 50,
-        ),
-      ],
-    );
+  test(
+    'purchase logging is deduped per order id and includes totals',
+    () async {
+      final client = _FakeMetaAppEventsClient();
+      final service = MetaAppEventsService(client: client);
+      await service.initialize(trackingAuthorized: true);
+      final paidOrder = order(
+        items: [
+          orderItem(productId: 'prod-1', quantity: 2, unitPrice: 99),
+          orderItem(
+            id: 'order-item-2',
+            productId: 'prod-2',
+            variantId: 'var-2',
+            quantity: 1,
+            unitPrice: 50,
+          ),
+        ],
+      );
 
-    await service.logPurchasedOrder(paidOrder);
-    await service.logPurchasedOrder(paidOrder);
+      await service.logPurchasedOrder(paidOrder);
+      await service.logPurchasedOrder(paidOrder);
 
-    final call = client.purchaseCalls.single;
-    expect(client.purchaseCalls, hasLength(1));
-    expect(call.amount, paidOrder.grandTotal);
-    expect(call.currency, AppConstants.currencyCode);
-    expect(call.parameters['fb_order_id'], paidOrder.id);
-    expect(call.parameters['fb_num_items'], 3);
-    expect(
-      jsonDecode(call.parameters['fb_content'] as String),
-      [
+      final call = client.purchaseCalls.single;
+      expect(client.purchaseCalls, hasLength(1));
+      expect(call.amount, paidOrder.grandTotal);
+      expect(call.currency, AppConstants.currencyCode);
+      expect(call.parameters['fb_order_id'], paidOrder.id);
+      expect(call.parameters['fb_num_items'], 3);
+      expect(jsonDecode(call.parameters['fb_content'] as String), [
         {'id': 'prod-1', 'quantity': 2, 'item_price': 99.0},
         {'id': 'var-2', 'quantity': 1, 'item_price': 50.0},
-      ],
-    );
-  });
+      ]);
+    },
+  );
 
   test('sdk failures do not crash the app flow', () async {
     final client = _FakeMetaAppEventsClient(throwOnCalls: true);
     final service = MetaAppEventsService(client: client);
 
-    await expectLater(service.initialize(), completes);
-    await expectLater(
-      service.logSearch(query: 'candles'),
-      completes,
-    );
+    await expectLater(service.initialize(trackingAuthorized: true), completes);
+    await expectLater(service.logSearch(query: 'candles'), completes);
   });
 }
 
@@ -257,6 +266,7 @@ class _FakeMetaAppEventsClient implements MetaAppEventsClient {
   final bool throwOnCalls;
   int activateCalls = 0;
   final List<bool> autoLogEnabledStates = [];
+  final List<bool> advertiserTrackingStates = [];
   final List<_EventCall> eventCalls = [];
   final List<_ViewContentCall> viewContentCalls = [];
   final List<_AddToCartCall> addToCartCalls = [];
@@ -390,6 +400,15 @@ class _FakeMetaAppEventsClient implements MetaAppEventsClient {
   Future<void> setAutoLogAppEventsEnabled(bool enabled) async {
     _maybeThrow();
     autoLogEnabledStates.add(enabled);
+  }
+
+  @override
+  Future<void> setAdvertiserTracking({
+    required bool enabled,
+    bool collectId = true,
+  }) async {
+    _maybeThrow();
+    advertiserTrackingStates.add(enabled && collectId);
   }
 }
 
