@@ -1,4 +1,5 @@
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import { HomepageCampaignPopup } from "@/components/marketplace/homepage-campaign-popup";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +40,7 @@ import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-dat
 import { buildHomeCategoryLinks } from "@/lib/marketplace/home-category-links";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
+import { listActiveCampaignOffers } from "@/lib/marketplace/campaign-data";
 
 const IOS_APP_STORE_URL =
   "https://apps.apple.com/za/app/artisan-lane/id6760702139";
@@ -961,15 +963,17 @@ export default async function Home() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const [featuredProducts, categories, favouriteIds] = await Promise.all([
+  const [featuredProducts, categories, favouriteIds, campaignOffers] = await Promise.all([
     getFeaturedMarketplaceProducts(8),
     getMarketplaceCategories(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
+    listActiveCampaignOffers(),
   ]);
   const categoryLinks = buildHomeCategoryLinks(categories);
 
   return (
     <main className="min-h-screen">
+      <HomepageCampaignPopup offers={campaignOffers} />
       <MarketplaceHeader activeItem="home" />
       <HeroSection />
       <MarketplaceGatewaySection />

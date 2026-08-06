@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  buildCampaignOffers,
+  type CampaignCouponRow,
+} from "./campaign-offers";
+
+function row(overrides: Partial<CampaignCouponRow> = {}): CampaignCouponRow {
+  return {
+    id: "coupon-1",
+    code: "WELCOME10",
+    description: "Launch promotion",
+    discount_type: "percentage",
+    discount_value: 10,
+    scope: "store",
+    minimum_subtotal: 50,
+    starts_at: "2026-08-01T00:00:00Z",
+    ends_at: "2026-09-01T00:00:00Z",
+    is_active: true,
+    created_at: "2026-08-01T00:00:00Z",
+    shops: {
+      id: "shop-1",
+      name: "Cosmos Crochet",
+      slug: "cosmos-crochet",
+      logo_url: null,
+      cover_image_url: "https://example.com/cover.jpg",
+      location: "Mooinooi, NW",
+      is_active: true,
+      is_offline: false,
+    },
+    ...overrides,
+  };
+}
+
+describe("buildCampaignOffers", () => {
+  const now = new Date("2026-08-06T12:00:00Z");
+
+  it("maps a currently valid coupon into a campaign shop offer", () => {
+    expect(buildCampaignOffers([row()], now)).toEqual([
+      expect.objectContaining({
+        shopName: "Cosmos Crochet",
+        shopSlug: "cosmos-crochet",
+        code: "WELCOME10",
+        discountType: "percentage",
+        discountValue: 10,
+      }),
+    ]);
+  });
+
+  it("excludes inactive, upcoming, expired, suspended, and offline offers", () => {
+    const future = row({ id: "future", starts_at: "2026-08-07T00:00:00Z" });
+    const expired = row({ id: "expired", ends_at: "2026-08-06T11:59:59Z" });
+    const inactive = row({ id: "inactive", is_active: false });
+    const suspended = row({
+      id: "suspended",
+      shops: { id: "shop-2", name: "Suspended", is_active: false, is_offline: false },
+    });
+    const offline = row({
+      id: "offline",
+      shops: { id: "shop-3", name: "Offline", is_active: true, is_offline: true },
+    });
+
+    expect(buildCampaignOffers([future, expired, inactive, suspended, offline], now)).toEqual([]);
+  });
+
+  it("keeps only the first active coupon per shop", () => {
+    const newer = row({ id: "newer", code: "NEW20" });
+    const older = row({ id: "older", code: "OLD10" });
+
+    expect(buildCampaignOffers([newer, older], now)).toHaveLength(1);
+    expect(buildCampaignOffers([newer, older], now)[0].code).toBe("NEW20");
+  });
+});
