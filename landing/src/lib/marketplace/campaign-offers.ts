@@ -12,6 +12,7 @@ export type CampaignOffer = {
   discountValue: number;
   scope: "store" | "products";
   minimumSubtotal: number;
+  startsAt: string | null;
   endsAt: string | null;
 };
 
@@ -63,8 +64,20 @@ export function buildCampaignOffers(
 ): CampaignOffer[] {
   const shopIds = new Set<string>();
   const nowMs = now.getTime();
+  const orderedRows = [...rows].sort((left, right) => {
+    const leftStart = nullableText(left.starts_at);
+    const rightStart = nullableText(right.starts_at);
+    const leftStartMs = leftStart ? Date.parse(leftStart) : Number.NEGATIVE_INFINITY;
+    const rightStartMs = rightStart ? Date.parse(rightStart) : Number.NEGATIVE_INFINITY;
+    const leftUpcoming = Number.isFinite(leftStartMs) && leftStartMs > nowMs;
+    const rightUpcoming = Number.isFinite(rightStartMs) && rightStartMs > nowMs;
 
-  return rows.flatMap((row) => {
+    if (leftUpcoming !== rightUpcoming) return leftUpcoming ? 1 : -1;
+    if (leftUpcoming && rightUpcoming) return leftStartMs - rightStartMs;
+    return 0;
+  });
+
+  return orderedRows.flatMap((row) => {
     const shop = asShop(row.shops);
     const shopId = text(shop?.id);
     const couponId = text(row.id);
@@ -72,7 +85,6 @@ export function buildCampaignOffers(
     const shopName = text(shop?.name);
     const startsAt = nullableText(row.starts_at);
     const endsAt = nullableText(row.ends_at);
-    const startsAtMs = startsAt ? Date.parse(startsAt) : null;
     const endsAtMs = endsAt ? Date.parse(endsAt) : null;
 
     if (
@@ -83,7 +95,6 @@ export function buildCampaignOffers(
       !couponId ||
       !code ||
       !shopName ||
-      (startsAtMs !== null && Number.isFinite(startsAtMs) && startsAtMs > nowMs) ||
       (endsAtMs !== null && Number.isFinite(endsAtMs) && endsAtMs <= nowMs) ||
       shopIds.has(shopId)
     ) {
@@ -106,6 +117,7 @@ export function buildCampaignOffers(
         discountValue: Number(row.discount_value ?? 0),
         scope: row.scope === "products" ? "products" : "store",
         minimumSubtotal: Number(row.minimum_subtotal ?? 0),
+        startsAt,
         endsAt,
       },
     ];

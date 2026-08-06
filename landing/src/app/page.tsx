@@ -40,7 +40,7 @@ import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-dat
 import { buildHomeCategoryLinks } from "@/lib/marketplace/home-category-links";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
-import { listActiveCampaignOffers } from "@/lib/marketplace/campaign-data";
+import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 
 const IOS_APP_STORE_URL =
   "https://apps.apple.com/za/app/artisan-lane/id6760702139";
@@ -967,7 +967,7 @@ export default async function Home() {
     getFeaturedMarketplaceProducts(8),
     getMarketplaceCategories(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
-    listActiveCampaignOffers(),
+    listCampaignOffers(),
   ]);
   const categoryLinks = buildHomeCategoryLinks(categories);
 

@@ -29,22 +29,24 @@ const campaignCouponSelect = `
   )
 `;
 
-export async function listActiveCampaignOffers(): Promise<CampaignOffer[]> {
+// This shop has a valid store coupon but is not participating in Stitch & Save.
+const BOERSEEP_SHOP_ID = "db859a2d-c209-4672-a3b0-48b65de505b6";
+
+export async function listCampaignOffers(): Promise<CampaignOffer[]> {
   const admin = createAdminClient();
   const now = new Date();
-  const nowIso = now.toISOString();
   const { data, error } = await admin
     .from("shop_coupons")
     .select(campaignCouponSelect)
     .eq("is_active", true)
     .eq("shops.is_active", true)
     .eq("shops.is_offline", false)
-    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
-    .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
+    .neq("shops.id", BOERSEEP_SHOP_ID)
+    .or(`ends_at.is.null,ends_at.gt.${now.toISOString()}`)
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("[campaign] Failed to load active homepage offers", error.message);
+    console.error("[campaign] Failed to load homepage offers", error.message);
     return [];
   }
 

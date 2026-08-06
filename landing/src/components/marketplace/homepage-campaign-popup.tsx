@@ -6,6 +6,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Copy,
   MapPin,
   Sparkles,
@@ -45,10 +46,36 @@ function endingLabel(endsAt: string | null) {
   }).format(new Date(endsAt))}`;
 }
 
+function startingLabel(startsAt: string) {
+  return new Intl.DateTimeFormat("en-ZA", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Africa/Johannesburg",
+  }).format(new Date(startsAt));
+}
+
+function countdownParts(startsAtMs: number, nowMs: number) {
+  const totalSeconds = Math.max(0, Math.floor((startsAtMs - nowMs) / 1000));
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [
+    { label: "Days", value: days },
+    { label: "Hours", value: hours },
+    { label: "Mins", value: minutes },
+    { label: "Secs", value: seconds },
+  ];
+}
+
 export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
 
@@ -109,11 +136,21 @@ export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
     return () => window.clearInterval(timer);
   }, [offers.length, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [open]);
+
   if (!open || offers.length === 0) return null;
 
   const offer = offers[activeIndex] ?? offers[0];
   const ends = endingLabel(offer.endsAt);
   const campaignImage = campaignImages[activeIndex % campaignImages.length];
+  const startsAtMs = offer.startsAt ? Date.parse(offer.startsAt) : Number.NaN;
+  const isUpcoming = Number.isFinite(startsAtMs) && startsAtMs > nowMs;
+  const countdown = isUpcoming ? countdownParts(startsAtMs, nowMs) : [];
 
   function dismiss() {
     try {
@@ -258,9 +295,33 @@ export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
                   : "Save across this artisan's beautiful handmade collection.")}
             </p>
 
-            <div className="relative mt-6 rounded-2xl border border-dashed border-[#C68B62] bg-[#F7E4CC]/65 p-4">
+            {isUpcoming && offer.startsAt ? (
+              <div className="relative mt-5 rounded-2xl border border-[#D4A020]/45 bg-gradient-to-br from-[#FFF3CF] to-[#F7E4CC] p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.14em] text-[#7A0000]">
+                    <Clock3 className="size-4" />
+                    Offer starts in
+                  </p>
+                  <p className="text-xs font-bold text-[#8B4513]">{startingLabel(offer.startsAt)}</p>
+                </div>
+                <div className="grid grid-cols-4 gap-2" aria-label={`Countdown to ${offer.shopName} offer`}>
+                  {countdown.map((part) => (
+                    <div key={part.label} className="rounded-xl bg-white/85 px-1 py-2 text-center shadow-sm">
+                      <p className="text-xl font-black tabular-nums text-[#7A0000] sm:text-2xl">
+                        {String(part.value).padStart(2, "0")}
+                      </p>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-[#8B6A54]">
+                        {part.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="relative mt-5 rounded-2xl border border-dashed border-[#C68B62] bg-[#F7E4CC]/65 p-4">
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-[#8B4513]">
-                Use discount code
+                {isUpcoming ? "Save this discount code" : "Use discount code"}
               </p>
               <div className="flex items-center justify-between gap-3">
                 <code className="truncate text-2xl font-black tracking-[0.12em] text-[#3A1F10]">
@@ -280,6 +341,7 @@ export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
               </div>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-[#6B5040]">
                 <span>{offer.scope === "products" ? "Selected products" : "Whole shop"}</span>
+                {isUpcoming ? <span>Available when countdown ends</span> : null}
                 {offer.minimumSubtotal > 0 ? <span>Minimum {money(offer.minimumSubtotal)}</span> : null}
                 {ends ? <span>{ends}</span> : null}
               </div>

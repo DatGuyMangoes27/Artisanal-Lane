@@ -43,12 +43,17 @@ describe("buildCampaignOffers", () => {
         code: "WELCOME10",
         discountType: "percentage",
         discountValue: 10,
+        startsAt: "2026-08-01T00:00:00Z",
       }),
     ]);
   });
 
-  it("excludes inactive, upcoming, expired, suspended, and offline offers", () => {
-    const future = row({ id: "future", starts_at: "2026-08-07T00:00:00Z" });
+  it("includes upcoming offers and excludes inactive, expired, suspended, and offline offers", () => {
+    const future = row({
+      id: "future",
+      starts_at: "2026-08-07T00:00:00Z",
+      shops: { id: "shop-future", name: "Future", is_active: true, is_offline: false },
+    });
     const expired = row({ id: "expired", ends_at: "2026-08-06T11:59:59Z" });
     const inactive = row({ id: "inactive", is_active: false });
     const suspended = row({
@@ -60,7 +65,32 @@ describe("buildCampaignOffers", () => {
       shops: { id: "shop-3", name: "Offline", is_active: true, is_offline: true },
     });
 
-    expect(buildCampaignOffers([future, expired, inactive, suspended, offline], now)).toEqual([]);
+    expect(buildCampaignOffers([future, expired, inactive, suspended, offline], now)).toEqual([
+      expect.objectContaining({ couponId: "future", startsAt: "2026-08-07T00:00:00Z" }),
+    ]);
+  });
+
+  it("orders active offers before upcoming offers and upcoming offers by start time", () => {
+    const later = row({
+      id: "later",
+      starts_at: "2026-08-08T00:00:00Z",
+      shops: { id: "shop-later", name: "Later", is_active: true, is_offline: false },
+    });
+    const active = row({
+      id: "active",
+      shops: { id: "shop-active", name: "Active", is_active: true, is_offline: false },
+    });
+    const sooner = row({
+      id: "sooner",
+      starts_at: "2026-08-07T00:00:00Z",
+      shops: { id: "shop-sooner", name: "Sooner", is_active: true, is_offline: false },
+    });
+
+    expect(buildCampaignOffers([later, active, sooner], now).map((offer) => offer.couponId)).toEqual([
+      "active",
+      "sooner",
+      "later",
+    ]);
   });
 
   it("keeps only the first active coupon per shop", () => {
