@@ -18,7 +18,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { CampaignOffer } from "@/lib/marketplace/campaign-offers";
 
 const dismissedStorageKey = "artisan-lane:campaign-popup-dismissed";
-const campaignImages = [
+const fallbackCampaignImages = [
   "/campaigns/stitch-and-save/crochet-frog.jpg",
   "/campaigns/stitch-and-save/purple-pouch.jpg",
   "/campaigns/stitch-and-save/baby-knitwear.png",
@@ -147,7 +147,10 @@ export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
 
   const offer = offers[activeIndex] ?? offers[0];
   const ends = endingLabel(offer.endsAt);
-  const campaignImage = campaignImages[activeIndex % campaignImages.length];
+  const campaignImage =
+    offer.productImageUrl ??
+    offer.shopCoverImageUrl ??
+    fallbackCampaignImages[activeIndex % fallbackCampaignImages.length];
   const startsAtMs = offer.startsAt ? Date.parse(offer.startsAt) : Number.NaN;
   const isUpcoming = Number.isFinite(startsAtMs) && startsAtMs > nowMs;
   const countdown = isUpcoming ? countdownParts(startsAtMs, nowMs) : [];
@@ -230,7 +233,11 @@ export function HomepageCampaignPopup({ offers }: { offers: CampaignOffer[] }) {
             <Image
               key={campaignImage}
               src={campaignImage}
-              alt="Handmade crochet and knitwork featured in the Stitch and Save campaign"
+              alt={
+                offer.productTitle
+                  ? `${offer.productTitle} by ${offer.shopName}`
+                  : `Handmade work by ${offer.shopName}`
+              }
               fill
               sizes="(min-width: 768px) 40vw, 100vw"
               className="object-cover"

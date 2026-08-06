@@ -1,8 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  addCampaignProductImages,
   buildCampaignOffers,
   type CampaignCouponRow,
   type CampaignOffer,
+  type CampaignProductImageRow,
 } from "@/lib/marketplace/campaign-offers";
 
 const campaignCouponSelect = `
@@ -50,5 +52,21 @@ export async function listCampaignOffers(): Promise<CampaignOffer[]> {
     return [];
   }
 
-  return buildCampaignOffers((data ?? []) as CampaignCouponRow[], now);
+  const offers = buildCampaignOffers((data ?? []) as CampaignCouponRow[], now);
+  if (offers.length === 0) return [];
+
+  const { data: products, error: productError } = await admin
+    .from("products")
+    .select("shop_id, title, images, is_featured, created_at")
+    .in("shop_id", offers.map((offer) => offer.shopId))
+    .eq("is_published", true)
+    .order("is_featured", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (productError) {
+    console.error("[campaign] Failed to load artisan product images", productError.message);
+    return offers;
+  }
+
+  return addCampaignProductImages(offers, (products ?? []) as CampaignProductImageRow[]);
 }

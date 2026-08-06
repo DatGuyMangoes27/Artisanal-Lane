@@ -6,6 +6,8 @@ export type CampaignOffer = {
   shopLogoUrl: string | null;
   shopCoverImageUrl: string | null;
   shopLocation: string | null;
+  productImageUrl: string | null;
+  productTitle: string | null;
   code: string;
   description: string | null;
   discountType: "percentage" | "fixed";
@@ -29,6 +31,12 @@ export type CampaignCouponRow = {
   is_active: unknown;
   created_at: unknown;
   shops: unknown;
+};
+
+export type CampaignProductImageRow = {
+  shop_id: string;
+  title: string;
+  images: unknown;
 };
 
 type CampaignShopRow = {
@@ -56,6 +64,32 @@ function asShop(value: unknown): CampaignShopRow | null {
     return (value[0] as CampaignShopRow | undefined) ?? null;
   }
   return value && typeof value === "object" ? (value as CampaignShopRow) : null;
+}
+
+function firstImage(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const image = value.find((item) => typeof item === "string" && item.trim() !== "");
+  return typeof image === "string" ? image.trim() : null;
+}
+
+export function addCampaignProductImages(
+  offers: CampaignOffer[],
+  products: CampaignProductImageRow[],
+): CampaignOffer[] {
+  const productByShop = new Map<string, { imageUrl: string; title: string }>();
+  for (const product of products) {
+    if (productByShop.has(product.shop_id)) continue;
+    const imageUrl = firstImage(product.images);
+    if (!imageUrl) continue;
+    productByShop.set(product.shop_id, { imageUrl, title: product.title });
+  }
+
+  return offers.map((offer) => {
+    const product = productByShop.get(offer.shopId);
+    return product
+      ? { ...offer, productImageUrl: product.imageUrl, productTitle: product.title }
+      : offer;
+  });
 }
 
 export function buildCampaignOffers(
@@ -111,6 +145,8 @@ export function buildCampaignOffers(
         shopLogoUrl: nullableText(shop.logo_url),
         shopCoverImageUrl: nullableText(shop.cover_image_url),
         shopLocation: nullableText(shop.location),
+        productImageUrl: null,
+        productTitle: null,
         code,
         description: nullableText(row.description),
         discountType: row.discount_type === "fixed" ? "fixed" : "percentage",

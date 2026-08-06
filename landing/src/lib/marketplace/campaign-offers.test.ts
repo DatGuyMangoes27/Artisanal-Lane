@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addCampaignProductImages,
   buildCampaignOffers,
   type CampaignCouponRow,
 } from "./campaign-offers";
@@ -99,5 +100,33 @@ describe("buildCampaignOffers", () => {
 
     expect(buildCampaignOffers([newer, older], now)).toHaveLength(1);
     expect(buildCampaignOffers([newer, older], now)[0].code).toBe("NEW20");
+  });
+
+  it("adds a real product image from the matching artisan shop", () => {
+    const offers = buildCampaignOffers([row()], now);
+    const enriched = addCampaignProductImages(offers, [
+      {
+        shop_id: "shop-1",
+        title: "Crochet Bee",
+        images: ["https://example.com/bee.jpg"],
+      },
+    ]);
+
+    expect(enriched[0]).toEqual(
+      expect.objectContaining({
+        productImageUrl: "https://example.com/bee.jpg",
+        productTitle: "Crochet Bee",
+      }),
+    );
+  });
+
+  it("ignores empty product images and preserves the campaign fallback", () => {
+    const offers = buildCampaignOffers([row()], now);
+    const enriched = addCampaignProductImages(offers, [
+      { shop_id: "shop-1", title: "No photo", images: [] },
+    ]);
+
+    expect(enriched[0].productImageUrl).toBeNull();
+    expect(enriched[0].productTitle).toBeNull();
   });
 });
