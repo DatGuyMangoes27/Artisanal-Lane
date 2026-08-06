@@ -4,7 +4,9 @@ import { Suspense } from "react";
 import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { SearchControls } from "@/components/marketplace/search-controls";
+import { ShopCampaignPopup } from "@/components/marketplace/shop-campaign-popup";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
+import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 import {
   getFreshMarketplaceProductCount,
   getFreshMarketplaceProducts,
@@ -90,7 +92,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [categories, subcategories, products, freshProducts, freshCount, shopCount, productCount, trendingTerms, favouriteIds] = await Promise.all([
+  const [categories, subcategories, products, freshProducts, freshCount, shopCount, productCount, trendingTerms, favouriteIds, campaignOffers] = await Promise.all([
     getMarketplaceCategories(),
     getMarketplaceSubcategories(),
     getMarketplaceProducts({
@@ -109,6 +111,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     getMarketplaceProductCount(),
     getTrendingSearchTerms(8),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
+    listCampaignOffers(),
   ]);
   const pageProducts = products.slice(0, productsPerPage);
   const hasNextPage = products.length > productsPerPage;
@@ -122,6 +125,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
   return (
     <main>
+      <ShopCampaignPopup offers={campaignOffers} />
       <section className="relative overflow-hidden border-b border-artisan-clay/70 bg-gradient-to-br from-background via-artisan-bone/50 to-artisan-clay/40">
         <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-artisan-ochre/20 blur-3xl" />
         <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-artisan-terracotta/10 blur-3xl" />
