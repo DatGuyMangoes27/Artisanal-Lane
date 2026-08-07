@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../models/cart_item.dart';
@@ -67,6 +68,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _pargoSearchController = TextEditingController(text: '');
   bool _submitAttempted = false;
   bool _isSubmittingPayment = false;
+  bool _isApplyingCoupon = false;
+  String? _appliedCouponCode;
+  double _discountAmount = 0;
+  String? _couponError;
   String? _courierGuyLockerProvince;
   bool _isLoadingCourierGuyLockers = false;
   String? _courierGuyLockerError;
@@ -79,6 +84,75 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   PargoPickupPoint? _selectedPargoPoint;
   List<PargoPickupPoint> _pargoPickupPoints = const [];
   Timer? _pargoSearchDebounce;
+
+  void _clearAppliedCoupon() {
+    _appliedCouponCode = null;
+    _discountAmount = 0;
+    _couponError = null;
+  }
+
+  String _couponFailureMessage(Object error) {
+    if (error is FunctionException) {
+      final details = error.details;
+      final serverMessage = details is Map && details['error'] != null
+          ? details['error'].toString()
+          : null;
+      if (serverMessage != null && serverMessage.trim().isNotEmpty) {
+        return serverMessage;
+      }
+    }
+    return 'We could not apply this code. Check it and try again.';
+  }
+
+  Future<void> _applyCoupon({
+    required String? shippingMethod,
+    required double shippingCost,
+    required bool isGift,
+  }) async {
+    if (_isApplyingCoupon) return;
+    final code = _couponController.text.trim().toUpperCase();
+    if (code.isEmpty) {
+      setState(() {
+        _clearAppliedCoupon();
+        _couponError = 'Enter a discount code first.';
+      });
+      return;
+    }
+    if (shippingMethod == null) {
+      setState(() => _couponError = 'Select a shipping method first.');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isApplyingCoupon = true;
+      _couponError = null;
+    });
+
+    try {
+      final quote = await ref
+          .read(supabaseServiceProvider)
+          .previewCheckout(
+            shippingMethod: shippingMethod,
+            shippingCost: shippingCost,
+            isGift: isGift,
+            couponCode: code,
+          );
+      if (!mounted) return;
+      setState(() {
+        _appliedCouponCode = quote.couponCode ?? code;
+        _discountAmount = quote.discountAmount;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _clearAppliedCoupon();
+        _couponError = _couponFailureMessage(error);
+      });
+    } finally {
+      if (mounted) setState(() => _isApplyingCoupon = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -415,6 +489,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }) async {
     if (_isSubmittingPayment) return;
 
+    final enteredCoupon = _couponController.text.trim().toUpperCase();
+    if (enteredCoupon.isNotEmpty && enteredCoupon != _appliedCouponCode) {
+      setState(() => _couponError = 'Tap Apply before continuing to payment.');
+      return;
+    }
+
     final incompleteField = firstIncompleteCheckoutField(
       _checkoutSnapshot(enabledOptions),
     );
@@ -471,7 +551,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       'shippingCost': shippingCost,
       'shippingMethod': _selectedShipping,
       'total': total,
-      'couponCode': _couponController.text.trim().toUpperCase(),
+      'couponCode': _appliedCouponCode,
       'address': address,
     };
 
@@ -571,6 +651,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             subtotal: subtotal,
             shippingCost: shippingCost,
             isGift: isGift,
+            discountAmount: _discountAmount,
           );
 
           return SafeArea(
@@ -711,34 +792,131 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                       child: Column(
                         children: [
-                          TextFormField(
-                            controller: _couponController,
-                            textCapitalization: TextCapitalization.characters,
-                            maxLength: 32,
-                            decoration: InputDecoration(
-                              labelText: 'Discount code (optional)',
-                              hintText: 'Enter shop code',
-                              counterText: '',
-                              prefixIcon: const Icon(Icons.sell_outlined),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _couponController,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  maxLength: 32,
+                                  onChanged: (value) {
+                                    final normalized = value
+                                        .trim()
+                                        .toUpperCase();
+                                    if (_appliedCouponCode != null &&
+                                        normalized != _appliedCouponCode) {
+                                      setState(_clearAppliedCoupon);
+                                    } else if (_couponError != null) {
+                                      setState(() => _couponError = null);
+                                    }
+                                  },
+                                  decoration: InputDecoration(
+                                    labelText: 'Discount code (optional)',
+                                    hintText: 'Enter shop code',
+                                    counterText: '',
+                                    prefixIcon: const Icon(Icons.sell_outlined),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  style: GoogleFonts.poppins(fontSize: 14),
+                                ),
                               ),
-                            ),
-                            style: GoogleFonts.poppins(fontSize: 14),
+                              const SizedBox(width: 10),
+                              SizedBox(
+                                height: 56,
+                                child: FilledButton(
+                                  onPressed: _isApplyingCoupon
+                                      ? null
+                                      : () => _applyCoupon(
+                                          shippingMethod: _selectedShipping,
+                                          shippingCost: shippingCost,
+                                          isGift: isGift,
+                                        ),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: AppTheme.terracotta,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: _isApplyingCoupon
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('Apply'),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'The code will be checked securely and applied before TradeSafe payment.',
-                            style: GoogleFonts.poppins(
-                              fontSize: 11,
-                              color: AppTheme.textHint,
+                          if (_couponError != null)
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                _couponError!,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: AppTheme.error,
+                                ),
+                              ),
+                            )
+                          else if (_appliedCouponCode != null)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEAF7EE),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.check_circle_outline,
+                                    size: 18,
+                                    color: Color(0xFF247A3D),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '$_appliedCouponCode applied — you save R${_discountAmount.toStringAsFixed(2)}',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF247A3D),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Text(
+                              'Apply the code to confirm the saving before payment.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: AppTheme.textHint,
+                              ),
                             ),
-                          ),
                           const SizedBox(height: 20),
                           _summaryRow(
                             'Subtotal (${items.length} items)',
                             'R${subtotal.toStringAsFixed(0)}',
                           ),
+                          if (_discountAmount > 0) ...[
+                            const SizedBox(height: 12),
+                            _summaryRow(
+                              'Discount ($_appliedCouponCode)',
+                              '-R${_discountAmount.toStringAsFixed(2)}',
+                            ),
+                          ],
                           if (giftFee > 0) ...[
                             const SizedBox(height: 12),
                             _summaryRow(
@@ -1277,6 +1455,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     return GestureDetector(
       onTap: () => setState(() {
+        if (_selectedShipping != option.key) {
+          _clearAppliedCoupon();
+        }
         _selectedShipping = option.key;
         if (option.key != 'courier_guy') {
           _clearCourierGuyLockerSelection();

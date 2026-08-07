@@ -2126,6 +2126,38 @@ class SupabaseService {
   }
 
   // ── Order Creation ─────────────────────────────────────────────
+  Future<CheckoutQuote> previewCheckout({
+    required String shippingMethod,
+    required double shippingCost,
+    required bool isGift,
+    required String couponCode,
+  }) async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null || userId.isEmpty) {
+      throw const AuthException(
+        'Please sign in again before applying a discount code.',
+      );
+    }
+
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'create-checkout',
+      headers: headers,
+      body: {
+        'userId': userId,
+        'shippingMethod': shippingMethod,
+        'shippingCost': shippingCost,
+        'isGift': isGift,
+        'couponCode': couponCode.trim().toUpperCase(),
+        'previewOnly': true,
+      },
+    );
+
+    return CheckoutQuote.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
   Future<CheckoutSession> createCheckout({
     required Map<String, dynamic> shippingAddress,
     required String shippingMethod,

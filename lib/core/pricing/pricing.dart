@@ -9,6 +9,12 @@ double calculateCheckoutTotal({
   required double subtotal,
   required double shippingCost,
   required bool isGift,
+  double discountAmount = 0,
 }) {
-  return subtotal + shippingCost + giftFeeForSelection(isGift: isGift);
+  final discountedSubtotal = (subtotal - discountAmount)
+      .clamp(0, double.infinity)
+      .toDouble();
+  return discountedSubtotal +
+      shippingCost +
+      giftFeeForSelection(isGift: isGift);
 }

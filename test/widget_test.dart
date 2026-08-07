@@ -18,6 +18,7 @@ import 'package:artisanal_lane/features/buyer/screens/buyer_profile_screen.dart'
 import 'package:artisanal_lane/features/buyer/screens/order_detail_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/settings_screen.dart';
 import 'package:artisanal_lane/core/pricing/pricing.dart';
+import 'package:artisanal_lane/models/checkout_quote.dart';
 import 'package:artisanal_lane/features/buyer/utils/shop_profile_actions.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_destination.dart';
 import 'package:artisanal_lane/features/buyer/utils/cart_stock_guard.dart';
@@ -1536,6 +1537,31 @@ void main() {
       calculateCheckoutTotal(subtotal: 380, shippingCost: 0, isGift: true),
       410,
     );
+    expect(
+      calculateCheckoutTotal(
+        subtotal: 380,
+        shippingCost: 59,
+        isGift: false,
+        discountAmount: 63,
+      ),
+      376,
+    );
+  });
+
+  test('Checkout quote parses the server-authoritative coupon saving', () {
+    final quote = CheckoutQuote.fromJson({
+      'couponCode': 'STITCHSAVE-FRI',
+      'subtotal': 420,
+      'discountAmount': 63,
+      'discountedSubtotal': 357,
+      'shippingCost': 59,
+      'giftFee': 0,
+      'total': 416,
+    });
+
+    expect(quote.couponCode, 'STITCHSAVE-FRI');
+    expect(quote.discountAmount, 63);
+    expect(quote.total, 416);
   });
 
   test('Vendor onboarding fulfillment options exclude self-delivery', () {

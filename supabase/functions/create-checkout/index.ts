@@ -104,6 +104,7 @@ Deno.serve(async (request) => {
         ? body.userId.trim()
         : null;
     const couponCode = firstNonEmptyString(body.couponCode)?.toUpperCase() ?? null;
+    const previewOnly = body.previewOnly === true;
 
     let userId = requestUserId;
     const authHeader = request.headers.get("Authorization");
@@ -117,6 +118,7 @@ Deno.serve(async (request) => {
         isGift: body.isGift === true,
         hasReservationToken: reservationToken != null,
         hasCouponCode: couponCode != null,
+        previewOnly,
         shippingAddressKeys: Object.keys(shippingAddress),
       }),
     );
@@ -391,6 +393,19 @@ Deno.serve(async (request) => {
     console.log(
       `[checkout-debug] totals subtotal=${subtotal} discount=${discountAmount} coupon=${appliedCoupon?.code ?? "none"} shippingCost=${shippingCost} combinedShippingEnabled=${combinedShippingEnabled} giftFee=${giftFee} grandTotal=${grandTotal}`,
     );
+
+    if (previewOnly) {
+      return jsonResponse({
+        preview: true,
+        couponCode: appliedCoupon?.code ?? null,
+        subtotal,
+        discountAmount,
+        discountedSubtotal,
+        shippingCost,
+        giftFee,
+        total: grandTotal,
+      });
+    }
 
     for (const item of items) {
       // Made-to-order lines are produced on demand and bypass stock checks.
