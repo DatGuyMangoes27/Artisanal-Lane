@@ -180,7 +180,7 @@ Deno.serve(async (request) => {
       payoutAlreadyReleased ? "released" : "pending";
 
     if (!payoutAlreadyReleased && !payoutAlreadyInstructed) {
-      if (transaction.state !== "FUNDS_RECEIVED") {
+      if (!["FUNDS_RECEIVED", "INITIATED"].includes(transaction.state)) {
         return jsonResponse(
           {
             error:

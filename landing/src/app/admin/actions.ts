@@ -764,7 +764,19 @@ export async function releaseCompletedOrderPayout(
       },
     });
     if (releaseResult.error) {
-      throw new Error(releaseResult.error.message);
+      let message = releaseResult.error.message;
+      const context = "context" in releaseResult.error
+        ? releaseResult.error.context
+        : null;
+      if (context instanceof Response) {
+        const payload = await context.clone().json().catch(() => null) as {
+          error?: unknown;
+        } | null;
+        if (typeof payload?.error === "string" && payload.error.trim()) {
+          message = payload.error;
+        }
+      }
+      throw new Error(message);
     }
 
     const result = releaseResult.data as {
