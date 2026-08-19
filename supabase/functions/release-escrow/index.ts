@@ -3,7 +3,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
 import { shouldAcceptTradeSafeDelivery } from "../_shared/order-fulfillment.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
-import { acceptAllocationDelivery } from "../_shared/tradesafe.ts";
+import {
+  acceptAllocationDelivery,
+  getTradeSafeTransactionState,
+} from "../_shared/tradesafe.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -13,6 +16,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json();
     const orderId = body.orderId as string;
+    const adminPayout = body.adminPayout === true;
     const requestUserId =
       typeof body.userId === "string" && body.userId.trim().length > 0
         ? body.userId.trim()
@@ -73,7 +77,7 @@ Deno.serve(async (request) => {
       admin
         .from("orders")
         .select(
-          "id, buyer_id, status, shipping_method, tradesafe_allocation_id",
+          "id, buyer_id, status, shipping_method, payment_provider, payment_state, tradesafe_transaction_id, tradesafe_allocation_id, received_at",
         )
         .eq("id", orderId)
         .single(),
@@ -92,42 +96,127 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (!["paid", "shipped", "delivered"].includes(order.status as string)) {
+    if (adminPayout && !isAdmin) {
+      return jsonResponse({ error: "Only an admin can trigger this payout." }, {
+        status: 403,
+      });
+    }
+
+    const releasableStatuses = adminPayout && isAdmin
+      ? ["shipped", "delivered", "completed"]
+      : ["paid", "shipped", "delivered"];
+    if (!releasableStatuses.includes(order.status as string)) {
       return jsonResponse(
-        { error: "This order cannot be released until payment is confirmed." },
+        {
+          error: adminPayout
+            ? "Only a shipped, delivered, or completed order can be paid out by an admin."
+            : "This order cannot be released until payment is confirmed.",
+        },
         { status: 400 },
       );
     }
 
-    let allocationState = "DELIVERY_ACCEPTED";
     if (
-      shouldAcceptTradeSafeDelivery({
+      order.payment_provider !== "tradesafe" ||
+      !order.tradesafe_transaction_id ||
+      !shouldAcceptTradeSafeDelivery({
         allocationId: order.tradesafe_allocation_id as string | null,
         shippingMethod: order.shipping_method as string | null,
       })
     ) {
+      return jsonResponse(
+        { error: "This order does not have a releasable TradeSafe allocation." },
+        { status: 400 },
+      );
+    }
+
+    if (adminPayout) {
+      const { count: openDisputeCount, error: disputeError } = await admin
+        .from("disputes")
+        .select("id", { count: "exact", head: true })
+        .eq("order_id", orderId)
+        .in("status", ["open", "investigating"]);
+      if (disputeError) {
+        throw new Error(disputeError.message);
+      }
+      if ((openDisputeCount ?? 0) > 0) {
+        return jsonResponse(
+          { error: "Resolve the open dispute before releasing this payout." },
+          { status: 409 },
+        );
+      }
+    }
+
+    const transaction = await getTradeSafeTransactionState(
+      order.tradesafe_transaction_id as string,
+    );
+    if (!transaction) {
+      return jsonResponse(
+        { error: "TradeSafe could not find this transaction." },
+        { status: 404 },
+      );
+    }
+
+    const allocation = transaction.allocations.find((candidate) =>
+      candidate.id === order.tradesafe_allocation_id
+    );
+    if (!allocation) {
+      return jsonResponse(
+        { error: "TradeSafe could not find this order allocation." },
+        { status: 404 },
+      );
+    }
+
+    const payoutAlreadyReleased = transaction.state === "FUNDS_RELEASED";
+    const payoutAlreadyInstructed = new Set([
+      "DELIVERED",
+      "DELIVERY_ACCEPTED",
+      "DELIVERY_COMPLETED",
+      "ACCEPTED",
+    ]).has(allocation.state);
+
+    let allocationState = allocation.state;
+    let payoutStatus: "initiated" | "pending" | "released" =
+      payoutAlreadyReleased ? "released" : "pending";
+
+    if (!payoutAlreadyReleased && !payoutAlreadyInstructed) {
+      if (transaction.state !== "FUNDS_RECEIVED") {
+        return jsonResponse(
+          {
+            error:
+              `TradeSafe has not confirmed releasable funds for this order (state: ${transaction.state}).`,
+          },
+          { status: 409 },
+        );
+      }
+
       const result = await acceptAllocationDelivery(
         order.tradesafe_allocation_id as string,
       );
       allocationState = result.allocationAcceptDelivery.state;
+      payoutStatus = "initiated";
     }
 
-    const releasedAt = new Date().toISOString();
+    const completedAt = order.received_at ?? new Date().toISOString();
+    const releasedAt = payoutAlreadyReleased ? new Date().toISOString() : null;
+    const localPaymentState = payoutAlreadyReleased
+      ? "FUNDS_RELEASED"
+      : allocationState;
 
     await admin
       .from("orders")
       .update({
         status: "completed",
-        payment_state: allocationState,
-        received_at: releasedAt,
+        payment_state: localPaymentState,
+        received_at: completedAt,
       })
       .eq("id", orderId);
 
     await admin
       .from("escrow_transactions")
       .update({
-        status: "released",
-        provider_state: allocationState,
+        status: payoutAlreadyReleased ? "released" : "held",
+        provider_state: localPaymentState,
         released_at: releasedAt,
       })
       .eq("order_id", orderId);
@@ -144,7 +233,8 @@ Deno.serve(async (request) => {
 
     return jsonResponse({
       ok: true,
-      paymentState: allocationState,
+      paymentState: localPaymentState,
+      payoutStatus,
       releasedAt,
     });
   } catch (error) {

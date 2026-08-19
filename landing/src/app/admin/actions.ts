@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
+import { canAdminTriggerTradeSafePayout } from "@/lib/admin-payout";
 import {
   getOrCreateAdminApplicantThread,
   getOrCreateAdminShopThread,
@@ -699,6 +700,89 @@ export async function resolveDisputeRelease(
     return createSuccessState("Funds released.");
   } catch (error) {
     return createErrorState(error, "Unable to release funds.");
+  }
+}
+
+export async function releaseCompletedOrderPayout(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+    const orderId = String(formData.get("orderId") ?? "").trim();
+    if (!orderId) {
+      return createErrorState(new Error("Order ID is required."), "Unable to trigger payout.");
+    }
+
+    const admin = createAdminClient();
+    const { data: order, error: orderError } = await admin
+      .from("orders")
+      .select(
+        "id, status, payment_provider, payment_state, tradesafe_transaction_id, tradesafe_allocation_id",
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+    if (orderError) {
+      throw new Error(orderError.message);
+    }
+    if (!order) {
+      return createErrorState(new Error("Order not found."), "Unable to trigger payout.");
+    }
+
+    if (!canAdminTriggerTradeSafePayout({
+      status: String(order.status ?? ""),
+      paymentProvider: order.payment_provider as string | null,
+      paymentState: order.payment_state as string | null,
+      tradeSafeAllocationId: order.tradesafe_allocation_id as string | null,
+    })) {
+      return createErrorState(
+        new Error("This order is not eligible for an admin-triggered TradeSafe payout."),
+        "Unable to trigger payout.",
+      );
+    }
+
+    const { count: openDisputeCount, error: disputeError } = await admin
+      .from("disputes")
+      .select("id", { count: "exact", head: true })
+      .eq("order_id", orderId)
+      .in("status", ["open", "investigating"]);
+    if (disputeError) {
+      throw new Error(disputeError.message);
+    }
+    if ((openDisputeCount ?? 0) > 0) {
+      return createErrorState(
+        new Error("Resolve the open dispute before releasing this payout."),
+        "Unable to trigger payout.",
+      );
+    }
+
+    const supabase = await createServerClient();
+    const releaseResult = await supabase.functions.invoke("release-escrow", {
+      body: {
+        orderId,
+        adminPayout: true,
+      },
+    });
+    if (releaseResult.error) {
+      throw new Error(releaseResult.error.message);
+    }
+
+    const result = releaseResult.data as {
+      payoutStatus?: "initiated" | "pending" | "released";
+    } | null;
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/orders");
+
+    if (result?.payoutStatus === "released") {
+      return createSuccessState("TradeSafe confirms that the funds have been released.");
+    }
+    if (result?.payoutStatus === "pending") {
+      return createSuccessState("The payout was already instructed and is awaiting TradeSafe settlement.");
+    }
+    return createSuccessState("Payout instruction sent to TradeSafe.");
+  } catch (error) {
+    return createErrorState(error, "Unable to trigger payout.");
   }
 }
 

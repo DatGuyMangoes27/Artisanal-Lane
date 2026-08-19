@@ -1,7 +1,13 @@
 import Link from "next/link";
 
+import { releaseCompletedOrderPayout } from "@/app/admin/actions";
+import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
+import {
+  canAdminTriggerTradeSafePayout,
+  tradeSafePayoutLabel,
+} from "@/lib/admin-payout";
 import { listOrders } from "@/lib/admin-data";
 
 function formatCurrency(value: number) {
@@ -121,11 +127,19 @@ export default async function AdminOrdersPage({
                     </td>
                   </tr>
                 ) : null}
-                {orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="border-t border-artisan-clay/70 text-muted-foreground"
-                  >
+                {orders.map((order) => {
+                  const canTriggerPayout = canAdminTriggerTradeSafePayout({
+                    status: order.status,
+                    paymentProvider: order.payment_provider,
+                    paymentState: order.payment_state,
+                    tradeSafeAllocationId: order.tradesafe_allocation_id,
+                  });
+
+                  return (
+                    <tr
+                      key={order.id}
+                      className="border-t border-artisan-clay/70 text-muted-foreground"
+                    >
                     <td className="px-4 py-3 font-medium text-artisan-sienna">
                       {order.id.slice(0, 8)}
                     </td>
@@ -148,6 +162,24 @@ export default async function AdminOrdersPage({
                           Payout setup incomplete
                         </div>
                       ) : null}
+                      {order.payment_provider === "tradesafe" ? (
+                        <div className="mt-2 space-y-2">
+                          <div className="text-xs font-medium text-artisan-sienna">
+                            TradeSafe: {tradeSafePayoutLabel(order.payment_state)}
+                          </div>
+                          {canTriggerPayout ? (
+                            <AdminActionButtonForm
+                              action={releaseCompletedOrderPayout}
+                              hiddenFields={[{ name: "orderId", value: order.id }]}
+                              idleContent="Release payout"
+                              pendingLabel="Contacting TradeSafe..."
+                              buttonClassName="h-auto whitespace-nowrap bg-emerald-700 px-3 py-2 text-xs text-white hover:bg-emerald-800"
+                              formClassName="space-y-1"
+                              confirmMessage="This is an irrevocable instruction to TradeSafe to release the escrow funds to the artisan. If the order is only marked shipped, you must have independently confirmed that the customer received it. Confirm that fulfilment is complete and there is no unresolved dispute. Continue?"
+                            />
+                          ) : null}
+                        </div>
+                      ) : null}
                     </td>
                     <td className="px-4 py-3">
                       <div>{order.shipping_method ?? "Unknown"}</div>
@@ -165,8 +197,9 @@ export default async function AdminOrdersPage({
                     <td className="px-4 py-3 font-medium text-artisan-sienna">
                       {formatCurrency(order.grand_total)}
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

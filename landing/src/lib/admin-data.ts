@@ -36,6 +36,10 @@ type OrderRecord = {
   total: number;
   shipping_cost: number | null;
   shipping_method: string | null;
+  payment_provider: string | null;
+  payment_state: string | null;
+  tradesafe_transaction_id: string | null;
+  tradesafe_allocation_id: string | null;
   tracking_number: string | null;
   shipped_at: string | null;
   received_at: string | null;
@@ -857,7 +861,7 @@ export async function listOrders(options: OrderListOptions = {}) {
   const { data } = await admin
     .from("orders")
     .select(
-      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, tracking_number, shipped_at, received_at, created_at",
+      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, payment_provider, payment_state, tradesafe_transaction_id, tradesafe_allocation_id, tracking_number, shipped_at, received_at, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(100);
