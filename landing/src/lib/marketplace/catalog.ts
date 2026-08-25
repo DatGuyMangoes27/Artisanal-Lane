@@ -610,11 +610,17 @@ function freshMarketplaceCutoff(days = 7) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
-export async function getFreshMarketplaceProducts(limit?: number, days = 7) {
+export async function getFreshMarketplaceProducts(
+  limit?: number,
+  days = 7,
+  filters: Pick<MarketplaceProductOptions, "categoryId" | "subcategoryId"> = {},
+) {
   return loadProducts({
     sort: "newest",
     limit: boundedLimit(limit, 12, maxProductLimit),
     createdAfter: freshMarketplaceCutoff(days),
+    categoryId: filters.categoryId,
+    subcategoryId: filters.subcategoryId,
   });
 }
 

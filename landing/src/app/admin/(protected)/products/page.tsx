@@ -7,6 +7,7 @@ import {
   toggleProductPublish,
 } from "@/app/admin/actions";
 import { AdminActionButtonForm } from "@/components/admin/admin-action-button-form";
+import { AdminProductImageForm } from "@/components/admin/admin-product-image-form";
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import { listProducts } from "@/lib/admin-data";
@@ -196,6 +197,11 @@ export default async function AdminProductsPage({
               </div>
 
               <div className="flex shrink-0 flex-col gap-3 sm:flex-row xl:flex-col">
+                <AdminProductImageForm
+                  productId={product.id}
+                  productTitle={product.title}
+                  images={product.images}
+                />
                 <AdminActionButtonForm
                   action={toggleProductFeatured}
                   buttonClassName={

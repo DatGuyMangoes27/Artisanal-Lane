@@ -10,6 +10,7 @@ import { useGuestCart } from "./guest-cart-provider";
 type AddToCartButtonProps = {
   productId: string;
   variantId?: string | null;
+  quantity?: number;
   disabled?: boolean;
   isMadeToOrder?: boolean;
   customNote?: string | null;
@@ -19,6 +20,7 @@ type AddToCartButtonProps = {
 export function AddToCartButton({
   productId,
   variantId = null,
+  quantity = 1,
   disabled,
   isMadeToOrder = false,
   customNote = null,
@@ -62,10 +64,10 @@ export function AddToCartButton({
             await reserveGuestCartItem({
               productId,
               variantId,
-              quantity: currentQuantity + 1,
+              quantity: currentQuantity + quantity,
             });
           }
-          addItem({ productId, variantId, quantity: 1, isMadeToOrder, customNote });
+          addItem({ productId, variantId, quantity, isMadeToOrder, customNote });
           setHasAdded(true);
         } catch {
           setReservationError(true);

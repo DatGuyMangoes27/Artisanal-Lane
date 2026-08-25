@@ -74,11 +74,24 @@ export function ProductGallery({ images, title, onSale = false }: ProductGallery
   }, []);
 
   return (
-    <section aria-label={`${title} image gallery`} className="space-y-4">
+    <section
+      aria-label={`${title} image gallery`}
+      className={gallery.length > 1 ? "grid gap-3 sm:grid-cols-[86px_1fr] sm:items-start" : "block"}
+    >
+      {gallery.length > 1 ? (
+        <div className="order-2 flex gap-2 overflow-x-auto sm:order-1 sm:grid sm:max-h-[720px] sm:overflow-y-auto">
+          {gallery.slice(0, 8).map((image, index) => (
+            <button key={`${image}-${index}`} type="button" onClick={() => setActiveIndex(index)} className={`relative size-20 shrink-0 overflow-hidden rounded-xl border bg-secondary transition ${index === active ? "border-artisan-terracotta ring-2 ring-artisan-terracotta/30" : "border-artisan-clay hover:border-artisan-terracotta"}`} aria-label={`View image ${index + 1}`}>
+              <Image src={image} alt={`${title} image ${index + 1}`} fill sizes="80px" className="object-cover" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className={gallery.length > 1 ? "order-1 sm:order-2" : ""}>
       <button
         type="button"
         onClick={openLightbox}
-        className="group relative block aspect-square w-full overflow-hidden rounded-[2rem] border border-artisan-clay bg-secondary shadow-sm"
+        className="group relative block aspect-[4/5] w-full overflow-hidden rounded-[1.5rem] border border-artisan-clay bg-secondary shadow-sm"
         aria-label="Open image viewer"
       >
         <Image
@@ -95,32 +108,7 @@ export function ProductGallery({ images, title, onSale = false }: ProductGallery
           Tap to zoom
         </span>
       </button>
-
-      {gallery.length > 1 ? (
-        <div className="grid grid-cols-4 gap-3">
-          {gallery.slice(0, 8).map((image, index) => (
-            <button
-              key={`${image}-${index}`}
-              type="button"
-              onClick={() => setActiveIndex(index)}
-              className={`relative aspect-square overflow-hidden rounded-2xl border bg-secondary transition ${
-                index === active
-                  ? "border-artisan-terracotta ring-2 ring-artisan-terracotta/40"
-                  : "border-artisan-clay hover:border-artisan-terracotta"
-              }`}
-              aria-label={`View image ${index + 1}`}
-            >
-              <Image
-                src={image}
-                alt={`${title} image ${index + 1}`}
-                fill
-                sizes="25vw"
-                className="object-cover"
-              />
-            </button>
-          ))}
-        </div>
-      ) : null}
+      </div>
 
       {lightboxOpen ? (
         <div

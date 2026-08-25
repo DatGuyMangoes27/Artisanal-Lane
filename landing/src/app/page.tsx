@@ -1,621 +1,137 @@
-import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  ArrowRight,
+  ChevronRight,
+  Heart,
+  PackageCheck,
+  ShieldCheck,
+  Sparkles,
+  Store,
+  Truck,
+} from "lucide-react";
+
 import { HomepageCampaignPopup } from "@/components/marketplace/homepage-campaign-popup";
+import { FeaturedFindsCarousel } from "@/components/marketplace/featured-finds-carousel";
+import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
+import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import {
-  Search,
-  ShoppingBag,
-  Store,
-  Shield,
-  Truck,
-  Heart,
-  Star,
-  Check,
-  Apple,
-  Play,
-  Palette,
-  Sparkles,
-  Users,
-  ArrowRight,
-  Gem,
-  ClipboardList,
-  Flag,
-} from "lucide-react";
-import Link from "next/link";
-import Image from "next/image";
+import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
+import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 import {
   getFeaturedMarketplaceProducts,
+  getFreshMarketplaceProducts,
   getMarketplaceCategories,
 } from "@/lib/marketplace/catalog";
-import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
-import { buildHomeCategoryLinks } from "@/lib/marketplace/home-category-links";
-import type { MarketplaceProduct } from "@/lib/marketplace/types";
+import { getProductPrimaryImage } from "@/lib/marketplace/format";
+import type { MarketplaceCategorySummary, MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
-import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 
-const IOS_APP_STORE_URL =
-  "https://apps.apple.com/za/app/artisan-lane/id6760702139";
-const GOOGLE_PLAY_STORE_URL =
-  "https://play.google.com/store/apps/details?id=com.artisanallane.artisanal_lane&pcampaignid=web_share";
+const categoryFallbacks = ["Home", "Jewellery", "Self Care", "Clothing", "Baby & Kids", "Art & Design"];
 
-function PhoneFrame({
-  src,
-  alt,
-  className = "",
-  priority = false,
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-  priority?: boolean;
-}) {
-  return (
-    <div className={`relative ${className}`}>
-      <div className="relative w-[280px] h-[580px] bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[2.5rem] p-[6px] shadow-2xl">
-        <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-br from-white/20 via-transparent to-black/20 pointer-events-none" />
-        <div className="relative w-full h-full bg-black rounded-[2.2rem] overflow-hidden">
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            sizes="280px"
-            className="object-cover object-top"
-            priority={priority}
-          />
-        </div>
-      </div>
-    </div>
-  );
+function categoryHref(category: MarketplaceCategorySummary) {
+  return `/shop?category=${encodeURIComponent(category.id)}`;
 }
 
-function SmallPhoneFrame({
-  src,
-  alt,
-  className = "",
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-}) {
+function Hero({ products }: { products: MarketplaceProduct[] }) {
   return (
-    <div className={`relative ${className}`}>
-      <div className="relative w-[200px] h-[420px] bg-gradient-to-b from-zinc-800 to-zinc-900 rounded-[1.75rem] p-[5px] shadow-xl">
-        <div className="absolute inset-0 rounded-[1.75rem] bg-gradient-to-br from-white/10 via-transparent to-black/20 pointer-events-none" />
-        <div className="relative w-full h-full bg-black rounded-[1.5rem] overflow-hidden">
-          <Image
-            src={src}
-            alt={alt}
-            fill
-            sizes="200px"
-            className="object-cover object-top"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function HeroSection() {
-  return (
-    <section className="relative pt-12 pb-10 overflow-hidden lg:pt-16 lg:pb-14">
-      {/* Softer, more organic blobs for an artisanal feel */}
-      <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/10 to-transparent rounded-full blur-[100px] animate-blob" />
-      <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-gradient-to-tr from-[#559826]/10 via-[#D4A020]/5 to-transparent rounded-full blur-[80px] animate-blob" style={{ animationDelay: "-7s" }} />
-      <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-gradient-to-br from-[#8B4513]/5 to-transparent rounded-full blur-[60px] animate-blob" style={{ animationDelay: "-14s" }} />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <div className="text-center lg:text-left">
-            <Badge variant="secondary" className="mb-6 px-5 py-2.5 text-sm bg-white/50 backdrop-blur-md text-[#7A0000] border-[#EDD5BE] shadow-sm font-medium tracking-wide inline-flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5" /> The Artisan Lane store is live
-            </Badge>
-
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-[#3A1F10]">
-              Shop South African
-              <br />
-              <span className="gradient-text italic">Handmade Goods.</span>
+    <section className="relative overflow-hidden border-b border-[#E7D4C2] bg-[#F8EEE3]">
+      <div className="pointer-events-none absolute -left-48 -top-52 size-[38rem] rounded-full bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/10 to-transparent blur-[95px]" />
+      <div className="pointer-events-none absolute -bottom-56 left-[24%] size-[34rem] rounded-full bg-gradient-to-tr from-[#559826]/10 via-[#D4A020]/8 to-transparent blur-[95px]" />
+      <div className="relative mx-auto grid min-h-[690px] max-w-[1500px] lg:grid-cols-[0.86fr_1.14fr]">
+        <div className="relative z-10 flex items-center px-5 py-20 sm:px-8 lg:px-14 xl:px-20">
+          <div className="max-w-[35rem]">
+            <p className="mb-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.24em] text-[#8F2415]">
+              <span className="flex size-8 items-center justify-center rounded-full bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/15 to-[#559826]/15"><Sparkles className="size-4" /></span> Curated South African craft
+            </p>
+            <h1 className="font-serif text-[3.65rem] font-bold leading-[0.92] tracking-[-0.055em] text-[#351711] sm:text-7xl xl:text-[5.65rem]">
+              Beautiful things,<br /><span className="gradient-text italic">made slowly.</span>
             </h1>
-
-            <p className="text-lg md:text-xl text-muted-foreground max-w-lg mx-auto lg:mx-0 mb-8">
-              Browse the live Artisan Lane marketplace on the web. Discover maker shops,
-              save favourites, check out securely with TradeSafe escrow, and track your
-              orders from payment through delivery.
+            <p className="mt-8 max-w-lg text-base leading-7 text-[#6B5040] sm:text-lg">
+              A considered collection of objects, gifts and everyday treasures made by independent artisans across South Africa.
             </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-8">
-              <Button
-                asChild
-                size="lg"
-                className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base animate-pulse-glow w-full sm:w-auto"
-              >
-                <Link href="/shop">
-                  <ShoppingBag className="w-5 h-5 mr-2" />
-                  Shop the Marketplace
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="rounded-full px-8 h-14 text-base border-2 border-[#7A0000]/30 hover:bg-[#7A0000]/5 w-full sm:w-auto"
-              >
-                <Link href="/login?intent=vendor">
-                  <Sparkles className="w-5 h-5 mr-2" />
-                  Apply as an Artisan
-                </Link>
-              </Button>
+            <div className="mt-9 flex flex-wrap items-center gap-5">
+              <Button asChild size="lg" className="h-13 rounded-full bg-gradient-to-r from-[#7A0000] via-[#9A2C12] to-[#8B4513] px-8 text-white shadow-[0_12px_30px_rgba(143,18,13,0.2)] transition hover:brightness-95"><Link href="/shop">Explore the collection <ArrowRight className="ml-2 size-4" /></Link></Button>
+              <Link href="/artisans" className="group inline-flex items-center gap-2 text-sm font-semibold text-[#60483B]">Meet the makers <ArrowRight className="size-4 transition group-hover:translate-x-1" /></Link>
             </div>
-
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> Curated artisans
-              </span>
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> Secure escrow payments
-              </span>
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> 100% South African
-              </span>
-            </div>
-          </div>
-
-          <div className="relative flex justify-center">
-            <div className="animate-float">
-              <PhoneFrame
-                src="/screenshot-home.png"
-                alt="Artisan Lane home screen showing curated handmade products"
-                priority
-              />
-            </div>
-            <div className="absolute top-10 right-10 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-1s" }}>
-              <Gem className="w-6 h-6 text-[#7A0000]" />
-            </div>
-            <div className="absolute bottom-20 left-10 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-2s" }}>
-              <Palette className="w-6 h-6 text-[#D4A020]" />
-            </div>
-            <div className="absolute top-1/2 right-0 w-10 h-10 rounded-xl bg-white/80 backdrop-blur shadow-lg flex items-center justify-center animate-float" style={{ animationDelay: "-3s" }}>
-              <Sparkles className="w-5 h-5 text-[#559826]" />
-            </div>
+            <p className="mt-10 max-w-sm border-l border-[#CBAE95] pl-4 text-xs leading-5 text-[#8B6C59]">Every shop is independently owned. Every product has a person and a process behind it.</p>
           </div>
         </div>
+        <FeaturedFindsCarousel products={products} />
       </div>
     </section>
   );
 }
 
-function MarketplaceGatewaySection() {
-  const routes = [
-    {
-      href: "/shop",
-      icon: ShoppingBag,
-      label: "Shop products",
-      description: "Browse handmade goods across jewellery, home, beauty, clothing, baby, kids, art, and design.",
-    },
-    {
-      href: "/shop?sort=newest",
-      icon: Sparkles,
-      label: "Fresh arrivals",
-      description: "See the newest pieces added by South African makers and small studios.",
-    },
-    {
-      href: "/artisans",
-      icon: Store,
-      label: "Meet the artisans",
-      description: "Explore dedicated maker shops, brand stories, and product collections.",
-    },
-  ];
+function CategoryRail({ categories, products }: { categories: MarketplaceCategorySummary[]; products: MarketplaceProduct[] }) {
+  const displayed = categories.filter((category) => categoryFallbacks.includes(category.name)).slice(0, 4);
+  const categoryList = displayed.length >= 4 ? displayed : categories.slice(0, 4);
 
   return (
-    <section className="relative pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="rounded-[2rem] border border-[#EDD5BE] bg-white/75 p-5 shadow-xl shadow-[#7A0000]/5 backdrop-blur">
-          <div className="flex flex-col gap-4 border-b border-[#EDD5BE] pb-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[#7A0000]">
-                Enter the marketplace
-              </p>
-              <h2 className="mt-2 font-serif text-3xl font-bold text-[#3A1F10]">
-                The store is now part of the website.
-              </h2>
-            </div>
-            <Button asChild className="rounded-full bg-[#7A0000] px-6 text-white hover:bg-[#4A0000]">
-              <Link href="/shop">
-                Start shopping <ArrowRight className="ml-2 size-4" />
-              </Link>
-            </Button>
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {routes.map((route) => (
-              <Link
-                key={route.href}
-                href={route.href}
-                className="group rounded-3xl border border-[#EDD5BE] bg-[#FFF8F0] p-5 transition hover:-translate-y-1 hover:border-[#7A0000]/40 hover:bg-white hover:shadow-lg"
-              >
-                <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-[#7A0000]/10 text-[#7A0000] transition group-hover:bg-[#7A0000] group-hover:text-white">
-                  <route.icon className="size-6" />
-                </div>
-                <h3 className="font-serif text-xl font-bold text-[#3A1F10]">{route.label}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{route.description}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HomeFeaturedFindsSection({
-  products,
-  favouriteIds = [],
-}: {
-  products: MarketplaceProduct[];
-  favouriteIds?: string[];
-}) {
-  const favouriteIdSet = new Set(favouriteIds);
-
-  return (
-    <section className="bg-artisan-bone/40 py-16">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+    <section className="bg-[radial-gradient(circle_at_12%_16%,rgba(212,160,32,0.09),transparent_27%),radial-gradient(circle_at_88%_82%,rgba(85,152,38,0.07),transparent_29%),#FFF9F2] py-20 sm:py-28">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 flex items-end justify-between">
           <div>
-            <Badge
-              variant="secondary"
-              className="mb-4 bg-[#7A0000]/10 px-4 py-2 text-sm text-[#7A0000]"
-            >
-              Featured finds
-            </Badge>
-            <h2 className="text-4xl font-bold text-[#3A1F10] md:text-5xl">
-              Shop Pieces Worth
-              <br />
-              <span className="gradient-text italic">Stopping For.</span>
-            </h2>
-            <p className="mt-4 max-w-2xl text-muted-foreground">
-              A live preview of products from the marketplace, selected from featured artisan listings.
-            </p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">The collection</p>
+            <h2 className="mt-3 font-serif text-3xl font-bold text-[#351711] sm:text-[2.75rem]">Browse a <span className="gradient-text italic">thoughtful edit</span></h2>
           </div>
-          <Button asChild className="rounded-full bg-[#7A0000] px-6 text-white hover:bg-[#4A0000]">
-            <Link href="/shop">
-              View all products <ArrowRight className="ml-2 size-4" />
-            </Link>
-          </Button>
+          <Link href="/shop" className="hidden items-center gap-2 text-sm font-semibold text-artisan-terracotta hover:underline sm:flex">Shop everything <ArrowRight className="size-4" /></Link>
         </div>
-
-        {products.length > 0 ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {products.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                isFavourite={favouriteIdSet.has(product.id)}
-                redirectTo="/"
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="rounded-3xl border border-artisan-clay bg-card p-6 text-sm text-muted-foreground">
-            Featured products will appear here as artisans highlight their best work.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function FeaturesSection() {
-  const features = [
-    {
-      icon: Search,
-      title: "Discover Unique Crafts",
-      description:
-        "Browse a curated collection of handmade goods—from art & design and clothing to jewellery, beauty, home & living, and baby & kids. Every item is one of a kind.",
-    },
-    {
-      icon: Store,
-      title: "Dedicated Artisan Shops",
-      description:
-        "Each artisan gets their own branded storefront to showcase their craft, share their story, and build a loyal following.",
-    },
-    {
-      icon: Shield,
-      title: "Escrow-Protected Payments",
-      description:
-        "Buy with confidence. Your payment is held securely until you confirm receipt—protecting both buyers and artisans.",
-    },
-    {
-      icon: Heart,
-      title: "Favourites & Wishlists",
-      description:
-        "Save the pieces that catch your eye. Build wishlists and get notified when your favourite artisans add new creations.",
-    },
-    {
-      icon: Truck,
-      title: "Flexible Delivery Options",
-      description:
-        "Choose from Courier Guy, Pargo pickup points, or collect directly from the maker at a local market.",
-    },
-    {
-      icon: Sparkles,
-      title: "Curated Quality",
-      description:
-        "Every artisan is reviewed before going live. This means no mass-produced items—just genuine, handcrafted goods you can trust.",
-    },
-  ];
-
-  return (
-    <section id="features" className="py-24 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <Badge
-            variant="secondary"
-            className="mb-4 px-4 py-2 text-sm bg-[#7A0000]/10 text-[#7A0000]"
-          >
-            Why Artisan Lane?
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-[#3A1F10]">
-            Not Just Another Marketplace.
-            <br />
-            <span className="gradient-text italic">A Celebration of Craft.</span>
-          </h2>
-        </div>
-
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <Card
-              key={index}
-              className="group hover:shadow-xl hover:shadow-[#7A0000]/5 hover:-translate-y-2 transition-all duration-300 border-border/50"
-            >
-              <CardContent className="p-6">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#7A0000]/10 to-[#D4A020]/10 flex items-center justify-center mb-4 group-hover:from-[#7A0000]/20 group-hover:to-[#D4A020]/20 transition-colors">
-                  <feature.icon className="w-7 h-7 text-[#7A0000]" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
+          {categoryList.map((category, index) => {
+            const matching = products.find((product) => product.category?.id === category.id) ?? products[index % Math.max(products.length, 1)];
+            return (
+              <Link key={category.id} href={categoryHref(category)} className="group relative aspect-[4/5] overflow-hidden rounded-[1.6rem] bg-[#EAD9CA]">
+                {matching ? <Image src={getProductPrimaryImage(matching)} alt="" fill sizes="(min-width: 1024px) 16vw, 50vw" className="object-cover transition duration-700 group-hover:scale-105" /> : null}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#351711]/80 via-transparent to-transparent" />
+                <div className="absolute inset-x-5 bottom-5 flex items-center justify-between gap-2 text-white">
+                  <span className="font-serif text-xl font-semibold leading-tight sm:text-2xl">{category.name === "Home" ? "Home & Living" : category.name}</span>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/10 backdrop-blur"><ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></span>
                 </div>
-                <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function AppShowcaseSection({
-  categoryLinks,
-}: {
-  categoryLinks: Array<{ label: string; href: string }>;
-}) {
-  return (
-    <section id="how-it-works" className="py-24 bg-[#F7E4CC]/30 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <Badge
-            variant="secondary"
-            className="mb-4 px-4 py-2 text-sm bg-[#7A0000]/10 text-[#7A0000]"
-          >
-            Experience the Marketplace
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-[#3A1F10]">
-            From Discovery to Doorstep,
-            <br />
-            <span className="gradient-text italic">Beautifully Simple.</span>
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Browse artisan shops, explore handcrafted collections, and shop with complete confidence—all in one beautiful app.
-          </p>
-        </div>
-
-        <div className="flex flex-col lg:flex-row items-center justify-center gap-8 lg:gap-12">
-          <div className="hidden lg:block relative lg:-translate-y-8">
-            <SmallPhoneFrame
-              src="/screenshot-shops.png"
-              alt="Artisan Lane shop directory"
-            />
-            <Card className="absolute -bottom-4 -left-4 p-3 shadow-lg bg-white/90 backdrop-blur">
-              <div className="flex items-center gap-2">
-                <Store className="w-4 h-4 text-[#7A0000]" />
-                <span className="text-sm font-medium">Browse Shops</span>
-              </div>
-            </Card>
-          </div>
-
-          <div className="relative z-10">
-            <PhoneFrame
-              src="/screenshot-home.png"
-              alt="Artisan Lane home screen"
-              className="scale-110"
-            />
-            <Card className="absolute -top-4 -right-4 p-3 shadow-lg bg-white/90 backdrop-blur">
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#D4A020] fill-current" />
-                <span className="text-sm font-medium">Curated Picks</span>
-              </div>
-            </Card>
-          </div>
-
-          <div className="hidden lg:block relative lg:translate-y-8">
-            <SmallPhoneFrame
-              src="/screenshot-checkout.png"
-              alt="Artisan Lane product detail"
-            />
-            <Card className="absolute -bottom-4 -right-4 p-3 shadow-lg bg-white/90 backdrop-blur">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-[#559826]" />
-                <span className="text-sm font-medium">Secure Checkout</span>
-              </div>
-            </Card>
-          </div>
-        </div>
-
-        {categoryLinks.length > 0 ? (
-          <div className="flex flex-wrap justify-center gap-3 mt-16">
-            {categoryLinks.map((category) => (
-              <Badge
-                key={category.href}
-                asChild
-                variant="outline"
-                className="px-4 py-2 text-sm border-[#7A0000]/30 hover:bg-[#7A0000]/10 transition-colors cursor-pointer"
-              >
-                <Link href={category.href} aria-label={`Shop ${category.label} products`}>
-                  {category.label}
-                </Link>
-              </Badge>
-            ))}
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function ArtisanShopSection() {
-  return (
-    <section className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-[#7A0000]/5 via-transparent to-[#D4A020]/5" />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div className="relative flex justify-center order-2 lg:order-1">
-            <div className="animate-float" style={{ animationDelay: "-2s" }}>
-              <PhoneFrame
-                src="/screenshot-product.png"
-                alt="Artisan shop profile showing handmade products"
-              />
-            </div>
-            <Card className="absolute top-20 -left-4 p-4 shadow-xl animate-float bg-white/90 backdrop-blur" style={{ animationDelay: "-1s" }}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#D4A020]/10 flex items-center justify-center">
-                  <Palette className="w-5 h-5 text-[#D4A020]" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">50+ artisans</p>
-                  <p className="text-xs text-muted-foreground">and growing</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="absolute bottom-32 -right-4 p-4 shadow-xl animate-float bg-white/90 backdrop-blur" style={{ animationDelay: "-3s" }}>
-              <div className="flex items-center gap-2">
-                <Star className="w-4 h-4 text-[#D4A020] fill-current" />
-                <span className="font-semibold">Handcrafted</span>
-                <span className="text-sm text-muted-foreground">with love</span>
-              </div>
-            </Card>
-          </div>
-
-          <div className="order-1 lg:order-2">
-            <Badge variant="secondary" className="mb-4 px-4 py-2 text-sm bg-[#7A0000]/10 text-[#7A0000]">
-              Artisan Shops
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-[#3A1F10]">
-              Every Maker Has
-              <br />
-              <span className="gradient-text italic">A Story to Tell.</span>
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8">
-              Each artisan gets a dedicated shop space to showcase their brand, share their
-              craft journey, and connect directly with buyers who value authentic, handmade goods.
-            </p>
-
-            <div className="space-y-4">
-              {[
-                { icon: Store, text: "Branded shop with cover image & logo" },
-                { icon: ShoppingBag, text: "Full product catalogue management" },
-                { icon: Users, text: "Build a loyal community of followers" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#7A0000]/10 flex items-center justify-center">
-                    <item.icon className="w-5 h-5 text-[#7A0000]" />
-                  </div>
-                  <span className="font-medium">{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function TrustSection() {
-  return (
-    <section className="py-24 bg-[#F7E4CC]/30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div>
-            <Badge variant="secondary" className="mb-4 px-4 py-2 text-sm bg-[#559826]/10 text-[#559826]">
-              Secure & Trusted
-            </Badge>
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-[#3A1F10]">
-              Shop With Complete
-              <br />
-              <span className="gradient-text italic">Peace of Mind.</span>
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8">
-              Our escrow payment system protects every transaction. Your money is held
-              securely until you confirm you&apos;ve received your order—so both buyers
-              and artisans transact with confidence.
-            </p>
-
-            <div className="grid grid-cols-2 gap-4 mb-8">
-              {[
-                { value: "TradeSafe", label: "Secure gateway" },
-                { value: "Escrow", label: "Protected funds" },
-                { value: "3 options", label: "Shipping methods" },
-                { value: "14 days", label: "Buyer protection" },
-              ].map((stat, i) => (
-                <Card key={i} className="p-4 text-center">
-                  <p className="text-2xl font-bold text-[#7A0000]">{stat.value}</p>
-                  <p className="text-sm text-muted-foreground">{stat.label}</p>
-                </Card>
-              ))}
-            </div>
-
-            <Button
-              asChild
-              size="lg"
-              className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8"
-            >
-              <Link href="/shop">
-                Shop the marketplace <ArrowRight className="w-4 h-4 ml-2" />
               </Link>
-            </Button>
-          </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
 
-          <div className="relative flex justify-center">
-            <div className="animate-float" style={{ animationDelay: "-1s" }}>
-              <PhoneFrame
-                src="/screenshot-shop.png"
-                alt="Secure checkout with escrow protection"
-              />
-            </div>
-            <div className="absolute top-16 -right-4 bg-[#559826] text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg animate-float flex items-center gap-2">
-              <Shield className="w-4 h-4" /> Escrow Protected
-            </div>
-            <Card className="absolute bottom-24 -left-8 p-4 shadow-xl bg-white/90 backdrop-blur">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7A0000] to-[#D4A020] flex items-center justify-center">
-                  <Store className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="font-semibold">Clay & Fire Studio</p>
-                  <div className="flex items-center gap-1">
-                    <Shield className="w-3 h-3 text-[#559826]" />
-                    <span className="text-sm">Verified Artisan</span>
-                  </div>
-                </div>
-              </div>
-            </Card>
+function ProductEdit({ products, favouriteIds }: { products: MarketplaceProduct[]; favouriteIds: string[] }) {
+  const favouriteSet = new Set(favouriteIds);
+  return (
+    <section className="border-y border-artisan-clay/70 bg-[linear-gradient(135deg,#F7E4CC_0%,#FFF9F2_48%,#F0F3E6_100%)] py-20 sm:py-28">
+      <div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">New this week</p>
+            <h2 className="mt-3 font-serif text-3xl font-bold text-[#351711] sm:text-[2.75rem]">New, noteworthy, <span className="gradient-text italic">handmade</span></h2>
+            <p className="mt-2 text-sm text-muted-foreground">A quiet look at what our makers added this week.</p>
+          </div>
+          <Button asChild variant="outline" className="w-fit rounded-full border-artisan-terracotta/30 px-6"><Link href="/shop">View all products <ArrowRight className="ml-2 size-4" /></Link></Button>
+        </div>
+        <ProductCarousel>{products.slice(0, 15).map((product) => <ProductCard key={product.id} product={product} isFavourite={favouriteSet.has(product.id)} redirectTo="/" />)}</ProductCarousel>
+      </div>
+    </section>
+  );
+}
+
+function MarketplaceStory({ products }: { products: MarketplaceProduct[] }) {
+  const imageProduct = products[3] ?? products[0];
+  return (
+    <section className="bg-[linear-gradient(135deg,#351711_0%,#50160F_62%,#314522_135%)] text-[#FFF8F0]">
+      <div className="mx-auto grid max-w-[1440px] lg:grid-cols-2">
+        <div className="relative min-h-[460px] lg:min-h-[620px]">
+          {imageProduct ? <Image src={getProductPrimaryImage(imageProduct)} alt={imageProduct.title} fill sizes="50vw" className="object-cover" /> : null}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#351711]/35" />
+        </div>
+        <div className="flex items-center px-6 py-16 sm:px-12 lg:px-16">
+          <div className="max-w-lg">
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#E5B35A]">Meet the makers</p>
+            <h2 className="mt-4 font-serif text-4xl font-bold leading-tight sm:text-5xl">Every purchase keeps a creative story moving.</h2>
+            <p className="mt-6 leading-7 text-[#EAD9CA]">Artisan Lane brings independent South African studios into one curated marketplace. Explore the person behind the piece, shop their collection and support craftsmanship that cannot be mass-produced.</p>
+            <Button asChild className="mt-8 rounded-full bg-[#FFF8F0] px-7 text-[#351711] hover:bg-[#EAD9CA]"><Link href="/artisans"><Store className="mr-2 size-4" />Discover our artisans</Link></Button>
           </div>
         </div>
       </div>
@@ -623,252 +139,28 @@ function TrustSection() {
   );
 }
 
-function MarqueeSection() {
+function TrustRow() {
   const items = [
-    { icon: Palette, label: "Curated South African crafts" },
-    { icon: Sparkles, label: "Curated artisans" },
-    { icon: Shield, label: "Escrow-protected payments" },
-    { icon: Truck, label: "Nationwide delivery options" },
-    { icon: Heart, label: "Handmade with heart & soul" },
-  ];
-
+    [ShieldCheck, "Protected payments", "TradeSafe holds payment securely"],
+    [PackageCheck, "Curated marketplace", "Every artisan is reviewed"],
+    [Truck, "Flexible delivery", "Courier, pickup and collection options"],
+    [Heart, "Made with meaning", "Support independent local makers"],
+  ] as const;
   return (
-    <div className="py-8 bg-[#7A0000]/5 border-y border-[#7A0000]/10 overflow-hidden">
-      <div className="flex gap-16 animate-marquee">
-        {[...items, ...items].map((item, index) => (
-          <span
-            key={index}
-            className="whitespace-nowrap text-lg font-medium text-muted-foreground flex items-center gap-2"
-          >
-            <item.icon className="w-5 h-5 text-[#7A0000] shrink-0" />
-            {item.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ForArtisansSection() {
-  return (
-    <section id="artisans" className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0 pattern-bg opacity-30" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="text-center mb-16">
-          <Badge
-            variant="secondary"
-            className="mb-4 px-4 py-2 text-sm bg-[#D4A020]/10 text-[#8B4513]"
-          >
-            For Artisans
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-bold mb-4 text-[#3A1F10]">
-            Turn Your Craft
-            <br />
-            <span className="gradient-text italic">Into a Thriving Business.</span>
-          </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Artisan Lane gives you the tools to reach buyers across South Africa—without
-            the hassle of building your own e-commerce store.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            {
-              step: "01",
-              title: "Apply to Join",
-              description: "Submit an application with your business details, craft story, delivery method, and turnaround times. It's an open process — anyone can apply.",
-              icon: ClipboardList,
-            },
-            {
-              step: "02",
-              title: "Get Reviewed & Set Up",
-              description: "Our team reviews every application to ensure quality standards are met. Once approved, create your branded storefront and upload your products.",
-              icon: Store,
-            },
-            {
-              step: "03",
-              title: "Start Selling",
-              description: "Orders come in, you ship them out, and funds are released once the buyer confirms receipt. Simple as that.",
-              icon: ShoppingBag,
-            },
-          ].map((item, i) => (
-            <Card key={i} className="relative overflow-hidden group hover:-translate-y-2 transition-all duration-300">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-bl from-[#D4A020]/10 to-transparent" />
-              <CardContent className="p-8">
-                <span className="text-5xl font-bold text-[#D4A020]/20 block mb-4">{item.step}</span>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7A0000]/10 to-[#D4A020]/10 flex items-center justify-center mb-4">
-                  <item.icon className="w-6 h-6 text-[#7A0000]" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
-                <p className="text-muted-foreground">{item.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <div className="mt-12 text-center">
-          <Button
-            asChild
-            size="lg"
-            className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-full px-8 h-14 text-base"
-          >
-            <Link href="/login?intent=vendor">
-              Apply as a shop <ArrowRight className="ml-2 w-4 h-4" />
-            </Link>
-          </Button>
-        </div>
+    <section className="border-y border-[#E7D4C2] bg-[#FFF9F2] py-8">
+      <div className="mx-auto grid max-w-[1440px] gap-5 px-5 sm:grid-cols-2 sm:px-8 lg:grid-cols-4 lg:divide-x lg:divide-[#E7D4C2]">
+        {items.map(([Icon, title, copy]) => <div key={title} className="flex items-center gap-3 lg:px-6 first:pl-0"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#7A0000]/12 via-[#D4A020]/12 to-[#559826]/12"><Icon className="size-4 text-artisan-terracotta" /></span><div><h3 className="font-sans text-xs font-bold">{title}</h3><p className="mt-0.5 text-[11px] text-muted-foreground">{copy}</p></div></div>)}
       </div>
     </section>
   );
 }
 
-function FAQSection() {
-  const faqs = [
-    {
-      question: "What is Artisan Lane?",
-      answer:
-        "Artisan Lane is a curated mobile marketplace connecting South African artisans with buyers who appreciate unique, handmade goods. We focus on quality over quantity — every artisan is reviewed before going live, ensuring every product meets a high standard of craftsmanship.",
-    },
-    {
-      question: "How does the escrow payment system work?",
-      answer:
-        "When you place an order, your payment is held securely via our escrow system powered by TradeSafe. The artisan is notified, ships your order, and once you confirm receipt, funds are released to the artisan. If you don't confirm within 14 days of delivery, funds are auto-released. Disputes can be raised any time before release.",
-    },
-    {
-      question: "How can I become an artisan on Artisan Lane?",
-      answer:
-        "It's an open application process — anyone can apply. Simply register as an artisan in the app, tell us about your craft, how you fulfil orders, and your typical turnaround times. Our team reviews every application before you go live to ensure quality standards are met. Once approved, you can set up your shop and start selling.",
-    },
-    {
-      question: "What shipping options are available?",
-      answer:
-        "We support multiple South African delivery options: Courier Guy for door-to-door delivery and locker-to-locker, Pargo for nationwide pickup points, and Market Pickup for in-person collection from the artisan at markets or events.",
-    },
-    {
-      question: "Is Artisan Lane free to use for buyers?",
-      answer:
-        "Yes! The app is completely free to download and browse. You only pay for the products you purchase plus shipping. There are no subscription fees or hidden charges for buyers.",
-    },
-    {
-      question: "What types of products can I find?",
-      answer:
-        "You'll find a diverse range of handcrafted goods across Home, Art & Design, Jewellery, Clothing, Accessories, Baby & Kids, Self Care, Pantry, and Pets. Everything is handmade by verified South African artisans — no mass-produced items.",
-    },
-  ];
-
+function SellerInvitation() {
   return (
-    <section id="faq" className="py-24 bg-[#F7E4CC]/30">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <Badge
-            variant="secondary"
-            className="mb-4 px-4 py-2 text-sm bg-[#7A0000]/10 text-[#7A0000]"
-          >
-            Questions?
-          </Badge>
-          <h2 className="text-4xl md:text-5xl font-bold">F.A.Q.</h2>
-        </div>
-
-        <Accordion type="single" collapsible className="space-y-4">
-          {faqs.map((faq, index) => (
-            <AccordionItem
-              key={index}
-              value={`item-${index}`}
-              className="border rounded-xl px-6 bg-card"
-            >
-              <AccordionTrigger className="text-left font-semibold hover:text-[#7A0000] transition-colors">
-                {faq.question}
-              </AccordionTrigger>
-              <AccordionContent className="text-muted-foreground">
-                {faq.answer}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </div>
-    </section>
-  );
-}
-
-function CTASection() {
-  return (
-    <section className="py-24">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <Card className="relative overflow-hidden border-[#7A0000]/20">
-          <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-[#7A0000]/20 to-[#D4A020]/15 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-60 h-60 bg-gradient-to-tr from-[#559826]/10 to-transparent rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-
-          <CardContent className="relative p-12 text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Ready to Shop Local?
-            </h2>
-            <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto">
-              The Artisan Lane store is live on the web. Browse handmade pieces,
-              save favourites, check out securely, and manage your orders from your buyer account.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-              <Button
-                asChild
-                size="lg"
-                className="bg-[#7A0000] hover:bg-[#4A0000] text-white rounded-xl px-6 h-14 w-full sm:w-[260px]"
-              >
-                <Link href="/shop">
-                  <ShoppingBag className="w-6 h-6 mr-3" />
-                  <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Enter the</span>
-                    <span className="font-semibold">Marketplace</span>
-                  </div>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="rounded-xl px-6 h-14 border-2 w-full sm:w-[260px]"
-              >
-                <Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer">
-                  <Apple className="w-6 h-6 mr-3" />
-                  <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Prefer mobile?</span>
-                    <span className="font-semibold">Download iOS</span>
-                  </div>
-                </Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="rounded-xl px-6 h-14 border-2 w-full sm:w-[260px]"
-              >
-                <Link
-                  href={GOOGLE_PLAY_STORE_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Play className="w-6 h-6 mr-3 fill-current" />
-                  <div className="text-left">
-                    <span className="text-[10px] block opacity-70">Get it on</span>
-                    <span className="font-semibold">Google Play</span>
-                  </div>
-                </Link>
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> Free to download
-              </span>
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> Curated quality
-              </span>
-              <span className="flex items-center gap-1">
-                <Check className="w-4 h-4 text-[#559826]" /> Escrow protected
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+    <section className="bg-[radial-gradient(circle_at_78%_28%,rgba(212,160,32,0.10),transparent_24%),radial-gradient(circle_at_20%_80%,rgba(85,152,38,0.07),transparent_27%),#FFF9F2] px-5 py-20 sm:px-8 sm:py-28">
+      <div className="mx-auto flex max-w-[1180px] flex-col items-start justify-between gap-8 border-y border-[#D9BFA9] py-12 md:flex-row md:items-center">
+        <div className="max-w-2xl"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">For South African makers</p><h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-[#351711] sm:text-4xl">A beautiful place for work <span className="gradient-text italic">made with care.</span></h2><p className="mt-4 max-w-xl leading-7 text-muted-foreground">Open your own shopfront, meet new customers and grow alongside a community that values the handmade.</p></div>
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col lg:flex-row"><Button asChild size="lg" className="rounded-full bg-[#8F120D] px-7"><Link href="/login?intent=vendor">Apply as an artisan <ArrowRight className="ml-2 size-4" /></Link></Button><Button asChild size="lg" variant="ghost" className="rounded-full text-[#60483B]"><Link href="/learn">How selling works</Link></Button></div>
       </div>
     </section>
   );
@@ -876,116 +168,42 @@ function CTASection() {
 
 function Footer() {
   return (
-    <footer className="border-t border-[#EDD5BE] py-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className="col-span-2">
-            <Link href="/" className="flex items-center gap-2 mb-4">
-              <Image
-                src="/logo.png"
-                alt="Artisan Lane Logo"
-                width={32}
-                height={32}
-                className="rounded-lg"
-              />
-              <span className="text-xl font-bold">Artisan Lane</span>
-            </Link>
-            <p className="text-muted-foreground mb-6 max-w-xs">
-              A curated craft marketplace celebrating South African artisans and their extraordinary handmade creations.
-            </p>
-            <div className="flex gap-4">
-              <Link
-                href="https://www.facebook.com/share/1JdPcWcmWR/?mibextid=wwXIfr"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-[#F7E4CC] flex items-center justify-center hover:bg-[#7A0000] hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M13.5 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.6 1.6-1.6h1.7V3.8c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.5-4 4.2V10H8v3h2.4v8h3.1z"/>
-                </svg>
-              </Link>
-              <Link
-                href="https://www.instagram.com/artisanlanesa?igsh=eGR6ZjVsNWtmc2w5&utm_source=qr"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-10 h-10 rounded-full bg-[#F7E4CC] flex items-center justify-center hover:bg-[#7A0000] hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-                </svg>
-              </Link>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Marketplace</h4>
-            <ul className="space-y-3 text-muted-foreground">
-              <li><Link href="#features" className="hover:text-[#7A0000] transition-colors">Features</Link></li>
-              <li><Link href="#how-it-works" className="hover:text-[#7A0000] transition-colors">How It Works</Link></li>
-              <li><Link href="#artisans" className="hover:text-[#7A0000] transition-colors">For Artisans</Link></li>
-              <li><Link href="#how-it-works" className="hover:text-[#7A0000] transition-colors">Categories</Link></li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Support</h4>
-            <ul className="space-y-3 text-muted-foreground">
-              <li><Link href="/about" className="hover:text-[#7A0000] transition-colors">Meet the Founder</Link></li>
-              <li><Link href="#faq" className="hover:text-[#7A0000] transition-colors">FAQ</Link></li>
-              <li><Link href="mailto:nicky@artisanlanesa.com" className="hover:text-[#7A0000] transition-colors">Contact Us</Link></li>
-              <li><Link href={IOS_APP_STORE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#7A0000] transition-colors">Download for iOS</Link></li>
-              <li><Link href={GOOGLE_PLAY_STORE_URL} target="_blank" rel="noopener noreferrer" className="hover:text-[#7A0000] transition-colors">Download for Android</Link></li>
-              <li><Link href="/admin/login" className="hover:text-[#7A0000] transition-colors">Admin Portal</Link></li>
-              <li><Link href="/privacy" className="hover:text-[#7A0000] transition-colors">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="hover:text-[#7A0000] transition-colors">Terms of Service</Link></li>
-            </ul>
-          </div>
+    <footer className="bg-[#24100C] py-14 text-[#F6EBDD]">
+      <div className="mx-auto grid max-w-[1440px] gap-10 px-5 sm:px-8 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div>
+          <Link href="/" className="flex items-center gap-3"><Image src="/logo.png" alt="" width={42} height={42} className="rounded-full" /><span className="font-serif text-xl font-bold">Artisan Lane</span></Link>
+          <p className="mt-5 max-w-xs text-sm leading-6 text-[#D9BFA9]">A curated home for South African craftsmanship, independent makers and pieces with a story.</p>
         </div>
-
-        <Separator className="mb-8 bg-[#EDD5BE]" />
-
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-muted-foreground text-sm">
-            © 2026 Artisan Lane. Celebrating South African craftsmanship.
-          </p>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Flag className="w-4 h-4 text-[#7A0000]" />
-            <span>Made in South Africa</span>
-          </div>
-        </div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Shop</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/shop">All products</Link><Link href="/shop?sort=newest">New arrivals</Link><Link href="/artisans">Artisans</Link><Link href="/account/favourites">Favourites</Link></div></div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Artisan Lane</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/about">Our story</Link><Link href="/learn">Learn</Link><Link href="/login?intent=vendor">Become a seller</Link><Link href="mailto:nicky@artisanlanesa.com">Contact</Link></div></div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Help</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/account/help">Help centre</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/login?intent=buyer">My account</Link></div></div>
       </div>
+      <div className="mx-auto mt-12 flex max-w-[1440px] flex-col justify-between gap-3 border-t border-white/10 px-5 pt-6 text-xs text-[#A98C78] sm:flex-row sm:px-8"><span>© 2026 Artisan Lane. All rights reserved.</span><span>Made in South Africa</span></div>
     </footer>
   );
 }
 
 export default async function Home() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const [featuredProducts, categories, favouriteIds, campaignOffers] = await Promise.all([
-    getFeaturedMarketplaceProducts(8),
+  const { data: { user } } = await supabase.auth.getUser();
+  const [products, freshProducts, categories, favouriteIds, campaignOffers] = await Promise.all([
+    getFeaturedMarketplaceProducts(12),
+    getFreshMarketplaceProducts(15),
     getMarketplaceCategories(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
     listCampaignOffers(),
   ]);
-  const categoryLinks = buildHomeCategoryLinks(categories);
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-[#FFF9F2]">
       <HomepageCampaignPopup offers={campaignOffers} />
       <MarketplaceHeader activeItem="home" />
-      <HeroSection />
-      <MarketplaceGatewaySection />
-      <HomeFeaturedFindsSection products={featuredProducts} favouriteIds={favouriteIds} />
-      <FeaturesSection />
-      <AppShowcaseSection categoryLinks={categoryLinks} />
-      <ArtisanShopSection />
-      <TrustSection />
-      <MarqueeSection />
-      <ForArtisansSection />
-      <FAQSection />
-      <CTASection />
+      <Hero products={products} />
+      <CategoryRail categories={categories} products={products} />
+      <ProductEdit products={freshProducts} favouriteIds={favouriteIds} />
+      <MarketplaceStory products={products} />
+      <TrustRow />
+      <SellerInvitation />
       <Footer />
     </main>
   );

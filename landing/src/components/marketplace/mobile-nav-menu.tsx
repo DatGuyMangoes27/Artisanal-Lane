@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { href: "/", label: "Home", key: "home" },
   { href: "/shop", label: "Store", key: "shop" },
-  { href: "/artisans", label: "Artisans", key: "artisans" },
+  { href: "/artisans", label: "Browse artisans", key: "artisans" },
   // Learn is artisan-only; filtered out below for everyone else.
   { href: "/learn", label: "Learn", key: "learn" },
   { href: "/about", label: "About", key: "about" },

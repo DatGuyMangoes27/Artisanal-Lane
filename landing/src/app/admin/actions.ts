@@ -20,12 +20,47 @@ import {
   sendDisputeResolvedPushNotification,
 } from "@/lib/push-notifications";
 import { createClient as createServerClient } from "@/lib/supabase/server";
+import { removeUnreferencedProductImages } from "@/lib/marketplace/product-image-storage";
 
 function slugify(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function parseProductImageUrls(value: FormDataEntryValue | null) {
+  return String(value ?? "")
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter((item) => item.startsWith("http://") || item.startsWith("https://"));
+}
+
+function productImageFiles(formData: FormData) {
+  return formData
+    .getAll("productImages")
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+}
+
+async function uploadAdminProductImage(file: File, ownerId: string) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error(`${file.name} is not a supported image.`);
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error(`${file.name} is larger than 8 MB.`);
+  }
+
+  const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
+  const path = `${ownerId}/${crypto.randomUUID()}.${extension}`;
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from("product-images").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) {
+    throw new Error(`Unable to upload ${file.name}: ${error.message}`);
+  }
+  return admin.storage.from("product-images").getPublicUrl(path).data.publicUrl;
 }
 
 function createSuccessState(message: string): AdminActionState {
@@ -219,6 +254,73 @@ export async function toggleProductPublish(
     return createSuccessState(nextValue ? "Product published." : "Product unpublished.");
   } catch (error) {
     return createErrorState(error, "Unable to update product visibility.");
+  }
+}
+
+export async function updateAdminProductImages(
+  _previousState: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  try {
+    await requireAdminSession();
+    const productId = String(formData.get("productId") ?? "").trim();
+    if (!productId) {
+      throw new Error("Missing product ID.");
+    }
+
+    const existingImages = parseProductImageUrls(formData.get("imageUrls"));
+    const files = productImageFiles(formData);
+    if (existingImages.length + files.length > 8) {
+      throw new Error("A product can have a maximum of 8 photos.");
+    }
+
+    const admin = createAdminClient();
+    const { data: product, error: productError } = await admin
+      .from("products")
+      .select("id, shop_id, images")
+      .eq("id", productId)
+      .maybeSingle();
+    throwIfSupabaseError(productError, "Unable to load the product.");
+    if (!product) {
+      throw new Error("Product not found.");
+    }
+
+    const { data: shop, error: shopError } = await admin
+      .from("shops")
+      .select("vendor_id")
+      .eq("id", product.shop_id)
+      .maybeSingle();
+    throwIfSupabaseError(shopError, "Unable to load the product shop.");
+
+    const uploadedImages = await Promise.all(
+      files.map((file) => uploadAdminProductImage(file, shop?.vendor_id ?? productId)),
+    );
+    const images = [...existingImages, ...uploadedImages];
+    const { error: updateError } = await admin
+      .from("products")
+      .update({ images })
+      .eq("id", productId);
+    throwIfSupabaseError(updateError, "Unable to save product photos.");
+
+    const previousImages = Array.isArray(product.images)
+      ? product.images.map(String).filter(Boolean)
+      : [];
+    await removeUnreferencedProductImages(
+      admin,
+      previousImages.filter((imageUrl) => !images.includes(imageUrl)),
+    );
+
+    revalidatePath("/admin/products");
+    revalidatePath("/vendor/products");
+    revalidatePath(`/vendor/products/${productId}`);
+    revalidatePath(`/products/${productId}`);
+    revalidatePath("/shop");
+
+    return createSuccessState(
+      images.length === 1 ? "1 product photo saved." : `${images.length} product photos saved.`,
+    );
+  } catch (error) {
+    return createErrorState(error, "Unable to save product photos.");
   }
 }
 

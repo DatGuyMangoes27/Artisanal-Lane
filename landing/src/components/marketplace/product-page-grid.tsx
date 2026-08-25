@@ -37,26 +37,22 @@ export function ProductPageGrid({
   }
 
   return (
-    <main className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:px-8 lg:py-14">
-      <ProductGallery
-        key={galleryKey}
-        images={displayImages}
-        title={product.title}
-        onSale={onSale}
-      />
+    <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+      <div className="grid gap-10 lg:grid-cols-[1.16fr_0.84fr] xl:gap-16">
+        <ProductGallery key={galleryKey} images={displayImages} title={product.title} onSale={onSale} />
 
-      <section className="space-y-8">
-        {header}
+        <section className="lg:sticky lg:top-36 lg:self-start">
+          <div className="space-y-7">
+            {header}
+            <div className="rounded-[1.5rem] border border-artisan-clay bg-white p-5 shadow-[0_18px_50px_rgba(58,23,17,0.07)] sm:p-6">
+              <ProductPurchasePanel product={product} openMtoUnits={openMtoUnits} onVariantChange={handleVariantChange} />
+              {actions}
+            </div>
+          </div>
+        </section>
+      </div>
 
-        <div className="rounded-3xl border border-artisan-clay bg-card p-6 shadow-sm">
-          <ProductPurchasePanel
-            product={product}
-            openMtoUnits={openMtoUnits}
-            onVariantChange={handleVariantChange}
-          />
-          {actions}
-        </div>
-
+      <section className="mt-14 border-t border-artisan-clay pt-12 lg:mt-20 lg:pt-16">
         {footer}
       </section>
     </main>

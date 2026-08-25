@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, Clock3, Minus, PackageCheck, Plus, ShoppingBag } from "lucide-react";
 
 import { formatPrice } from "@/lib/marketplace/format";
 import type { MarketplaceProduct, MarketplaceVariant } from "@/lib/marketplace/types";
@@ -56,9 +57,12 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
   );
   const [selectedVariantId, setSelectedVariantId] = useState<string>("");
   const [customNote, setCustomNote] = useState("");
+  const [quantity, setQuantity] = useState(1);
 
   const onVariantChangeRef = useRef(onVariantChange);
-  onVariantChangeRef.current = onVariantChange;
+  useEffect(() => {
+    onVariantChangeRef.current = onVariantChange;
+  }, [onVariantChange]);
 
   const selectedVariant = useMemo(() => {
     if (!hasVariants) return null;
@@ -94,15 +98,24 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
   const lead = leadTimeLabel(product.leadMinDays, product.leadMaxDays);
 
   const showCustomNote = isMtoMode && product.allowCustomNote && variantChosen && !capacityFull;
+  const remainingMtoCapacity = product.madeToOrderCapacity == null
+    ? 20
+    : Math.max(product.madeToOrderCapacity - openMtoUnits, 1);
+  const maxQuantity = isMtoMode ? remainingMtoCapacity : Math.max(effectiveStock, 1);
+
+  const selectedQuantity = Math.min(quantity, maxQuantity);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {hasVariants ? (
         <div className="space-y-3">
           {hasOptionGroups ? (
             product.optionGroups.map((group, groupIndex) => (
               <div key={group.name} className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">{group.name}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold text-foreground">Choose {group.name.toLowerCase()}</p>
+                  {selectedValues[groupIndex] ? <span className="flex items-center gap-1 text-xs font-medium text-[#4D7F35]"><Check className="size-3.5" /> Selected</span> : null}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {group.values.map((value) => {
                     const isSelected = selectedValues[groupIndex] === value;
@@ -117,9 +130,9 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
                             return next;
                           })
                         }
-                        className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                        className={`min-w-16 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                           isSelected
-                            ? "border-artisan-terracotta bg-artisan-terracotta text-white"
+                            ? "border-artisan-terracotta bg-artisan-terracotta text-white shadow-sm"
                             : "border-artisan-clay bg-white text-foreground hover:border-artisan-terracotta"
                         }`}
                       >
@@ -141,7 +154,7 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
                       key={variant.id}
                       type="button"
                       onClick={() => setSelectedVariantId(isSelected ? "" : variant.id)}
-                      className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                      className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
                         isSelected
                           ? "border-artisan-terracotta bg-artisan-terracotta text-white"
                           : "border-artisan-clay bg-white text-foreground hover:border-artisan-terracotta"
@@ -183,6 +196,20 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
         </label>
       ) : null}
 
+      {variantChosen && !soldOut && !capacityFull ? (
+        <div className="flex flex-col gap-4 border-y border-artisan-clay/80 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-foreground">Quantity</p>
+            <p className="mt-1 text-xs text-muted-foreground">{isMtoMode ? "Made individually for your order" : `${effectiveStock} available`}</p>
+          </div>
+          <div className="flex h-11 w-fit items-center overflow-hidden rounded-full border border-artisan-clay bg-white shadow-sm">
+            <button type="button" aria-label="Decrease quantity" onClick={() => setQuantity(Math.max(1, selectedQuantity - 1))} disabled={selectedQuantity <= 1} className="flex size-11 items-center justify-center transition hover:bg-secondary disabled:opacity-35"><Minus className="size-4" /></button>
+            <span className="w-11 text-center text-sm font-bold tabular-nums" aria-live="polite">{selectedQuantity}</span>
+            <button type="button" aria-label="Increase quantity" onClick={() => setQuantity(Math.min(maxQuantity, selectedQuantity + 1))} disabled={selectedQuantity >= maxQuantity} className="flex size-11 items-center justify-center transition hover:bg-secondary disabled:opacity-35"><Plus className="size-4" /></button>
+          </div>
+        </div>
+      ) : null}
+
       {!variantChosen ? (
         <AddToCartButton productId={product.id} disabled label="Select options" />
       ) : soldOut ? (
@@ -193,10 +220,18 @@ export function ProductPurchasePanel({ product, openMtoUnits, onVariantChange }:
         <AddToCartButton
           productId={product.id}
           variantId={selectedVariant?.id ?? null}
+          quantity={selectedQuantity}
           isMadeToOrder={isMtoMode}
           customNote={isMtoMode ? customNote : null}
+          label={selectedQuantity > 1 ? `Add ${selectedQuantity} to cart` : undefined}
         />
       )}
+
+      <div className="grid gap-2.5 rounded-2xl bg-[#F7EDE2] p-4 text-xs text-muted-foreground sm:grid-cols-3">
+        <span className="flex items-center gap-2"><PackageCheck className="size-4 text-artisan-terracotta" /> Curated maker</span>
+        <span className="flex items-center gap-2"><Clock3 className="size-4 text-artisan-terracotta" /> Order updates</span>
+        <span className="flex items-center gap-2"><ShoppingBag className="size-4 text-artisan-terracotta" /> Secure checkout</span>
+      </div>
     </div>
   );
 }

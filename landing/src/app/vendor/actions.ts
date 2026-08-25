@@ -29,6 +29,7 @@ import {
 } from "@/lib/marketplace/vendor-utils";
 import { SHIPPING_METHOD_KEYS } from "@/lib/marketplace/shipping";
 import { validateVendorProofFiles } from "@/lib/marketplace/vendor-application-files";
+import { removeUnreferencedProductImages } from "@/lib/marketplace/product-image-storage";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -84,8 +85,27 @@ async function uploadPublicFile({
   return admin.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
-async function getUploadedUrls(formData: FormData, key: string, bucket: string, ownerId: string) {
+async function getUploadedUrls(
+  formData: FormData,
+  key: string,
+  bucket: string,
+  ownerId: string,
+  options: { maxFiles?: number; imagesOnly?: boolean } = {},
+) {
   const files = formData.getAll(key).filter(isFile);
+  if (options.maxFiles != null && files.length > options.maxFiles) {
+    throw new Error(`You can add up to ${options.maxFiles} more photos.`);
+  }
+  if (options.imagesOnly) {
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        throw new Error(`${file.name} is not a supported image.`);
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        throw new Error(`${file.name} is larger than 8 MB.`);
+      }
+    }
+  }
   const uploaded = await Promise.all(files.map((file) => uploadPublicFile({ bucket, ownerId, file })));
   return uploaded;
 }
@@ -328,8 +348,17 @@ function variantPayloadFromJson(value: unknown, productId: string) {
 }
 
 async function productPayloadFromForm(formData: FormData, shopId: string, userId: string) {
-  const uploadedImages = await getUploadedUrls(formData, "productImages", "product-images", userId);
   const existingImages = parseImageUrls(formData, "imageUrls");
+  if (existingImages.length > 8) {
+    throw new Error("A product can have a maximum of 8 photos.");
+  }
+  const uploadedImages = await getUploadedUrls(
+    formData,
+    "productImages",
+    "product-images",
+    userId,
+    { maxFiles: 8 - existingImages.length, imagesOnly: true },
+  );
   const images = [...existingImages, ...uploadedImages];
   const categoryId = parseNullableText(formData.get("categoryId"));
   const subcategoryId = parseNullableText(formData.get("subcategoryId"));
@@ -411,6 +440,11 @@ export async function updateVendorProduct(formData: FormData) {
   if (error) {
     throw new Error("Unable to update product.", { cause: error });
   }
+
+  await removeUnreferencedProductImages(
+    admin,
+    product.images.filter((imageUrl) => !payload.images.includes(imageUrl)),
+  );
 
   const variants = variantPayloadFromJson(parseJsonArrayInput(formData.get("variantsJson")), productId);
   await admin.from("product_variants").delete().eq("product_id", productId);

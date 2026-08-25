@@ -165,18 +165,9 @@ export function VendorProductForm({
 
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Images</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Upload and crop new product photos, or paste existing hosted URLs below.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Add new photos or remove saved ones. Your changes take effect when you save the product.</p>
         <div className="mt-5 grid gap-4">
-          <ProductImagePicker />
-          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
-            Existing image URLs
-            <textarea
-              name="imageUrls"
-              defaultValue={product?.images.join("\n") ?? ""}
-              className="min-h-28 rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
-              placeholder="One hosted image URL per line"
-            />
-          </label>
+          <ProductImagePicker existingImages={product?.images ?? []} />
         </div>
       </section>
 

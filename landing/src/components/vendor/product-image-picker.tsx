@@ -60,7 +60,18 @@ async function cropToSquareFile(
   return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
 }
 
-export function ProductImagePicker({ name = "productImages" }: { name?: string }) {
+export function ProductImagePicker({
+  name = "productImages",
+  existingImages: initialExistingImages = [],
+  existingImagesName = "imageUrls",
+  maxImages = 8,
+}: {
+  name?: string;
+  existingImages?: string[];
+  existingImagesName?: string;
+  maxImages?: number;
+}) {
+  const [existingImages, setExistingImages] = useState(initialExistingImages);
   const [images, setImages] = useState<PickedImage[]>([]);
   const [queue, setQueue] = useState<{ src: string; fileName: string }[]>([]);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -69,6 +80,10 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setExistingImages(initialExistingImages);
+  }, [initialExistingImages]);
 
   // Keep the real (form-submitted) file input in sync with the cropped images.
   useEffect(() => {
@@ -92,8 +107,11 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
   const handleFilesSelected = useCallback(
     (fileList: FileList | null) => {
       if (!fileList || fileList.length === 0) return;
+      const availableSlots = Math.max(0, maxImages - existingImages.length - images.length - queue.length);
+      if (availableSlots === 0) return;
       const next = Array.from(fileList)
         .filter((file) => file.type.startsWith("image/"))
+        .slice(0, availableSlots)
         .map((file) => ({ src: URL.createObjectURL(file), fileName: file.name }));
       if (next.length > 0) {
         setQueue((prev) => [...prev, ...next]);
@@ -102,7 +120,7 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
         fileInputRef.current.value = "";
       }
     },
-    [],
+    [existingImages.length, images.length, maxImages, queue.length],
   );
 
   const closeCurrent = useCallback(() => {
@@ -141,6 +159,14 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
 
   return (
     <div className="grid gap-3">
+      <textarea
+        name={existingImagesName}
+        value={existingImages.join("\n")}
+        readOnly
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+      />
       <input
         ref={hiddenInputRef}
         type="file"
@@ -160,8 +186,26 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
         onChange={(event) => handleFilesSelected(event.target.files)}
       />
 
-      {images.length > 0 ? (
+      {existingImages.length > 0 || images.length > 0 ? (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+          {existingImages.map((imageUrl, index) => (
+            <div
+              key={`${imageUrl}-${index}`}
+              className="group relative aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt={`Saved product photo ${index + 1}`} className="h-full w-full object-cover" />
+              {index === 0 ? <span className="absolute bottom-1.5 left-1.5 rounded-full bg-white/90 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-artisan-sienna shadow">Main photo</span> : null}
+              <button
+                type="button"
+                onClick={() => setExistingImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}
+                className="absolute right-1.5 top-1.5 rounded-full bg-black/65 p-1.5 text-white shadow transition hover:bg-red-800"
+                aria-label={`Remove saved photo ${index + 1}`}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
           {images.map((item) => (
             <div
               key={item.id}
@@ -190,13 +234,14 @@ export function ProductImagePicker({ name = "productImages" }: { name?: string }
         type="button"
         variant="outline"
         onClick={() => fileInputRef.current?.click()}
+        disabled={existingImages.length + images.length + queue.length >= maxImages}
         className="w-fit rounded-full border-artisan-clay"
       >
         <ImagePlus className="mr-2 h-4 w-4" />
         Add &amp; crop photos
       </Button>
       <p className="text-xs text-muted-foreground">
-        Photos are cropped to a square so your shop looks consistent.
+        {existingImages.length + images.length} of {maxImages} photos selected. Photos are cropped to a square so your shop looks consistent. The first photo is used as the main listing image.
       </p>
 
       {current ? (

@@ -100,7 +100,7 @@ export function AuthCtaButtons({ variant = "bar" }: { variant?: "bar" | "pill" }
           href="/login?intent=vendor"
           className={`${pillBase} bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark`}
         >
-          Apply
+          Apply as an artisan
         </Link>
       </>
     );
@@ -133,7 +133,7 @@ export function AuthCtaButtons({ variant = "bar" }: { variant?: "bar" | "pill" }
         size="sm"
         className="rounded-full bg-artisan-terracotta text-white hover:bg-artisan-terracotta-dark"
       >
-        <Link href="/login?intent=vendor">Apply</Link>
+        <Link href="/login?intent=vendor">Apply as an artisan</Link>
       </Button>
     </>
   );
