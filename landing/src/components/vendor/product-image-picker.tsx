@@ -158,7 +158,7 @@ export function ProductImagePicker({
   }, []);
 
   return (
-    <div className="grid gap-3">
+    <div className="grid min-w-0 gap-3">
       <textarea
         name={existingImagesName}
         value={existingImages.join("\n")}
@@ -187,14 +187,14 @@ export function ProductImagePicker({
       />
 
       {existingImages.length > 0 || images.length > 0 ? (
-        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-[repeat(4,minmax(0,1fr))]">
           {existingImages.map((imageUrl, index) => (
             <div
               key={`${imageUrl}-${index}`}
-              className="group relative aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
+              className="group relative min-w-0 aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt={`Saved product photo ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={imageUrl} alt={`Saved product photo ${index + 1}`} className="block size-full max-w-full object-cover" />
               {index === 0 ? <span className="absolute bottom-1.5 left-1.5 rounded-full bg-white/90 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-artisan-sienna shadow">Main photo</span> : null}
               <button
                 type="button"
@@ -209,13 +209,13 @@ export function ProductImagePicker({
           {images.map((item) => (
             <div
               key={item.id}
-              className="group relative aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
+              className="group relative min-w-0 aspect-square overflow-hidden rounded-2xl border border-artisan-clay bg-secondary"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={item.previewUrl}
                 alt="New product photo"
-                className="h-full w-full object-cover"
+                className="block size-full max-w-full object-cover"
               />
               <button
                 type="button"
