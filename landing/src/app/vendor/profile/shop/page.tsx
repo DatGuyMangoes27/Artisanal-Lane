@@ -8,6 +8,7 @@ import {
   updateVendorShopSettings,
 } from "@/app/vendor/actions";
 import {
+  getVendorFulfillmentProfile,
   getVendorShop,
   listVendorMarketEvents,
   requireVendorSession,
@@ -26,6 +27,7 @@ const shippingMethods = SHIPPING_METHOD_KEYS.map(
 export default async function VendorShopSettingsPage() {
   const session = await requireVendorSession("/vendor/profile/shop");
   const shop = session.isApprovedVendor ? await getVendorShop(session.user.id) : null;
+  const fulfillmentProfile = shop ? await getVendorFulfillmentProfile(shop.id) : null;
   const marketEvents = shop ? await listVendorMarketEvents(shop.id) : [];
   const shopName = shop?.name ?? "";
 
@@ -98,6 +100,12 @@ export default async function VendorShopSettingsPage() {
               ) : null}
               <input type="hidden" name="logoUrl" defaultValue={shop?.logoUrl ?? ""} />
               <input name="logoFile" type="file" accept="image/*" className="text-sm" />
+              {shop?.logoUrl ? (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input name="removeLogo" type="checkbox" />
+                  Remove the current logo when I save
+                </label>
+              ) : null}
             </div>
             <div className="space-y-3">
               <p className="text-sm font-medium text-artisan-sienna">Cover image</p>
@@ -112,7 +120,73 @@ export default async function VendorShopSettingsPage() {
               ) : null}
               <input type="hidden" name="coverImageUrl" defaultValue={shop?.coverImageUrl ?? ""} />
               <input name="coverFile" type="file" accept="image/*" className="text-sm" />
+              {shop?.coverImageUrl ? (
+                <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input name="removeCover" type="checkbox" />
+                  Remove the current cover image when I save
+                </label>
+              ) : null}
             </div>
+          </div>
+        </VendorPanel>
+
+        <VendorPanel
+          title="Bob Go collection address"
+          description="Private courier collection details. Buyers never see this address. Bob Go is door-to-door only and remains separate from every existing delivery option."
+        >
+          <div className="grid gap-5 lg:grid-cols-2">
+            <label className="flex items-start gap-3 rounded-2xl border border-artisan-clay/70 bg-artisan-bone/30 p-4 lg:col-span-2">
+              <input
+                name="bobGoEnabled"
+                type="checkbox"
+                defaultChecked={fulfillmentProfile?.bobGoEnabled ?? false}
+                className="mt-1"
+              />
+              <span className="grid gap-1">
+                <span className="text-sm font-semibold text-artisan-sienna">
+                  Offer Bob Go door-to-door delivery
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  A live courier price will be calculated from this collection address to the buyer.
+                </span>
+              </span>
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Collection contact name
+              <input name="collectionContactFullName" defaultValue={fulfillmentProfile?.contactFullName ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Company / shop name
+              <input name="collectionCompany" defaultValue={fulfillmentProfile?.company ?? shopName} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Collection email
+              <input name="collectionContactEmail" type="email" defaultValue={fulfillmentProfile?.contactEmail ?? session.profile.email ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Collection phone
+              <input name="collectionContactPhone" type="tel" defaultValue={fulfillmentProfile?.contactPhone ?? ""} placeholder="+27..." className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna lg:col-span-2">
+              Street address
+              <input name="collectionStreetAddress" defaultValue={fulfillmentProfile?.streetAddress ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Suburb / local area
+              <input name="collectionLocalArea" defaultValue={fulfillmentProfile?.localArea ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              City
+              <input name="collectionCity" defaultValue={fulfillmentProfile?.city ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Province
+              <input name="collectionProvince" defaultValue={fulfillmentProfile?.province ?? ""} placeholder="Western Cape" className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+              Postal code
+              <input name="collectionPostalCode" inputMode="numeric" defaultValue={fulfillmentProfile?.postalCode ?? ""} className="rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm" />
+            </label>
           </div>
         </VendorPanel>
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import Link from "next/link";
-import { Paperclip, SendHorizonal } from "lucide-react";
+import { SendHorizonal } from "lucide-react";
 
 import { sendAdminApplicantMessage, sendAdminShopMessage } from "@/app/admin/actions";
 import { AdminActionFeedback } from "@/components/admin/admin-action-feedback";
+import { ChatMessageAttachment } from "@/components/marketplace/chat-message-attachment";
 import { Button } from "@/components/ui/button";
 import { initialAdminActionState } from "@/lib/admin-action-state";
 import { cn } from "@/lib/utils";
@@ -150,19 +150,12 @@ function ChatMessagesList({
               >
                 {senderLabel}
               </p>
-              {message.attachment_url ? (
-                <Link
-                  className={cn(
-                    "mb-2 flex items-center gap-2 rounded-xl px-3 py-2 text-xs",
-                    isMine ? "bg-white/15" : "bg-artisan-bone",
-                  )}
-                  href={message.attachment_url}
-                  target="_blank"
-                >
-                  <Paperclip className="h-3.5 w-3.5" />
-                  {message.attachment_name ?? "Attachment"}
-                </Link>
-              ) : null}
+              <ChatMessageAttachment
+                url={message.attachment_url}
+                name={message.attachment_name}
+                mime={message.attachment_mime}
+                mine={isMine}
+              />
               {message.body ? (
                 <p className="whitespace-pre-wrap leading-relaxed">
                   {message.body}
@@ -207,6 +200,7 @@ function AdminApplicantChatComposer({
     <form
       action={formAction}
       className="space-y-2 border-t border-artisan-clay/60 bg-white p-4"
+      encType="multipart/form-data"
       ref={formRef}
     >
       <input name="applicantUserId" type="hidden" value={applicantUserId} />
@@ -216,6 +210,10 @@ function AdminApplicantChatComposer({
         placeholder="Ask the applicant for more information..."
         ref={textareaRef}
       />
+      <label className="block text-xs font-medium text-muted-foreground">
+        Add photo
+        <input className="ml-3 text-xs" name="attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+      </label>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminActionFeedback state={state} />
         <Button
@@ -250,6 +248,7 @@ function AdminShopChatComposer({ shopId }: { shopId: string }) {
     <form
       action={formAction}
       className="space-y-2 border-t border-artisan-clay/60 bg-white p-4"
+      encType="multipart/form-data"
       ref={formRef}
     >
       <input name="shopId" type="hidden" value={shopId} />
@@ -259,6 +258,10 @@ function AdminShopChatComposer({ shopId }: { shopId: string }) {
         placeholder="Write a message to this shop..."
         ref={textareaRef}
       />
+      <label className="block text-xs font-medium text-muted-foreground">
+        Add photo
+        <input className="ml-3 text-xs" name="attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+      </label>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminActionFeedback state={state} />
         <Button

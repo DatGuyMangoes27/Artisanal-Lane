@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { sendChatMessagePushNotifications } from "@/lib/push-notifications";
+import {
+  getChatAttachmentFile,
+  removeChatAttachment,
+  uploadChatAttachment,
+} from "@/lib/marketplace/chat-attachment-storage";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -42,28 +47,43 @@ export async function createBuyerThreadForShop(formData: FormData) {
 export async function sendBuyerMessage(formData: FormData) {
   const threadId = String(formData.get("threadId") ?? "").trim();
   const body = String(formData.get("body") ?? "").trim();
+  const attachmentFile = getChatAttachmentFile(formData);
 
   if (!threadId) {
     redirect("/account/messages");
   }
 
-  if (!body) {
+  if (!body && !attachmentFile) {
     redirect(`/account/messages/${threadId}`);
   }
 
   const { supabase, user } = await requireUser();
+  const attachment = attachmentFile
+    ? await uploadChatAttachment({
+        supabase,
+        threadId,
+        senderId: user.id,
+        file: attachmentFile,
+      })
+    : null;
   const { data: message, error } = await supabase
     .from("chat_messages")
     .insert({
       thread_id: threadId,
       sender_id: user.id,
-      body,
-      message_type: "text",
+      body: body || null,
+      message_type: body && attachment ? "text_with_attachment" : attachment ? "attachment" : "text",
+      attachment_path: attachment?.path ?? null,
+      attachment_name: attachment?.name ?? null,
+      attachment_mime: attachment?.mime ?? null,
+      attachment_size_bytes: attachment?.sizeBytes ?? null,
     })
     .select("id")
     .single();
 
-  if (!error) {
+  if (error) {
+    await removeChatAttachment(supabase, attachment?.path);
+  } else {
     if (message?.id) {
       await sendChatMessagePushNotifications([message.id]);
     }

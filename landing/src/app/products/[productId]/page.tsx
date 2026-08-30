@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Heart, MessageCircle, ShieldCheck, Star, Store, Truck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Heart, MessageCircle, ShieldCheck, Star, Store, Truck } from "lucide-react";
 
 import { toggleFavouriteProduct } from "@/app/account/actions";
 import { submitProductReview } from "@/app/account/reviews/actions";
@@ -70,11 +70,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
     <GuestCartProvider>
       <div className="min-h-screen bg-[#FFF9F2]">
         <MarketplaceHeader />
-        <div className="mx-auto max-w-[1440px] px-4 pt-6 text-xs text-muted-foreground sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1440px] px-4 pt-6 sm:px-6 lg:px-8">
+          <Link href={shopHref} className="inline-flex items-center gap-2 text-sm font-semibold text-artisan-terracotta transition hover:text-artisan-sienna">
+            <ArrowLeft className="size-4" />
+            Back to {product.shop?.name ?? "the artisan shop"}
+          </Link>
+          <div className="mt-3 text-xs text-muted-foreground">
           <Link href="/shop" className="hover:text-artisan-terracotta">Shop</Link>
           <span className="mx-2">/</span>
           {product.category ? <><Link href={`/shop?category=${product.category.id}`} className="hover:text-artisan-terracotta">{product.category.name}</Link><span className="mx-2">/</span></> : null}
           <span className="line-clamp-1 inline text-foreground">{product.title}</span>
+          </div>
         </div>
 
         <ProductPageGrid

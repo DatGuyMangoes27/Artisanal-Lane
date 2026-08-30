@@ -135,7 +135,7 @@ export function PushNotificationForm({
         <input
           className={inputClass}
           name="route"
-          placeholder="e.g. /learn or /vendor/orders"
+          placeholder="e.g. /tutorials or /vendor/library"
         />
         <span className="text-xs text-muted-foreground">
           An in-app route opened when the user taps the notification. Must start with /.

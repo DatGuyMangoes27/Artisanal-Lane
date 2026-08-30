@@ -16,7 +16,7 @@ import type {
 import { resolveTrendingSearchTerms } from "./search-trends";
 import { isKnownShippingMethod } from "./shipping";
 
-export type MarketplaceProductSort = "newest" | "price_asc" | "price_desc" | "popular";
+export type MarketplaceProductSort = "rotation" | "newest" | "price_asc" | "price_desc" | "popular";
 export type MarketplacePriceFilter = "under_200" | "between_200_500" | "over_500";
 export type MarketplaceAvailabilityFilter = "on_sale";
 
@@ -535,6 +535,7 @@ async function loadProducts(options: ProductQueryOptions = {}) {
       query = query.order("price", { ascending: false });
       break;
     case "newest":
+    case "rotation":
     default:
       query = query.order("created_at", { ascending: false });
       break;

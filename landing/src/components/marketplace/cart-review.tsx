@@ -49,7 +49,9 @@ export function CartReview() {
 
   const lines = useMemo(() => buildCartLines(items, products), [items, products]);
   const subtotal = getCartSubtotal(lines);
-  const blocker = getCheckoutBlocker(lines);
+  const bobGoSandboxEnabled =
+    process.env.NEXT_PUBLIC_BOBGO_SHIPPING_ENABLED === "true" || process.env.NODE_ENV === "development";
+  const blocker = getCheckoutBlocker(lines, { allowDynamicShipping: bobGoSandboxEnabled });
 
   async function updateReservedQuantity(line: (typeof lines)[number], nextQuantity: number) {
     setReservationError(null);

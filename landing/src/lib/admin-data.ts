@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getPostgrestSearchTokens } from "@/lib/admin-search";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ProfileRecord = {
@@ -210,10 +211,6 @@ function normalizeQuery(value: string | undefined) {
   return value?.trim().toLowerCase() ?? "";
 }
 
-function sanitizePostgrestSearch(value: string | undefined) {
-  return value?.trim().replace(/[,()%]/g, " ").replace(/\s+/g, " ").trim() ?? "";
-}
-
 const disputeAttachmentBucket = "dispute-attachments";
 
 async function withSignedDisputeAttachmentUrls(
@@ -412,23 +409,27 @@ export async function listProducts(
   const admin = createAdminClient();
   const requestedPage = Math.max(1, Math.floor(options.page ?? 1));
   const pageSize = Math.min(100, Math.max(1, Math.floor(options.pageSize ?? 20)));
-  const searchTerm = sanitizePostgrestSearch(options.query);
+  const searchTokens = getPostgrestSearchTokens(options.query);
 
   let matchingShopIds: string[] = [];
   let matchingCategoryIds: string[] = [];
+  let matchingProductIds: string[] = [];
 
-  if (searchTerm) {
-    const [shopResult, categoryResult] = await Promise.all([
-      admin
-        .from("shops")
-        .select("id")
-        .ilike("name", `%${searchTerm}%`)
-        .limit(1000),
-      admin
-        .from("categories")
-        .select("id")
-        .ilike("name", `%${searchTerm}%`)
-        .limit(1000),
+  if (searchTokens.length > 0) {
+    let shopSearch = admin.from("shops").select("id");
+    let categorySearch = admin.from("categories").select("id");
+    let productSearch = admin.from("products").select("id");
+
+    for (const token of searchTokens) {
+      shopSearch = shopSearch.ilike("name", `%${token}%`);
+      categorySearch = categorySearch.ilike("name", `%${token}%`);
+      productSearch = productSearch.ilike("title", `%${token}%`);
+    }
+
+    const [shopResult, categoryResult, productResult] = await Promise.all([
+      shopSearch.limit(1000),
+      categorySearch.limit(1000),
+      productSearch.limit(1000),
     ]);
 
     if (shopResult.error) {
@@ -437,11 +438,15 @@ export async function listProducts(
     if (categoryResult.error) {
       throw new Error(`Unable to search product categories: ${categoryResult.error.message}`);
     }
+    if (productResult.error) {
+      throw new Error(`Unable to search product titles: ${productResult.error.message}`);
+    }
 
     matchingShopIds = (shopResult.data ?? []).map((shop) => shop.id);
     matchingCategoryIds = (categoryResult.data ?? []).map(
       (category) => category.id,
     );
+    matchingProductIds = (productResult.data ?? []).map((product) => product.id);
   }
 
   let selectedShopIds: string[] | null = null;
@@ -491,13 +496,25 @@ export async function listProducts(
     productQuery = productQuery.in("shop_id", selectedShopIds);
   }
 
-  if (searchTerm) {
-    const searchFilters = [`title.ilike.%${searchTerm}%`];
+  if (searchTokens.length > 0) {
+    const searchFilters: string[] = [];
+    if (matchingProductIds.length > 0) {
+      searchFilters.push(`id.in.(${matchingProductIds.join(",")})`);
+    }
     if (matchingShopIds.length > 0) {
       searchFilters.push(`shop_id.in.(${matchingShopIds.join(",")})`);
     }
     if (matchingCategoryIds.length > 0) {
       searchFilters.push(`category_id.in.(${matchingCategoryIds.join(",")})`);
+    }
+    if (searchFilters.length === 0) {
+      return {
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize,
+        totalPages: 1,
+      };
     }
     productQuery = productQuery.or(searchFilters.join(","));
   }
@@ -1127,6 +1144,7 @@ export async function listStationeryRequests(
 export type AdminLearningResource = {
   id: string;
   type: "podcast" | "video" | "article";
+  destination: "library" | "tutorial";
   title: string;
   description: string | null;
   content_url: string;
@@ -1144,7 +1162,7 @@ export async function listLearningResources(): Promise<AdminLearningResource[]> 
   const { data, error } = await admin
     .from("learning_resources")
     .select(
-      "id, type, title, description, content_url, thumbnail_url, author, duration_label, is_published, is_featured, sort_order, created_at",
+      "id, type, destination, title, description, content_url, thumbnail_url, author, duration_label, is_published, is_featured, sort_order, created_at",
     )
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
@@ -1159,6 +1177,7 @@ export async function listLearningResources(): Promise<AdminLearningResource[]> 
       row.type === "podcast" || row.type === "video"
         ? row.type
         : "article",
+    destination: row.destination === "tutorial" ? "tutorial" : "library",
     title: String(row.title ?? ""),
     description: row.description ?? null,
     content_url: String(row.content_url ?? ""),

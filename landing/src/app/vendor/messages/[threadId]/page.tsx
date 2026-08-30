@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { ChatSafetyNotice } from "@/components/marketplace/chat-safety-notice";
+import { ChatMessageAttachment } from "@/components/marketplace/chat-message-attachment";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { sendVendorMessage } from "@/app/vendor/actions";
 import {
@@ -33,7 +34,7 @@ export default async function VendorMessageThreadPage({
         title={
           thread.isAdminThread
             ? "Artisan Lane Support"
-            : thread.buyerName ?? thread.buyerEmail ?? "Buyer conversation"
+            : thread.buyerName ?? "Buyer conversation"
         }
         description={
           thread.isAdminThread
@@ -51,7 +52,8 @@ export default async function VendorMessageThreadPage({
             return (
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div className={`max-w-xl rounded-3xl px-4 py-3 text-sm ${mine ? "bg-artisan-terracotta text-white" : "bg-artisan-bone text-artisan-sienna"}`}>
-                  <p>{message.body ?? message.attachmentName ?? "Attachment"}</p>
+                  <ChatMessageAttachment url={message.attachmentUrl} name={message.attachmentName} mime={message.attachmentMime} mine={mine} />
+                  {message.body ? <p className="whitespace-pre-wrap">{message.body}</p> : null}
                   <p className={`mt-2 text-xs ${mine ? "text-white/70" : "text-muted-foreground"}`}>
                     {new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(message.createdAt))}
                   </p>
@@ -60,9 +62,10 @@ export default async function VendorMessageThreadPage({
             );
           })}
         </div>
-        <form action={sendVendorMessage} className="mt-6 grid gap-3">
+        <form action={sendVendorMessage} className="mt-6 grid gap-3" encType="multipart/form-data">
           <input type="hidden" name="threadId" value={thread.id} />
-          <textarea name="body" required placeholder="Write a reply..." className="min-h-28 rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
+          <textarea name="body" placeholder="Write a reply..." className="min-h-28 rounded-2xl border border-artisan-clay px-4 py-3 text-sm" />
+          <label className="text-xs font-medium text-muted-foreground">Add photo <input className="ml-3 text-xs" name="attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
           <Button className="w-fit rounded-full bg-artisan-terracotta px-8 hover:bg-artisan-terracotta/90">
             Send message
           </Button>

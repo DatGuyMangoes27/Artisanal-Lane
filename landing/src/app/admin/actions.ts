@@ -21,6 +21,11 @@ import {
 } from "@/lib/push-notifications";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { removeUnreferencedProductImages } from "@/lib/marketplace/product-image-storage";
+import {
+  getChatAttachmentFile,
+  removeChatAttachment,
+  uploadChatAttachment,
+} from "@/lib/marketplace/chat-attachment-storage";
 
 function slugify(value: string): string {
   return value
@@ -531,12 +536,13 @@ export async function sendAdminShopMessage(
     const session = await requireAdminSession();
     const shopId = String(formData.get("shopId") ?? "").trim();
     const body = String(formData.get("body") ?? "").trim();
+    const attachmentFile = getChatAttachmentFile(formData);
 
     if (!shopId) {
       return createErrorState(null, "Missing shop id.");
     }
 
-    if (!body) {
+    if (!body && !attachmentFile) {
       return {
         status: "error",
         message: "Please type a message before sending.",
@@ -550,18 +556,31 @@ export async function sendAdminShopMessage(
     }
 
     const admin = createAdminClient();
+    const attachment = attachmentFile
+      ? await uploadChatAttachment({
+          supabase: admin,
+          threadId: thread.id,
+          senderId: session.user.id,
+          file: attachmentFile,
+        })
+      : null;
     const { data: message, error } = await admin
       .from("chat_messages")
       .insert({
         thread_id: thread.id,
         sender_id: session.user.id,
-        body,
-        message_type: "text",
+        body: body || null,
+        message_type: body && attachment ? "text_with_attachment" : attachment ? "attachment" : "text",
+        attachment_path: attachment?.path ?? null,
+        attachment_name: attachment?.name ?? null,
+        attachment_mime: attachment?.mime ?? null,
+        attachment_size_bytes: attachment?.sizeBytes ?? null,
       })
       .select("id")
       .single();
 
     if (error) {
+      await removeChatAttachment(admin, attachment?.path);
       return createErrorState(new Error(error.message), "Unable to send message.");
     }
 
@@ -588,12 +607,13 @@ export async function sendAdminApplicantMessage(
     const session = await requireAdminSession();
     const applicantUserId = String(formData.get("applicantUserId") ?? "").trim();
     const body = String(formData.get("body") ?? "").trim();
+    const attachmentFile = getChatAttachmentFile(formData);
 
     if (!applicantUserId) {
       return createErrorState(null, "Missing applicant id.");
     }
 
-    if (!body) {
+    if (!body && !attachmentFile) {
       return {
         status: "error",
         message: "Please type a message before sending.",
@@ -610,18 +630,31 @@ export async function sendAdminApplicantMessage(
     }
 
     const admin = createAdminClient();
+    const attachment = attachmentFile
+      ? await uploadChatAttachment({
+          supabase: admin,
+          threadId: thread.id,
+          senderId: session.user.id,
+          file: attachmentFile,
+        })
+      : null;
     const { data: message, error } = await admin
       .from("chat_messages")
       .insert({
         thread_id: thread.id,
         sender_id: session.user.id,
-        body,
-        message_type: "text",
+        body: body || null,
+        message_type: body && attachment ? "text_with_attachment" : attachment ? "attachment" : "text",
+        attachment_path: attachment?.path ?? null,
+        attachment_name: attachment?.name ?? null,
+        attachment_mime: attachment?.mime ?? null,
+        attachment_size_bytes: attachment?.sizeBytes ?? null,
       })
       .select("id")
       .single();
 
     if (error) {
+      await removeChatAttachment(admin, attachment?.path);
       return createErrorState(new Error(error.message), "Unable to send message.");
     }
 
@@ -984,7 +1017,7 @@ export async function sendAdminPushNotification(
       return createErrorState(null, "Please enter a notification message.");
     }
     if (route && !route.startsWith("/")) {
-      return createErrorState(null, "The app link must start with / (e.g. /learn).");
+      return createErrorState(null, "The app link must start with / (e.g. /tutorials).");
     }
 
     const audience = broadcastAudiences.find((value) => value === audienceValue);
@@ -1065,6 +1098,8 @@ export async function saveLearningResource(
     const typeValue = learningString(formData, "type");
     const type =
       typeValue === "podcast" || typeValue === "video" ? typeValue : "article";
+    const destination =
+      learningString(formData, "destination") === "tutorial" ? "tutorial" : "library";
 
     if (!title) {
       throw new Error("Title is required.");
@@ -1088,6 +1123,7 @@ export async function saveLearningResource(
 
     const payload = {
       type,
+      destination,
       title,
       description: learningNullableString(formData, "description"),
       content_url: contentUrl,
@@ -1113,6 +1149,8 @@ export async function saveLearningResource(
 
     revalidatePath("/admin/learning");
     revalidatePath("/learn");
+    revalidatePath("/tutorials");
+    revalidatePath("/vendor/library");
 
     return createSuccessState(resourceId ? "Resource updated." : "Resource added.");
   } catch (error) {
@@ -1141,6 +1179,8 @@ export async function deleteLearningResource(
 
     revalidatePath("/admin/learning");
     revalidatePath("/learn");
+    revalidatePath("/tutorials");
+    revalidatePath("/vendor/library");
 
     return createSuccessState("Resource deleted.");
   } catch (error) {

@@ -64,7 +64,7 @@ export default async function VendorOrdersPage({
               <div>
                 <p className="text-lg font-semibold text-artisan-sienna">Order #{order.shortId}</p>
                 <p className="text-muted-foreground">
-                  {order.buyerName ?? order.buyerEmail ?? "Buyer"} ·{" "}
+                  {order.buyerName ?? "Buyer"} ·{" "}
                   {new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium" }).format(
                     new Date(order.createdAt),
                   )}

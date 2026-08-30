@@ -113,7 +113,10 @@ export function getCartSubtotal(lines: CartLine[]) {
   return lines.reduce((total, line) => total + line.lineTotal, 0);
 }
 
-export function getCheckoutBlocker(lines: CartLine[]) {
+export function getCheckoutBlocker(
+  lines: CartLine[],
+  options: { allowDynamicShipping?: boolean } = {},
+) {
   if (lines.length === 0) {
     return "Your cart is empty.";
   }
@@ -127,7 +130,7 @@ export function getCheckoutBlocker(lines: CartLine[]) {
     return multiShopCheckoutMessage;
   }
 
-  if (getAvailableShippingOptionsForCart(lines).length === 0) {
+  if (!options.allowDynamicShipping && getAvailableShippingOptionsForCart(lines).length === 0) {
     return "The products in this cart do not share an available shipping option yet.";
   }
 
@@ -173,7 +176,7 @@ export function calculateShippingTotal(lines: CartLine[], methodKey: string) {
 }
 
 export function requiresShippingAddress(methodKey: string | null) {
-  return methodKey === "courier_guy_door_to_door";
+  return methodKey === "bobgo_door_to_door";
 }
 
 export function requiresPickupPoint(methodKey: string | null) {
@@ -185,6 +188,7 @@ export function getSavedAddressCheckoutFields(address: SavedAddress) {
     name: address.name,
     phone: address.phone,
     street: address.street,
+    localArea: address.city,
     city: address.city,
     postalCode: address.postalCode,
     province: address.province,

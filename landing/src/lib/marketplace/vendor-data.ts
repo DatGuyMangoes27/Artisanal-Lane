@@ -109,6 +109,10 @@ export type VendorProduct = {
   tags: string[];
   careInstructions: string | null;
   fragranceDescription: string | null;
+  shippingWeightKg: number | null;
+  shippingLengthCm: number | null;
+  shippingWidthCm: number | null;
+  shippingHeightCm: number | null;
   shippingOptions: VendorShippingOption[];
   optionGroups: unknown[];
   fulfillmentMode: string;
@@ -140,6 +144,20 @@ export type VendorCoupon = {
   isActive: boolean;
   productIds: string[];
   createdAt: string;
+};
+
+export type VendorFulfillmentProfile = {
+  shopId: string;
+  contactFullName: string;
+  contactEmail: string;
+  contactPhone: string;
+  company: string | null;
+  streetAddress: string;
+  localArea: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  bobGoEnabled: boolean;
 };
 
 export type VendorCategory = {
@@ -230,7 +248,9 @@ export type VendorChatMessage = {
   body: string | null;
   messageType: string;
   attachmentUrl: string | null;
+  attachmentPath: string | null;
   attachmentName: string | null;
+  attachmentMime: string | null;
   createdAt: string;
 };
 
@@ -279,6 +299,10 @@ const productSelect = `
   tags,
   care_instructions,
   fragrance_description,
+  shipping_weight_kg,
+  shipping_length_cm,
+  shipping_width_cm,
+  shipping_height_cm,
   shipping_options,
   option_groups,
   fulfillment_mode,
@@ -313,7 +337,7 @@ const orderSelect = `
   gift_recipient,
   gift_message,
   created_at,
-  buyer:profiles!orders_buyer_id_fkey(display_name, email),
+  buyer:profiles!orders_buyer_id_fkey(display_name),
   order_items(id, product_id, variant_id, variant_name, variant_image, quantity, unit_price, is_made_to_order, custom_note, lead_time_min_days, lead_time_max_days, products(title, images))
 `;
 
@@ -417,6 +441,40 @@ export async function getVendorShop(vendorId: string): Promise<VendorShop | null
   }
 
   return data ? mapVendorShop(data as JsonRecord) : null;
+}
+
+export async function getVendorFulfillmentProfile(
+  shopId: string,
+): Promise<VendorFulfillmentProfile | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("shop_fulfillment_profiles")
+    .select(
+      "shop_id, contact_full_name, contact_email, contact_phone, company, street_address, local_area, city, province, postal_code, bobgo_enabled",
+    )
+    .eq("shop_id", shopId)
+    .maybeSingle();
+
+  // Keep the current shop page usable before this local-only migration exists.
+  if (error?.code === "42P01" || error?.code === "PGRST205") return null;
+  if (error) {
+    throw new Error("Failed to load private collection details.", { cause: error });
+  }
+  if (!data) return null;
+
+  return {
+    shopId: String(data.shop_id),
+    contactFullName: String(data.contact_full_name),
+    contactEmail: String(data.contact_email),
+    contactPhone: String(data.contact_phone),
+    company: toStringOrNull(data.company),
+    streetAddress: String(data.street_address),
+    localArea: String(data.local_area),
+    city: String(data.city),
+    province: String(data.province),
+    postalCode: String(data.postal_code),
+    bobGoEnabled: data.bobgo_enabled === true,
+  };
 }
 
 export async function requireVendorShop(redirectTo = "/vendor") {
@@ -793,7 +851,7 @@ export async function listVendorChatThreads(vendorId: string): Promise<VendorCha
   const { data, error } = await admin
     .from("chat_threads")
     .select(
-      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
+      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name), chat_thread_reads(participant_id, last_read_at)",
     )
     .eq("vendor_id", vendorId)
     .in("kind", ["buyer_vendor", "admin_vendor"])
@@ -815,7 +873,7 @@ export async function getVendorChatThread(
   const { data, error } = await admin
     .from("chat_threads")
     .select(
-      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name, email), chat_thread_reads(participant_id, last_read_at)",
+      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name), chat_thread_reads(participant_id, last_read_at)",
     )
     .eq("vendor_id", vendorId)
     .eq("id", threadId)
@@ -835,7 +893,7 @@ export async function listVendorChatMessages(
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("chat_messages")
-    .select("id, thread_id, sender_id, body, message_type, attachment_url, attachment_name, created_at")
+    .select("id, thread_id, sender_id, body, message_type, attachment_url, attachment_path, attachment_name, attachment_mime, created_at")
     .eq("thread_id", threadId)
     .order("created_at", { ascending: true });
 
@@ -843,14 +901,25 @@ export async function listVendorChatMessages(
     throw new Error("Failed to load message history.", { cause: error });
   }
 
-  return ((data ?? []) as JsonRecord[]).map((row) => ({
+  const rows = (data ?? []) as JsonRecord[];
+  const signedUrls = await Promise.all(
+    rows.map(async (row) => {
+      const path = toStringOrNull(row.attachment_path);
+      if (!path || toStringOrNull(row.attachment_url)) return null;
+      const { data: signed } = await admin.storage.from("chat-attachments").createSignedUrl(path, 60 * 60);
+      return signed?.signedUrl ?? null;
+    }),
+  );
+  return rows.map((row, index) => ({
     id: String(row.id),
     threadId: String(row.thread_id),
     senderId: String(row.sender_id),
     body: toStringOrNull(row.body),
     messageType: toStringOrNull(row.message_type) ?? "text",
-    attachmentUrl: toStringOrNull(row.attachment_url),
+    attachmentUrl: toStringOrNull(row.attachment_url) ?? signedUrls[index],
+    attachmentPath: toStringOrNull(row.attachment_path),
     attachmentName: toStringOrNull(row.attachment_name),
+    attachmentMime: toStringOrNull(row.attachment_mime),
     createdAt: String(row.created_at),
   }));
 }
@@ -1013,6 +1082,10 @@ function mapVendorProduct(row: JsonRecord): VendorProduct {
     tags: toStringArray(row.tags),
     careInstructions: toStringOrNull(row.care_instructions),
     fragranceDescription: toStringOrNull(row.fragrance_description),
+    shippingWeightKg: row.shipping_weight_kg == null ? null : toNumber(row.shipping_weight_kg),
+    shippingLengthCm: row.shipping_length_cm == null ? null : toNumber(row.shipping_length_cm),
+    shippingWidthCm: row.shipping_width_cm == null ? null : toNumber(row.shipping_width_cm),
+    shippingHeightCm: row.shipping_height_cm == null ? null : toNumber(row.shipping_height_cm),
     shippingOptions: normalizeShippingOptions(row.shipping_options),
     optionGroups: toJsonArray(row.option_groups),
     fulfillmentMode:
@@ -1057,7 +1130,7 @@ function mapVendorOrder(row: JsonRecord): VendorOrder {
     shortId: String(row.id).slice(0, 8).toUpperCase(),
     buyerId: toStringOrNull(row.buyer_id),
     buyerName: toStringOrNull(buyer?.display_name),
-    buyerEmail: toStringOrNull(buyer?.email),
+    buyerEmail: null,
     status: toStringOrNull(row.status) ?? "pending",
     total: toNumber(row.total),
     shippingCost: toNumber(row.shipping_cost),
@@ -1130,7 +1203,7 @@ function mapVendorChatThread(row: JsonRecord, vendorId: string): VendorChatThrea
     id: String(row.id),
     buyerId: String(row.buyer_id),
     buyerName: toStringOrNull(buyer?.display_name),
-    buyerEmail: toStringOrNull(buyer?.email),
+    buyerEmail: null,
     lastMessagePreview: toStringOrNull(row.last_message_preview),
     lastMessageAt: toStringOrNull(row.last_message_at),
     lastMessageSenderId: toStringOrNull(row.last_message_sender_id),

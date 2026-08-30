@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       <section className="py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 prose-artisan">
           <h1 className="text-4xl md:text-5xl font-bold mb-2 text-[#3A1F10]">Privacy Policy</h1>
-          <p className="text-muted-foreground mb-12">Last updated: March 2026</p>
+          <p className="text-muted-foreground mb-12">Last updated: August 2026</p>
 
           <h2>1. Introduction</h2>
           <p>
@@ -48,7 +48,8 @@ export default function PrivacyPage() {
           <ul>
             <li>To create and manage your account</li>
             <li>To process orders, deliveries, and escrow payments</li>
-            <li>To communicate with you about orders, updates, and promotions</li>
+            <li>To communicate with you about orders and service updates</li>
+            <li>To send optional promotions where you have consented or the law otherwise permits it</li>
             <li>To review artisan applications and maintain marketplace quality</li>
             <li>To improve our app, troubleshoot issues, and develop new features</li>
             <li>To comply with legal obligations</li>
@@ -57,12 +58,19 @@ export default function PrivacyPage() {
           <h2>4. Information Sharing</h2>
           <p>We may share your information with:</p>
           <ul>
-            <li><strong>Artisans / Buyers:</strong> Order-related details necessary to fulfil and deliver purchases (e.g. delivery address shared with the artisan).</li>
+            <li><strong>Artisans / Buyers:</strong> Only order-related information reasonably necessary to prepare, fulfil, support, or deliver a purchase. Buyer email addresses are not provided as independent marketing lists.</li>
             <li><strong>Payment Providers:</strong> TradeSafe for escrow payment processing.</li>
-            <li><strong>Delivery Partners:</strong> Courier Guy and Pargo for shipping and logistics.</li>
+            <li><strong>Delivery Partners:</strong> Bob Go and the courier providers available through it, Courier Guy lockers, Pargo, and other selected logistics services. They may receive the recipient name, delivery address, phone number, and email needed to quote, book, track, and support delivery.</li>
             <li><strong>Legal Requirements:</strong> When required by South African law or to protect our legal rights.</li>
           </ul>
           <p>We never sell your personal information to third parties.</p>
+
+          <h3>Direct Marketing</h3>
+          <p>
+            We do not treat account creation or a purchase as blanket permission to share or use
+            your email address for unrelated marketing. Where promotional email is offered, we
+            honour applicable consent and objection requirements and provide a way to opt out.
+          </p>
 
           <h2>5. Data Security</h2>
           <p>

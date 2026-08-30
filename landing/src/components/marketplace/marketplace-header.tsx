@@ -5,12 +5,12 @@ import { Heart, Search } from "lucide-react";
 import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
 import { CartNavButton } from "@/components/marketplace/cart-nav-button";
 import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notice";
-import { LearnNavLink } from "@/components/marketplace/learn-nav-link";
+import { TutorialsNavLink } from "@/components/marketplace/learn-nav-link";
 import { MobileNavMenu } from "@/components/marketplace/mobile-nav-menu";
 import { Button } from "@/components/ui/button";
 
 type MarketplaceHeaderProps = {
-  activeItem?: "home" | "shop" | "artisans" | "learn" | "about";
+  activeItem?: "home" | "shop" | "artisans" | "tutorials" | "about";
 };
 
 function navLinkClass(isActive = false) {
@@ -36,7 +36,7 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
             <Link href="/shop" className={navLinkClass(activeItem === "shop")}>Shop</Link>
             <Link href="/artisans" className={navLinkClass(activeItem === "artisans")}>Browse artisans</Link>
             <Link href="/about" className={navLinkClass(activeItem === "about")}>Our story</Link>
-            <LearnNavLink active={activeItem === "learn"} />
+            <TutorialsNavLink active={activeItem === "tutorials"} />
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">

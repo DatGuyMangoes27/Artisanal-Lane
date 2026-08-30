@@ -21,7 +21,7 @@ function ThreadLink({ thread, userId }: { thread: VendorChatThread; userId: stri
         <p className="font-semibold text-artisan-sienna">
           {thread.isAdminThread
             ? "Artisan Lane Support"
-            : thread.buyerName ?? thread.buyerEmail ?? "Buyer"}
+            : thread.buyerName ?? "Buyer"}
         </p>
         {unread ? <span className="text-amber-700">Unread</span> : null}
       </div>

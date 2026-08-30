@@ -38,7 +38,7 @@ export default async function VendorOrderDetailPage({
       <VendorPageHeader
         eyebrow="Fulfilment"
         title={`Order #${order.shortId}`}
-        description={`${formatVendorStatus(order.status)} · ${formatPrice(order.total + order.shippingCost)} · ${order.buyerName ?? order.buyerEmail ?? "Buyer"}`}
+        description={`${formatVendorStatus(order.status)} · ${formatPrice(order.total + order.shippingCost)} · ${order.buyerName ?? "Buyer"}`}
       />
 
       <div className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
@@ -88,7 +88,7 @@ export default async function VendorOrderDetailPage({
               <p>
                 Buyer:{" "}
                 <span className="font-medium text-artisan-sienna">
-                  {order.buyerName ?? order.buyerEmail ?? "Buyer"}
+                  {order.buyerName ?? "Buyer"}
                 </span>
               </p>
               <p>Shipping method: {formatVendorStatus(order.shippingMethod)}</p>

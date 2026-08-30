@@ -28,6 +28,25 @@ describe("password recovery helpers", () => {
     ).toBe("https://artisanlanesa.co.za");
   });
 
+  it("prefers the configured production site for recovery emails", () => {
+    expect(
+      getPasswordRecoveryRedirectUrl(
+        "https://preview--artisanlane.netlify.app",
+        "https://artisanlanesa.co.za",
+      ),
+    ).toBe("https://artisanlanesa.co.za/auth/callback");
+  });
+
+  it("ignores forwarded hosts when the production site is configured", () => {
+    expect(
+      getPasswordRecoveryRequestOrigin(
+        "https://preview--artisanlane.netlify.app/auth/callback?code=test",
+        new Headers({ "x-forwarded-host": "untrusted.example" }),
+        "https://artisanlanesa.co.za",
+      ),
+    ).toBe("https://artisanlanesa.co.za");
+  });
+
   it("requires an eight character password", () => {
     expect(validateRecoveryPassword("short", "short")).toBe(
       "Use at least 8 characters for your new password.",

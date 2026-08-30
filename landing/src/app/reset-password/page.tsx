@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   title: "Reset password | Artisan Lane",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function ResetPasswordPage() {
   const cookieStore = await cookies();
   const hasRecoveryMarker =

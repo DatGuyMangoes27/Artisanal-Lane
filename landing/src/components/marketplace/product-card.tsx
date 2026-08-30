@@ -29,7 +29,7 @@ export function ProductCard({
   return (
     <article className="group flex h-full min-w-0 flex-col">
       <div className="relative aspect-[4/5] overflow-hidden rounded-[1.35rem] bg-[#F1E4D7] shadow-[0_10px_30px_rgba(58,23,17,0.06)]">
-        <Link href={`/products/${product.id}`} className="block size-full">
+        <Link href={`/products/${product.id}`} className="relative block size-full">
           <Image
             src={getProductPrimaryImage(product)}
             alt={product.title}

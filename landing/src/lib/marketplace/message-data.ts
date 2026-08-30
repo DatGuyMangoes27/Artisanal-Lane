@@ -107,7 +107,22 @@ export async function listBuyerChatMessages(threadId: string): Promise<BuyerChat
     throw new Error("Failed to load buyer message history", { cause: error });
   }
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map(mapBuyerChatMessage);
+  const messages = ((data ?? []) as Array<Record<string, unknown>>).map(mapBuyerChatMessage);
+  return Promise.all(
+    messages.map(async (message) => {
+      if (!message.attachment?.path || message.attachment.url) return message;
+      const { data: signed } = await supabase.storage
+        .from("chat-attachments")
+        .createSignedUrl(message.attachment.path, 60 * 60);
+      return {
+        ...message,
+        attachment: {
+          ...message.attachment,
+          url: signed?.signedUrl ?? null,
+        },
+      };
+    }),
+  );
 }
 
 export async function markBuyerThreadRead(userId: string, threadId: string) {

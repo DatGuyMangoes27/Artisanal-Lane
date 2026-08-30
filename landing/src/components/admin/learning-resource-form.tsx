@@ -28,13 +28,24 @@ export function LearningResourceForm({
         <input name="existingThumbnailUrl" type="hidden" value={resource.thumbnail_url} />
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
         <label className="space-y-1">
           <span className="text-sm font-medium text-artisan-sienna">Type</span>
           <select className={inputClass} defaultValue={resource?.type ?? "article"} name="type">
             <option value="podcast">Podcast</option>
             <option value="video">Video tutorial</option>
             <option value="article">Article / guide</option>
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-sm font-medium text-artisan-sienna">Destination</span>
+          <select
+            className={inputClass}
+            defaultValue={resource?.destination ?? "library"}
+            name="destination"
+          >
+            <option value="library">Vendor Library</option>
+            <option value="tutorial">Public Tutorials</option>
           </select>
         </label>
         <label className="space-y-1">

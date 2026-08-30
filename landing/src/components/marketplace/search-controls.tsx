@@ -21,7 +21,7 @@ export function SearchControls({
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryId, setCategoryId] = useState(searchParams.get("category") ?? "");
   const [subcategoryId, setSubcategoryId] = useState(searchParams.get("subcategory") ?? "");
-  const [sort, setSort] = useState(searchParams.get("sort") ?? "newest");
+  const [sort, setSort] = useState(searchParams.get("sort") ?? "rotation");
   const [priceFilter, setPriceFilter] = useState(searchParams.get("price") ?? "");
   const [availabilityFilter, setAvailabilityFilter] = useState(searchParams.get("availability") ?? "");
 
@@ -54,7 +54,7 @@ export function SearchControls({
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCategoryId) params.set("category", nextCategoryId);
     if (nextCategoryId && nextSubcategoryId) params.set("subcategory", nextSubcategoryId);
-    if (nextSort !== "newest") params.set("sort", nextSort);
+    if (nextSort !== "rotation") params.set("sort", nextSort);
     if (nextPriceFilter) params.set("price", nextPriceFilter);
     if (nextAvailabilityFilter) params.set("availability", nextAvailabilityFilter);
     router.push(`/shop${params.size ? `?${params.toString()}` : ""}`);
@@ -69,7 +69,7 @@ export function SearchControls({
     setQuery("");
     setCategoryId("");
     setSubcategoryId("");
-    setSort("newest");
+    setSort("rotation");
     setPriceFilter("");
     setAvailabilityFilter("");
     router.push("/shop");
@@ -136,7 +136,7 @@ export function SearchControls({
         <label className="grid gap-1.5 lg:col-span-2">
           <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#806756]">Sort by</span>
           <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-12 rounded-xl border border-[#DFC9B5] bg-[#FFF9F2] px-3 text-sm outline-none focus:border-artisan-terracotta">
-            <option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="popular">Popular</option>
+            <option value="rotation">Fresh mix (rotates)</option><option value="newest">Newest</option><option value="price_asc">Price: low to high</option><option value="price_desc">Price: high to low</option><option value="popular">Popular</option>
           </select>
         </label>
         <div className="flex items-end gap-3 sm:col-span-2 lg:col-span-4">

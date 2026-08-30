@@ -5,23 +5,19 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
-import { useIsArtisan } from "@/components/marketplace/use-is-artisan";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
   { href: "/", label: "Home", key: "home" },
   { href: "/shop", label: "Store", key: "shop" },
   { href: "/artisans", label: "Browse artisans", key: "artisans" },
-  // Learn is artisan-only; filtered out below for everyone else.
-  { href: "/learn", label: "Learn", key: "learn" },
+  { href: "/tutorials", label: "Tutorials", key: "tutorials" },
   { href: "/about", label: "About", key: "about" },
   { href: "/shop#search", label: "Search", key: "search" },
 ] as const;
 
 export function MobileNavMenu({ activeItem }: { activeItem?: string }) {
   const [open, setOpen] = useState(false);
-  const isArtisan = useIsArtisan();
-  const visibleNavItems = navItems.filter((item) => item.key !== "learn" || isArtisan);
 
   return (
     <div className="md:hidden">
@@ -50,7 +46,7 @@ export function MobileNavMenu({ activeItem }: { activeItem?: string }) {
               aria-label="Mobile marketplace navigation"
               className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3"
             >
-              {visibleNavItems.map((item) => (
+              {navItems.map((item) => (
                 <Link
                   key={item.key}
                   href={item.href}

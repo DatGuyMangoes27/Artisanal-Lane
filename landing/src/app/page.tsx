@@ -11,14 +11,12 @@ import {
   Truck,
 } from "lucide-react";
 
-import { HomepageCampaignPopup } from "@/components/marketplace/homepage-campaign-popup";
 import { FeaturedFindsCarousel } from "@/components/marketplace/featured-finds-carousel";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { Button } from "@/components/ui/button";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
-import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 import {
   getFeaturedMarketplaceProducts,
   getFreshMarketplaceProducts,
@@ -160,22 +158,25 @@ function SellerInvitation() {
     <section className="bg-[radial-gradient(circle_at_78%_28%,rgba(212,160,32,0.10),transparent_24%),radial-gradient(circle_at_20%_80%,rgba(85,152,38,0.07),transparent_27%),#FFF9F2] px-5 py-20 sm:px-8 sm:py-28">
       <div className="mx-auto flex max-w-[1180px] flex-col items-start justify-between gap-8 border-y border-[#D9BFA9] py-12 md:flex-row md:items-center">
         <div className="max-w-2xl"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">For South African makers</p><h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-[#351711] sm:text-4xl">A beautiful place for work <span className="gradient-text italic">made with care.</span></h2><p className="mt-4 max-w-xl leading-7 text-muted-foreground">Open your own shopfront, meet new customers and grow alongside a community that values the handmade.</p></div>
-        <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col lg:flex-row"><Button asChild size="lg" className="rounded-full bg-[#8F120D] px-7"><Link href="/login?intent=vendor">Apply as an artisan <ArrowRight className="ml-2 size-4" /></Link></Button><Button asChild size="lg" variant="ghost" className="rounded-full text-[#60483B]"><Link href="/learn">How selling works</Link></Button></div>
+        <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col lg:flex-row"><Button asChild size="lg" className="rounded-full bg-[#8F120D] px-7"><Link href="/login?intent=vendor">Apply as an artisan <ArrowRight className="ml-2 size-4" /></Link></Button><Button asChild size="lg" variant="ghost" className="rounded-full text-[#60483B]"><Link href="/tutorials">How selling works</Link></Button></div>
       </div>
     </section>
   );
 }
 
 function Footer() {
+  const businessRegistrationNumber =
+    process.env.NEXT_PUBLIC_BUSINESS_REGISTRATION_NUMBER?.trim();
   return (
     <footer className="bg-[#24100C] py-14 text-[#F6EBDD]">
       <div className="mx-auto grid max-w-[1440px] gap-10 px-5 sm:px-8 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div>
           <Link href="/" className="flex items-center gap-3"><Image src="/logo.png" alt="" width={42} height={42} className="rounded-full" /><span className="font-serif text-xl font-bold">Artisan Lane</span></Link>
           <p className="mt-5 max-w-xs text-sm leading-6 text-[#D9BFA9]">A curated home for South African craftsmanship, independent makers and pieces with a story.</p>
+          {businessRegistrationNumber ? <p className="mt-3 text-xs text-[#A98C78]">Company registration: {businessRegistrationNumber}</p> : null}
         </div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Shop</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/shop">All products</Link><Link href="/shop?sort=newest">New arrivals</Link><Link href="/artisans">Artisans</Link><Link href="/account/favourites">Favourites</Link></div></div>
-        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Artisan Lane</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/about">Our story</Link><Link href="/learn">Learn</Link><Link href="/login?intent=vendor">Become a seller</Link><Link href="mailto:nicky@artisanlanesa.com">Contact</Link></div></div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Artisan Lane</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/about">Our story</Link><Link href="/tutorials">Tutorials</Link><Link href="/login?intent=vendor">Become a seller</Link><Link href="mailto:nicky@artisanlanesa.com">Contact</Link></div></div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Help</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/account/help">Help centre</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/login?intent=buyer">My account</Link></div></div>
       </div>
       <div className="mx-auto mt-12 flex max-w-[1440px] flex-col justify-between gap-3 border-t border-white/10 px-5 pt-6 text-xs text-[#A98C78] sm:flex-row sm:px-8"><span>© 2026 Artisan Lane. All rights reserved.</span><span>Made in South Africa</span></div>
@@ -186,17 +187,15 @@ function Footer() {
 export default async function Home() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const [products, freshProducts, categories, favouriteIds, campaignOffers] = await Promise.all([
+  const [products, freshProducts, categories, favouriteIds] = await Promise.all([
     getFeaturedMarketplaceProducts(12),
     getFreshMarketplaceProducts(15),
     getMarketplaceCategories(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
-    listCampaignOffers(),
   ]);
 
   return (
     <main className="min-h-screen bg-[#FFF9F2]">
-      <HomepageCampaignPopup offers={campaignOffers} />
       <MarketplaceHeader activeItem="home" />
       <Hero products={products} />
       <CategoryRail categories={categories} products={products} />

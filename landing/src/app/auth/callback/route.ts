@@ -14,6 +14,7 @@ export async function GET(request: Request) {
   const publicOrigin = getPasswordRecoveryRequestOrigin(
     request.url,
     request.headers,
+    process.env.NEXT_PUBLIC_SITE_URL,
   );
   const resetUrl = new URL(PASSWORD_RECOVERY_PATH, publicOrigin);
 

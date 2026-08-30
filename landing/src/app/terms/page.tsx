@@ -50,7 +50,7 @@ export default function TermsPage() {
           <h3>4.2 Shipping</h3>
           <p>
             Shipping options and costs are set by each artisan. Available methods may include
-            Courier Guy (door-to-door and locker-to-locker), Pargo pickup points,
+            Courier Guy lockers, Pargo pickup points,
             and Market Pickup (in-person collection). Delivery times are estimates and may vary.
           </p>
           <h3>4.3 Returns &amp; Disputes</h3>
@@ -96,6 +96,16 @@ export default function TermsPage() {
             Funds are released from escrow once the buyer confirms receipt. Payouts are processed
             to your registered bank account according to our payout schedule.
           </p>
+          <h3>5.6 Buyer Information and Contact</h3>
+          <p>
+            Artisans may use buyer information only where reasonably necessary to prepare,
+            fulfil, deliver, support, or resolve an order. Artisans may not use buyer details for
+            independent marketing, add a buyer to a contact list, move a sale off the Platform,
+            or contact a buyer outside Artisan Lane except where a delivery update genuinely
+            requires it. Contact and address information supplied to TradeSafe, Bob Go, or another
+            approved service provider remains limited to payment, delivery, fraud prevention, and
+            customer-support purposes.
+          </p>
 
           <h2>6. Prohibited Conduct</h2>
           <p>You may not:</p>
@@ -104,6 +114,8 @@ export default function TermsPage() {
             <li>List mass-produced, counterfeit, or prohibited items</li>
             <li>Manipulate reviews, ratings, or search results</li>
             <li>Circumvent the escrow payment system</li>
+            <li>Use buyer information for marketing or unrelated direct contact</li>
+            <li>Move a buyer, order, or payment off the Platform</li>
             <li>Harass, abuse, or threaten other users</li>
             <li>Attempt to gain unauthorised access to any part of the Platform</li>
           </ul>
@@ -112,7 +124,18 @@ export default function TermsPage() {
           <p>
             The Artisan Lane name, logo, branding, and app design are our intellectual property.
             Artisans retain ownership of their product images and descriptions but grant us a
-            licence to display them on the Platform for the purpose of facilitating sales.
+            non-exclusive, royalty-free licence to display them on the Platform for the purpose of
+            facilitating sales.
+          </p>
+          <p>
+            Artisans also grant Artisan Lane permission to reproduce, crop, resize, edit, caption,
+            repost, and publish product photographs, shop photographs, videos, and other promotional
+            material they submit or identify as representing their business on Artisan Lane&apos;s
+            website, email communications, and social-media channels. This permission is limited to
+            promoting the artisan, their products, Artisan Lane campaigns, and the marketplace. It
+            does not transfer ownership of the original material. An artisan may request that future
+            promotional use stop by contacting Artisan Lane, subject to material already published
+            or committed to an active campaign.
           </p>
 
           <h2>8. Limitation of Liability</h2>

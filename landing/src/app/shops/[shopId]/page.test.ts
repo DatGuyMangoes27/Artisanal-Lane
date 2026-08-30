@@ -146,8 +146,9 @@ describe("shop profile page", () => {
     expect(text).toContain("Copper & Clay Studio");
     expect(text).toContain("Cape Town");
     expect(text).toContain("Open for orders");
-    expect(text).toContain("Artisan profile");
-    expect(text).toContain("Mini profile");
+    expect(text).toContain("Independent South African studio");
+    expect(text).toContain("Shop the collection");
+    expect(text).toContain("Protected payment");
     expect(text).toContain("Hand-built ceramics for everyday rituals.");
     expect(text).toContain("Each piece is shaped in small batches from local clay.");
     expect(text).toContain("Neighbourgoods Market");

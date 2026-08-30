@@ -3,10 +3,12 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 
 export type LearningResourceType = "podcast" | "video" | "article";
+export type LearningResourceDestination = "library" | "tutorial";
 
 export type LearningResource = {
   id: string;
   type: LearningResourceType;
+  destination: LearningResourceDestination;
   title: string;
   description: string | null;
   contentUrl: string;
@@ -22,6 +24,7 @@ export type LearningResource = {
 type LearningResourceRow = {
   id: string;
   type: string | null;
+  destination: string | null;
   title: string;
   description: string | null;
   content_url: string;
@@ -38,10 +41,17 @@ export function normalizeLearningType(value: unknown): LearningResourceType {
   return value === "podcast" || value === "video" ? value : "article";
 }
 
+export function normalizeLearningDestination(
+  value: unknown,
+): LearningResourceDestination {
+  return value === "tutorial" ? "tutorial" : "library";
+}
+
 export function mapLearningResource(row: LearningResourceRow): LearningResource {
   return {
     id: row.id,
     type: normalizeLearningType(row.type),
+    destination: normalizeLearningDestination(row.destination),
     title: row.title,
     description: row.description,
     contentUrl: row.content_url,
@@ -56,14 +66,22 @@ export function mapLearningResource(row: LearningResourceRow): LearningResource 
 }
 
 const learningSelect =
-  "id, type, title, description, content_url, thumbnail_url, author, duration_label, is_published, is_featured, sort_order, created_at";
+  "id, type, destination, title, description, content_url, thumbnail_url, author, duration_label, is_published, is_featured, sort_order, created_at";
 
-export async function getPublishedLearningResources(): Promise<LearningResource[]> {
+export async function getPublishedLearningResources(
+  destination?: LearningResourceDestination,
+): Promise<LearningResource[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("learning_resources")
     .select(learningSelect)
-    .eq("is_published", true)
+    .eq("is_published", true);
+
+  if (destination) {
+    query = query.eq("destination", destination);
+  }
+
+  const { data, error } = await query
     .order("is_featured", { ascending: false })
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });

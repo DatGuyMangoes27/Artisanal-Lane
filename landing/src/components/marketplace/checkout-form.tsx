@@ -50,6 +50,21 @@ type CheckoutPayload = {
   error?: string;
 };
 
+type BobGoRate = {
+  rateResponseId: number;
+  providerId: number;
+  providerSlug: string;
+  providerName: string;
+  serviceLevelCode: string;
+  serviceLevelName: string;
+  description: string;
+  serviceType: string;
+  deliveryType: "door";
+  amount: number;
+  amountExcludingVat: number;
+  chargedWeightKg: number;
+};
+
 type CourierGuyLocker = {
   code: string;
   name: string;
@@ -162,10 +177,17 @@ export function CheckoutForm() {
   const [selectedPargoPoint, setSelectedPargoPoint] = useState<PargoPickupPoint | null>(null);
   const [isLoadingPargoPoints, setIsLoadingPargoPoints] = useState(false);
   const [pargoPointError, setPargoPointError] = useState<string | null>(null);
+  const [bobGoQuoteId, setBobGoQuoteId] = useState<string | null>(null);
+  const [bobGoQuoteFingerprint, setBobGoQuoteFingerprint] = useState<string | null>(null);
+  const [bobGoRates, setBobGoRates] = useState<BobGoRate[]>([]);
+  const [selectedBobGoRate, setSelectedBobGoRate] = useState<BobGoRate | null>(null);
+  const [isLoadingBobGoRates, setIsLoadingBobGoRates] = useState(false);
+  const [bobGoRateError, setBobGoRateError] = useState<string | null>(null);
   const [addressFields, setAddressFields] = useState({
     name: "",
     phone: "",
     street: "",
+    localArea: "",
     city: "",
     postalCode: "",
     province: "",
@@ -224,12 +246,49 @@ export function CheckoutForm() {
   }, [items]);
 
   const lines = useMemo(() => buildCartLines(items, products), [items, products]);
-  const shippingOptions = useMemo(() => getAvailableShippingOptionsForCart(lines), [lines]);
+  const bobGoInputFingerprint = useMemo(
+    () => JSON.stringify({
+      items: lines
+        .map((line) => ({ productId: line.productId, quantity: line.quantity }))
+        .sort((left, right) => left.productId.localeCompare(right.productId)),
+      delivery: {
+        name: addressFields.name.trim(),
+        phone: addressFields.phone.trim(),
+        street: addressFields.street.trim(),
+        localArea: addressFields.localArea.trim(),
+        city: addressFields.city.trim(),
+        province: addressFields.province.trim(),
+        postalCode: addressFields.postalCode.trim(),
+      },
+    }),
+    [addressFields, lines],
+  );
+  const staticShippingOptions = useMemo(() => getAvailableShippingOptionsForCart(lines), [lines]);
+  const bobGoSandboxEnabled =
+    process.env.NEXT_PUBLIC_BOBGO_SHIPPING_ENABLED === "true" || process.env.NODE_ENV === "development";
+  const shippingOptions = useMemo(() => {
+    if (!bobGoSandboxEnabled || lines.length === 0) return staticShippingOptions;
+    return [
+      ...staticShippingOptions,
+      {
+        key: "bobgo_door_to_door",
+        enabled: true,
+        price: selectedBobGoRate?.amount ?? 0,
+        marketName: null,
+        marketLocation: null,
+        marketProvince: null,
+      },
+    ];
+  }, [bobGoSandboxEnabled, lines.length, selectedBobGoRate?.amount, staticShippingOptions]);
   const selectedShipping = shippingOptions.find((option) => option.key === shippingMethod) ?? null;
   const subtotal = getCartSubtotal(lines);
-  const shippingCost = selectedShipping ? calculateShippingTotal(lines, selectedShipping.key) : 0;
+  const shippingCost = selectedShipping?.key === "bobgo_door_to_door"
+    ? selectedBobGoRate?.amount ?? 0
+    : selectedShipping
+      ? calculateShippingTotal(lines, selectedShipping.key)
+      : 0;
   const total = subtotal + shippingCost + (isGift ? giftServiceFee : 0);
-  const blocker = getCheckoutBlocker(lines);
+  const blocker = getCheckoutBlocker(lines, { allowDynamicShipping: bobGoSandboxEnabled });
 
   useEffect(() => {
     if (!shippingMethod && shippingOptions.length > 0) {
@@ -316,6 +375,74 @@ export function CheckoutForm() {
     [],
   );
 
+  const requestBobGoRates = useCallback(async () => {
+    setIsLoadingBobGoRates(true);
+    setBobGoRateError(null);
+    setBobGoRates([]);
+    setSelectedBobGoRate(null);
+    setBobGoQuoteId(null);
+    setBobGoQuoteFingerprint(null);
+
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error("Sign in before requesting a Bob Go delivery rate.");
+      }
+
+      const response = await fetch("/api/marketplace/bobgo/rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: lines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+          })),
+          delivery: {
+            fullName: addressFields.name,
+            email: user.email,
+            phone: addressFields.phone,
+            streetAddress: addressFields.street,
+            localArea: addressFields.localArea,
+            city: addressFields.city,
+            province: addressFields.province,
+            postalCode: addressFields.postalCode,
+          },
+        }),
+      });
+      const payload = (await response.json()) as {
+        quoteId?: string;
+        rates?: BobGoRate[];
+        error?: string;
+      };
+      if (!response.ok || payload.error || !payload.quoteId || !payload.rates?.length) {
+        throw new Error(payload.error ?? "Bob Go returned no door-to-door rates.");
+      }
+
+      setBobGoQuoteId(payload.quoteId);
+      setBobGoQuoteFingerprint(bobGoInputFingerprint);
+      setBobGoRates(payload.rates);
+    } catch (rateError) {
+      setBobGoRateError(
+        rateError instanceof Error ? rateError.message : "Could not load Bob Go rates.",
+      );
+    } finally {
+      setIsLoadingBobGoRates(false);
+    }
+  }, [addressFields, bobGoInputFingerprint, lines]);
+
+  useEffect(() => {
+    if (bobGoQuoteId && bobGoQuoteFingerprint !== bobGoInputFingerprint) {
+      setBobGoQuoteId(null);
+      setBobGoQuoteFingerprint(null);
+      setBobGoRates([]);
+      setSelectedBobGoRate(null);
+      setBobGoRateError("Your basket or address changed. Request a fresh Bob Go rate.");
+    }
+  }, [bobGoInputFingerprint, bobGoQuoteFingerprint, bobGoQuoteId]);
+
   // Mirror mobile: search runs automatically (debounced) as the buyer types
   // or changes the province filter.
   useEffect(() => {
@@ -352,6 +479,13 @@ export function CheckoutForm() {
   // pickup-point state so stale selections are never submitted.
   function selectShippingMethod(key: string) {
     setShippingMethod(key);
+    if (key !== "bobgo_door_to_door") {
+      setBobGoQuoteId(null);
+      setBobGoQuoteFingerprint(null);
+      setBobGoRates([]);
+      setSelectedBobGoRate(null);
+      setBobGoRateError(null);
+    }
     if (key !== "courier_guy") {
       setSelectedCourierGuyLocker(null);
       setCourierGuyLockers([]);
@@ -399,6 +533,13 @@ export function CheckoutForm() {
 
     if (incompleteField || !selectedShipping) {
       setError(checkoutBlockingMessage(incompleteField ?? "shippingMethod"));
+      return;
+    }
+    if (
+      selectedShipping.key === "bobgo_door_to_door" &&
+      (!bobGoQuoteId || !selectedBobGoRate)
+    ) {
+      setError("Request and select a Bob Go door-to-door rate before payment.");
       return;
     }
 
@@ -462,6 +603,7 @@ export function CheckoutForm() {
         ...(requiresShippingAddress(selectedShipping.key)
           ? {
               street: addressFields.street.trim(),
+              local_area: addressFields.localArea.trim() || addressFields.city.trim(),
               city: addressFields.city.trim(),
               postal_code: addressFields.postalCode.trim(),
               province: addressFields.province.trim(),
@@ -495,6 +637,19 @@ export function CheckoutForm() {
             shippingAddress,
             shippingMethod: selectedShipping.key,
             shippingCost,
+            bobgoQuoteId: selectedShipping.key === "bobgo_door_to_door" ? bobGoQuoteId : null,
+            bobgoRateResponseId:
+              selectedShipping.key === "bobgo_door_to_door"
+                ? selectedBobGoRate?.rateResponseId ?? null
+                : null,
+            bobgoProviderSlug:
+              selectedShipping.key === "bobgo_door_to_door"
+                ? selectedBobGoRate?.providerSlug ?? null
+                : null,
+            bobgoServiceLevelCode:
+              selectedShipping.key === "bobgo_door_to_door"
+                ? selectedBobGoRate?.serviceLevelCode ?? null
+                : null,
             isGift,
             giftRecipient: isGift ? giftRecipient.trim() || null : null,
             giftMessage: isGift ? giftMessage.trim() || null : null,
@@ -649,9 +804,13 @@ export function CheckoutForm() {
                   </span>
                   <span className="flex items-center gap-3">
                     <span className="text-sm font-semibold text-foreground">
-                      {calculateShippingTotal(lines, option.key) === 0
-                        ? "FREE"
-                        : formatPrice(calculateShippingTotal(lines, option.key))}
+                      {option.key === "bobgo_door_to_door"
+                        ? selectedBobGoRate
+                          ? formatPrice(selectedBobGoRate.amount)
+                          : "Quote required"
+                        : calculateShippingTotal(lines, option.key) === 0
+                          ? "FREE"
+                          : formatPrice(calculateShippingTotal(lines, option.key))}
                     </span>
                     <input
                       type="radio"
@@ -687,6 +846,20 @@ export function CheckoutForm() {
                   className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
                 />
               </label>
+              {selectedShipping.key === "bobgo_door_to_door" ? (
+                <label className="space-y-2 text-sm font-medium text-foreground sm:col-span-2">
+                  Suburb / local area
+                  <input
+                    name="localArea"
+                    required
+                    value={addressFields.localArea}
+                    onChange={(event) =>
+                      setAddressFields((current) => ({ ...current, localArea: event.target.value }))
+                    }
+                    className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
+                  />
+                </label>
+              ) : null}
               <label className="space-y-2 text-sm font-medium text-foreground">
                 City
                 <input
@@ -726,6 +899,55 @@ export function CheckoutForm() {
                   ))}
                 </select>
               </label>
+              {selectedShipping.key === "bobgo_door_to_door" ? (
+                <div className="space-y-4 sm:col-span-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isLoadingBobGoRates}
+                    onClick={() => void requestBobGoRates()}
+                    className="rounded-full"
+                  >
+                    {isLoadingBobGoRates ? "Getting live rates..." : "Get Bob Go door-to-door rates"}
+                  </Button>
+                  {bobGoRateError ? (
+                    <p className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {bobGoRateError}
+                    </p>
+                  ) : null}
+                  {bobGoRates.length > 0 ? (
+                    <div className="grid gap-3">
+                      {bobGoRates.map((rate) => (
+                        <label
+                          key={`${rate.rateResponseId}-${rate.serviceLevelCode}`}
+                          className="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-artisan-clay bg-background p-4"
+                        >
+                          <span>
+                            <span className="block font-semibold text-foreground">
+                              {rate.providerName} · {rate.serviceLevelName}
+                            </span>
+                            <span className="mt-1 block text-sm text-muted-foreground">
+                              {rate.description} · charged weight {rate.chargedWeightKg} kg
+                            </span>
+                          </span>
+                          <span className="flex items-center gap-3">
+                            <span className="font-semibold">{formatPrice(rate.amount)}</span>
+                            <input
+                              type="radio"
+                              name="bobGoRate"
+                              checked={
+                                selectedBobGoRate?.rateResponseId === rate.rateResponseId &&
+                                selectedBobGoRate?.serviceLevelCode === rate.serviceLevelCode
+                              }
+                              onChange={() => setSelectedBobGoRate(rate)}
+                            />
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ) : null}
@@ -1004,7 +1226,12 @@ export function CheckoutForm() {
         <Button
           type="submit"
           size="lg"
-          disabled={isSubmitting || Boolean(blocker) || !selectedShipping}
+          disabled={
+            isSubmitting ||
+            Boolean(blocker) ||
+            !selectedShipping ||
+            (selectedShipping.key === "bobgo_door_to_door" && !selectedBobGoRate)
+          }
           className="mt-6 w-full rounded-full"
         >
           {isSubmitting ? "Starting payment..." : "Pay with TradeSafe"}

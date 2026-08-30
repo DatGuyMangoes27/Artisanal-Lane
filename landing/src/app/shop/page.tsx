@@ -6,9 +6,7 @@ import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { ProductCard } from "@/components/marketplace/product-card";
 import { SearchControls } from "@/components/marketplace/search-controls";
-import { ShopCampaignPopup } from "@/components/marketplace/shop-campaign-popup";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
-import { listCampaignOffers } from "@/lib/marketplace/campaign-data";
 import {
   getFreshMarketplaceProductCount,
   getFreshMarketplaceProducts,
@@ -23,6 +21,10 @@ import {
 } from "@/lib/marketplace/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { getProductPrimaryImage } from "@/lib/marketplace/format";
+import {
+  getDailyProductRotationSeed,
+  rotateProductsForSeed,
+} from "@/lib/marketplace/product-rotation";
 
 type ShopSearchParams = {
   q?: string;
@@ -99,7 +101,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const query = params?.q;
   const categoryId = params?.category;
   const subcategoryId = categoryId ? params?.subcategory : undefined;
-  const sort = params?.sort ?? "newest";
+  const sort = params?.sort ?? "rotation";
   const priceFilter = params?.price;
   const availabilityFilter = params?.availability;
   const currentPage = parseShopPage(params?.page);
@@ -111,7 +113,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [categories, subcategories, products, freshProducts, freshCount, shopCount, productCount, favouriteIds, campaignOffers] = await Promise.all([
+  const [categories, subcategories, products, freshProducts, freshCount, shopCount, productCount, favouriteIds] = await Promise.all([
     getMarketplaceCategories(),
     getMarketplaceSubcategories(),
     getMarketplaceProducts({
@@ -129,9 +131,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     getMarketplaceShopCount(),
     getMarketplaceProductCount(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
-    listCampaignOffers(),
   ]);
-  const pageProducts = products.slice(0, productsPerPage);
+  const rotationSeed = getDailyProductRotationSeed();
+  const pageProducts = sort === "rotation"
+    ? rotateProductsForSeed(products.slice(0, productsPerPage), `${rotationSeed}:page-${currentPage}`)
+    : products.slice(0, productsPerPage);
+  const rotatedFreshProducts = rotateProductsForSeed(freshProducts, `${rotationSeed}:fresh`);
   const hasNextPage = products.length > productsPerPage;
   const previousPageHref = buildPageHref(params, currentPage - 1);
   const nextPageHref = buildPageHref(params, currentPage + 1);
@@ -140,13 +145,12 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     Object.entries(params ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   ).toString();
   const shopHref = shopQueryString ? `/shop?${shopQueryString}` : "/shop";
-  const heroProducts = freshProducts.slice(0, 3);
+  const heroProducts = rotatedFreshProducts.slice(0, 3);
   const primaryHeroProduct = heroProducts[0];
   const selectedCategory = categories.find((category) => category.id === categoryId);
 
   return (
     <main>
-      <ShopCampaignPopup offers={campaignOffers} />
       <section className="relative overflow-hidden border-b border-[#E7D4C2] bg-[#F8EEE3]">
         <div className="pointer-events-none absolute -left-52 -top-48 size-[38rem] rounded-full bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/10 to-transparent blur-[95px]" />
         <div className="pointer-events-none absolute -bottom-56 left-[26%] size-[34rem] rounded-full bg-gradient-to-tr from-[#559826]/10 via-[#D4A020]/8 to-transparent blur-[95px]" />
@@ -199,7 +203,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         </div>
         {freshProducts.length > 0 ? (
           <ProductCarousel>
-            {freshProducts.map((product) => (
+            {rotatedFreshProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}

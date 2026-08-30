@@ -30,6 +30,13 @@ import {
 import { SHIPPING_METHOD_KEYS } from "@/lib/marketplace/shipping";
 import { validateVendorProofFiles } from "@/lib/marketplace/vendor-application-files";
 import { removeUnreferencedProductImages } from "@/lib/marketplace/product-image-storage";
+import { buildPayFastCardUpdateUrl } from "@/lib/marketplace/payfast-card-update";
+import { removeReplacedShopAsset } from "@/lib/marketplace/shop-asset-storage";
+import {
+  getChatAttachmentFile,
+  removeChatAttachment,
+  uploadChatAttachment,
+} from "@/lib/marketplace/chat-attachment-storage";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -244,14 +251,16 @@ export async function updateVendorShopSettings(formData: FormData) {
   const logoUploads = await getUploadedUrls(formData, "logoFile", "shop-assets", user.id);
   const coverUploads = await getUploadedUrls(formData, "coverFile", "shop-assets", user.id);
   const name = parseRequiredText(formData.get("name"));
+  const removeLogo = isTruthy(formData.get("removeLogo"));
+  const removeCover = isTruthy(formData.get("removeCover"));
 
   const update = {
     name,
     bio: parseNullableText(formData.get("bio")),
     brand_story: parseNullableText(formData.get("brandStory")),
     location: parseNullableText(formData.get("location")),
-    logo_url: logoUploads[0] ?? parseNullableText(formData.get("logoUrl")),
-    cover_image_url: coverUploads[0] ?? parseNullableText(formData.get("coverImageUrl")),
+    logo_url: logoUploads[0] ?? (removeLogo ? null : parseNullableText(formData.get("logoUrl"))),
+    cover_image_url: coverUploads[0] ?? (removeCover ? null : parseNullableText(formData.get("coverImageUrl"))),
     is_offline: isTruthy(formData.get("isOffline")),
     back_to_work_date: isTruthy(formData.get("isOffline"))
       ? parseNullableText(formData.get("backToWorkDate"))
@@ -273,6 +282,43 @@ export async function updateVendorShopSettings(formData: FormData) {
   const { error } = result;
   if (error) {
     throw new Error("Unable to save shop settings.", { cause: error });
+  }
+
+  await Promise.all([
+    removeReplacedShopAsset(admin, user.id, shop?.logoUrl, update.logo_url),
+    removeReplacedShopAsset(admin, user.id, shop?.coverImageUrl, update.cover_image_url),
+  ]);
+
+  const savedShop = shop ?? (await getVendorShop(user.id));
+  const bobGoEnabled = isTruthy(formData.get("bobGoEnabled"));
+  const collectionStreet = parseNullableText(formData.get("collectionStreetAddress"));
+  if (savedShop && (bobGoEnabled || collectionStreet)) {
+    const { error: fulfillmentError } = await admin
+      .from("shop_fulfillment_profiles")
+      .upsert(
+        {
+          shop_id: savedShop.id,
+          contact_full_name: parseRequiredText(formData.get("collectionContactFullName")),
+          contact_email: parseRequiredText(formData.get("collectionContactEmail")),
+          contact_phone: parseRequiredText(formData.get("collectionContactPhone")),
+          company: parseNullableText(formData.get("collectionCompany")),
+          street_address: parseRequiredText(formData.get("collectionStreetAddress")),
+          local_area: parseRequiredText(formData.get("collectionLocalArea")),
+          city: parseRequiredText(formData.get("collectionCity")),
+          province: parseRequiredText(formData.get("collectionProvince")),
+          postal_code: parseRequiredText(formData.get("collectionPostalCode")),
+          country_code: "ZA",
+          bobgo_enabled: bobGoEnabled,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "shop_id" },
+      );
+
+    if (fulfillmentError) {
+      throw new Error("Shop saved, but Bob Go collection details could not be saved.", {
+        cause: fulfillmentError,
+      });
+    }
   }
 
   revalidatePath("/vendor");
@@ -376,6 +422,10 @@ async function productPayloadFromForm(formData: FormData, shopId: string, userId
     tags: parseListInput(formData.get("tags")),
     care_instructions: parseNullableText(formData.get("careInstructions")),
     fragrance_description: parseNullableText(formData.get("fragranceDescription")),
+    shipping_weight_kg: parseNullableCurrencyInput(formData.get("shippingWeightKg")),
+    shipping_length_cm: parseNullableCurrencyInput(formData.get("shippingLengthCm")),
+    shipping_width_cm: parseNullableCurrencyInput(formData.get("shippingWidthCm")),
+    shipping_height_cm: parseNullableCurrencyInput(formData.get("shippingHeightCm")),
     shipping_options: parseShippingOptions(formData),
     option_groups: parseJsonArrayInput(formData.get("optionGroupsJson")),
     fulfillment_mode: parseFulfillmentMode(formData.get("fulfillmentMode")),
@@ -642,9 +692,11 @@ export async function payExistingStationeryRequest(formData: FormData) {
 }
 
 export async function sendVendorMessage(formData: FormData) {
-  const { user } = await requireVendorSession("/vendor/messages");
+  const { supabase, user } = await requireVendorSession("/vendor/messages");
   const threadId = requireId(formData, "threadId");
-  const body = parseRequiredText(formData.get("body"));
+  const body = parseNullableText(formData.get("body"));
+  const attachmentFile = getChatAttachmentFile(formData);
+  if (!body && !attachmentFile) return;
   const admin = createAdminClient();
   const { data: thread } = await admin
     .from("chat_threads")
@@ -656,17 +708,26 @@ export async function sendVendorMessage(formData: FormData) {
     notFound();
   }
 
+  const attachment = attachmentFile
+    ? await uploadChatAttachment({ supabase, threadId, senderId: user.id, file: attachmentFile })
+    : null;
+
   const { data: message, error } = await admin
     .from("chat_messages")
     .insert({
       thread_id: threadId,
       sender_id: user.id,
       body,
-      message_type: "text",
+      message_type: body && attachment ? "text_with_attachment" : attachment ? "attachment" : "text",
+      attachment_path: attachment?.path ?? null,
+      attachment_name: attachment?.name ?? null,
+      attachment_mime: attachment?.mime ?? null,
+      attachment_size_bytes: attachment?.sizeBytes ?? null,
     })
     .select("id")
     .single();
   if (error) {
+    await removeChatAttachment(supabase, attachment?.path);
     throw new Error("Unable to send message.", { cause: error });
   }
 
@@ -752,6 +813,26 @@ export async function deleteVendorPost(formData: FormData) {
 
   revalidatePath("/vendor/profile/posts");
   redirect("/vendor/profile/posts");
+}
+
+export async function updateVendorSubscriptionCard() {
+  const { user } = await requireVendorSession("/vendor/profile/subscription");
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("vendor_subscriptions")
+    .select("payfast_token")
+    .eq("vendor_id", user.id)
+    .maybeSingle();
+
+  const token = typeof data?.payfast_token === "string" ? data.payfast_token : "";
+  if (error || !token.trim()) {
+    throw new Error(
+      "Your PayFast card update link is not available yet. Please contact Artisan Lane support.",
+      { cause: error },
+    );
+  }
+
+  redirect(buildPayFastCardUpdateUrl(token));
 }
 
 export async function createVendorCoupon(formData: FormData) {

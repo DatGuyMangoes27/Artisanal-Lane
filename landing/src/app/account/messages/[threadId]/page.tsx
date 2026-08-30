@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { sendBuyerMessage } from "@/app/account/messages/actions";
 import { ChatSafetyNotice } from "@/components/marketplace/chat-safety-notice";
+import { ChatMessageAttachment } from "@/components/marketplace/chat-message-attachment";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import {
   markBuyerThreadRead,
   requireBuyerMessageSession,
 } from "@/lib/marketplace/message-data";
-import { getMessagePreview } from "@/lib/marketplace/messages";
 
 type BuyerMessageThreadPageProps = {
   params: Promise<{
@@ -85,7 +85,13 @@ export default async function BuyerMessageThreadPage({ params }: BuyerMessageThr
                         : "border border-artisan-clay bg-card text-foreground"
                     }`}
                   >
-                    <p className="whitespace-pre-wrap leading-6">{getMessagePreview(message)}</p>
+                    <ChatMessageAttachment
+                      url={message.attachment?.url ?? null}
+                      name={message.attachment?.name ?? null}
+                      mime={message.attachment?.mime ?? null}
+                      mine={mine}
+                    />
+                    {message.body ? <p className="whitespace-pre-wrap leading-6">{message.body}</p> : null}
                     <p className={`mt-2 text-xs ${mine ? "text-white/75" : "text-muted-foreground"}`}>
                       {new Date(message.createdAt).toLocaleString("en-ZA", {
                         month: "short",
@@ -103,20 +109,23 @@ export default async function BuyerMessageThreadPage({ params }: BuyerMessageThr
 
         <Card className="mt-6 border-artisan-clay bg-card">
           <CardContent className="p-4">
-            <form action={sendBuyerMessage} className="flex flex-col gap-3 sm:flex-row">
+            <form action={sendBuyerMessage} className="flex flex-col gap-3" encType="multipart/form-data">
               <input type="hidden" name="threadId" value={thread.id} />
               <label className="sr-only" htmlFor="message-body">Message</label>
               <textarea
                 id="message-body"
                 name="body"
-                required
                 rows={2}
                 placeholder="Type your message..."
                 className="min-h-12 flex-1 rounded-2xl border border-artisan-clay bg-white px-4 py-3 text-sm outline-none transition focus:border-artisan-terracotta"
               />
-              <Button type="submit" className="rounded-full sm:self-end">
-                Send
-              </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Add photo
+                  <input className="ml-3 text-xs" name="attachment" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+                </label>
+                <Button type="submit" className="rounded-full">Send</Button>
+              </div>
             </form>
           </CardContent>
         </Card>

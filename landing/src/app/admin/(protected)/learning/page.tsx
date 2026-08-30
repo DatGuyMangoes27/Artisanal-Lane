@@ -18,12 +18,12 @@ export default async function AdminLearningPage() {
       <AdminPageHeader
         eyebrow="Website content"
         title="Learning Hub"
-        description="Curate podcasts, video tutorials, and articles shown to everyone on the public /learn page."
+        description="Choose whether each resource belongs in public Tutorials or the approved-artisan Library."
       />
 
       <PanelCard
         title="Add a resource"
-        description="Paste a podcast, video, or article link and upload a thumbnail. Published items appear on the website immediately."
+        description="Paste a podcast, video, or article link and upload a thumbnail. Published items appear in the artisan library immediately."
       >
         <LearningResourceForm />
       </PanelCard>
@@ -57,6 +57,9 @@ export default async function AdminLearningPage() {
                   )}
                   <div className="space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-artisan-terracotta/15 px-3 py-0.5 text-xs font-semibold text-artisan-terracotta">
+                        {resource.destination === "tutorial" ? "Public Tutorials" : "Vendor Library"}
+                      </span>
                       <span className="rounded-full bg-artisan-bone px-3 py-0.5 text-xs font-semibold text-artisan-sienna">
                         {typeLabels[resource.type] ?? resource.type}
                       </span>

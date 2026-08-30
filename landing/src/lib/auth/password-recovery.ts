@@ -4,8 +4,12 @@ export const PASSWORD_RECOVERY_COOKIE = "artisan-lane-password-recovery";
 export const PASSWORD_RECOVERY_COOKIE_MAX_AGE = 15 * 60;
 export const PASSWORD_MIN_LENGTH = 8;
 
-export function getPasswordRecoveryRedirectUrl(origin: string) {
-  return new URL(PASSWORD_RECOVERY_CALLBACK_PATH, origin).toString();
+export function getPasswordRecoveryRedirectUrl(
+  origin: string,
+  configuredSiteUrl?: string | null,
+) {
+  const publicOrigin = configuredSiteUrl?.trim() || origin;
+  return new URL(PASSWORD_RECOVERY_CALLBACK_PATH, publicOrigin).toString();
 }
 
 function getFirstHeaderValue(value: string | null) {
@@ -15,7 +19,11 @@ function getFirstHeaderValue(value: string | null) {
 export function getPasswordRecoveryRequestOrigin(
   requestUrl: string,
   headers: Headers,
+  configuredSiteUrl?: string | null,
 ) {
+  if (configuredSiteUrl?.trim()) {
+    return new URL(configuredSiteUrl).origin;
+  }
   const url = new URL(requestUrl);
   const host =
     getFirstHeaderValue(headers.get("x-forwarded-host")) ??

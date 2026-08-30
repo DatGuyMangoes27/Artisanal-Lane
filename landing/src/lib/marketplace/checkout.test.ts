@@ -230,7 +230,8 @@ describe("marketplace checkout helpers", () => {
   });
 
   it("knows which shipping methods need address or pickup details", () => {
-    expect(requiresShippingAddress("courier_guy_door_to_door")).toBe(true);
+    expect(requiresShippingAddress("courier_guy_door_to_door")).toBe(false);
+    expect(requiresShippingAddress("bobgo_door_to_door")).toBe(true);
     expect(requiresShippingAddress("courier_guy")).toBe(false);
     expect(requiresPickupPoint("courier_guy")).toBe(true);
     expect(requiresPickupPoint("pargo")).toBe(true);
@@ -254,6 +255,7 @@ describe("marketplace checkout helpers", () => {
       name: "Home",
       phone: "0710000000",
       street: "1 Main Road",
+      localArea: "Cape Town",
       city: "Cape Town",
       postalCode: "8001",
       province: "Western Cape",

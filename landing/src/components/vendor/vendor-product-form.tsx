@@ -185,6 +185,64 @@ export function VendorProductForm({
       </section>
 
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
+        <h3 className="text-2xl font-semibold text-artisan-sienna">Packed parcel measurements</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Required only for Bob Go door-to-door quotes. Measure the product after it is packed,
+          including its box or protective wrapping.
+        </p>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Weight (kg)
+            <input
+              name="shippingWeightKg"
+              type="number"
+              min="0.001"
+              step="0.001"
+              defaultValue={money(product?.shippingWeightKg)}
+              placeholder="0.750"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Length (cm)
+            <input
+              name="shippingLengthCm"
+              type="number"
+              min="0.01"
+              step="0.01"
+              defaultValue={money(product?.shippingLengthCm)}
+              placeholder="20"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Width (cm)
+            <input
+              name="shippingWidthCm"
+              type="number"
+              min="0.01"
+              step="0.01"
+              defaultValue={money(product?.shippingWidthCm)}
+              placeholder="15"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-medium text-artisan-sienna">
+            Height (cm)
+            <input
+              name="shippingHeightCm"
+              type="number"
+              min="0.01"
+              step="0.01"
+              defaultValue={money(product?.shippingHeightCm)}
+              placeholder="10"
+              className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Shipping options</h3>
         <div className="mt-5 grid gap-4">
           {shippingMethods.map(([key, label]) => {

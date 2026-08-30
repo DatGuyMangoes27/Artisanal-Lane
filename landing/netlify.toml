@@ -3,7 +3,8 @@
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
+  NEXT_PUBLIC_SITE_URL = "https://artisanlanesa.co.za"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

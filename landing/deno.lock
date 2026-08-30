@@ -28,6 +28,7 @@
         "npm:lucide-react@0.560",
         "npm:next@16.0.9",
         "npm:react-dom@19.2.1",
+        "npm:react-easy-crop@^5.5.7",
         "npm:react@19.2.1",
         "npm:tailwind-merge@^3.4.0",
         "npm:tailwindcss@4",
