@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
+import { useIsArtisan } from "@/components/marketplace/use-is-artisan";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -12,12 +13,14 @@ const navItems = [
   { href: "/shop", label: "Store", key: "shop" },
   { href: "/artisans", label: "Browse artisans", key: "artisans" },
   { href: "/tutorials", label: "Tutorials", key: "tutorials" },
+  { href: "/vendor/library", label: "Library", key: "library" },
   { href: "/about", label: "About", key: "about" },
   { href: "/shop#search", label: "Search", key: "search" },
 ] as const;
 
 export function MobileNavMenu({ activeItem }: { activeItem?: string }) {
   const [open, setOpen] = useState(false);
+  const isArtisan = useIsArtisan();
 
   return (
     <div className="md:hidden">
@@ -46,20 +49,22 @@ export function MobileNavMenu({ activeItem }: { activeItem?: string }) {
               aria-label="Mobile marketplace navigation"
               className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3"
             >
-              {navItems.map((item) => (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={
-                    activeItem === item.key
-                      ? "rounded-xl bg-artisan-terracotta px-4 py-3 text-sm font-semibold text-white"
-                      : "rounded-xl px-4 py-3 text-sm font-medium text-foreground transition hover:bg-secondary"
-                  }
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) =>
+                item.key === "library" && !isArtisan ? null : (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={
+                      activeItem === item.key
+                        ? "rounded-xl bg-artisan-terracotta px-4 py-3 text-sm font-semibold text-white"
+                        : "rounded-xl px-4 py-3 text-sm font-medium text-foreground transition hover:bg-secondary"
+                    }
+                  >
+                    {item.label}
+                  </Link>
+                ),
+              )}
               <div
                 className="mt-2 flex flex-wrap gap-2 border-t border-artisan-clay/50 pt-3"
                 onClick={() => setOpen(false)}

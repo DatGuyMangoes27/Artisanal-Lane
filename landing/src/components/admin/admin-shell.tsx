@@ -6,6 +6,7 @@ import {
   Bell,
   GraduationCap,
   LayoutDashboard,
+  Library,
   LogOut,
   MessageSquare,
   Package,
@@ -60,6 +61,11 @@ const navItems = [
     href: "/admin/learning",
     label: "Learning",
     icon: GraduationCap,
+  },
+  {
+    href: "/admin/library",
+    label: "Library",
+    icon: Library,
   },
   {
     href: "/admin/notifications",

@@ -5,7 +5,7 @@ import { Heart, Search } from "lucide-react";
 import { AuthCtaButtons } from "@/components/marketplace/auth-cta-buttons";
 import { CartNavButton } from "@/components/marketplace/cart-nav-button";
 import { FloatingCartNotice } from "@/components/marketplace/floating-cart-notice";
-import { TutorialsNavLink } from "@/components/marketplace/learn-nav-link";
+import { LibraryNavLink, TutorialsNavLink } from "@/components/marketplace/learn-nav-link";
 import { MobileNavMenu } from "@/components/marketplace/mobile-nav-menu";
 import { Button } from "@/components/ui/button";
 
@@ -37,6 +37,7 @@ export function MarketplaceHeader({ activeItem }: MarketplaceHeaderProps) {
             <Link href="/artisans" className={navLinkClass(activeItem === "artisans")}>Browse artisans</Link>
             <Link href="/about" className={navLinkClass(activeItem === "about")}>Our story</Link>
             <TutorialsNavLink active={activeItem === "tutorials"} />
+            <LibraryNavLink />
           </nav>
 
           <div className="ml-auto flex shrink-0 items-center gap-1 md:ml-0">
