@@ -52,6 +52,34 @@ type ProductShippingOption = {
   price?: unknown;
 };
 
+type BobGoRate = {
+  rateResponseId?: unknown;
+  providerSlug?: unknown;
+  serviceLevelCode?: unknown;
+  amount?: unknown;
+};
+
+function normalizedText(value: unknown) {
+  return typeof value === "string" ? value.trim().replace(/\s+/g, " ").toLowerCase() : "";
+}
+
+function sameBobGoDeliveryAddress(
+  requestSnapshot: unknown,
+  shippingAddress: Record<string, unknown>,
+) {
+  if (typeof requestSnapshot !== "object" || requestSnapshot == null) return false;
+  const delivery = (requestSnapshot as { delivery_address?: unknown }).delivery_address;
+  if (typeof delivery !== "object" || delivery == null) return false;
+  const address = delivery as Record<string, unknown>;
+  return [
+    [address.street_address, shippingAddress["street"]],
+    [address.local_area, shippingAddress["local_area"] ?? shippingAddress["city"]],
+    [address.city, shippingAddress["city"]],
+    [address.zone, shippingAddress["province"]],
+    [address.code, shippingAddress["postal_code"]],
+  ].every(([quoted, submitted]) => normalizedText(quoted) === normalizedText(submitted));
+}
+
 function calculateShopShippingCost(
   items: Array<{
     quantity: number;
@@ -256,21 +284,117 @@ Deno.serve(async (request) => {
         { status: 400 },
       );
     }
-
-    let shippingCost: number;
-    const combinedShippingEnabled =
-      items[0]?.product.shops?.combined_shipping_enabled !== false;
-    try {
-      shippingCost = calculateShopShippingCost(
-        items,
-        shippingMethod,
-        combinedShippingEnabled,
-      );
-    } catch (error) {
+    if (shippingMethod === "courier_guy_door_to_door") {
       return jsonResponse(
-        { error: errorMessage(error, "The selected shipping method is unavailable.") },
+        { error: "Courier Guy door-to-door delivery is no longer available. Please choose another delivery option." },
         { status: 400 },
       );
+    }
+
+    let shippingCost: number;
+    let bobGoSelection: {
+      quoteId: string;
+      rateRequestId: number;
+      rateResponseId: number;
+      providerSlug: string;
+      serviceLevelCode: string;
+    } | null = null;
+    const combinedShippingEnabled =
+      items[0]?.product.shops?.combined_shipping_enabled !== false;
+    if (shippingMethod === "bobgo_door_to_door") {
+      const quoteId = firstNonEmptyString(body.bobgoQuoteId);
+      const rateResponseId = Number(body.bobgoRateResponseId);
+      const providerSlug = firstNonEmptyString(body.bobgoProviderSlug);
+      const serviceLevelCode = firstNonEmptyString(body.bobgoServiceLevelCode);
+      if (
+        !quoteId || !Number.isFinite(rateResponseId) || !providerSlug || !serviceLevelCode
+      ) {
+        return jsonResponse(
+          { error: "Request and select a current Bob Go delivery rate." },
+          { status: 400 },
+        );
+      }
+
+      const { data: quote, error: quoteError } = await admin
+        .from("bobgo_shipping_quotes")
+        .select("id, rate_request_id, rates, items_snapshot, request_snapshot, expires_at")
+        .eq("id", quoteId)
+        .eq("buyer_id", userId)
+        .eq("shop_id", shopId)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+      if (quoteError || !quote) {
+        return jsonResponse(
+          { error: "That Bob Go quote expired or no longer matches this checkout. Request a new rate." },
+          { status: 400 },
+        );
+      }
+
+      const currentItems = items
+        .map((item) => ({ productId: item.productId, quantity: item.quantity }))
+        .sort((left, right) => left.productId.localeCompare(right.productId));
+      const quotedItems = (Array.isArray(quote.items_snapshot) ? quote.items_snapshot : [])
+        .map((item) => {
+          const record = item as Record<string, unknown>;
+          return {
+            productId: firstNonEmptyString(record.productId) ?? "",
+            quantity: Number(record.quantity),
+          };
+        })
+        .sort((left, right) => left.productId.localeCompare(right.productId));
+      const quoteMatchesCart = quotedItems.length === currentItems.length &&
+        quotedItems.every((item, index) =>
+          item.productId === currentItems[index].productId &&
+          item.quantity === currentItems[index].quantity
+        );
+      if (!quoteMatchesCart) {
+        return jsonResponse(
+          { error: "Your basket changed after the Bob Go quote. Request a new rate." },
+          { status: 400 },
+        );
+      }
+      if (!sameBobGoDeliveryAddress(quote.request_snapshot, shippingAddress)) {
+        return jsonResponse(
+          { error: "Your delivery address changed after the Bob Go quote. Request a new rate." },
+          { status: 400 },
+        );
+      }
+
+      const selectedRate = (Array.isArray(quote.rates) ? quote.rates : [])
+        .find((rate: BobGoRate) =>
+          Number(rate.rateResponseId) === rateResponseId &&
+          rate.providerSlug === providerSlug &&
+          rate.serviceLevelCode === serviceLevelCode
+        ) as BobGoRate | undefined;
+      const verifiedShippingCost = Number(selectedRate?.amount);
+      if (!selectedRate || !Number.isFinite(verifiedShippingCost) || verifiedShippingCost < 0) {
+        return jsonResponse(
+          { error: "The selected Bob Go service is no longer available. Request a new rate." },
+          { status: 400 },
+        );
+      }
+
+      shippingCost = roundCurrency(verifiedShippingCost);
+      bobGoSelection = {
+        quoteId,
+        rateRequestId: Number(quote.rate_request_id),
+        rateResponseId,
+        providerSlug,
+        serviceLevelCode,
+      };
+    } else {
+      try {
+        shippingCost = calculateShopShippingCost(
+          items,
+          shippingMethod,
+          combinedShippingEnabled,
+        );
+      } catch (error) {
+        return jsonResponse(
+          { error: errorMessage(error, "The selected shipping method is unavailable.") },
+          { status: 400 },
+        );
+      }
     }
     const clientShippingCost = Number(body.shippingCost ?? 0);
     if (
@@ -678,6 +802,12 @@ Deno.serve(async (request) => {
         gift_message: body.giftMessage as string | null,
         payment_provider: "tradesafe",
         payment_state: "checkout_created",
+        bobgo_quote_id: bobGoSelection?.quoteId ?? null,
+        bobgo_rate_request_id: bobGoSelection?.rateRequestId ?? null,
+        bobgo_rate_response_id: bobGoSelection?.rateResponseId ?? null,
+        bobgo_provider_slug: bobGoSelection?.providerSlug ?? null,
+        bobgo_service_level_code: bobGoSelection?.serviceLevelCode ?? null,
+        tradesafe_shipping_fee: bobGoSelection ? shippingCost : 0,
       })
       .select("id")
       .single();
@@ -794,6 +924,10 @@ Deno.serve(async (request) => {
       buyerTokenId,
       sellerTokenId,
       amount: grandTotal,
+      platformTokenId: bobGoSelection
+        ? Deno.env.get("TRADESAFE_ARTISAN_LANE_TOKEN_ID") ?? null
+        : null,
+      platformShippingFee: bobGoSelection ? shippingCost : 0,
     });
     console.log(
       `[checkout-debug] tradesafe transaction created transactionId=${transaction.transactionId} allocationId=${transaction.allocationId} state=${transaction.transactionState}`,
@@ -820,6 +954,7 @@ Deno.serve(async (request) => {
         payment_url: checkoutUrl,
         tradesafe_transaction_id: transaction.transactionId,
         tradesafe_allocation_id: transaction.allocationId,
+        tradesafe_shipping_party_id: transaction.shippingPartyId,
         payment_state: transaction.transactionState,
       })
       .eq("id", orderId);

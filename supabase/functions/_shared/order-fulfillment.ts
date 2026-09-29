@@ -1,6 +1,7 @@
 const tradeSafeDeliveryShippingMethods = new Set([
   "courier_guy",
   "courier_guy_door_to_door",
+  "bobgo_door_to_door",
   "pargo",
 ]);
 

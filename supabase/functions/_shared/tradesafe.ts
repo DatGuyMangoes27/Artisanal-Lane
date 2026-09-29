@@ -414,6 +414,8 @@ export async function createTradeSafeTransaction(input: {
   buyerTokenId: string;
   sellerTokenId: string;
   amount: number;
+  platformTokenId?: string | null;
+  platformShippingFee?: number;
 }) {
   const mutation = `
     mutation CreateTransaction($input: CreateTransactionInput!) {
@@ -426,6 +428,10 @@ export async function createTradeSafeTransaction(input: {
           value
           state
         }
+        parties {
+          id
+          role
+        }
       }
     }
   `;
@@ -435,12 +441,14 @@ export async function createTradeSafeTransaction(input: {
       id: string;
       state: string;
       allocations: Array<{ id: string; title: string; value: number; state: string }>;
+      parties: Array<{ id: string; role: string }>;
     };
   }>("transactionCreate", mutation, {
     input: buildTradeSafeTransactionInput(input),
   });
 
   const allocation = result.transactionCreate.allocations[0];
+  const shippingParty = result.transactionCreate.parties.find((party) => party.role === "AGENT");
 
   if (!allocation) {
     throw new Error("TradeSafe did not return an allocation for the order.");
@@ -451,6 +459,7 @@ export async function createTradeSafeTransaction(input: {
     transactionState: result.transactionCreate.state,
     allocationId: allocation.id,
     allocationState: allocation.state,
+    shippingPartyId: shippingParty?.id ?? null,
   };
 }
 
@@ -461,7 +470,34 @@ export function buildTradeSafeTransactionInput(input: {
   buyerTokenId: string;
   sellerTokenId: string;
   amount: number;
+  platformTokenId?: string | null;
+  platformShippingFee?: number;
 }) {
+  const platformShippingFee = Number(input.platformShippingFee ?? 0);
+  if (!Number.isFinite(platformShippingFee) || platformShippingFee < 0) {
+    throw new Error("TradeSafe platform shipping fee must be zero or greater.");
+  }
+  if (platformShippingFee > input.amount) {
+    throw new Error("TradeSafe platform shipping fee cannot exceed the transaction total.");
+  }
+  if (platformShippingFee > 0 && !input.platformTokenId?.trim()) {
+    throw new Error("TRADESAFE_ARTISAN_LANE_TOKEN_ID is required for Bob Go checkout.");
+  }
+
+  const parties: Array<Record<string, string | number>> = [
+    { token: input.buyerTokenId, role: "BUYER" },
+    { token: input.sellerTokenId, role: "SELLER" },
+  ];
+  if (platformShippingFee > 0 && input.platformTokenId) {
+    parties.push({
+      token: input.platformTokenId,
+      role: "AGENT",
+      fee: platformShippingFee,
+      feeType: "FLAT",
+      feeAllocation: "SELLER",
+    });
+  }
+
   return {
     reference: input.reference,
     title: input.title,
@@ -483,18 +519,7 @@ export function buildTradeSafeTransactionInput(input: {
         },
       ],
     },
-    parties: {
-      create: [
-        {
-          token: input.buyerTokenId,
-          role: "BUYER",
-        },
-        {
-          token: input.sellerTokenId,
-          role: "SELLER",
-        },
-      ],
-    },
+    parties: { create: parties },
   };
 }
 

@@ -126,6 +126,35 @@ Deno.serve(async (request) => {
       notifyUrl,
     });
 
+    const checkoutRecord = existingSubscription == null
+      ? admin.from("vendor_subscriptions").insert({
+        vendor_id: user.id,
+        plan_code: artisanSubscriptionPlanCode,
+        amount: artisanSubscriptionAmount,
+        currency: "ZAR",
+        status: "inactive",
+        checkout_reference: checkoutReference,
+        status_reason: "Awaiting PayFast confirmation.",
+      })
+      : admin.from("vendor_subscriptions").update({
+        checkout_reference: checkoutReference,
+        status: "inactive",
+        status_reason: "Awaiting PayFast confirmation.",
+        cancelled_at: null,
+      }).eq("vendor_id", user.id);
+
+    const { error: checkoutRecordError } = await checkoutRecord;
+    if (checkoutRecordError != null) {
+      console.error("create-payfast-subscription checkout record failed", {
+        vendorId: user.id,
+        message: checkoutRecordError.message,
+      });
+      return jsonResponse(
+        { error: "Could not prepare your subscription. Please try again." },
+        { status: 500 },
+      );
+    }
+
     return jsonResponse({
       checkoutUrl,
       checkoutReference,

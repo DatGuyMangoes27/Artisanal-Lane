@@ -8,6 +8,7 @@ import {
 Deno.test("TradeSafe delivery starts only for courier-style fulfilment", () => {
   assertEquals(shouldStartTradeSafeDelivery("courier_guy"), true);
   assertEquals(shouldStartTradeSafeDelivery("courier_guy_door_to_door"), true);
+  assertEquals(shouldStartTradeSafeDelivery("bobgo_door_to_door"), true);
   assertEquals(shouldStartTradeSafeDelivery("pargo"), true);
   assertEquals(shouldStartTradeSafeDelivery("market_pickup"), false);
   assertEquals(shouldStartTradeSafeDelivery(null), false);

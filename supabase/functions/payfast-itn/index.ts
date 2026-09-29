@@ -112,7 +112,11 @@ Deno.serve(async (request) => {
     }
   }
 
-  if (signatureCheck == null || !signatureCheck.matches) {
+  if (signatureCheck == null) {
+    return textResponse("PayFast configuration unavailable", { status: 503 });
+  }
+
+  if (!signatureCheck.matches) {
     if (vendorId != null) {
       if (isStationeryPayment) {
         await admin
@@ -141,11 +145,19 @@ Deno.serve(async (request) => {
     return textResponse("OK");
   }
 
-  if (config != null) {
-    const validate = await callPayFastValidate(config.validateUrl, rawBody);
-    console.log("payfast-itn validate response", validate);
-    if (!validate.ok) {
-      if (vendorId != null && !isStationeryPayment) {
+  const validate = await callPayFastValidate(config.validateUrl, rawBody);
+  console.log("payfast-itn validate response", validate);
+  if (!validate.ok) {
+    if (vendorId != null) {
+      if (isStationeryPayment) {
+        await admin
+          .from("stationery_requests")
+          .update({
+            status_reason: "PayFast ITN server validation failed.",
+          })
+          .eq("id", stationeryRequestId ?? "")
+          .eq("vendor_id", vendorId);
+      } else {
         await admin
           .from("vendor_subscriptions")
           .update({
@@ -153,8 +165,8 @@ Deno.serve(async (request) => {
           })
           .eq("vendor_id", vendorId);
       }
-      return textResponse("OK");
     }
+    return textResponse("PayFast validation unavailable", { status: 503 });
   }
 
   if (vendorId == null) {

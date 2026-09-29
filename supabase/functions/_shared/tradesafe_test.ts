@@ -47,3 +47,24 @@ Deno.test("TradeSafe checkout splits the integration fee between buyer and selle
 
   assertEquals(input.feeAllocation, "BUYER_SELLER");
 });
+
+Deno.test("Bob Go shipping is a fixed Artisan Lane agent payout", () => {
+  const input = buildTradeSafeTransactionInput({
+    reference: "order-2",
+    title: "Artisan Lane order",
+    description: "Handmade item with delivery",
+    buyerTokenId: "buyer-token",
+    sellerTokenId: "seller-token",
+    platformTokenId: "artisan-lane-token",
+    platformShippingFee: 95.5,
+    amount: 345.5,
+  });
+
+  assertEquals(input.parties.create[2], {
+    token: "artisan-lane-token",
+    role: "AGENT",
+    fee: 95.5,
+    feeType: "FLAT",
+    feeAllocation: "SELLER",
+  });
+});
