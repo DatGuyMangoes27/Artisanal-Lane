@@ -31,7 +31,7 @@ export function ProductCarousel({ children }: { children: ReactNode }) {
         type="button"
         variant="secondary"
         size="icon"
-        aria-label="Previous fresh arrival"
+        aria-label="Previous item"
         className="absolute left-2 top-1/2 z-10 inline-flex size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:-left-3"
         onClick={() => scrollByProduct("previous")}
       >
@@ -47,7 +47,7 @@ export function ProductCarousel({ children }: { children: ReactNode }) {
         type="button"
         variant="secondary"
         size="icon"
-        aria-label="Next fresh arrival"
+        aria-label="Next item"
         className="absolute right-2 top-1/2 z-10 inline-flex size-11 -translate-y-1/2 rounded-full border border-artisan-clay bg-card/95 shadow-lg backdrop-blur md:-right-3"
         onClick={() => scrollByProduct("next")}
       >

@@ -7,6 +7,11 @@ import { requireBuyerAccountSession } from "@/lib/marketplace/account";
 
 const helpLinks = [
   {
+    href: "/help/photos",
+    title: "Photo sizes and cropping",
+    body: "Preparing product photos, shop banners and logos, with dimensions and upload guidance.",
+  },
+  {
     href: "/account/orders",
     title: "Orders and delivery",
     body: "Track orders, confirm receipt, review items, and raise a dispute from your order detail page.",

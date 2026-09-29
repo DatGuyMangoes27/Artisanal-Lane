@@ -50,11 +50,8 @@ export async function requireBuyerAccountSession(redirectTo: string) {
     redirect(`/login?redirect=${encodeURIComponent(redirectTo)}`);
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, role, display_name, email, phone, avatar_url")
-    .eq("id", user.id)
-    .maybeSingle<BuyerProfile>();
+  const { data: profileRows } = await supabase.rpc("get_my_profile");
+  const profile = (profileRows?.[0] as BuyerProfile | undefined) ?? null;
 
   return {
     supabase,

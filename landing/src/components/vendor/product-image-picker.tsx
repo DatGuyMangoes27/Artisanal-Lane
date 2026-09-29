@@ -241,7 +241,7 @@ export function ProductImagePicker({
         Add &amp; crop photos
       </Button>
       <p className="text-xs text-muted-foreground">
-        {existingImages.length + images.length} of {maxImages} photos selected. Photos are cropped to a square so your shop looks consistent. The first photo is used as the main listing image.
+        {existingImages.length + images.length} of {maxImages} photos selected. Photos are cropped to 1200 × 1200 pixels. Use clear originals at least this size, with space around the product. The first photo is used as the main listing image. Product uploads allow up to 8 MB per processed image.
       </p>
 
       {current ? (

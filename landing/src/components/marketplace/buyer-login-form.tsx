@@ -75,12 +75,16 @@ export function BuyerLoginForm() {
     // profile-less accounts self-heal on their next sign in. Never overwrite an
     // existing role.
     if (userId && !profile) {
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: userId,
-        role: "buyer",
-        email: userEmail,
-        display_name: userEmail ? userEmail.split("@")[0] : null,
-      });
+      const { error: profileError } = await supabase.from("profiles").upsert(
+        {
+          id: userId,
+          role: "buyer",
+          email: userEmail,
+          display_name: userEmail ? userEmail.split("@")[0] : null,
+        },
+        // Insert-only: members cannot read private columns back for a merge.
+        { ignoreDuplicates: true },
+      );
       if (!profileError) {
         profileRole = "buyer";
       }

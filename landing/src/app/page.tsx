@@ -21,12 +21,11 @@ import {
   getFeaturedMarketplaceProducts,
   getFreshMarketplaceProducts,
   getMarketplaceCategories,
+  getMarketplaceProducts,
 } from "@/lib/marketplace/catalog";
 import { getProductPrimaryImage } from "@/lib/marketplace/format";
 import type { MarketplaceCategorySummary, MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
-
-const categoryFallbacks = ["Home", "Jewellery", "Self Care", "Clothing", "Baby & Kids", "Art & Design"];
 
 function categoryHref(category: MarketplaceCategorySummary) {
   return `/shop?category=${encodeURIComponent(category.id)}`;
@@ -63,8 +62,7 @@ function Hero({ products }: { products: MarketplaceProduct[] }) {
 }
 
 function CategoryRail({ categories, products }: { categories: MarketplaceCategorySummary[]; products: MarketplaceProduct[] }) {
-  const displayed = categories.filter((category) => categoryFallbacks.includes(category.name)).slice(0, 4);
-  const categoryList = displayed.length >= 4 ? displayed : categories.slice(0, 4);
+  const categoryList = categories;
 
   return (
     <section className="bg-[radial-gradient(circle_at_12%_16%,rgba(212,160,32,0.09),transparent_27%),radial-gradient(circle_at_88%_82%,rgba(85,152,38,0.07),transparent_29%),#FFF9F2] py-20 sm:py-28">
@@ -77,15 +75,15 @@ function CategoryRail({ categories, products }: { categories: MarketplaceCategor
           <Link href="/shop" className="hidden items-center gap-2 text-sm font-semibold text-artisan-terracotta hover:underline sm:flex">Shop everything <ArrowRight className="size-4" /></Link>
         </div>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
-          {categoryList.map((category, index) => {
-            const matching = products.find((product) => product.category?.id === category.id) ?? products[index % Math.max(products.length, 1)];
+          {categoryList.map((category) => {
+            const matching = products.find((product) => product.category?.id === category.id);
             return (
               <Link key={category.id} href={categoryHref(category)} className="group relative aspect-[4/5] overflow-hidden rounded-[1.6rem] bg-[#EAD9CA]">
                 {matching ? <Image src={getProductPrimaryImage(matching)} alt="" fill sizes="(min-width: 1024px) 16vw, 50vw" className="object-cover transition duration-700 group-hover:scale-105" /> : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-[#351711]/80 via-transparent to-transparent" />
-                <div className="absolute inset-x-5 bottom-5 flex items-center justify-between gap-2 text-white">
-                  <span className="font-serif text-xl font-semibold leading-tight sm:text-2xl">{category.name === "Home" ? "Home & Living" : category.name}</span>
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/10 backdrop-blur"><ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></span>
+                <div className="absolute inset-x-3 bottom-5 flex items-center justify-between gap-1 text-white sm:inset-x-5 sm:gap-2">
+                  <span className="min-w-0 font-serif text-base font-semibold leading-tight sm:text-2xl">{category.name === "Home" ? "Home & Living" : category.name}</span>
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/10 backdrop-blur sm:size-9"><ChevronRight className="size-4 transition group-hover:translate-x-0.5" /></span>
                 </div>
               </Link>
             );
@@ -107,7 +105,7 @@ function ProductEdit({ products, favouriteIds }: { products: MarketplaceProduct[
             <h2 className="mt-3 font-serif text-3xl font-bold text-[#351711] sm:text-[2.75rem]">New, noteworthy, <span className="gradient-text italic">handmade</span></h2>
             <p className="mt-2 text-sm text-muted-foreground">A quiet look at what our makers added this week.</p>
           </div>
-          <Button asChild variant="outline" className="w-fit rounded-full border-artisan-terracotta/30 px-6"><Link href="/shop">View all products <ArrowRight className="ml-2 size-4" /></Link></Button>
+          <Button asChild variant="outline" className="w-fit rounded-full border-artisan-terracotta/30 px-6"><Link href="/shop?fresh=7&sort=newest">View all new arrivals <ArrowRight className="ml-2 size-4" /></Link></Button>
         </div>
         <ProductCarousel>{products.slice(0, 15).map((product) => <ProductCard key={product.id} product={product} isFavourite={favouriteSet.has(product.id)} redirectTo="/" />)}</ProductCarousel>
       </div>
@@ -157,7 +155,7 @@ function SellerInvitation() {
   return (
     <section className="bg-[radial-gradient(circle_at_78%_28%,rgba(212,160,32,0.10),transparent_24%),radial-gradient(circle_at_20%_80%,rgba(85,152,38,0.07),transparent_27%),#FFF9F2] px-5 py-20 sm:px-8 sm:py-28">
       <div className="mx-auto flex max-w-[1180px] flex-col items-start justify-between gap-8 border-y border-[#D9BFA9] py-12 md:flex-row md:items-center">
-        <div className="max-w-2xl"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">For South African makers</p><h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-[#351711] sm:text-4xl">A beautiful place for work <span className="gradient-text italic">made with care.</span></h2><p className="mt-4 max-w-xl leading-7 text-muted-foreground">Open your own shopfront, meet new customers and grow alongside a community that values the handmade.</p></div>
+        <div className="max-w-2xl"><p className="text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">For South African makers</p><h2 className="mt-3 font-serif text-3xl font-bold leading-tight text-[#351711] sm:text-4xl">A beautiful place for work <span className="gradient-text italic">made with care.</span></h2><p className="mt-4 max-w-xl leading-7 text-muted-foreground">For R349 per month after your first two months free, open your own shopfront with product listings, order management and customer messaging. Grow alongside a community that values the handmade, with no Artisan Lane sales commission. Payment processing fees still apply.</p></div>
         <div className="flex shrink-0 flex-col gap-3 sm:flex-row md:flex-col lg:flex-row"><Button asChild size="lg" className="rounded-full bg-[#8F120D] px-7"><Link href="/login?intent=vendor">Apply as an artisan <ArrowRight className="ml-2 size-4" /></Link></Button><Button asChild size="lg" variant="ghost" className="rounded-full text-[#60483B]"><Link href="/tutorials">How selling works</Link></Button></div>
       </div>
     </section>
@@ -175,7 +173,7 @@ function Footer() {
           <p className="mt-5 max-w-xs text-sm leading-6 text-[#D9BFA9]">A curated home for South African craftsmanship, independent makers and pieces with a story.</p>
           {businessRegistrationNumber ? <p className="mt-3 text-xs text-[#A98C78]">Company registration: {businessRegistrationNumber}</p> : null}
         </div>
-        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Shop</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/shop">All products</Link><Link href="/shop?sort=newest">New arrivals</Link><Link href="/artisans">Artisans</Link><Link href="/account/favourites">Favourites</Link></div></div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Shop</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/shop">All products</Link><Link href="/shop?fresh=7&sort=newest">New arrivals</Link><Link href="/artisans">Artisans</Link><Link href="/account/favourites">Favourites</Link></div></div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Artisan Lane</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/about">Our story</Link><Link href="/tutorials">Tutorials</Link><Link href="/login?intent=vendor">Become a seller</Link><Link href="mailto:nicky@artisanlanesa.com">Contact</Link></div></div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Help</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/account/help">Help centre</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/login?intent=buyer">My account</Link></div></div>
       </div>
@@ -193,16 +191,22 @@ export default async function Home() {
     getMarketplaceCategories(),
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
   ]);
+  const categoryProducts = (await Promise.all(categories.map((category) => getMarketplaceProducts({ categoryId: category.id, limit: 1 })))).flat();
 
   return (
     <main className="min-h-screen bg-[#FFF9F2]">
       <MarketplaceHeader activeItem="home" />
       <Hero products={products} />
-      <CategoryRail categories={categories} products={products} />
+      <CategoryRail categories={categories} products={categoryProducts} />
       <ProductEdit products={freshProducts} favouriteIds={favouriteIds} />
       <MarketplaceStory products={products} />
       <TrustRow />
       <SellerInvitation />
+      <section className="border-t border-artisan-clay bg-artisan-bone/40 px-5 py-12 text-center">
+        <h2 className="font-serif text-3xl">A little handmade inspiration in your inbox</h2>
+        <p className="mx-auto mt-3 max-w-lg text-muted-foreground">Opt in to news, fresh finds and special offers. Your choice, always.</p>
+        <Link href="/stay-updated" className="mt-6 inline-flex rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground">Stay updated</Link>
+      </section>
       <Footer />
     </main>
   );

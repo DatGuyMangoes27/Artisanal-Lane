@@ -220,7 +220,7 @@ export default async function AccountPage() {
             <CardContent className="p-6">
               <h2 className="font-serif text-2xl font-bold text-foreground">Settings</h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Manage account-level preferences and deletion.
+                Manage account-level preferences and deletion. <Link href="/account/email-updates" className="underline">Choose your email updates</Link>.
               </p>
               <Button asChild className="mt-6 rounded-full">
                 <Link href="/account/settings">Open settings</Link>

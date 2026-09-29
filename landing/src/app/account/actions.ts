@@ -100,13 +100,10 @@ export async function toggleFavouriteProductInline(
 
 export async function saveAddress(formData: FormData) {
   const { supabase, user } = await requireUser("/account/addresses");
-  const { data } = await supabase
-    .from("profiles")
-    .select("shipping_addresses")
-    .eq("id", user.id)
-    .single<{ shipping_addresses: unknown }>();
+  const { data } = await supabase.rpc("get_my_profile");
+  const profile = data?.[0] as { shipping_addresses?: unknown } | undefined;
 
-  const addresses = normalizeSavedAddresses(data?.shipping_addresses);
+  const addresses = normalizeSavedAddresses(profile?.shipping_addresses);
   const nextAddresses = upsertSavedAddress(addresses, {
     name: String(formData.get("name") ?? "").trim(),
     street: String(formData.get("street") ?? "").trim(),

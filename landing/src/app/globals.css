@@ -244,6 +244,19 @@
   @apply text-[#7A0000] hover:underline;
 }
 
+/* Distinct interaction feedback for shared buttons, including vendor overrides. */
+[data-slot="button"]:focus-visible {
+  outline: 3px solid #530C26;
+  outline-offset: 3px;
+}
+[data-slot="button"].bg-artisan-terracotta:hover:not(:disabled) {
+  background-color: #530C26;
+  color: white;
+}
+[data-slot="button"]:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
 /* African pattern background */
 .pattern-bg {
   background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0L60 30L30 60L0 30Z' fill='none' stroke='%23EDD5BE' stroke-width='0.5'/%3E%3C/svg%3E");

@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ShopCard } from "@/components/marketplace/shop-card";
+import { ProductCarousel } from "@/components/marketplace/product-carousel";
 import { getMarketplaceShops } from "@/lib/marketplace/catalog";
 
 type ArtisanSearchParams = {
@@ -181,9 +183,19 @@ export default async function ArtisansPage({
                 </div>
               </div>
             </div>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground">R349 per month after your first two months free. Your subscription includes your own shopfront, product listings, order management and customer messaging, with no Artisan Lane sales commission. Payment processing fees still apply.</p>
           </div>
         </section>
 
+        {activeShops.some((shop) => shop.isSpotlight) ? <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <p className="text-xs font-bold uppercase tracking-widest text-artisan-terracotta">Artisan spotlight</p>
+          <h2 className="mb-6 mt-3 font-serif text-3xl">Independent makers, <span className="gradient-text italic">worth discovering</span></h2>
+          <ProductCarousel>{activeShops.filter((shop) => shop.isSpotlight).map((shop) => <Link key={shop.id} href={`/shops/${shop.slug}`} className="group relative aspect-[4/5] overflow-hidden rounded-3xl bg-artisan-clay">
+            {shop.coverImageUrl || shop.logoUrl ? <Image src={(shop.coverImageUrl || shop.logoUrl)!} alt={shop.name} fill sizes="(min-width: 1024px) 25vw, 80vw" className="object-cover transition duration-500 group-hover:scale-105" /> : null}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+            <div className="absolute inset-x-5 bottom-6 text-white"><p className="text-[10px] font-bold uppercase tracking-widest">Artisan spotlight</p><h3 className="mt-2 font-serif text-2xl">{shop.name}</h3><p className="mt-2 text-sm text-white/80">{shop.location}</p><span className="mt-4 inline-block text-sm font-semibold">Explore the shop →</span></div>
+          </Link>)}</ProductCarousel>
+        </section> : null}
         <section
           id={activeSectionId}
           className="mx-auto max-w-7xl scroll-mt-24 px-4 py-10 sm:px-6 sm:py-14 lg:px-8"

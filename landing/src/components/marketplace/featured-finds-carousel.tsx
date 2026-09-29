@@ -9,7 +9,7 @@ import { getProductPrimaryImage } from "@/lib/marketplace/format";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 
 export function FeaturedFindsCarousel({ products }: { products: MarketplaceProduct[] }) {
-  const slides = products.slice(0, 5);
+  const slides = products;
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
 
@@ -50,7 +50,7 @@ export function FeaturedFindsCarousel({ products }: { products: MarketplaceProdu
 
       {slides.length > 1 ? (
         <div className="absolute inset-x-6 bottom-5 flex items-center justify-between gap-4 sm:inset-x-10 sm:bottom-7">
-          <div className="flex items-center gap-2" aria-label="Choose featured find">
+          <div className="flex min-w-0 flex-wrap items-center gap-2" aria-label="Choose featured find">
             {slides.map((product, index) => (
               <button
                 key={product.id}

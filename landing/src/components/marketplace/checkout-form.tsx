@@ -203,13 +203,9 @@ export function CheckoutForm() {
         return;
       }
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("shipping_addresses")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data } = await supabase.rpc("get_my_profile");
 
-      const profile = data as { shipping_addresses?: unknown } | null;
+      const profile = (data?.[0] as { shipping_addresses?: unknown } | undefined) ?? null;
       const addresses = normalizeSavedAddresses(profile?.shipping_addresses);
       setSavedAddresses(addresses);
       const defaultAddress = addresses.find((address) => address.isDefault) ?? addresses[0];

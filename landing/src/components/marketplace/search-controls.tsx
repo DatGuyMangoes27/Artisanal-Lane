@@ -21,7 +21,7 @@ export function SearchControls({
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
   const [categoryId, setCategoryId] = useState(searchParams.get("category") ?? "");
   const [subcategoryId, setSubcategoryId] = useState(searchParams.get("subcategory") ?? "");
-  const [sort, setSort] = useState(searchParams.get("sort") ?? "rotation");
+  const [sort, setSort] = useState(searchParams.get("sort") ?? (searchParams.get("fresh") === "7" ? "newest" : "rotation"));
   const [priceFilter, setPriceFilter] = useState(searchParams.get("price") ?? "");
   const [availabilityFilter, setAvailabilityFilter] = useState(searchParams.get("availability") ?? "");
 
@@ -51,10 +51,11 @@ export function SearchControls({
     const nextPriceFilter = overrides.priceFilter ?? priceFilter;
     const nextAvailabilityFilter = overrides.availabilityFilter ?? availabilityFilter;
     const params = new URLSearchParams();
+    if (searchParams.get("fresh") === "7") params.set("fresh", "7");
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCategoryId) params.set("category", nextCategoryId);
     if (nextCategoryId && nextSubcategoryId) params.set("subcategory", nextSubcategoryId);
-    if (nextSort !== "rotation") params.set("sort", nextSort);
+    if (nextSort !== "rotation" || searchParams.get("fresh") === "7") params.set("sort", nextSort);
     if (nextPriceFilter) params.set("price", nextPriceFilter);
     if (nextAvailabilityFilter) params.set("availability", nextAvailabilityFilter);
     router.push(`/shop${params.size ? `?${params.toString()}` : ""}`);
@@ -69,10 +70,10 @@ export function SearchControls({
     setQuery("");
     setCategoryId("");
     setSubcategoryId("");
-    setSort("rotation");
+    setSort(searchParams.get("fresh") === "7" ? "newest" : "rotation");
     setPriceFilter("");
     setAvailabilityFilter("");
-    router.push("/shop");
+    router.push(searchParams.get("fresh") === "7" ? "/shop?fresh=7&sort=newest" : "/shop");
   }
 
   return (

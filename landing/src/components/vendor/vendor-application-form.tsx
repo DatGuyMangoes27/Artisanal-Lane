@@ -187,7 +187,7 @@ export function VendorApplicationForm({
         <input name="acceptTerms" type="checkbox" className="mt-1" />
         <span>
           I accept the Artisan Lane{" "}
-          <Link href="/terms" className="font-medium text-artisan-terracotta underline" target="_blank">
+          <Link href="/terms#artisans" className="font-medium text-artisan-terracotta underline" target="_blank">
             Terms &amp; Conditions
           </Link>{" "}
           and confirm the information above is accurate.

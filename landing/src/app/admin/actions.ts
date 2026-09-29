@@ -136,33 +136,26 @@ export async function approveApplication(
 
     const admin = createAdminClient();
 
-    await admin
-      .from("vendor_applications")
-      .update({
-        status: "approved",
-        reviewed_by: session.user.id,
-        reviewed_at: new Date().toISOString(),
-      })
-      .eq("id", applicationId);
-
-    await admin
+    const { error: profileError } = await admin
       .from("profiles")
       .update({
         role: "vendor",
       })
       .eq("id", userId);
+    throwIfSupabaseError(profileError, "Unable to grant artisan access.");
 
-    const { data: existingShop } = await admin
+    const { data: existingShop, error: shopLookupError } = await admin
       .from("shops")
       .select("id")
       .eq("vendor_id", userId)
       .maybeSingle();
+    throwIfSupabaseError(shopLookupError, "Unable to check the artisan shop.");
 
     if (!existingShop) {
       const baseSlug = slugify(businessName);
       const slug = `${baseSlug}-${Date.now().toString().slice(-6)}`;
 
-      await admin.from("shops").insert({
+      const { error: shopCreateError } = await admin.from("shops").insert({
         vendor_id: userId,
         name: businessName,
         slug,
@@ -170,7 +163,22 @@ export async function approveApplication(
         location: location || null,
         is_active: true,
       });
+      throwIfSupabaseError(shopCreateError, "Unable to create the artisan shop.");
     }
+
+    // Mark the application approved only after the vendor role and required
+    // shop record are in place. Previously these errors were ignored, so the
+    // admin could see "Application approved" while subscription checkout then
+    // failed because the artisan had no shop.
+    const { error: applicationError } = await admin
+      .from("vendor_applications")
+      .update({
+        status: "approved",
+        reviewed_by: session.user.id,
+        reviewed_at: new Date().toISOString(),
+      })
+      .eq("id", applicationId);
+    throwIfSupabaseError(applicationError, "Unable to approve the application.");
 
     revalidatePath("/admin");
     revalidatePath("/admin/applications");
@@ -428,6 +436,11 @@ export async function deleteShop(
     const admin = createAdminClient();
     const { error } = await admin.from("shops").delete().eq("id", shopId);
     throwIfSupabaseError(error, "Unable to delete shop.");
+
+    // Public directory and cached storefronts must stop showing this shop too.
+    revalidatePath("/artisans");
+    revalidatePath("/shop", "layout");
+    revalidatePath("/");
 
     revalidatePath("/admin");
     revalidatePath("/admin/shops");

@@ -9,6 +9,7 @@ import { SearchControls } from "@/components/marketplace/search-controls";
 import { listFavouriteProductIds } from "@/lib/marketplace/buyer-preferences-data";
 import {
   getFreshMarketplaceProductCount,
+  freshMarketplaceCutoff,
   getFreshMarketplaceProducts,
   getMarketplaceCategories,
   getMarketplaceProducts,
@@ -28,6 +29,7 @@ import {
 
 type ShopSearchParams = {
   q?: string;
+  fresh?: string;
   category?: string;
   subcategory?: string;
   sort?: MarketplaceProductSort;
@@ -101,7 +103,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const query = params?.q;
   const categoryId = params?.category;
   const subcategoryId = categoryId ? params?.subcategory : undefined;
-  const sort = params?.sort ?? "rotation";
+  const sort = params?.sort ?? (params?.fresh === "7" ? "newest" : "rotation");
   const priceFilter = params?.price;
   const availabilityFilter = params?.availability;
   const currentPage = parseShopPage(params?.page);
@@ -123,6 +125,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       sort,
       priceFilter,
       availabilityFilter,
+      createdAfter: params?.fresh === "7" ? freshMarketplaceCutoff() : undefined,
       limit: productsPerPage + 1,
       offset: productOffset,
     }),
@@ -148,6 +151,32 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const heroProducts = rotatedFreshProducts.slice(0, 3);
   const primaryHeroProduct = heroProducts[0];
   const selectedCategory = categories.find((category) => category.id === categoryId);
+
+  if (params?.fresh === "7") {
+    return (
+      <main id="all-products" className="mx-auto max-w-[1440px] scroll-mt-28 px-5 py-10 sm:px-8">
+        <p className="text-xs font-bold uppercase tracking-widest text-artisan-terracotta">Added in the last seven days</p>
+        <h1 className="mt-3 font-serif text-4xl sm:text-5xl">New <span className="gradient-text italic">arrivals</span></h1>
+        <p className="mt-4 text-muted-foreground">Discover the latest handmade pieces from our artisans.</p>
+        <details className="my-6 rounded-2xl border border-artisan-clay bg-white p-4" open={Boolean(query || categoryId || priceFilter || availabilityFilter)}>
+          <summary className="cursor-pointer font-semibold text-artisan-terracotta">Filter and sort new arrivals</summary>
+          <div className="mt-4"><Suspense fallback={<SearchControlsFallback />}><SearchControls categories={categories} subcategories={subcategories} /></Suspense></div>
+        </details>
+        <p className="mb-6 text-sm text-muted-foreground">{pageProducts.length ? `Showing ${productOffset + 1}–${productOffset + pageProducts.length}` : "No products match these filters."} · Page {currentPage}</p>
+        <div className="grid gap-x-5 gap-y-9 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          {pageProducts.map(product => <ProductCard key={product.id} product={product} isFavourite={favouriteIdSet.has(product.id)} redirectTo={shopHref} />)}
+        </div>
+        <nav aria-label="New arrivals pages" className="my-8 flex justify-between gap-4">
+          {currentPage > 1 ? <Link className="rounded-full border border-artisan-clay px-6 py-3 hover:bg-secondary" href={previousPageHref}>Previous</Link> : <span />}
+          {hasNextPage ? <Link className="rounded-full bg-primary px-6 py-3 text-white hover:bg-[#530C26]" href={nextPageHref}>Next</Link> : null}
+        </nav>
+        <section className="mt-10 flex flex-wrap items-center justify-between gap-5 rounded-3xl bg-secondary p-7">
+          <div><h2 className="font-serif text-2xl">There’s more to discover</h2><p className="mt-2 text-sm">Browse handmade products from the full marketplace.</p></div>
+          <Link href="/shop#all-products" className="rounded-full bg-primary px-6 py-3 font-semibold text-white hover:bg-[#530C26]">View full collection →</Link>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main>
@@ -199,7 +228,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
       <section id="new-this-week" className="mx-auto max-w-[1440px] scroll-mt-36 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
         <div className="mb-6">
           <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-artisan-terracotta">{selectedCategory ? `New in ${selectedCategory.name === "Home" ? "Home & Living" : selectedCategory.name}` : "Added in the last seven days"}</p>
-          <div className="mt-2 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 className="font-serif text-3xl font-bold text-[#351711] sm:text-4xl">The newest <span className="gradient-text italic">handmade finds</span></h2><p className="mt-2 text-sm text-muted-foreground">A live edit of the latest pieces published by our makers.</p></div><span className="w-fit rounded-full bg-[linear-gradient(135deg,rgba(122,0,0,0.08),rgba(212,160,32,0.12),rgba(85,152,38,0.08))] px-4 py-2 text-xs font-bold text-[#8F120D]">{freshCount} new this week</span></div>
+          <div className="mt-2 flex flex-col justify-between gap-3 sm:flex-row sm:items-end"><div><h2 className="font-serif text-3xl font-bold text-[#351711] sm:text-4xl">The newest <span className="gradient-text italic">handmade finds</span></h2><p className="mt-2 text-sm text-muted-foreground">A live edit of the latest pieces published by our makers.</p></div><Link href="/shop?fresh=7&sort=newest#all-products" className="w-fit rounded-full bg-[linear-gradient(135deg,rgba(122,0,0,0.08),rgba(212,160,32,0.12),rgba(85,152,38,0.08))] px-4 py-2 text-xs font-bold text-[#8F120D] hover:underline">View all {freshCount} new this week</Link></div>
         </div>
         {freshProducts.length > 0 ? (
           <ProductCarousel>
@@ -232,7 +261,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         <div className="mb-6 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.24em] text-artisan-terracotta">
-              All products
+              {params?.fresh === "7" ? "New arrivals · last seven days" : "All products"}
             </p>
             <h2 className="mt-2 font-serif text-3xl font-bold text-[#351711]">Explore the collection</h2>
           </div>

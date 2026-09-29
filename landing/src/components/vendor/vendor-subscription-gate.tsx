@@ -8,6 +8,7 @@ import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SUBSCRIPTION_PATH = "/vendor/profile/subscription";
+const SUBSCRIPTION_CHECKOUT_RETURN_PATH = "/vendor/subscription";
 
 /**
  * Non-dismissable modal shown to approved vendors who do not have an active
@@ -16,7 +17,9 @@ const SUBSCRIPTION_PATH = "/vendor/profile/subscription";
  */
 export function VendorSubscriptionGate({ active }: { active: boolean }) {
   const pathname = usePathname();
-  const onSubscriptionPage = pathname?.startsWith(SUBSCRIPTION_PATH) ?? false;
+  const onSubscriptionPage = pathname != null &&
+    (pathname.startsWith(SUBSCRIPTION_PATH) ||
+      pathname.startsWith(SUBSCRIPTION_CHECKOUT_RETURN_PATH));
   const visible = active && !onSubscriptionPage;
 
   // Lock background scroll while the gate is up.

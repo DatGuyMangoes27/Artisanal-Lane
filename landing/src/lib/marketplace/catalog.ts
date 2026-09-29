@@ -30,6 +30,7 @@ export type MarketplaceProductOptions = {
   availabilityFilter?: MarketplaceAvailabilityFilter;
   limit?: number;
   offset?: number;
+  createdAfter?: string;
 };
 
 type ProductQueryOptions = MarketplaceProductOptions & {
@@ -607,7 +608,7 @@ export async function getFeaturedMarketplaceProducts(limit?: number) {
   return ((data ?? []) as ProductRow[]).map(mapProduct);
 }
 
-function freshMarketplaceCutoff(days = 7) {
+export function freshMarketplaceCutoff(days = 7) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 }
 
@@ -781,7 +782,7 @@ export async function getMarketplaceShops(limit?: number) {
   return shops
     .slice()
     .sort((a, b) => rankShop(a) - rankShop(b) || a.name.localeCompare(b.name))
-    .map((shop) => mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0));
+    .map((shop) => ({ ...mapShop(shop, [], publicProductCounts.get(shop.id) ?? 0), isSpotlight: shop.is_spotlight === true }));
 }
 
 export async function getMarketplaceShopCount() {

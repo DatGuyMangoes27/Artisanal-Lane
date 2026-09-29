@@ -152,8 +152,8 @@ export default async function ShopProfilePage({ params }: ShopProfilePageProps) 
               className="-z-20 object-cover"
             />
           ) : null}
-          <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_80%_18%,rgba(212,160,32,0.28),transparent_28%),radial-gradient(circle_at_12%_82%,rgba(85,152,38,0.18),transparent_26%),linear-gradient(100deg,rgba(36,16,12,0.96)_10%,rgba(53,23,17,0.86)_52%,rgba(53,23,17,0.44)_100%)]" />
-          <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#24100C]/90 via-transparent to-[#24100C]/15" />
+          <div className="absolute inset-0 -z-10 bg-[linear-gradient(0deg,rgba(83,12,38,0.94)_0%,rgba(109,25,55,0.78)_24%,rgba(125,35,64,0.24)_56%,transparent_82%)]" />
+          <div className="absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-[#530C26]/65 to-transparent" />
 
           <div className="mx-auto flex min-h-[520px] max-w-[1500px] flex-col px-5 py-7 sm:px-8 lg:min-h-[610px] lg:px-14 xl:px-20">
             <Link

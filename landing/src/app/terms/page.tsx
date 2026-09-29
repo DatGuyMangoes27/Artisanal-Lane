@@ -15,7 +15,7 @@ export default function TermsPage() {
       <section className="py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 prose-artisan">
           <h1 className="text-4xl md:text-5xl font-bold mb-2 text-[#3A1F10]">Terms of Service</h1>
-          <p className="text-muted-foreground mb-12">Last updated: March 2026</p>
+          <p className="text-muted-foreground mb-12">Last updated: September 2026</p>
 
           <h2>1. Acceptance of Terms</h2>
           <p>
@@ -66,7 +66,7 @@ export default function TermsPage() {
             automatically removed to ensure availability for other buyers.
           </p>
 
-          <h2>5. Artisans (Sellers)</h2>
+          <h2 id="artisans" className="scroll-mt-28">5. Artisans (Sellers)</h2>
           <h3>5.1 Application &amp; Approval</h3>
           <p>
             Anyone may apply to sell on Artisan Lane. Applications are reviewed by our team to
@@ -85,24 +85,28 @@ export default function TermsPage() {
             If an artisan is unable to fulfil orders temporarily, they should enable Out of Office
             mode with an expected return date.
           </p>
-          <h3>5.4 Commission</h3>
+          <h3>5.4 Subscription</h3>
           <p>
-            Artisan Lane charges a commission on each sale. The current commission rate is communicated
-            during the application process and in your vendor dashboard. We reserve the right to
-            adjust commission rates with 30 days&apos; notice.
+            Artisan Lane charges R349 per month after any applicable free promotional period,
+            with no Artisan Lane sales commission. Payment-provider and transaction fees may still
+            apply as shown at checkout. If your subscription is unpaid when due, your shop may be
+            immediately removed from the public marketplace until payment is resolved.
           </p>
           <h3>5.5 Payouts</h3>
           <p>
             Funds are released from escrow once the buyer confirms receipt. Payouts are processed
-            to your registered bank account according to our payout schedule.
+            to your registered bank account according to our payout schedule. The 14-day delivery
+            confirmation and dispute period described in section 4.1 applies where the buyer has
+            not confirmed receipt. An unresolved dispute must be addressed before release.
           </p>
           <h3>5.6 Buyer Information and Contact</h3>
           <p>
             Artisans may use buyer information only where reasonably necessary to prepare,
             fulfil, deliver, support, or resolve an order. Artisans may not use buyer details for
             independent marketing, add a buyer to a contact list, move a sale off the Platform,
-            or contact a buyer outside Artisan Lane except where a delivery update genuinely
-            requires it. Contact and address information supplied to TradeSafe, Bob Go, or another
+            or phone or contact a buyer to request payment. Communication must take place through
+            the Platform; direct contact outside Artisan Lane is permitted only for a genuine
+            order-related emergency. Contact and address information supplied to TradeSafe, Bob Go, or another
             approved service provider remains limited to payment, delivery, fraud prevention, and
             customer-support purposes.
           </p>
@@ -132,7 +136,8 @@ export default function TermsPage() {
             repost, and publish product photographs, shop photographs, videos, and other promotional
             material they submit or identify as representing their business on Artisan Lane&apos;s
             website, email communications, and social-media channels. This permission is limited to
-            promoting the artisan, their products, Artisan Lane campaigns, and the marketplace. It
+            promoting the artisan, their products, Artisan Lane campaigns, and the marketplace while
+            the artisan participates on the Platform. It
             does not transfer ownership of the original material. An artisan may request that future
             promotional use stop by contacting Artisan Lane, subject to material already published
             or committed to an active campaign.
@@ -169,8 +174,8 @@ export default function TermsPage() {
           <h2>12. Contact</h2>
           <p>
             For questions about these Terms, please contact us at{" "}
-            <a href="mailto:legal@artisanlane.co.za" className="text-[#7A0000] hover:underline">
-              legal@artisanlane.co.za
+            <a href="mailto:nicky@artisanlanesa.com" className="text-[#7A0000] hover:underline">
+              nicky@artisanlanesa.com
             </a>
           </p>
         </div>

@@ -39,6 +39,8 @@ const navSections = [
     items: [
       { href: "/vendor/profile/shop", label: "Shop", icon: Store },
       { href: "/vendor/profile/posts", label: "Posts", icon: Newspaper },
+      { href: "/help/photos", label: "Photo guide", icon: Library },
+      { href: "/terms#artisans", label: "Artisan terms", icon: ReceiptText },
     ],
   },
   {

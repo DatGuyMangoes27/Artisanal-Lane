@@ -1,4 +1,6 @@
 import Image from "next/image";
+import Link from "next/link";
+import { FeedbackForm, PendingSubmit } from "@/components/vendor/feedback-form";
 
 import { Button } from "@/components/ui/button";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
@@ -39,7 +41,7 @@ export default async function VendorShopSettingsPage() {
         description="Complete the profile buyers see: shop name, story, images, shipping defaults, market pickup, and offline mode."
       />
 
-      <form action={updateVendorShopSettings} className="grid gap-6">
+      <FeedbackForm action={updateVendorShopSettings} className="grid gap-6">
         <VendorPanel
           title="Public profile"
           description="These fields power your public artisan page and product cards."
@@ -89,6 +91,7 @@ export default async function VendorShopSettingsPage() {
           <div className="grid gap-5 lg:grid-cols-2">
             <div className="space-y-3">
               <p className="text-sm font-medium text-artisan-sienna">Logo</p>
+              <p className="text-xs text-muted-foreground">Recommended: a square PNG or JPG, around 800 × 800 pixels, with space around the logo. This is guidance, not a required size.</p>
               {shop?.logoUrl ? (
                 <Image
                   alt={`${shopName} logo`}
@@ -109,6 +112,7 @@ export default async function VendorShopSettingsPage() {
             </div>
             <div className="space-y-3">
               <p className="text-sm font-medium text-artisan-sienna">Cover image</p>
+              <p className="text-xs text-muted-foreground">Use a high-resolution landscape image. Keep important details in the centre; edges crop differently on mobile. <Link href="/help/photos" className="underline">Read the photo guide</Link>.</p>
               {shop?.coverImageUrl ? (
                 <Image
                   alt={`${shopName} cover`}
@@ -281,10 +285,10 @@ export default async function VendorShopSettingsPage() {
           </div>
         </VendorPanel>
 
-        <Button className="w-fit rounded-full bg-artisan-terracotta px-8 hover:bg-artisan-terracotta/90">
+        <PendingSubmit className="w-fit rounded-full px-8">
           {shop ? "Save shop settings" : "Create shop profile"}
-        </Button>
-      </form>
+        </PendingSubmit>
+      </FeedbackForm>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <VendorPanel title="Upcoming market events">

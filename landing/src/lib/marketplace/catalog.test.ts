@@ -391,4 +391,14 @@ describe("marketplace catalog helpers", () => {
 
     expect(supabase.queries[0].calls).toContainEqual(["range", 8, 16]);
   });
+
+  it("keeps the new-arrivals cutoff on later catalogue pages", async () => {
+    const supabase = createSupabaseMock([{ data: [productRow], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+    await getMarketplaceProducts({ createdAfter: "2026-09-01T00:00:00.000Z", limit: 25, offset: 24, sort: "newest" });
+    expect(supabase.queries[0].calls).toContainEqual(["gte", "created_at", "2026-09-01T00:00:00.000Z"]);
+    expect(supabase.queries[0].calls).toContainEqual(["range", 24, 48]);
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
+  });
 });

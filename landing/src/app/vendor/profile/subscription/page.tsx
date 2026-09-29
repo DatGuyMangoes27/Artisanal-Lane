@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { cancelVendorSubscription, startVendorSubscription, updateVendorSubscriptionCard } from "@/app/vendor/actions";
@@ -20,6 +21,7 @@ export default async function VendorSubscriptionPage() {
         title="Subscription"
         description="Start or manage the artisan subscription that enables your website shop tools."
       />
+      <p className="mb-5 text-sm text-muted-foreground">Your Artisan Lane subscription is separate from payment-provider charges. <Link className="font-semibold underline" href="/terms#artisans">Read the artisan subscription and payout terms</Link>.</p>
       <VendorPanel title={`Status: ${displayStatus}`}>
         <div className="space-y-4 text-sm text-muted-foreground">
           <p>Plan: {subscription?.planCode ?? "artisan-monthly"}</p>

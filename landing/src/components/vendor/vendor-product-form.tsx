@@ -1,4 +1,5 @@
-import { Button } from "@/components/ui/button";
+import { FeedbackForm, PendingSubmit } from "@/components/vendor/feedback-form";
+import Link from "next/link";
 import { CategorySubcategoryFields } from "@/components/vendor/category-subcategory-fields";
 import { ProductImagePicker } from "@/components/vendor/product-image-picker";
 import { VariantOptionsEditor } from "@/components/vendor/variant-options-editor";
@@ -40,7 +41,7 @@ export function VendorProductForm({
   const shippingOptions = product?.shippingOptions.length ? product.shippingOptions : shop.shippingOptions;
 
   return (
-    <form action={action} className="grid gap-6">
+    <FeedbackForm action={action} className="grid gap-6">
       {product ? <input type="hidden" name="productId" value={product.id} /> : null}
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Core product details</h3>
@@ -267,9 +268,10 @@ export function VendorProductForm({
         </div>
       </section>
 
-      <Button className="w-fit rounded-full bg-artisan-terracotta px-8 hover:bg-artisan-terracotta/90">
+      <Link href="/help/photos" className="text-sm underline">Photo sizes and cropping guide</Link>
+      <PendingSubmit className="w-fit rounded-full px-8">
         {submitLabel}
-      </Button>
-    </form>
+      </PendingSubmit>
+    </FeedbackForm>
   );
 }

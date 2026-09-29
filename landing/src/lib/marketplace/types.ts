@@ -78,6 +78,7 @@ export type MarketplaceProduct = {
 };
 
 export type MarketplaceShop = MarketplaceShopSummary & {
+  isSpotlight?: boolean;
   bio: string | null;
   brandStory: string | null;
   coverImageUrl: string | null;
