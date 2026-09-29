@@ -9,8 +9,13 @@ import '../features/auth/screens/register_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/auth/screens/reset_password_screen.dart';
 import '../features/auth/utils/auth_redirects.dart';
+import '../core/constants/feature_flags.dart';
+import '../features/internal/screens/creator_commerce_preview_screen.dart';
 
 import '../features/buyer/screens/buyer_home_screen.dart';
+import '../features/buyer/screens/creator_shop_screen.dart';
+import '../features/buyer/screens/creator_feed_screen.dart';
+import '../features/buyer/screens/discover_screen.dart';
 import '../features/buyer/screens/categories_screen.dart';
 import '../features/buyer/screens/category_products_screen.dart';
 import '../features/buyer/screens/curated_collection_screen.dart';
@@ -39,6 +44,8 @@ import '../features/buyer/screens/payment_methods_screen.dart';
 import '../features/buyer/screens/help_support_screen.dart';
 import '../features/buyer/screens/about_screen.dart';
 import '../features/buyer/screens/legal_doc_screen.dart';
+import '../features/buyer/screens/saved_posts_screen.dart';
+import '../features/buyer/screens/gift_concierge_screen.dart';
 
 import '../features/vendor/screens/vendor_dashboard_screen.dart';
 import '../features/vendor/screens/vendor_products_screen.dart';
@@ -59,6 +66,10 @@ import '../features/vendor/screens/vendor_subscription_screen.dart';
 import '../features/vendor/screens/vendor_dispute_screen.dart';
 import '../features/vendor/screens/vendor_stationery_requests_screen.dart';
 import '../features/vendor/screens/vendor_coupons_screen.dart';
+import '../features/vendor/screens/vendor_application_screen.dart';
+import '../features/vendor/screens/story_composer_screen.dart';
+import '../features/vendor/screens/shop_insights_screen.dart';
+import '../models/shop.dart';
 
 import '../widgets/buyer_shell.dart';
 import '../widgets/vendor_shell.dart';
@@ -66,15 +77,63 @@ import '../widgets/vendor_shell.dart';
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _buyerShellKey = GlobalKey<NavigatorState>();
 final _vendorShellKey = GlobalKey<NavigatorState>();
+final _feedBranchKey = GlobalKey<NavigatorState>();
+final _discoverBranchKey = GlobalKey<NavigatorState>();
+final _shopBranchKey = GlobalKey<NavigatorState>();
+final _youBranchKey = GlobalKey<NavigatorState>();
+
+/// Slide-up transition used for pages pushed as full-screen "modal"
+/// composers (create post/story/product) on top of the whole app shell.
+CustomTransitionPage<T> _slideUpPage<T>(Widget child) {
+  return CustomTransitionPage<T>(
+    fullscreenDialog: true,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+        child: child,
+      );
+    },
+  );
+}
+
+/// Slide-in-from-the-right transition for pages pushed from the header or
+/// the profile menu (cart, favourites) that keep the standard "push" feel.
+CustomTransitionPage<T> _slidePage<T>(Widget child) {
+  return CustomTransitionPage<T>(
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return SlideTransition(
+        position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+        child: child,
+      );
+    },
+  );
+}
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/welcome',
+    initialLocation: creatorCommercePreviewEnabled
+        ? '/internal/creator-commerce'
+        : creatorCommerceEnabled
+        ? '/feed'
+        : '/welcome',
     redirect: (context, state) {
       final session = Supabase.instance.client.auth.currentSession;
       final isLoggedIn = session != null;
       final path = state.uri.path;
+
+      if (path == '/internal/creator-commerce' &&
+          creatorCommercePreviewEnabled) {
+        return null;
+      }
 
       final isAuthRoute =
           path == '/welcome' ||
@@ -86,6 +145,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Guests can browse home, search, products, shops, categories
       final isBrowseRoute =
+          (creatorCommerceEnabled &&
+              (path == '/feed' || path == '/discover')) ||
           path == '/home' ||
           path.startsWith('/home/') ||
           path == '/search' ||
@@ -97,7 +158,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/cart' ||
           path.startsWith('/cart/') ||
           path == '/profile' ||
-          path.startsWith('/profile/');
+          path.startsWith('/profile/') ||
+          path.startsWith('/create/') ||
+          path == '/vendor/apply';
 
       if (!isLoggedIn) {
         if (isRecoveryRoute) return null;
@@ -153,196 +216,497 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             const LegalDocScreen(title: 'Privacy Policy', type: 'privacy'),
       ),
-
-      // ── Buyer Shell ────────────────────────────────────────────
-      ShellRoute(
-        navigatorKey: _buyerShellKey,
-        builder: (context, state, child) => BuyerShell(child: child),
-        routes: [
-          GoRoute(
-            path: '/home',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: BuyerHomeScreen()),
-            routes: [
-              GoRoute(
-                path: 'categories',
-                builder: (context, state) => const CategoriesScreen(),
-              ),
-              GoRoute(
-                path: 'curated',
-                builder: (context, state) => const CuratedCollectionScreen(),
-              ),
-              GoRoute(
-                path: 'shop-all',
-                builder: (context, state) => const CategoryProductsScreen(
-                  categoryId: '',
-                  categoryName: 'Shop All',
-                ),
-              ),
-              GoRoute(
-                path: 'category/:categoryId',
-                builder: (context, state) => CategoryProductsScreen(
-                  categoryId: state.pathParameters['categoryId']!,
-                  categoryName: state.uri.queryParameters['name'] ?? 'Products',
-                ),
-              ),
-              GoRoute(
-                path: 'product/:productId',
-                builder: (context, state) => ProductDetailScreen(
-                  productId: state.pathParameters['productId']!,
-                ),
-              ),
-              GoRoute(
-                path: 'shop/:shopId',
-                builder: (context, state) =>
-                    ShopProfileScreen(shopId: state.pathParameters['shopId']!),
-              ),
-              GoRoute(
-                path: 'shops',
-                builder: (context, state) => const ShopsDirectoryScreen(),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/search',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: SearchScreen()),
-            routes: [
-              GoRoute(
-                path: 'results',
-                builder: (context, state) => SearchResultsScreen(
-                  query: state.uri.queryParameters['q'] ?? '',
-                ),
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/favourites',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: FavouritesScreen()),
-          ),
-          GoRoute(
-            path: '/cart',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: CartScreen()),
-            routes: [
-              GoRoute(
-                path: 'checkout',
-                builder: (context, state) => const CheckoutScreen(),
-              ),
-              GoRoute(
-                path: 'payment',
-                builder: (context, state) => PaymentScreen(
-                  checkoutData: state.extra as Map<String, dynamic>?,
-                ),
-              ),
-              GoRoute(
-                path: 'confirmation',
-                builder: (context, state) {
-                  final extra = state.extra as Map<String, dynamic>?;
-                  return OrderConfirmationScreen(
-                    orderId: extra?['orderId'] as String?,
-                  );
-                },
-              ),
-            ],
-          ),
-          GoRoute(
-            path: '/profile',
-            pageBuilder: (context, state) =>
-                const NoTransitionPage(child: BuyerProfileScreen()),
-            routes: [
-              GoRoute(
-                path: 'settings',
-                builder: (context, state) => const SettingsScreen(),
-              ),
-              GoRoute(
-                path: 'orders',
-                builder: (context, state) => const OrdersHistoryScreen(),
-                routes: [
-                  GoRoute(
-                    path: ':orderId',
-                    builder: (context, state) => OrderDetailScreen(
-                      orderId: state.pathParameters['orderId']!,
-                    ),
-                    routes: [
-                      GoRoute(
-                        path: 'confirm',
-                        builder: (context, state) => ConfirmReceiptScreen(
-                          orderId: state.pathParameters['orderId']!,
-                        ),
-                      ),
-                      GoRoute(
-                        path: 'dispute',
-                        builder: (context, state) => BuyerDisputeScreen(
-                          orderId: state.pathParameters['orderId']!,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              GoRoute(
-                path: 'disputes',
-                builder: (context, state) => const BuyerDisputesScreen(),
-              ),
-              GoRoute(
-                path: 'messages',
-                builder: (context, state) => const BuyerMessagesScreen(),
-                routes: [
-                  GoRoute(
-                    path: ':threadId',
-                    builder: (context, state) => BuyerChatThreadScreen(
-                      threadId: state.pathParameters['threadId']!,
-                    ),
-                  ),
-                ],
-              ),
-              GoRoute(
-                path: 'notifications',
-                builder: (context, state) => const NotificationsScreen(),
-              ),
-              GoRoute(
-                path: 'addresses',
-                builder: (context, state) => const SavedAddressesScreen(),
-              ),
-              GoRoute(
-                path: 'payment-methods',
-                builder: (context, state) => const PaymentMethodsScreen(),
-              ),
-              GoRoute(
-                path: 'help',
-                builder: (context, state) => const HelpSupportScreen(),
-              ),
-              GoRoute(
-                path: 'about',
-                builder: (context, state) => const AboutScreen(),
-                routes: [
-                  GoRoute(
-                    path: 'terms',
-                    builder: (context, state) => const LegalDocScreen(
-                      title: 'Terms of Service',
-                      type: 'terms',
-                    ),
-                  ),
-                  GoRoute(
-                    path: 'privacy',
-                    builder: (context, state) => const LegalDocScreen(
-                      title: 'Privacy Policy',
-                      type: 'privacy',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+      GoRoute(
+        path: '/internal/creator-commerce',
+        redirect: (context, state) =>
+            creatorCommercePreviewEnabled ? null : '/profile',
+        builder: (context, state) => const CreatorCommercePreviewScreen(),
       ),
 
-      // ── Vendor Onboarding (no shell, before approval) ──────────
+      // ── Buyer Shell ────────────────────────────────────────────
+      // The creator-commerce shell uses a StatefulShellRoute so each tab
+      // (Feed / Discover / Shop / You) keeps its own navigator and its own
+      // scroll/filter/deck state when switching tabs. The legacy (flag off)
+      // shell is left exactly as it was: a single plain ShellRoute with five
+      // tabs including Search, Favourites and Cart.
+      if (creatorCommerceEnabled) ...[
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, navigationShell) =>
+              BuyerShell(navigationShell: navigationShell),
+          branches: [
+            StatefulShellBranch(
+              navigatorKey: _feedBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/feed',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: CreatorFeedScreen()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: _discoverBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/discover',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: DiscoverScreen()),
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: _shopBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/home',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: CreatorShopScreen()),
+                  routes: [
+                    GoRoute(
+                      path: 'categories',
+                      builder: (context, state) => const CategoriesScreen(),
+                    ),
+                    GoRoute(
+                      path: 'curated',
+                      builder: (context, state) =>
+                          const CuratedCollectionScreen(),
+                    ),
+                    GoRoute(
+                      path: 'shop-all',
+                      builder: (context, state) => const CategoryProductsScreen(
+                        categoryId: '',
+                        categoryName: 'Shop All',
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'category/:categoryId',
+                      builder: (context, state) => CategoryProductsScreen(
+                        categoryId: state.pathParameters['categoryId']!,
+                        categoryName:
+                            state.uri.queryParameters['name'] ?? 'Products',
+                      ),
+                    ),
+                    // Detail pages are pushed on the root navigator so they
+                    // open full-screen above the tab bar and never change
+                    // which tab is highlighted, no matter which tab (Feed,
+                    // Discover or Shop) opened them.
+                    GoRoute(
+                      path: 'product/:productId',
+                      parentNavigatorKey: _rootNavigatorKey,
+                      pageBuilder: (context, state) => _slidePage(
+                        ProductDetailScreen(
+                          productId: state.pathParameters['productId']!,
+                        ),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'shop/:shopId',
+                      parentNavigatorKey: _rootNavigatorKey,
+                      pageBuilder: (context, state) => _slidePage(
+                        ShopProfileScreen(
+                          shopId: state.pathParameters['shopId']!,
+                        ),
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'shops',
+                      builder: (context, state) => const ShopsDirectoryScreen(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: _youBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/profile',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: BuyerProfileScreen()),
+                  routes: [
+                    GoRoute(
+                      path: 'settings',
+                      builder: (context, state) => const SettingsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'orders',
+                      builder: (context, state) => const OrdersHistoryScreen(),
+                      routes: [
+                        GoRoute(
+                          path: ':orderId',
+                          builder: (context, state) => OrderDetailScreen(
+                            orderId: state.pathParameters['orderId']!,
+                          ),
+                          routes: [
+                            GoRoute(
+                              path: 'confirm',
+                              builder: (context, state) => ConfirmReceiptScreen(
+                                orderId: state.pathParameters['orderId']!,
+                              ),
+                            ),
+                            GoRoute(
+                              path: 'dispute',
+                              builder: (context, state) => BuyerDisputeScreen(
+                                orderId: state.pathParameters['orderId']!,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    GoRoute(
+                      path: 'disputes',
+                      builder: (context, state) => const BuyerDisputesScreen(),
+                    ),
+                    GoRoute(
+                      path: 'messages',
+                      builder: (context, state) => const BuyerMessagesScreen(),
+                      routes: [
+                        GoRoute(
+                          path: ':threadId',
+                          builder: (context, state) => BuyerChatThreadScreen(
+                            threadId: state.pathParameters['threadId']!,
+                          ),
+                        ),
+                      ],
+                    ),
+                    GoRoute(
+                      path: 'notifications',
+                      builder: (context, state) => const NotificationsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'addresses',
+                      builder: (context, state) => const SavedAddressesScreen(),
+                    ),
+                    GoRoute(
+                      path: 'payment-methods',
+                      builder: (context, state) => const PaymentMethodsScreen(),
+                    ),
+                    GoRoute(
+                      path: 'help',
+                      builder: (context, state) => const HelpSupportScreen(),
+                    ),
+                    GoRoute(
+                      path: 'about',
+                      builder: (context, state) => const AboutScreen(),
+                      routes: [
+                        GoRoute(
+                          path: 'terms',
+                          builder: (context, state) => const LegalDocScreen(
+                            title: 'Terms of Service',
+                            type: 'terms',
+                          ),
+                        ),
+                        GoRoute(
+                          path: 'privacy',
+                          builder: (context, state) => const LegalDocScreen(
+                            title: 'Privacy Policy',
+                            type: 'privacy',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        // Cart & Favourites: reachable from the header/profile menu, not
+        // bottom-nav tabs in creator-commerce mode. Pushed as normal pages
+        // (slide transition) on the root navigator, same paths as before.
+        GoRoute(
+          path: '/search',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(const SearchScreen()),
+          routes: [
+            GoRoute(
+              path: 'results',
+              builder: (context, state) => SearchResultsScreen(
+                query: state.uri.queryParameters['q'] ?? '',
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/favourites',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(const FavouritesScreen()),
+        ),
+        GoRoute(
+          path: '/profile/saved-posts',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(const SavedPostsScreen()),
+        ),
+        GoRoute(
+          path: '/home/gift-concierge',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) =>
+              _slidePage(const GiftConciergeScreen()),
+        ),
+        GoRoute(
+          path: '/cart',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slidePage(const CartScreen()),
+          routes: [
+            GoRoute(
+              path: 'checkout',
+              builder: (context, state) => const CheckoutScreen(),
+            ),
+            GoRoute(
+              path: 'payment',
+              builder: (context, state) => PaymentScreen(
+                checkoutData: state.extra as Map<String, dynamic>?,
+              ),
+            ),
+            GoRoute(
+              path: 'confirmation',
+              builder: (context, state) {
+                final extra = state.extra as Map<String, dynamic>?;
+                return OrderConfirmationScreen(
+                  orderId: extra?['orderId'] as String?,
+                );
+              },
+            ),
+          ],
+        ),
+
+        // Full-screen composer modals — no shell chrome, no bottom nav.
+        GoRoute(
+          path: '/create/post',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slideUpPage(const PostFormScreen()),
+        ),
+        GoRoute(
+          path: '/create/post/:postId',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slideUpPage(
+            PostFormScreen(postId: state.pathParameters['postId']),
+          ),
+        ),
+        GoRoute(
+          path: '/create/story',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) =>
+              _slideUpPage(StoryComposerScreen(shop: state.extra as Shop)),
+        ),
+        GoRoute(
+          path: '/create/product',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) =>
+              _slideUpPage(const ProductFormScreen()),
+        ),
+        GoRoute(
+          path: '/create/product/:productId',
+          parentNavigatorKey: _rootNavigatorKey,
+          pageBuilder: (context, state) => _slideUpPage(
+            ProductFormScreen(productId: state.pathParameters['productId']),
+          ),
+        ),
+      ] else ...[
+        ShellRoute(
+          navigatorKey: _buyerShellKey,
+          builder: (context, state, child) => BuyerShell(child: child),
+          routes: [
+            GoRoute(
+              path: '/home',
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: BuyerHomeScreen()),
+              routes: [
+                GoRoute(
+                  path: 'categories',
+                  builder: (context, state) => const CategoriesScreen(),
+                ),
+                GoRoute(
+                  path: 'curated',
+                  builder: (context, state) => const CuratedCollectionScreen(),
+                ),
+                GoRoute(
+                  path: 'shop-all',
+                  builder: (context, state) => const CategoryProductsScreen(
+                    categoryId: '',
+                    categoryName: 'Shop All',
+                  ),
+                ),
+                GoRoute(
+                  path: 'category/:categoryId',
+                  builder: (context, state) => CategoryProductsScreen(
+                    categoryId: state.pathParameters['categoryId']!,
+                    categoryName:
+                        state.uri.queryParameters['name'] ?? 'Products',
+                  ),
+                ),
+                GoRoute(
+                  path: 'product/:productId',
+                  builder: (context, state) => ProductDetailScreen(
+                    productId: state.pathParameters['productId']!,
+                  ),
+                ),
+                GoRoute(
+                  path: 'shop/:shopId',
+                  builder: (context, state) => ShopProfileScreen(
+                    shopId: state.pathParameters['shopId']!,
+                  ),
+                ),
+                GoRoute(
+                  path: 'shops',
+                  builder: (context, state) => const ShopsDirectoryScreen(),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/search',
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: SearchScreen()),
+              routes: [
+                GoRoute(
+                  path: 'results',
+                  builder: (context, state) => SearchResultsScreen(
+                    query: state.uri.queryParameters['q'] ?? '',
+                  ),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/favourites',
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: FavouritesScreen()),
+            ),
+            GoRoute(
+              path: '/cart',
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: CartScreen()),
+              routes: [
+                GoRoute(
+                  path: 'checkout',
+                  builder: (context, state) => const CheckoutScreen(),
+                ),
+                GoRoute(
+                  path: 'payment',
+                  builder: (context, state) => PaymentScreen(
+                    checkoutData: state.extra as Map<String, dynamic>?,
+                  ),
+                ),
+                GoRoute(
+                  path: 'confirmation',
+                  builder: (context, state) {
+                    final extra = state.extra as Map<String, dynamic>?;
+                    return OrderConfirmationScreen(
+                      orderId: extra?['orderId'] as String?,
+                    );
+                  },
+                ),
+              ],
+            ),
+            GoRoute(
+              path: '/profile',
+              pageBuilder: (context, state) =>
+                  const NoTransitionPage(child: BuyerProfileScreen()),
+              routes: [
+                GoRoute(
+                  path: 'settings',
+                  builder: (context, state) => const SettingsScreen(),
+                ),
+                GoRoute(
+                  path: 'orders',
+                  builder: (context, state) => const OrdersHistoryScreen(),
+                  routes: [
+                    GoRoute(
+                      path: ':orderId',
+                      builder: (context, state) => OrderDetailScreen(
+                        orderId: state.pathParameters['orderId']!,
+                      ),
+                      routes: [
+                        GoRoute(
+                          path: 'confirm',
+                          builder: (context, state) => ConfirmReceiptScreen(
+                            orderId: state.pathParameters['orderId']!,
+                          ),
+                        ),
+                        GoRoute(
+                          path: 'dispute',
+                          builder: (context, state) => BuyerDisputeScreen(
+                            orderId: state.pathParameters['orderId']!,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  path: 'disputes',
+                  builder: (context, state) => const BuyerDisputesScreen(),
+                ),
+                GoRoute(
+                  path: 'messages',
+                  builder: (context, state) => const BuyerMessagesScreen(),
+                  routes: [
+                    GoRoute(
+                      path: ':threadId',
+                      builder: (context, state) => BuyerChatThreadScreen(
+                        threadId: state.pathParameters['threadId']!,
+                      ),
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  path: 'notifications',
+                  builder: (context, state) => const NotificationsScreen(),
+                ),
+                GoRoute(
+                  path: 'addresses',
+                  builder: (context, state) => const SavedAddressesScreen(),
+                ),
+                GoRoute(
+                  path: 'payment-methods',
+                  builder: (context, state) => const PaymentMethodsScreen(),
+                ),
+                GoRoute(
+                  path: 'help',
+                  builder: (context, state) => const HelpSupportScreen(),
+                ),
+                GoRoute(
+                  path: 'about',
+                  builder: (context, state) => const AboutScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'terms',
+                      builder: (context, state) => const LegalDocScreen(
+                        title: 'Terms of Service',
+                        type: 'terms',
+                      ),
+                    ),
+                    GoRoute(
+                      path: 'privacy',
+                      builder: (context, state) => const LegalDocScreen(
+                        title: 'Privacy Policy',
+                        type: 'privacy',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+
+      // ── Vendor Onboarding / Application (no shell, before approval) ──
       GoRoute(
         path: '/vendor/onboarding',
         builder: (context, state) => const VendorOnboardingScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/apply',
+        builder: (context, state) => const VendorApplicationScreen(),
+      ),
+      // A standalone page (outside the vendor shell) so it opens from the You
+      // tab and the maker profile with a back arrow.
+      GoRoute(
+        path: '/vendor/insights',
+        parentNavigatorKey: _rootNavigatorKey,
+        pageBuilder: (context, state) => _slidePage(const ShopInsightsScreen()),
       ),
 
       // ── Vendor Shell ───────────────────────────────────────────

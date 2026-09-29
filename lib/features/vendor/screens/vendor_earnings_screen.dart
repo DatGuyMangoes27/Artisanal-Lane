@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
 import '../utils/vendor_payout_setup.dart';
+import '../widgets/workspace/workspace_header.dart';
 
 class VendorEarningsScreen extends ConsumerWidget {
   const VendorEarningsScreen({super.key});
@@ -31,145 +33,144 @@ class VendorEarningsScreen extends ConsumerWidget {
               ref.invalidate(vendorPayoutProfileStreamProvider);
             },
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.zero,
               children: [
-                Text(
-                  'Earnings',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
-                  ),
+                const WorkspaceHeader(
+                  eyebrow: 'Your shop',
+                  title: 'Earnings',
+                  subtitle: 'Your sales and payout overview',
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your sales and payout overview',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 28),
-                if (!payoutReady) ...[
-                  Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.sand.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'TradeSafe payout status',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          vendorPayoutBannerMessage(payoutStatus),
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
-                            height: 1.5,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton.icon(
-                          onPressed: () => context.push('/vendor/profile/payouts'),
-                          icon: const Icon(Icons.account_balance_outlined),
-                          label: const Text('Open payout details'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // Total sales card
-                _buildHighlightCard(
-                  'Total Sales',
-                  'R${(earnings['totalSales'] ?? 0).toStringAsFixed(2)}',
-                  Icons.trending_up_rounded,
-                  AppTheme.terracotta,
-                ),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        'Released',
-                        'R${(earnings['released'] ?? 0).toStringAsFixed(2)}',
-                        Icons.check_circle_outline,
-                        AppTheme.baobab,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricCard(
-                        'In Escrow',
-                        'R${(earnings['held'] ?? 0).toStringAsFixed(2)}',
-                        Icons.lock_clock_outlined,
-                        AppTheme.ochre,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                _buildMetricCard(
-                  'TradeSafe Fees',
-                  'R${(earnings['fees'] ?? 0).toStringAsFixed(2)}',
-                  Icons.receipt_outlined,
-                  AppTheme.textSecondary,
-                ),
-                const SizedBox(height: 28),
-
-                // Info card
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppTheme.bone.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.sand.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Row(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
-                        Icons.info_outline,
-                        size: 20,
-                        color: AppTheme.ochre,
+                      if (!payoutReady) ...[
+                        Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppTheme.sand.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'TradeSafe payout status',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                vendorPayoutBannerMessage(payoutStatus),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextButton.icon(
+                                onPressed: () =>
+                                    context.push('/vendor/profile/payouts'),
+                                icon: const Icon(
+                                  Icons.account_balance_outlined,
+                                ),
+                                label: const Text('Open payout details'),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Hero balance card — what's been released to you.
+                      _buildHighlightCard(
+                        'Released to you',
+                        'R${(earnings['released'] ?? 0).toStringAsFixed(2)}',
+                        Icons.account_balance_wallet_outlined,
+                        AppTheme.terracotta,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
+                      const SizedBox(height: 16),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildMetricCard(
+                              'Total sales',
+                              'R${(earnings['totalSales'] ?? 0).toStringAsFixed(2)}',
+                              Icons.trending_up_rounded,
+                              AppTheme.baobab,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildMetricCard(
+                              'In escrow',
+                              'R${(earnings['held'] ?? 0).toStringAsFixed(2)}',
+                              Icons.lock_clock_outlined,
+                              AppTheme.ochre,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      _buildMetricCard(
+                        'TradeSafe fees',
+                        'R${(earnings['fees'] ?? 0).toStringAsFixed(2)}',
+                        Icons.receipt_outlined,
+                        AppTheme.textSecondary,
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Info card
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bone.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.sand.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'How payouts work',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.textPrimary,
-                              ),
+                            const Icon(
+                              Icons.info_outline,
+                              size: 20,
+                              color: AppTheme.ochre,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Funds are held in escrow until the buyer confirms receipt of the order. Once released, payouts follow your TradeSafe-linked payout setup in Artisan Lane. In this checkout flow, TradeSafe\'s escrow processing fee is charged at checkout rather than shown as an Artisan Lane commission taken from your payout. TradeSafe publishes integrated checkout fees as payment-method based charges, so the final fee can vary by how the buyer pays.',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: AppTheme.textSecondary,
-                                height: 1.5,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'How payouts work',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Funds are held in escrow until the buyer confirms receipt of the order. Once released, payouts follow your TradeSafe-linked payout setup in Artisan Lane. In this checkout flow, TradeSafe\'s escrow processing fee is charged at checkout rather than shown as an Artisan Lane commission taken from your payout. TradeSafe publishes integrated checkout fees as payment-method based charges, so the final fee can vary by how the buyer pays.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: AppTheme.textSecondary,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -187,7 +188,11 @@ class VendorEarningsScreen extends ConsumerWidget {
               strokeWidth: 2,
             ),
           ),
-          error: (e, _) => Center(child: Text('Error: $e')),
+          error: (e, _) => ErrorRetryView(
+            error: e,
+            title: "Couldn't load your earnings",
+            onRetry: () => ref.invalidate(vendorEarningsProvider),
+          ),
         ),
       ),
     );

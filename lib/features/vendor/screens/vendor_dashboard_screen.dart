@@ -11,6 +11,8 @@ import '../../auth/providers/auth_providers.dart';
 import '../../buyer/providers/buyer_providers.dart'
     show notificationsStreamProvider;
 import '../widgets/stationery_sheet_header.dart';
+import '../widgets/workspace/workspace_header.dart';
+import '../widgets/workspace/workspace_stat_tile.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_onboarding_flow.dart';
 import '../utils/vendor_payout_setup.dart';
@@ -43,8 +45,9 @@ class VendorDashboardScreen extends ConsumerWidget {
         if (shop == null) {
           if (profile?.hasSeenVendorApproval != true) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted)
+              if (context.mounted) {
                 GoRouter.of(context).go('/vendor/onboarding');
+              }
             });
             return Scaffold(
               backgroundColor: AppTheme.scaffoldBg,
@@ -203,14 +206,15 @@ class _DashboardContent extends ConsumerWidget {
   void _handleAddProductTap(
     BuildContext context,
     bool payoutReady,
-    bool subscriptionActive,
-  ) {
+    bool subscriptionActive, {
+    String targetRoute = '/vendor/products/new',
+  }) {
     if (!subscriptionActive) {
       _showSubscriptionRequiredDialog(context);
       return;
     }
     if (payoutReady) {
-      context.push('/vendor/products/new');
+      context.push(targetRoute);
       return;
     }
     _showPayoutRequiredDialog(context);
@@ -225,7 +229,6 @@ class _DashboardContent extends ConsumerWidget {
     final payoutProfile =
         ref.watch(vendorPayoutProfileStreamProvider).value ??
         ref.watch(vendorPayoutProfileProvider).value;
-    final payoutStatus = payoutProfile?.verificationStatus ?? 'not_started';
     final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
     final subscription = preferredVendorSubscription(
       streamValue: ref.watch(vendorSubscriptionStreamProvider).value,
@@ -254,161 +257,162 @@ class _DashboardContent extends ConsumerWidget {
             ref.invalidate(vendorSubscriptionProvider);
             ref.invalidate(vendorSubscriptionStreamProvider);
           },
-          child: SingleChildScrollView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Welcome back, Artisan',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: AppTheme.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            shop.name,
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+            slivers: [
+              SliverToBoxAdapter(
+                child: WorkspaceHeader(
+                  eyebrow: 'Your studio',
+                  title: 'Welcome back',
+                  subtitle: shop.name,
+                  actions: [
                     _NotificationsBell(
                       onTap: () => context.push('/vendor/notifications'),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                if (!subscriptionActive) ...[
-                  _SubscriptionBanner(subscription: subscription),
-                  const SizedBox(height: 20),
-                ],
-                if (!payoutReady) ...[
-                  _PayoutBanner(status: payoutStatus),
-                  const SizedBox(height: 20),
-                ],
-
-                // Stats cards
-                earningsAsync.when(
-                  data: (earnings) => _buildStatsRow(
-                    context,
-                    productsAsync.value?.length ?? 0,
-                    ordersAsync.value?.length ?? 0,
-                    earnings['totalSales'] ?? 0,
-                  ),
-                  loading: () => _buildStatsRow(context, 0, 0, 0),
-                  error: (_, __) => _buildStatsRow(context, 0, 0, 0),
-                ),
-                const SizedBox(height: 28),
-
-                // Earnings card
-                earningsAsync.when(
-                  data: (earnings) => _buildEarningsCard(context, earnings),
-                  loading: () => _buildLoadingCard(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-                const SizedBox(height: 28),
-
-                // Recent orders
-                _buildSectionHeader(
-                  'Recent Orders',
-                  onTap: () => context.go('/vendor/orders'),
-                ),
-                const SizedBox(height: 12),
-                ordersAsync.when(
-                  data: (orders) {
-                    if (orders.isEmpty) {
-                      return _buildEmptyCard(
-                        Icons.receipt_long_outlined,
-                        'No orders yet',
-                        'Orders will appear here when customers purchase your products',
-                      );
-                    }
-                    final recent = orders.take(5).toList();
-                    return Column(
-                      children: recent
-                          .map((o) => _buildOrderTile(context, o))
-                          .toList(),
-                    );
-                  },
-                  loading: () => _buildLoadingCard(),
-                  error: (e, _) => _buildErrorCard(e.toString()),
-                ),
-                const SizedBox(height: 28),
-
-                // Quick actions
-                Text(
-                  'Quick Actions',
-                  style: GoogleFonts.playfairDisplay(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildActionCard(
-                        context,
-                        Icons.add_circle_outline,
-                        'Add Product',
-                        AppTheme.baobab,
-                        () => _handleAddProductTap(
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // To-do card: only what's incomplete today.
+                      _DashboardTodoCard(
+                        subscriptionActive: subscriptionActive,
+                        payoutReady: payoutReady,
+                        hasFirstProduct:
+                            (productsAsync.value?.isNotEmpty ?? false),
+                        onOpenSubscription: () =>
+                            context.push('/vendor/profile/subscription'),
+                        onOpenPayouts: () =>
+                            context.push('/vendor/profile/payouts'),
+                        onAddProduct: () => _handleAddProductTap(
                           context,
                           payoutReady,
                           subscriptionActive,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildActionCard(
-                        context,
-                        Icons.edit_note_rounded,
-                        'New Post',
-                        AppTheme.ochre,
-                        () => context.push('/vendor/profile/posts/new'),
+                      const SizedBox(height: 24),
+
+                      // Stats
+                      earningsAsync.when(
+                        data: (earnings) => _buildStatsRow(
+                          context,
+                          productsAsync.value?.length ?? 0,
+                          ordersAsync.value
+                                  ?.where((o) => o.status == 'paid')
+                                  .length ??
+                              0,
+                          earnings['released'] ?? 0,
+                        ),
+                        loading: () => _buildStatsRow(context, 0, 0, 0),
+                        error: (_, __) => _buildStatsRow(context, 0, 0, 0),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 24),
+
+                      // Earnings card
+                      earningsAsync.when(
+                        data: (earnings) =>
+                            _buildEarningsCard(context, earnings),
+                        loading: () => _buildLoadingCard(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Quick actions
+                      Text(
+                        'Quick actions',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionCard(
+                              context,
+                              Icons.add_circle_outline,
+                              'Add product',
+                              AppTheme.baobab,
+                              () => _handleAddProductTap(
+                                context,
+                                payoutReady,
+                                subscriptionActive,
+                                targetRoute: '/create/product',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildActionCard(
+                              context,
+                              Icons.edit_note_rounded,
+                              'New post',
+                              AppTheme.ochre,
+                              () => context.push('/create/post'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildActionCard(
+                              context,
+                              Icons.auto_stories_outlined,
+                              'New story',
+                              AppTheme.terracotta,
+                              () => context.push('/create/story', extra: shop),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: _buildStationeryActionCard(context)),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+
+                      // Recent orders
+                      WorkspaceSectionHeader(
+                        title: 'Recent orders',
+                        onAction: () => context.go('/vendor/orders'),
+                      ),
+                      const SizedBox(height: 12),
+                      ordersAsync.when(
+                        data: (orders) {
+                          if (orders.isEmpty) {
+                            return _buildEmptyCard(
+                              Icons.receipt_long_outlined,
+                              'No orders yet',
+                              'Orders will appear here when customers purchase your products',
+                            );
+                          }
+                          final recent = orders.take(5).toList();
+                          return Column(
+                            children: recent
+                                .map((o) => _buildOrderTile(context, o))
+                                .toList(),
+                          );
+                        },
+                        loading: () => _buildLoadingCard(),
+                        error: (e, _) => _buildErrorCard(e.toString()),
+                      ),
+                      const SizedBox(height: 28),
+
+                      _buildContactActionCard(context, fullWidth: true),
+                      const SizedBox(height: 12),
+                      _buildMessagesActionCard(context, unreadMessages),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(child: _buildStationeryActionCard(context)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildContactActionCard(context)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _buildActionCard(
-                  context,
-                  Icons.inventory_2_outlined,
-                  'Track Stationery Requests',
-                  AppTheme.terracotta,
-                  () => context.push('/vendor/profile/stationery'),
-                ),
-                const SizedBox(height: 12),
-                _buildMessagesActionCard(context, unreadMessages),
-                const SizedBox(height: 32),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -418,94 +422,41 @@ class _DashboardContent extends ConsumerWidget {
   Widget _buildStatsRow(
     BuildContext context,
     int products,
-    int orders,
-    double revenue,
+    int ordersToShip,
+    double released,
   ) {
     return Row(
       children: [
         Expanded(
-          child: _buildStatCard(
-            '$products',
-            'Products',
-            Icons.inventory_2_outlined,
-            AppTheme.baobab,
+          child: WorkspaceStatTile(
+            value: '$products',
+            label: 'Products',
+            icon: Icons.inventory_2_outlined,
+            color: AppTheme.baobab,
             onTap: () => context.go('/vendor/products'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _buildStatCard(
-            '$orders',
-            'Orders',
-            Icons.receipt_long_outlined,
-            AppTheme.ochre,
+          child: WorkspaceStatTile(
+            value: '$ordersToShip',
+            label: 'To ship',
+            icon: Icons.local_shipping_outlined,
+            color: AppTheme.ochre,
             onTap: () => context.go('/vendor/orders'),
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: _buildStatCard(
-            'R${revenue.toStringAsFixed(0)}',
-            'Revenue',
-            Icons.account_balance_wallet_outlined,
-            AppTheme.terracotta,
+          child: WorkspaceStatTile(
+            value: 'R${released.toStringAsFixed(0)}',
+            label: 'Earnings',
+            icon: Icons.account_balance_wallet_outlined,
+            color: AppTheme.terracotta,
             onTap: () => context.go('/vendor/earnings'),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildStatCard(
-    String value,
-    String label,
-    IconData icon,
-    Color color, {
-    VoidCallback? onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(height: 10),
-              Text(
-                value,
-                style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-              Text(
-                label,
-                style: GoogleFonts.poppins(
-                  fontSize: 11,
-                  color: AppTheme.textHint,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -604,34 +555,6 @@ class _DashboardContent extends ConsumerWidget {
           color: Colors.white,
         ),
       ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title, {VoidCallback? onTap}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        if (onTap != null)
-          GestureDetector(
-            onTap: onTap,
-            child: Text(
-              'View All',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.terracotta,
-              ),
-            ),
-          ),
-      ],
     );
   }
 
@@ -886,44 +809,81 @@ class _DashboardContent extends ConsumerWidget {
     );
   }
 
-  Widget _buildContactActionCard(BuildContext context) {
+  Widget _buildContactActionCard(
+    BuildContext context, {
+    bool fullWidth = false,
+  }) {
     return GestureDetector(
       onTap: () => _showContactSheet(context),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        width: fullWidth ? double.infinity : null,
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
         ),
-        child: Column(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.terracotta.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+        child: fullWidth
+            ? Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.terracotta.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_outlined,
+                      color: AppTheme.terracotta,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Contact Artisan Lane',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: AppTheme.textHint,
+                  ),
+                ],
+              )
+            : Column(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.terracotta.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_outlined,
+                      color: AppTheme.terracotta,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Contact\nArtisan Lane',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.support_agent_outlined,
-                color: AppTheme.terracotta,
-                size: 24,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Contact\nArtisan Lane',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-                height: 1.3,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1779,57 +1739,137 @@ class _PayoutBanner extends StatelessWidget {
   }
 }
 
-class _SubscriptionBanner extends StatelessWidget {
-  final VendorSubscription? subscription;
+/// Dashboard "to do" card: setup steps that still need attention today
+/// (subscription, payout details, first product). Only shown when at least
+/// one step is incomplete; each step reuses the existing gated actions so
+/// gating/validation logic is untouched.
+class _DashboardTodoCard extends StatelessWidget {
+  final bool subscriptionActive;
+  final bool payoutReady;
+  final bool hasFirstProduct;
+  final VoidCallback onOpenSubscription;
+  final VoidCallback onOpenPayouts;
+  final VoidCallback onAddProduct;
 
-  const _SubscriptionBanner({required this.subscription});
+  const _DashboardTodoCard({
+    required this.subscriptionActive,
+    required this.payoutReady,
+    required this.hasFirstProduct,
+    required this.onOpenSubscription,
+    required this.onOpenPayouts,
+    required this.onAddProduct,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (subscriptionActive && payoutReady && hasFirstProduct) {
+      return const SizedBox.shrink();
+    }
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.workspace_premium_outlined,
-            size: 20,
-            color: AppTheme.terracotta,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  vendorSubscriptionStatusTitle(
-                    subscription?.status ?? 'inactive',
-                  ),
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  vendorSubscriptionStatusMessage(subscription),
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary,
-                    height: 1.5,
-                  ),
-                ),
-              ],
-            ),
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Finish setting up your shop',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'A few quick steps and you\'re ready to sell.',
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _TodoStep(
+            done: subscriptionActive,
+            label: 'Start your subscription',
+            onTap: onOpenSubscription,
+          ),
+          _TodoStep(
+            done: payoutReady,
+            label: 'Add payout details',
+            onTap: onOpenPayouts,
+          ),
+          _TodoStep(
+            done: hasFirstProduct,
+            label: 'Add your first product',
+            onTap: onAddProduct,
+            isLast: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TodoStep extends StatelessWidget {
+  final bool done;
+  final String label;
+  final VoidCallback onTap;
+  final bool isLast;
+
+  const _TodoStep({
+    required this.done,
+    required this.label,
+    required this.onTap,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: done ? null : onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: EdgeInsets.only(top: 4, bottom: isLast ? 0 : 10),
+        child: Row(
+          children: [
+            Icon(
+              done ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              size: 20,
+              color: done ? AppTheme.baobab : AppTheme.ochre,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: done ? AppTheme.textHint : AppTheme.textPrimary,
+                  decoration: done ? TextDecoration.lineThrough : null,
+                  decorationColor: AppTheme.textHint,
+                ),
+              ),
+            ),
+            if (!done)
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: AppTheme.textHint,
+              ),
+          ],
+        ),
       ),
     );
   }

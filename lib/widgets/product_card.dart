@@ -1,30 +1,41 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../app/theme.dart';
 import '../models/product.dart';
+import '../features/buyer/providers/favourite_actions.dart';
 
 /// ═══════════════════════════════════════════════════════════════
 /// ProductCard – Clean, elegant item display
 /// ═══════════════════════════════════════════════════════════════
-
-class ProductCard extends StatelessWidget {
+///
+/// When [onFavouriteToggle] is not supplied, the heart wires itself up to
+/// the shared favourite state (`isFavouriteProvider` / `toggleFavourite`) so
+/// it works instantly on any screen without each caller having to plumb it
+/// through. Pass [isFavourite]/[onFavouriteToggle] explicitly to keep a
+/// caller's existing custom behaviour.
+class ProductCard extends ConsumerWidget {
   final Product product;
-  final bool isFavourite;
+  final bool? isFavourite;
   final VoidCallback? onFavouriteToggle;
   final bool showShopName;
 
   const ProductCard({
     super.key,
     required this.product,
-    this.isFavourite = false,
+    this.isFavourite,
     this.onFavouriteToggle,
     this.showShopName = true,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bool resolvedIsFavourite =
+        isFavourite ?? ref.watch(isFavouriteProvider(product.id));
+    final resolvedOnToggle =
+        onFavouriteToggle ?? () => toggleFavourite(ref, context, product.id);
     return GestureDetector(
       onTap: () => context.push('/home/product/${product.id}'),
       child: Container(
@@ -71,8 +82,11 @@ class ProductCard extends StatelessWidget {
                         ),
                         errorWidget: (_, __, ___) => Container(
                           color: AppTheme.bone,
-                          child: const Icon(Icons.image_outlined,
-                              color: AppTheme.textHint, size: 32),
+                          child: const Icon(
+                            Icons.image_outlined,
+                            color: AppTheme.textHint,
+                            size: 32,
+                          ),
                         ),
                       ),
                     ),
@@ -84,7 +98,9 @@ class ProductCard extends StatelessWidget {
                       left: 10,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.9),
                           borderRadius: BorderRadius.circular(4),
@@ -105,19 +121,23 @@ class ProductCard extends StatelessWidget {
                     top: 8,
                     right: 8,
                     child: GestureDetector(
-                      onTap: onFavouriteToggle,
+                      onTap: resolvedOnToggle,
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 32,
+                          minHeight: 32,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.9),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isFavourite
+                          resolvedIsFavourite
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
                           size: 16,
-                          color: isFavourite
+                          color: resolvedIsFavourite
                               ? AppTheme.terracotta
                               : AppTheme.textPrimary,
                         ),
@@ -230,8 +250,9 @@ class FeaturedProductCard extends StatelessWidget {
           children: [
             // Image
             ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
               child: SizedBox(
                 height: 180,
                 width: double.infinity,
@@ -241,8 +262,7 @@ class FeaturedProductCard extends StatelessWidget {
                     CachedNetworkImage(
                       imageUrl: product.primaryImage,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) =>
-                          Container(color: AppTheme.bone),
+                      placeholder: (_, __) => Container(color: AppTheme.bone),
                       errorWidget: (_, __, ___) =>
                           Container(color: AppTheme.bone),
                     ),
@@ -252,7 +272,9 @@ class FeaturedProductCard extends StatelessWidget {
                         left: 10,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(4),

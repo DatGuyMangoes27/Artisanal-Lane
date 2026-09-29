@@ -14,12 +14,19 @@ class AboutScreen extends StatelessWidget {
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
           'About',
-          style: GoogleFonts.playfairDisplay(color: AppTheme.textPrimary, fontWeight: FontWeight.w700, fontSize: 24),
+          style: GoogleFonts.playfairDisplay(
+            color: AppTheme.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 24,
+          ),
         ),
         centerTitle: true,
       ),
@@ -51,12 +58,11 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 16),
               Text(
                 'Artisan Lane',
-                style: GoogleFonts.playfairDisplay(fontSize: 28, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Version 1.0.0',
-                style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
               ),
               const SizedBox(height: 32),
               Container(
@@ -65,15 +71,27 @@ class AboutScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+                  border: Border.all(
+                    color: AppTheme.sand.withValues(alpha: 0.3),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Our Mission',
-                      style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.w600, color: AppTheme.sienna),
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.sienna,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Text(
@@ -83,7 +101,11 @@ class AboutScreen extends StatelessWidget {
                       'Our escrow-protected marketplace ensures that both buyers and makers '
                       'can transact with confidence. From hand-woven textiles to contemporary '
                       'ceramics, every piece tells a story of skill, tradition, and creativity.',
-                      style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textSecondary, height: 1.7),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                        height: 1.7,
+                      ),
                     ),
                   ],
                 ),
@@ -105,7 +127,10 @@ class AboutScreen extends StatelessWidget {
               const SizedBox(height: 40),
               Text(
                 'Made with care in South Africa',
-                style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textHint),
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: AppTheme.textHint,
+                ),
               ),
               const SizedBox(height: 24),
             ],
@@ -115,7 +140,12 @@ class AboutScreen extends StatelessWidget {
     );
   }
 
-  static Widget _linkTile(BuildContext context, {required IconData icon, required String title, required VoidCallback onTap}) {
+  static Widget _linkTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -124,18 +154,40 @@ class AboutScreen extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: AppTheme.terracotta.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(10)),
+              decoration: BoxDecoration(
+                color: AppTheme.terracotta.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(10),
+              ),
               child: Icon(icon, color: AppTheme.terracotta, size: 20),
             ),
             const SizedBox(width: 16),
-            Expanded(child: Text(title, style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500, color: AppTheme.textPrimary))),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppTheme.textHint),
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: AppTheme.textHint,
+            ),
           ],
         ),
       ),

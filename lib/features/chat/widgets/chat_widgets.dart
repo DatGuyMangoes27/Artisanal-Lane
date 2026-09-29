@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/compact_count.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
+import '../../../widgets/skeleton.dart';
 
 class ChatInboxList extends StatelessWidget {
   final List<ChatThread> threads;
@@ -200,15 +203,26 @@ class ChatThreadScaffold extends StatelessWidget {
                   return const _EmptyThreadState();
                 }
 
-                return ListView.separated(
+                // Reverse-chronological list; a day separator is inserted
+                // above the first message (in chronological order) of a
+                // new calendar day.
+                return ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   itemCount: messages.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
-                    final message = messages[messages.length - 1 - index];
+                    final arrayIndex = messages.length - 1 - index;
+                    final message = messages[arrayIndex];
                     final isMine = message.isSentBy(currentUserId);
-                    return Align(
+                    // messages is chronological ascending; the message just
+                    // before this one in time (if any) is at arrayIndex - 1.
+                    final isFirstOfDay =
+                        arrayIndex == 0 ||
+                        !_isSameDay(
+                          messages[arrayIndex - 1].createdAt,
+                          message.createdAt,
+                        );
+                    final bubble = Align(
                       alignment: isMine
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
@@ -220,22 +234,28 @@ class ChatThreadScaffold extends StatelessWidget {
                             : senderLabelResolver?.call(message.senderId),
                       ),
                     );
+                    if (!isFirstOfDay) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: bubble,
+                      );
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 10),
+                      child: Column(
+                        children: [
+                          _DaySeparator(date: message.createdAt),
+                          const SizedBox(height: 10),
+                          bubble,
+                        ],
+                      ),
+                    );
                   },
                 );
               },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppTheme.terracotta),
-              ),
-              error: (error, _) => Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Could not load messages.\n$error',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(color: AppTheme.textSecondary),
-                  ),
-                ),
-              ),
+              loading: () => const _ChatThreadSkeleton(),
+              error: (error, _) =>
+                  ErrorRetryView(error: error, title: "Couldn't load messages"),
             ),
           ),
           composer,
@@ -392,7 +412,9 @@ class _InboxTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          _formatInboxTimestamp(thread.lastMessageAt ?? thread.createdAt),
+                          formatRelativeTime(
+                            thread.lastMessageAt ?? thread.createdAt,
+                          ),
                           style: GoogleFonts.poppins(
                             fontSize: 11,
                             color: AppTheme.textHint,
@@ -490,7 +512,12 @@ class _MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: bubbleColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(18),
+            topRight: const Radius.circular(18),
+            bottomLeft: Radius.circular(isMine ? 18 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 18),
+          ),
           border: isMine
               ? null
               : Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
@@ -524,7 +551,8 @@ class _MessageBubble extends StatelessWidget {
                 textColor: textColor,
                 isMine: isMine,
               ),
-            if (attachment != null && message.hasText) const SizedBox(height: 10),
+            if (attachment != null && message.hasText)
+              const SizedBox(height: 10),
             if (message.hasText)
               Text(
                 message.body!,
@@ -574,9 +602,9 @@ class _AttachmentBubble extends StatelessWidget {
       onTap: attachment.url == null
           ? null
           : () => launchUrl(
-                Uri.parse(attachment.url!),
-                mode: LaunchMode.externalApplication,
-              ),
+              Uri.parse(attachment.url!),
+              mode: LaunchMode.externalApplication,
+            ),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         width: double.infinity,
@@ -745,11 +773,7 @@ class _ChatSafetyNotice extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.shield_outlined,
-            size: 16,
-            color: Color(0xFF8A6100),
-          ),
+          const Icon(Icons.shield_outlined, size: 16, color: Color(0xFF8A6100)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -790,17 +814,80 @@ class _EmptyThreadState extends StatelessWidget {
   }
 }
 
-String _formatInboxTimestamp(DateTime value) {
-  final now = DateTime.now();
-  if (now.year == value.year &&
-      now.month == value.month &&
-      now.day == value.day) {
-    return DateFormat('HH:mm').format(value.toLocal());
+bool _isSameDay(DateTime a, DateTime b) {
+  final la = a.toLocal();
+  final lb = b.toLocal();
+  return la.year == lb.year && la.month == lb.month && la.day == lb.day;
+}
+
+class _DaySeparator extends StatelessWidget {
+  final DateTime date;
+
+  const _DaySeparator({required this.date});
+
+  String get _label {
+    final now = DateTime.now();
+    final local = date.toLocal();
+    if (_isSameDay(local, now)) return 'Today';
+    final yesterday = now.subtract(const Duration(days: 1));
+    if (_isSameDay(local, yesterday)) return 'Yesterday';
+    if (now.difference(local).inDays < 7) {
+      return DateFormat('EEEE').format(local);
+    }
+    return DateFormat('d MMMM yyyy').format(local);
   }
-  if (now.difference(value).inDays < 7) {
-    return DateFormat('EEE').format(value.toLocal());
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppTheme.bone.withValues(alpha: 0.7),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          _label,
+          style: GoogleFonts.poppins(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textSecondary,
+          ),
+        ),
+      ),
+    );
   }
-  return DateFormat('d MMM').format(value.toLocal());
+}
+
+class _ChatThreadSkeleton extends StatelessWidget {
+  const _ChatThreadSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeleton(
+      child: ListView(
+        reverse: true,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SkeletonBox(width: 180, height: 44, radius: 18),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: SkeletonBox(width: 140, height: 36, radius: 18),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SkeletonBox(width: 210, height: 60, radius: 18),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 String _formatFileSize(int bytes) {

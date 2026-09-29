@@ -8,6 +8,7 @@ import '../features/buyer/utils/favourite_products.dart';
 import '../features/buyer/utils/profile_avatar_upload.dart';
 import '../features/buyer/utils/search_trends.dart';
 import '../features/vendor/utils/vendor_earnings.dart';
+import '../features/vendor/services/post_publication.dart';
 import '../models/models.dart';
 
 class _AccountDeletionException implements Exception {
@@ -323,18 +324,28 @@ class SupabaseService {
     String userId,
     File imageFile, {
     String folder = 'general',
+    String? objectId,
   }) async {
     final ext = imageFile.path.split('.').last.toLowerCase();
-    final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
+    final fileName =
+        '${objectId ?? DateTime.now().millisecondsSinceEpoch}.$ext';
     final storagePath = '$userId/$folder/$fileName';
 
-    await _client.storage
-        .from('shop-assets')
-        .upload(
-          storagePath,
-          imageFile,
-          fileOptions: FileOptions(contentType: _mimeType(ext)),
-        );
+    try {
+      await _client.storage
+          .from('shop-assets')
+          .upload(
+            storagePath,
+            imageFile,
+            fileOptions: FileOptions(contentType: _mimeType(ext)),
+          );
+    } on StorageException catch (error) {
+      // A retry can reach storage after the original upload committed.
+      if (objectId == null ||
+          (error.statusCode != '409' && error.error != 'Duplicate')) {
+        rethrow;
+      }
+    }
 
     return _client.storage.from('shop-assets').getPublicUrl(storagePath);
   }
@@ -545,9 +556,6 @@ class SupabaseService {
     String orderId,
     String currentUserId,
   ) async {
-    print(
-      '[dispute-debug] getActiveDisputeForOrder start orderId=$orderId currentUserId=$currentUserId',
-    );
     try {
       final dispute = await _client
           .from('disputes')
@@ -561,15 +569,8 @@ class SupabaseService {
           .maybeSingle();
 
       if (dispute == null) {
-        print(
-          '[dispute-debug] getActiveDisputeForOrder no dispute row orderId=$orderId',
-        );
         return null;
       }
-
-      print(
-        '[dispute-debug] dispute row found id=${dispute['id']} status=${dispute['status']} conversationNodeType=${dispute['dispute_conversations']?.runtimeType}',
-      );
 
       Map<String, dynamic>? conversationData;
       final conversationNode = dispute['dispute_conversations'];
@@ -581,15 +582,8 @@ class SupabaseService {
         conversationData = Map<String, dynamic>.from(conversationNode);
       }
       if (conversationData == null) {
-        print(
-          '[dispute-debug] dispute row missing conversation data disputeId=${dispute['id']}',
-        );
         return null;
       }
-
-      print(
-        '[dispute-debug] conversation resolved conversationId=${conversationData['id']} buyerId=${conversationData['buyer_id']} sellerId=${conversationData['seller_id']}',
-      );
 
       final participantRows = await _client
           .from('dispute_conversation_participants')
@@ -597,10 +591,6 @@ class SupabaseService {
             'participant_id, role_in_case, profiles(display_name, avatar_url)',
           )
           .eq('conversation_id', conversationData['id'] as String);
-
-      print(
-        '[dispute-debug] participant rows loaded conversationId=${conversationData['id']} count=${(participantRows as List).length}',
-      );
 
       return DisputeCase(
         id: dispute['id'] as String,
@@ -620,9 +610,6 @@ class SupabaseService {
             .toList(),
       );
     } catch (error) {
-      print(
-        '[dispute-debug] getActiveDisputeForOrder failed orderId=$orderId currentUserId=$currentUserId error=$error',
-      );
       rethrow;
     }
   }
@@ -631,26 +618,17 @@ class SupabaseService {
     String orderId,
     String currentUserId,
   ) async* {
-    print(
-      '[dispute-debug] watchActiveDisputeForOrder subscribe orderId=$orderId currentUserId=$currentUserId',
-    );
     yield await getActiveDisputeForOrder(orderId, currentUserId);
     yield* _client
         .from('dispute_conversations')
         .stream(primaryKey: ['id'])
         .eq('order_id', orderId)
         .asyncMap((rows) async {
-          print(
-            '[dispute-debug] watchActiveDisputeForOrder realtime event orderId=$orderId rows=${rows.length}',
-          );
           return getActiveDisputeForOrder(orderId, currentUserId);
         });
   }
 
   Future<List<ChatMessage>> getDisputeMessages(String conversationId) async {
-    print(
-      '[dispute-debug] getDisputeMessages start conversationId=$conversationId',
-    );
     try {
       final rows = await _client
           .from('dispute_conversation_messages')
@@ -658,27 +636,17 @@ class SupabaseService {
           .eq('conversation_id', conversationId)
           .order('created_at', ascending: true);
 
-      print(
-        '[dispute-debug] getDisputeMessages rows loaded conversationId=$conversationId count=${(rows as List).length}',
-      );
-
       return Future.wait(
         (rows)
             .map((row) => ChatMessage.fromJson(Map<String, dynamic>.from(row)))
             .map(_hydrateDisputeMessage),
       );
     } catch (error) {
-      print(
-        '[dispute-debug] getDisputeMessages failed conversationId=$conversationId error=$error',
-      );
       rethrow;
     }
   }
 
   Stream<List<ChatMessage>> watchDisputeMessages(String conversationId) async* {
-    print(
-      '[dispute-debug] watchDisputeMessages subscribe conversationId=$conversationId',
-    );
     yield await getDisputeMessages(conversationId);
     yield* _client
         .from('dispute_conversation_messages')
@@ -686,9 +654,6 @@ class SupabaseService {
         .eq('conversation_id', conversationId)
         .order('created_at')
         .asyncMap((rows) async {
-          print(
-            '[dispute-debug] watchDisputeMessages realtime event conversationId=$conversationId rows=${rows.length}',
-          );
           return getDisputeMessages(conversationId);
         });
   }
@@ -1155,12 +1120,12 @@ class SupabaseService {
 
   // ── Products ──────────────────────────────────────────────────
   static const _productSelect =
-      '*, shops!inner(name, logo_url), categories(name), subcategories(name), product_variants(*)';
+      '*, shops!inner(name, logo_url, is_verified, location), categories(name), subcategories(name), product_variants(*)';
   // Buyable when in stock, or when made-to-order (available even at zero stock).
   static const _availableProductFilter =
       'stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)';
   static const _orderSelect =
-      '*, shops(name), buyer:profiles!orders_buyer_id_fkey(display_name, email, phone), order_items(*, products(title, images))';
+      '*, shops(name), buyer:profiles!orders_buyer_id_fkey(display_name), order_items(*, products(title, images))';
 
   Map<String, dynamic> _productSummaryFromVariants(
     List<Map<String, dynamic>> variants,
@@ -1277,6 +1242,69 @@ class SupabaseService {
     }
 
     final data = await query
+        .order(sortBy, ascending: ascending)
+        .order('id', ascending: true)
+        .range(offset, offset + limit - 1);
+
+    return (data as List).map((e) => Product.fromJson(e)).toList();
+  }
+
+  /// Server-side product search across title, description and shop name,
+  /// applying the same buyer-visibility rules as [getProducts] (published,
+  /// active shop, not deleted/unavailable). Supports the same optional
+  /// category/on-sale/featured narrowing and sort as [getProducts].
+  Future<List<Product>> searchProducts(
+    String query, {
+    int limit = 24,
+    int offset = 0,
+    String? categoryId,
+    bool? onSale,
+    bool? featured,
+    String sortBy = 'created_at',
+    bool ascending = false,
+  }) async {
+    // Strip characters with meaning in PostgREST filters or ilike patterns so
+    // free text can't break or widen the query.
+    final term = query
+        .replaceAll(RegExp(r'[%*,()"\\:]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (term.isEmpty) return const [];
+
+    // A top-level or() can't reference the embedded shop, so match shop
+    // names first and include those shops' products by id.
+    final shopRows = await _client
+        .from('shops')
+        .select('id')
+        .eq('is_active', true)
+        .ilike('name', '%$term%')
+        .limit(50);
+    final shopIds = (shopRows as List).map((row) => row['id'] as String);
+    final textFilters = [
+      'title.ilike."%$term%"',
+      'description.ilike."%$term%"',
+      if (shopIds.isNotEmpty) 'shop_id.in.(${shopIds.join(',')})',
+    ].join(',');
+
+    var q = _client
+        .from('products')
+        .select(_productSelect)
+        .eq('is_published', true)
+        .eq('shops.is_active', true)
+        .or(_availableProductFilter)
+        .or(textFilters);
+
+    if (categoryId != null) {
+      q = q.eq('category_id', categoryId);
+    }
+    if (onSale == true) {
+      q = q.not('compare_at_price', 'is', null);
+    }
+    if (featured == true) {
+      q = q.eq('is_featured', true);
+    }
+
+    final data = await q
         .order(sortBy, ascending: ascending)
         .order('id', ascending: true)
         .range(offset, offset + limit - 1);
@@ -1881,7 +1909,7 @@ class SupabaseService {
   }) async {
     final data = await _client
         .from('shop_posts')
-        .select('*, shops(name, logo_url)')
+        .select(ShopPost.select)
         .eq('shop_id', shopId)
         .eq('is_published', true)
         .order('created_at', ascending: false)
@@ -1900,7 +1928,7 @@ class SupabaseService {
 
     final data = await _client
         .from('shop_posts')
-        .select('*, shops(name, logo_url)')
+        .select(ShopPost.select)
         .inFilter('shop_id', followedIds)
         .eq('is_published', true)
         .order('created_at', ascending: false)
@@ -1910,12 +1938,35 @@ class SupabaseService {
 
   // ── Profile ───────────────────────────────────────────────────
   Future<Profile> getProfile(String userId) async {
+    final currentUserId = _client.auth.currentUser?.id;
+    if (currentUserId != null && userId == currentUserId) {
+      final rows = await _client.rpc('get_my_profile') as List;
+      if (rows.isEmpty) {
+        throw Exception('Profile not found for the current user.');
+      }
+      return Profile.fromJson(rows.first as Map<String, dynamic>);
+    }
+
+    // Other users' profiles: only public columns are readable directly.
     final data = await _client
         .from('profiles')
-        .select()
+        .select('id, display_name, avatar_url, role, created_at, updated_at')
         .eq('id', userId)
         .single();
     return Profile.fromJson(data);
+  }
+
+  Future<OrderBuyerContact?> getOrderBuyerContact(String orderId) async {
+    final rows =
+        await _client.rpc(
+              'get_order_buyer_contacts',
+              params: {
+                'p_order_ids': [orderId],
+              },
+            )
+            as List;
+    if (rows.isEmpty) return null;
+    return OrderBuyerContact.fromJson(rows.first as Map<String, dynamic>);
   }
 
   Future<void> markVendorApprovalSeen(String userId) async {
@@ -2046,11 +2097,10 @@ class SupabaseService {
 
     final pendingIntent = await _consumePendingAuthIntent();
 
-    final existingProfile = await _client
-        .from('profiles')
-        .select('role, phone, avatar_url')
-        .eq('id', user.id)
-        .maybeSingle();
+    final myProfileRows = await _client.rpc('get_my_profile') as List;
+    final existingProfile = myProfileRows.isEmpty
+        ? null
+        : myProfileRows.first as Map<String, dynamic>;
 
     final currentMetadata = Map<String, dynamic>.from(user.userMetadata ?? {});
     final requestedRole =
@@ -2101,7 +2151,18 @@ class SupabaseService {
               as String?,
     };
 
-    await _client.from('profiles').upsert(profileData);
+    // Members cannot read private columns back, so a merge upsert of email or
+    // phone is denied: insert a missing row, otherwise update in place.
+    if (existingProfile == null) {
+      await _client
+          .from('profiles')
+          .upsert(profileData, ignoreDuplicates: true);
+    } else {
+      await _client
+          .from('profiles')
+          .update(Map.of(profileData)..remove('id'))
+          .eq('id', effectiveUser.id);
+    }
     return getProfile(effectiveUser.id);
   }
 
@@ -2168,10 +2229,6 @@ class SupabaseService {
     String? couponCode,
   }) async {
     final userId = _client.auth.currentUser?.id;
-    final session = _client.auth.currentSession;
-    print(
-      '[checkout-debug] createCheckout start userId=$userId sessionUser=${session?.user.id} accessTokenPresent=${(session?.accessToken.isNotEmpty ?? false)} refreshTokenPresent=${(session?.refreshToken?.isNotEmpty ?? false)}',
-    );
     if (userId == null || userId.isEmpty) {
       throw const AuthException(
         'Please sign in again before starting checkout.',
@@ -2179,12 +2236,6 @@ class SupabaseService {
     }
 
     final headers = await _authorizedFunctionHeaders();
-    print(
-      '[checkout-debug] invoking create-checkout userId=$userId authHeaderPresent=${headers['Authorization']?.isNotEmpty ?? false} shippingMethod=$shippingMethod shippingCost=$shippingCost isGift=$isGift',
-    );
-    print(
-      '[checkout-debug] shippingAddress keys=${shippingAddress.keys.toList()}',
-    );
 
     final response = await _client.functions.invoke(
       'create-checkout',
@@ -2201,10 +2252,6 @@ class SupabaseService {
       },
     );
 
-    print(
-      '[checkout-debug] create-checkout response status=${response.status} dataType=${response.data.runtimeType} data=${response.data}',
-    );
-
     return CheckoutSession.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
@@ -2217,16 +2264,9 @@ class SupabaseService {
   }) async {
     final trimmedQuery = query?.trim();
     final trimmedProvince = province?.trim();
-    final session = _client.auth.currentSession;
-    print(
-      '[locker-debug] search start sessionUser=${session?.user.id} accessTokenPresent=${(session?.accessToken.isNotEmpty ?? false)} refreshTokenPresent=${(session?.refreshToken?.isNotEmpty ?? false)} query="$trimmedQuery" province="$trimmedProvince" limit=$limit',
-    );
 
     try {
       final headers = await _authorizedFunctionHeaders();
-      print(
-        '[locker-debug] invoking get-courier-guy-lockers authHeaderPresent=${headers['Authorization']?.isNotEmpty ?? false}',
-      );
 
       final response = await _client.functions.invoke(
         'get-courier-guy-lockers',
@@ -2240,10 +2280,6 @@ class SupabaseService {
         },
       );
 
-      print(
-        '[locker-debug] response status=${response.status} dataType=${response.data.runtimeType} data=${response.data}',
-      );
-
       final payload = Map<String, dynamic>.from(response.data as Map);
       final data = (payload['lockers'] as List? ?? const [])
           .map(
@@ -2252,10 +2288,8 @@ class SupabaseService {
             ),
           )
           .toList(growable: false);
-      print('[locker-debug] parsed lockers count=${data.length}');
       return data;
-    } catch (error, stackTrace) {
-      print('[locker-debug] search failed error=$error stackTrace=$stackTrace');
+    } catch (error) {
       rethrow;
     }
   }
@@ -2369,11 +2403,11 @@ class SupabaseService {
 
   // ── Addresses ──────────────────────────────────────────────────
   Future<List<Map<String, dynamic>>> getSavedAddresses(String userId) async {
-    final data = await _client
-        .from('profiles')
-        .select('shipping_addresses')
-        .eq('id', userId)
-        .single();
+    final rows = await _client.rpc('get_my_profile') as List;
+    if (rows.isEmpty) {
+      throw Exception('Profile not found for the current user.');
+    }
+    final data = rows.first as Map<String, dynamic>;
     final addresses = data['shipping_addresses'];
     if (addresses == null) return [];
     return (addresses as List).cast<Map<String, dynamic>>();
@@ -2598,14 +2632,8 @@ class SupabaseService {
       return;
     }
 
-    final updates = <String, dynamic>{'status': status};
-    if (trackingNumber != null) {
-      updates['tracking_number'] = trackingNumber;
-    }
-    if (trackingUrl != null) {
-      updates['tracking_url'] = trackingUrl;
-    }
-    await _client.from('orders').update(updates).eq('id', orderId);
+    // Other status changes are server-managed; direct order writes are denied.
+    throw UnsupportedError('Only shipping updates can be made from the app.');
   }
 
   // ── Vendor Earnings ─────────────────────────────────────────
@@ -2770,10 +2798,39 @@ class SupabaseService {
   }
 
   // ── Shop Posts (Vendor) ─────────────────────────────────────
+  Future<ShopPost> publishShopPost(PostPublication submission) {
+    return submission.publish(
+      find: () async {
+        final row = await _client
+            .from('shop_posts')
+            .select(ShopPost.select)
+            .eq('id', submission.id)
+            .eq('shop_id', submission.shopId)
+            .maybeSingle();
+        return row == null ? null : ShopPost.fromJson(row);
+      },
+      insert: (values) async {
+        await _client
+            .from('shop_posts')
+            .upsert(values, onConflict: 'id', ignoreDuplicates: true);
+      },
+      attachPoll: (poll) async {
+        await _client
+            .from('post_polls')
+            .upsert(
+              {'post_id': submission.id, ...poll.toJson()},
+              onConflict: 'post_id',
+              ignoreDuplicates: true,
+            );
+      },
+    );
+  }
+
   Future<ShopPost> createShopPost(
     String shopId, {
     required String caption,
     List<String> mediaUrls = const [],
+    List<String>? productIds,
   }) async {
     final data = await _client
         .from('shop_posts')
@@ -2781,9 +2838,10 @@ class SupabaseService {
           'shop_id': shopId,
           'caption': caption,
           'media_urls': mediaUrls,
+          if (productIds != null) 'product_ids': productIds,
           'is_published': true,
         })
-        .select('*, shops(name, logo_url)')
+        .select(ShopPost.select)
         .single();
     return ShopPost.fromJson(data);
   }
@@ -2792,10 +2850,169 @@ class SupabaseService {
     String postId,
     Map<String, dynamic> updates,
   ) async {
-    await _client.from('shop_posts').update(updates).eq('id', postId);
+    await _client
+        .from('shop_posts')
+        .update(updates)
+        .eq('id', postId)
+        .select('id')
+        .single();
   }
 
   Future<void> deleteShopPost(String postId) async {
     await _client.from('shop_posts').delete().eq('id', postId);
+  }
+
+  // ── Creator parity: saves, mutes, polls, insights, reactions ─────────
+  Future<Set<String>> getSavedPostIds() async {
+    final rows = await _client.from('saved_posts').select('post_id');
+    return {for (final row in rows as List) row['post_id'] as String};
+  }
+
+  /// Saved posts that are still visible, newest save first.
+  Future<List<ShopPost>> getSavedPosts({int limit = 60}) async {
+    final rows = await _client
+        .from('saved_posts')
+        .select('created_at, shop_posts(${ShopPost.select})')
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return [
+      for (final row in rows as List)
+        if (row['shop_posts'] is Map)
+          ShopPost.fromJson(
+            Map<String, dynamic>.from(row['shop_posts'] as Map),
+          ),
+    ];
+  }
+
+  Future<void> setPostSaved(String postId, bool saved) async {
+    if (saved) {
+      await _client.from('saved_posts').upsert({
+        'post_id': postId,
+      }, ignoreDuplicates: true);
+    } else {
+      await _client.from('saved_posts').delete().eq('post_id', postId);
+    }
+  }
+
+  Future<Set<String>> getMutedShopIds() async {
+    final rows = await _client.from('muted_shops').select('shop_id');
+    return {for (final row in rows as List) row['shop_id'] as String};
+  }
+
+  Future<void> setShopMuted(String shopId, bool muted) async {
+    if (muted) {
+      await _client.from('muted_shops').upsert({
+        'shop_id': shopId,
+      }, ignoreDuplicates: true);
+    } else {
+      await _client.from('muted_shops').delete().eq('shop_id', shopId);
+    }
+  }
+
+  Future<PostPoll?> getPostPoll(String postId) async {
+    final row = await _client
+        .from('post_polls')
+        .select()
+        .eq('post_id', postId)
+        .maybeSingle();
+    return row == null ? null : PostPoll.fromJson(row);
+  }
+
+  Future<PollResults> getPollResults(String postId) async {
+    final rows = await _client.rpc(
+      'get_poll_results',
+      params: {'p_post_id': postId},
+    );
+    return PollResults.fromRows(rows as List);
+  }
+
+  /// Casts or changes the signed-in user's vote.
+  Future<void> votePoll(String postId, int optionIndex) async {
+    await _client.from('post_poll_votes').upsert({
+      'post_id': postId,
+      'option_index': optionIndex,
+    }, onConflict: 'post_id,user_id');
+  }
+
+  /// Makers edit a poll on their own post (e.g. to close it early).
+  Future<void> savePostPoll(PostPoll poll) async {
+    await _client
+        .from('post_polls')
+        .upsert(poll.toJson(), onConflict: 'post_id');
+  }
+
+  /// Best effort; failures never interrupt browsing.
+  Future<void> recordContentView(
+    String kind,
+    String targetId, {
+    String? guestSession,
+  }) async {
+    try {
+      await _client.rpc(
+        'record_content_view',
+        params: {
+          'p_kind': kind,
+          'p_target': targetId,
+          'p_session': guestSession,
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// The signed-in maker's own insights; null when they have no shop.
+  Future<ShopInsights?> getShopInsights({int days = 30}) async {
+    final data = await _client.rpc(
+      'get_shop_insights',
+      params: {'p_days': days},
+    );
+    return data is Map
+        ? ShopInsights.fromJson(Map<String, dynamic>.from(data))
+        : null;
+  }
+
+  Future<String?> getMyStoryReaction(String storyId) async {
+    final row = await _client
+        .from('story_reactions')
+        .select('emoji')
+        .eq('story_id', storyId)
+        .eq('user_id', _client.auth.currentUser?.id ?? '')
+        .maybeSingle();
+    return row?['emoji'] as String?;
+  }
+
+  /// Sets, changes or (with null) removes the viewer's reaction.
+  Future<void> setStoryReaction(String storyId, String? emoji) async {
+    if (emoji == null) {
+      await _client.from('story_reactions').delete().eq('story_id', storyId);
+    } else {
+      await _client.from('story_reactions').upsert({
+        'story_id': storyId,
+        'emoji': emoji,
+      }, onConflict: 'story_id,user_id');
+    }
+  }
+
+  /// For the story's maker: reactions with reactor display names.
+  Future<List<({String emoji, String name})>> getStoryReactions(
+    String storyId,
+  ) async {
+    final rows = await _client
+        .from('story_reactions')
+        .select('emoji, profiles(display_name)')
+        .eq('story_id', storyId)
+        .order('created_at', ascending: false);
+    return [
+      for (final row in rows as List)
+        (
+          emoji: row['emoji'] as String,
+          name:
+              ((row['profiles'] as Map?)?['display_name'] as String?)
+                      ?.trim()
+                      .isNotEmpty ==
+                  true
+              ? (row['profiles'] as Map)['display_name'] as String
+              : 'Someone',
+        ),
+    ];
   }
 }

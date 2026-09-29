@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../core/pricing/price_format.dart';
 import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
@@ -894,7 +895,7 @@ class _ElegantProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'R${product.price.toStringAsFixed(0)}',
+                    formatBrowsePrice(product.price),
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

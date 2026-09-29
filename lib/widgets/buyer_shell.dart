@@ -5,14 +5,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app/theme.dart';
+import '../app/tab_reselect.dart';
 import '../features/buyer/providers/buyer_providers.dart';
 import '../models/cart_item.dart';
 import 'cart_nav_icon.dart';
 
 class BuyerShell extends ConsumerWidget {
-  final Widget child;
+  /// Legacy (flag off) shell: a single navigator, `child` is the current
+  /// page.
+  final Widget? child;
 
-  const BuyerShell({super.key, required this.child});
+  /// Creator-commerce shell: one navigator per tab (Feed/Discover/Shop/You)
+  /// so each tab keeps its own scroll position and state when switching.
+  final StatefulNavigationShell? navigationShell;
+
+  const BuyerShell({super.key, this.child, this.navigationShell})
+    : assert(
+        (child == null) != (navigationShell == null),
+        'Pass exactly one of child (legacy) or navigationShell (creator).',
+      );
 
   bool get _isGuest {
     if (!_isSupabaseInitialized) {
@@ -30,7 +41,20 @@ class BuyerShell extends ConsumerWidget {
     }
   }
 
+  static const _creatorTabs = [
+    BuyerTab.feed,
+    BuyerTab.discover,
+    BuyerTab.shop,
+    BuyerTab.you,
+  ];
+
   int _currentIndex(BuildContext context) {
+    // With StatefulShellRoute the branch index is authoritative — it
+    // reflects which tab's navigator is on screen, regardless of which tab
+    // originally pushed a detail page (those are pushed on the root
+    // navigator and never change the branch).
+    if (navigationShell != null) return navigationShell!.currentIndex;
+
     final location = GoRouterState.of(context).uri.toString();
     if (location.startsWith('/search')) return 1;
     if (location.startsWith('/favourites')) return 2;
@@ -39,8 +63,23 @@ class BuyerShell extends ConsumerWidget {
     return 0;
   }
 
-  void _onTap(BuildContext context, int index) {
+  void _onTap(BuildContext context, WidgetRef ref, int index) {
     final guest = _isGuest;
+    if (navigationShell != null) {
+      if (guest && index == 3) {
+        _showGuestSignInPrompt(context);
+        return;
+      }
+      if (index == navigationShell!.currentIndex) {
+        // Tapping the tab you're already on: pop that branch back to its
+        // root and tell the screen to scroll to top.
+        navigationShell!.goBranch(index, initialLocation: true);
+        ref.read(tabReselectProvider(_creatorTabs[index]).notifier).reselect();
+        return;
+      }
+      navigationShell!.goBranch(index);
+      return;
+    }
     if (guest && (index == 2 || index == 3 || index == 4)) {
       _showGuestSignInPrompt(context);
       return;
@@ -91,7 +130,11 @@ class BuyerShell extends ConsumerWidget {
                 ),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: const Icon(Icons.lock_open_rounded, color: Colors.white, size: 30),
+              child: const Icon(
+                Icons.lock_open_rounded,
+                color: Colors.white,
+                size: 30,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
@@ -156,7 +199,10 @@ class BuyerShell extends ConsumerWidget {
                 },
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppTheme.terracotta,
-                  side: const BorderSide(color: AppTheme.terracotta, width: 1.5),
+                  side: const BorderSide(
+                    color: AppTheme.terracotta,
+                    width: 1.5,
+                  ),
                   padding: const EdgeInsets.symmetric(vertical: 18),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -184,38 +230,73 @@ class BuyerShell extends ConsumerWidget {
     final cartCount = cartBadgeCount(cartItems);
 
     return Scaffold(
-      body: child,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex(context),
-        onTap: (index) => _onTap(context, index),
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.search_outlined),
-            activeIcon: Icon(Icons.search),
-            label: 'Search',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(guest ? Icons.favorite_outline : Icons.favorite_outline),
-            activeIcon: const Icon(Icons.favorite),
-            label: 'Favourites',
-          ),
-          BottomNavigationBarItem(
-            icon: CartNavIcon(count: cartCount, isActive: false),
-            activeIcon: CartNavIcon(count: cartCount, isActive: true),
-            label: 'Cart',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(guest ? Icons.person_outline : Icons.person_outline),
-            activeIcon: const Icon(Icons.person),
-            label: guest ? 'Sign In' : 'Profile',
-          ),
-        ],
-      ),
+      body: navigationShell ?? child!,
+      bottomNavigationBar: navigationShell != null
+          ? NavigationBar(
+              selectedIndex: _currentIndex(context),
+              onDestinationSelected: (index) => _onTap(context, ref, index),
+              backgroundColor: AppTheme.cardBg,
+              indicatorColor: AppTheme.terracotta.withValues(alpha: .12),
+              height: 70,
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              destinations: [
+                const NavigationDestination(
+                  icon: Icon(Icons.dynamic_feed_outlined),
+                  selectedIcon: Icon(Icons.dynamic_feed),
+                  label: 'Feed',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.explore_outlined),
+                  selectedIcon: Icon(Icons.explore),
+                  label: 'Discover',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.storefront_outlined),
+                  selectedIcon: Icon(Icons.storefront),
+                  label: 'Shop',
+                ),
+                NavigationDestination(
+                  icon: const Icon(Icons.person_outline),
+                  selectedIcon: const Icon(Icons.person),
+                  label: guest ? 'Sign In' : 'You',
+                ),
+              ],
+            )
+          : BottomNavigationBar(
+              currentIndex: _currentIndex(context),
+              onTap: (index) => _onTap(context, ref, index),
+              items: [
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Home',
+                ),
+                const BottomNavigationBarItem(
+                  icon: Icon(Icons.search_outlined),
+                  activeIcon: Icon(Icons.search),
+                  label: 'Search',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(
+                    guest ? Icons.favorite_outline : Icons.favorite_outline,
+                  ),
+                  activeIcon: const Icon(Icons.favorite),
+                  label: 'Favourites',
+                ),
+                BottomNavigationBarItem(
+                  icon: CartNavIcon(count: cartCount, isActive: false),
+                  activeIcon: CartNavIcon(count: cartCount, isActive: true),
+                  label: 'Cart',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(
+                    guest ? Icons.person_outline : Icons.person_outline,
+                  ),
+                  activeIcon: const Icon(Icons.person),
+                  label: guest ? 'Sign In' : 'Profile',
+                ),
+              ],
+            ),
     );
   }
 }

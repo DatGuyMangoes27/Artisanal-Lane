@@ -134,6 +134,12 @@ final vendorOrderDetailStreamProvider = StreamProvider.family<Order, String>((
   return service.watchOrder(orderId);
 });
 
+final vendorOrderBuyerContactProvider =
+    FutureProvider.family<OrderBuyerContact?, String>((ref, orderId) async {
+  final service = ref.read(supabaseServiceProvider);
+  return service.getOrderBuyerContact(orderId);
+});
+
 // ── Vendor Earnings ─────────────────────────────────────────────
 final vendorEarningsProvider = FutureProvider<Map<String, double>>((ref) async {
   final shop = await ref.watch(vendorShopProvider.future);

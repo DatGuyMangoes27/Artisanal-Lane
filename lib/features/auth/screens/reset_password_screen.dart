@@ -48,7 +48,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (_) {
-      setState(() => _errorMessage = 'Could not update your password right now.');
+      setState(
+        () => _errorMessage = 'Could not update your password right now.',
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -151,28 +153,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   const SizedBox(height: 32),
                   GradientButton(
                     label: 'Back to Sign In',
+                    borderRadius: 28,
                     onPressed: _finish,
                   ),
                 ] else ...[
                   if (_errorMessage != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppTheme.error.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        _errorMessage!,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: AppTheme.error,
-                        ),
-                      ),
-                    ),
+                    _ErrorBanner(message: _errorMessage!),
                     const SizedBox(height: 20),
                   ],
                   Text(
@@ -261,6 +247,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   const SizedBox(height: 32),
                   GradientButton(
                     label: 'Update Password',
+                    borderRadius: 28,
                     isLoading: _isLoading,
                     onPressed: _isLoading ? null : _updatePassword,
                   ),
@@ -269,6 +256,43 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Calm, warm error banner used across the auth screens.
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: AppTheme.error,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+            ),
+          ),
+        ],
       ),
     );
   }

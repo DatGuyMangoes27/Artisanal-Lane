@@ -89,6 +89,12 @@ class _VendorOrderDetailScreenState
     final orderAsync = ref.watch(
       vendorOrderDetailStreamProvider(widget.orderId),
     );
+    final buyerContactAsync = ref.watch(
+      vendorOrderBuyerContactProvider(widget.orderId),
+    );
+    final buyerContact = buyerContactAsync.asData?.value;
+    final order = orderAsync.asData?.value;
+    final showStickyShipBar = order?.status == 'paid';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -103,9 +109,34 @@ class _VendorOrderDetailScreenState
           style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
         ),
       ),
+      bottomNavigationBar: showStickyShipBar
+          ? SafeArea(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                decoration: BoxDecoration(
+                  color: AppTheme.cardBg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, -3),
+                    ),
+                  ],
+                ),
+                child: GradientButton(
+                  label: 'Mark as Shipped',
+                  icon: Icons.local_shipping_outlined,
+                  isLoading: _isShipping,
+                  onPressed: _isShipping ? null : _markShipped,
+                  verticalPadding: 16,
+                  borderRadius: 26,
+                ),
+              ),
+            )
+          : null,
       body: orderAsync.when(
         data: (order) => ListView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           children: [
             // Order header
             Container(
@@ -143,6 +174,8 @@ class _VendorOrderDetailScreenState
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            _OrderTimeline(status: order.status),
             const SizedBox(height: 20),
 
             // Items
@@ -374,8 +407,8 @@ class _VendorOrderDetailScreenState
                         order.buyerDisplayName ??
                         'Buyer',
                   ),
-                  if ((order.buyerPhone ?? '').isNotEmpty)
-                    _infoRow('Phone', order.buyerPhone!),
+                  if ((buyerContact?.phone ?? '').isNotEmpty)
+                    _infoRow('Phone', buyerContact!.phone!),
                   if ((order.shippingAddress?['phone'] as String?)
                           ?.isNotEmpty ==
                       true)
@@ -383,8 +416,8 @@ class _VendorOrderDetailScreenState
                       'Delivery phone',
                       order.shippingAddress!['phone'] as String,
                     ),
-                  if ((order.buyerEmail ?? '').isNotEmpty)
-                    _infoRow('Email', order.buyerEmail!),
+                  if ((buyerContact?.email ?? '').isNotEmpty)
+                    _infoRow('Email', buyerContact!.email!),
                 ],
               ),
             ),
@@ -455,7 +488,8 @@ class _VendorOrderDetailScreenState
               const SizedBox(height: 20),
             ],
 
-            // Mark as shipped action
+            // Fulfilment details — the sticky "Mark as Shipped" action lives
+            // in the bottom bar so it stays reachable while scrolling.
             if (order.status == 'paid') ...[
               Text(
                 'Fulfillment',
@@ -510,18 +544,10 @@ class _VendorOrderDetailScreenState
                         hintText: 'Paste tracking link',
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    GradientButton(
-                      label: 'Mark as Shipped',
-                      icon: Icons.local_shipping_outlined,
-                      isLoading: _isShipping,
-                      onPressed: _isShipping ? null : _markShipped,
-                      verticalPadding: 16,
-                      borderRadius: 14,
-                    ),
                   ],
                 ),
               ),
+              const SizedBox(height: 80),
             ],
             if (order.status == 'disputed') ...[
               GradientButton(
@@ -627,6 +653,77 @@ class _OrderLoadError extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Simple visual progress timeline for an order's fulfilment status.
+/// Cosmetic only — it reads the existing order status and never changes it.
+class _OrderTimeline extends StatelessWidget {
+  const _OrderTimeline({required this.status});
+
+  final String status;
+
+  static const _steps = ['paid', 'shipped', 'completed'];
+  static const _labels = {
+    'paid': 'Order placed',
+    'shipped': 'Shipped',
+    'completed': 'Completed',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == 'disputed' || status == 'cancelled') {
+      return const SizedBox.shrink();
+    }
+    final currentIndex = _steps.indexOf(status);
+    final reachedIndex = currentIndex < 0 ? 0 : currentIndex;
+
+    return Row(
+      children: [
+        for (var i = 0; i < _steps.length; i++) ...[
+          Expanded(
+            child: Column(
+              children: [
+                Icon(
+                  i <= reachedIndex
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: i <= reachedIndex
+                      ? AppTheme.baobab
+                      : AppTheme.textHint.withValues(alpha: 0.5),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _labels[_steps[i]]!,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: i <= reachedIndex
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                    color: i <= reachedIndex
+                        ? AppTheme.textPrimary
+                        : AppTheme.textHint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (i < _steps.length - 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Container(
+                width: 24,
+                height: 2,
+                color: i < reachedIndex
+                    ? AppTheme.baobab
+                    : AppTheme.textHint.withValues(alpha: 0.3),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/payment_deep_links.dart';
 
@@ -105,7 +106,10 @@ class _TradeSafeCheckoutScreenState
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -131,10 +135,7 @@ class _TradeSafeCheckoutScreenState
       ),
       body: _loadError == null
           ? WebViewWidget(controller: _controller)
-          : _CheckoutErrorState(
-              message: _loadError!,
-              onRetry: _reload,
-            ),
+          : _CheckoutErrorState(message: _loadError!, onRetry: _reload),
     );
   }
 }
@@ -143,10 +144,7 @@ class _CheckoutErrorState extends StatelessWidget {
   final String message;
   final Future<void> Function() onRetry;
 
-  const _CheckoutErrorState({
-    required this.message,
-    required this.onRetry,
-  });
+  const _CheckoutErrorState({required this.message, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +171,10 @@ class _CheckoutErrorState extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              message,
+              friendlyErrorMessage(
+                message,
+                fallback: "We couldn't open secure checkout. Please try again.",
+              ),
               textAlign: TextAlign.center,
               style: GoogleFonts.poppins(
                 fontSize: 14,
@@ -187,6 +188,10 @@ class _CheckoutErrorState extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppTheme.terracotta,
                 foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
+                ),
+                minimumSize: const Size(0, 48),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 14,

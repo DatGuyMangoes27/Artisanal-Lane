@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
+import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/curated_collection_destination.dart';
 
@@ -111,14 +114,42 @@ class CuratedCollectionScreen extends ConsumerWidget {
                       child: Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            'No curated items are live right now. Check back soon for the next handpicked selection.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: AppTheme.textSecondary,
-                              height: 1.6,
-                            ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.auto_awesome_outlined,
+                                size: 40,
+                                color: AppTheme.textSecondary.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              Text(
+                                'Nothing curated just yet',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Check back soon for the next handpicked selection.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  height: 1.45,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              OutlinedButton(
+                                onPressed: () => context.pop(),
+                                child: const Text('Keep browsing'),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -129,42 +160,44 @@ class CuratedCollectionScreen extends ConsumerWidget {
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
                     sliver: SliverGrid(
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) => ProductCard(product: products[index]),
+                        (context, index) =>
+                            ProductCard(product: products[index]),
                         childCount: products.length,
                       ),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        childAspectRatio: 0.65,
-                      ),
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.65,
+                          ),
                     ),
                   );
                 },
-                loading: () => const SliverFillRemaining(
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AppTheme.terracotta,
-                      strokeWidth: 3,
+                loading: () => SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.65,
+                        ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) =>
+                          const Skeleton(child: SkeletonBox(radius: 16)),
+                      childCount: 6,
                     ),
                   ),
                 ),
                 error: (error, _) => SliverFillRemaining(
                   hasScrollBody: false,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Text(
-                        'We could not load the curated collection right now.\n$error',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: AppTheme.textSecondary,
-                          height: 1.6,
-                        ),
-                      ),
-                    ),
+                  child: ErrorRetryView(
+                    error: error,
+                    title: "Couldn't load the collection",
+                    onRetry: () =>
+                        ref.invalidate(curatedCollectionProductsProvider),
                   ),
                 ),
               ),

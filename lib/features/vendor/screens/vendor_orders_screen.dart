@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/pricing/price_format.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../providers/vendor_providers.dart';
+import '../widgets/workspace/workspace_header.dart';
+import '../widgets/workspace/workspace_stat_tile.dart';
 
 class VendorOrdersScreen extends ConsumerStatefulWidget {
   const VendorOrdersScreen({super.key});
@@ -17,7 +21,7 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  static const _tabs = ['All', 'New', 'Shipped', 'Completed', 'Disputed'];
+  static const _tabs = ['All', 'To ship', 'Shipped', 'Completed', 'Disputed'];
   static const _statusFilters = [
     '',
     'paid',
@@ -54,18 +58,8 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Text(
-                'Orders',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+            const WorkspaceHeader(eyebrow: 'Your shop', title: 'Orders'),
+            const SizedBox(height: 4),
             TabBar(
               controller: _tabController,
               isScrollable: true,
@@ -89,24 +83,12 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
                   children: List.generate(_tabs.length, (i) {
                     final filtered = _filter(orders, i);
                     if (filtered.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.receipt_long_outlined,
-                              size: 48,
-                              color: AppTheme.textHint,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No orders',
-                              style: GoogleFonts.poppins(
-                                color: AppTheme.textHint,
-                              ),
-                            ),
-                          ],
-                        ),
+                      return WorkspaceEmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'No orders here yet',
+                        message: i == 0
+                            ? 'Orders will appear here as soon as buyers check out.'
+                            : 'Nothing in this tab right now.',
                       );
                     }
                     return RefreshIndicator(
@@ -129,7 +111,11 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
                     strokeWidth: 2,
                   ),
                 ),
-                error: (e, _) => Center(child: Text('Error: $e')),
+                error: (e, _) => ErrorRetryView(
+                  error: e,
+                  title: "Couldn't load your orders",
+                  onRetry: () => ref.invalidate(vendorOrdersStreamProvider),
+                ),
               ),
             ),
           ],
@@ -139,70 +125,85 @@ class _VendorOrdersScreenState extends ConsumerState<VendorOrdersScreen>
   }
 
   Widget _buildOrderCard(BuildContext context, Order order) {
-    return GestureDetector(
-      onTap: () => context.push('/vendor/orders/${order.id}'),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Order #${order.shortId}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppTheme.getStatusColor(
-                      order.status,
-                    ).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    order.status.toUpperCase(),
-                    style: GoogleFonts.poppins(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.getStatusColor(order.status),
+    final buyerName =
+        order.shippingAddress?['name'] as String? ??
+        order.buyerDisplayName ??
+        'Buyer';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => context.push('/vendor/orders/${order.id}'),
+        borderRadius: BorderRadius.circular(18),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBg,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.4)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Order #${order.shortId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  WorkspaceStatusPill(
+                    label: order.status.toUpperCase(),
+                    color: AppTheme.getStatusColor(order.status),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                buyerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${order.items?.length ?? 0} item(s) · ${formatBrowsePrice(order.grandTotal)}',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              if (order.shippingMethod != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  order.shippingMethodDisplay,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
                   ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${order.items?.length ?? 0} item(s) · R${order.grandTotal.toStringAsFixed(0)}',
-              style: GoogleFonts.poppins(
-                fontSize: 13,
-                color: AppTheme.textSecondary,
-              ),
-            ),
-            if (order.shippingMethod != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                order.shippingMethodDisplay,
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: AppTheme.textHint,
-                ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
     );

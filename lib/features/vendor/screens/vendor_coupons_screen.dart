@@ -33,10 +33,23 @@ class VendorCouponsScreen extends ConsumerWidget {
       backgroundColor: AppTheme.scaffoldBg,
       appBar: AppBar(
         backgroundColor: AppTheme.scaffoldBg,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
         title: Text(
           'Discount Codes',
-          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
+          ),
         ),
+        centerTitle: true,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openCreateSheet(context, ref),
@@ -97,6 +110,89 @@ class _CouponCard extends ConsumerWidget {
 
   const _CouponCard({required this.coupon});
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      useRootNavigator: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Delete "${coupon.code}"?',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Buyers will no longer be able to use this code at checkout.',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(sheetContext).pop(true),
+                  child: Text(
+                    'Delete code',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    side: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.6),
+                    ),
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(sheetContext).pop(false),
+                  child: Text(
+                    'Keep code',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(supabaseServiceProvider).deleteShopCoupon(coupon.id);
+    ref.invalidate(vendorCouponsProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final offer = coupon.discountType == 'percentage'
@@ -124,6 +220,28 @@ class _CouponCard extends ConsumerWidget {
                   ),
                 ),
               ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: (coupon.isActive ? AppTheme.baobab : AppTheme.textHint)
+                      .withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  coupon.isActive ? 'Active' : 'Paused',
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: coupon.isActive
+                        ? AppTheme.baobab
+                        : AppTheme.textHint,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Switch.adaptive(
                 value: coupon.isActive,
                 activeTrackColor: AppTheme.terracotta,
@@ -177,12 +295,7 @@ class _CouponCard extends ConsumerWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
-              onPressed: () async {
-                await ref
-                    .read(supabaseServiceProvider)
-                    .deleteShopCoupon(coupon.id);
-                ref.invalidate(vendorCouponsProvider);
-              },
+              onPressed: () => _confirmDelete(context, ref),
               icon: const Icon(Icons.delete_outline_rounded, size: 18),
               label: const Text('Delete'),
               style: TextButton.styleFrom(foregroundColor: AppTheme.error),

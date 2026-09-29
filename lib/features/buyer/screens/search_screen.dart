@@ -335,9 +335,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           const SizedBox(height: 6),
                           Text(
                             cat.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w500,
-                              fontSize: 10,
+                              fontSize: 12,
                               color: AppTheme.textPrimary,
                             ),
                           ),

@@ -197,11 +197,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.cardBg,
+            border: Border(
+              top: BorderSide(color: AppTheme.sand.withValues(alpha: 0.35)),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
+                blurRadius: 15,
                 offset: const Offset(0, -4),
               ),
             ],
@@ -212,6 +215,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               children: [
                 GradientButton(
                   label: 'Pay $totalStr',
+                  borderRadius: 26,
                   onPressed: _processPayment,
                 ),
                 const SizedBox(height: 16),
@@ -315,7 +319,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
       decoration: BoxDecoration(
         color: AppTheme.scaffoldBg,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
       ),
       child: Row(

@@ -83,94 +83,93 @@ class CategoriesScreen extends ConsumerWidget {
                 ),
               ),
 
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 24),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
               // ── Category Grid ──────────────────────────────────
               SliverPadding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 sliver: SliverGrid(
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
                     mainAxisSpacing: 16,
                     crossAxisSpacing: 16,
                     childAspectRatio: 1.0,
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      // First tile browses the full catalogue.
-                      if (index == 0) {
-                        return _CategoryTile(
-                          icon: Icons.storefront_outlined,
-                          name: 'Shop All',
-                          onTap: () => context.push('/home/shop-all'),
-                        );
-                      }
-
-                      final cat = cats[index - 1];
-
-                      return GestureDetector(
-                        onTap: () => context.push(
-                          '/home/category/${cat.id}?name=${cat.name}',
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppTheme.sand.withValues(alpha: 0.3),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.03),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              // Line art icon circle
-                              Container(
-                                width: 70,
-                                height: 70,
-                                decoration: const BoxDecoration(
-                                  color: AppTheme.bone,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Icon(cat.icon, color: AppTheme.terracotta, size: 32),
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Category name
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 12),
-                                child: Text(
-                                  cat.name,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.playfairDisplay(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppTheme.textPrimary,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    // First tile browses the full catalogue.
+                    if (index == 0) {
+                      return _CategoryTile(
+                        icon: Icons.storefront_outlined,
+                        name: 'Shop All',
+                        onTap: () => context.push('/home/shop-all'),
                       );
-                    },
-                    childCount: cats.length + 1,
-                  ),
+                    }
+
+                    final cat = cats[index - 1];
+
+                    return GestureDetector(
+                      onTap: () => context.push(
+                        '/home/category/${cat.id}?name=${cat.name}',
+                      ),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: AppTheme.sand.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Line art icon circle
+                            Container(
+                              width: 70,
+                              height: 70,
+                              decoration: const BoxDecoration(
+                                color: AppTheme.bone,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  cat.icon,
+                                  color: AppTheme.terracotta,
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Category name
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                cat.name,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.playfairDisplay(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }, childCount: cats.length + 1),
                 ),
               ),
 
@@ -234,7 +233,9 @@ class CategoriesScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppTheme.sand.withValues(alpha: 0.3),
+                      ),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.03),

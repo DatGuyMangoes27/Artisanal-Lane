@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../core/constants/feature_flags.dart';
+import '../app/theme.dart';
 
 class VendorShell extends StatelessWidget {
   final Widget child;
@@ -18,10 +21,66 @@ class VendorShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex(context),
-        onTap: (index) {
+      body: creatorCommerceEnabled
+          ? Column(
+              children: [
+                SafeArea(
+                  bottom: false,
+                  child: Container(
+                    color: AppTheme.cardBg,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppTheme.terracotta,
+                            minimumSize: const Size(0, 44),
+                          ),
+                          onPressed: () => context.go('/feed'),
+                          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                          label: Text(
+                            'Switch to shopping',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppTheme.textSecondary,
+                            minimumSize: const Size(0, 44),
+                          ),
+                          onPressed: () =>
+                              context.push('/vendor/profile/posts'),
+                          icon: const Icon(
+                            Icons.dynamic_feed_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'My posts',
+                            style: GoogleFonts.poppins(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // The bar above already clears the status bar.
+                Expanded(
+                  child: MediaQuery.removePadding(
+                    context: context,
+                    removeTop: true,
+                    child: child,
+                  ),
+                ),
+              ],
+            )
+          : child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex(context),
+        onDestinationSelected: (index) {
           switch (index) {
             case 0:
               context.go('/vendor');
@@ -35,30 +94,34 @@ class VendorShell extends StatelessWidget {
               context.go('/vendor/profile');
           }
         },
-        items: const [
-          BottomNavigationBarItem(
+        backgroundColor: AppTheme.cardBg,
+        indicatorColor: AppTheme.terracotta.withValues(alpha: .12),
+        height: 70,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
+            selectedIcon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
-            activeIcon: Icon(Icons.inventory_2),
+            selectedIcon: Icon(Icons.inventory_2),
             label: 'Products',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
-            activeIcon: Icon(Icons.receipt_long),
+            selectedIcon: Icon(Icons.receipt_long),
             label: 'Orders',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),
-            activeIcon: Icon(Icons.account_balance_wallet),
+            selectedIcon: Icon(Icons.account_balance_wallet),
             label: 'Earnings',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.person_outline),
-            activeIcon: Icon(Icons.person),
+            selectedIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],

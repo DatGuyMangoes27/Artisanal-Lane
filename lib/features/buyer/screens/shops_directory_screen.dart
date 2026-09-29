@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/shop_card.dart';
+import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 
 class ShopsDirectoryScreen extends ConsumerWidget {
@@ -19,52 +21,23 @@ class ShopsDirectoryScreen extends ConsumerWidget {
       body: SafeArea(
         child: shops.when(
           data: (items) => _buildContent(context, items),
-          loading: () => Center(
-            child: CircularProgressIndicator(
-              color: AppTheme.terracotta,
-              strokeWidth: 3,
-            ),
-          ),
-          error: (error, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.error_outline_rounded,
-                      size: 32,
-                      color: AppTheme.terracotta,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Error: $error',
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
+          loading: () => _buildLoading(),
+          error: (error, _) => ErrorRetryView(
+            error: error,
+            onRetry: () => ref.invalidate(shopsProvider),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLoading() {
+    return Skeleton(
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(20, 90, 20, 24),
+        itemCount: 4,
+        separatorBuilder: (_, __) => const SizedBox(height: 20),
+        itemBuilder: (_, __) => const SkeletonBox(height: 176, radius: 16),
       ),
     );
   }
@@ -79,13 +52,17 @@ class ShopsDirectoryScreen extends ConsumerWidget {
         if (items.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20.0,
+                vertical: 12.0,
+              ),
               child: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.bone,
                       borderRadius: BorderRadius.circular(24),
@@ -190,10 +167,7 @@ class ShopsDirectoryScreen extends ConsumerWidget {
           // Subtitle
           Text(
             'Artisan studios and workshops across South Africa',
-            style: GoogleFonts.poppins(
-              fontSize: 14,
-              color: AppTheme.textHint,
-            ),
+            style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textHint),
           ),
         ],
       ),

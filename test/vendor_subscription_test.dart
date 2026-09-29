@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
 
 import 'package:artisanal_lane/features/buyer/utils/payment_deep_links.dart';
 import 'package:artisanal_lane/features/vendor/providers/vendor_providers.dart';
@@ -245,6 +246,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserIdProvider.overrideWithValue('vendor-1'),
+          vendorShopProvider.overrideWith((ref) async => null),
           vendorSubscriptionProvider.overrideWith((ref) async => null),
           vendorSubscriptionStreamProvider.overrideWith(
             (ref) => Stream.value(null),
@@ -272,6 +275,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserIdProvider.overrideWithValue('vendor-1'),
+          vendorShopProvider.overrideWith((ref) async => null),
           vendorProductsProvider.overrideWith((ref) async => const <Product>[]),
           vendorSubscriptionProvider.overrideWith((ref) async => null),
           vendorSubscriptionStreamProvider.overrideWith(
@@ -315,6 +320,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          currentUserIdProvider.overrideWithValue('vendor-1'),
+          vendorShopProvider.overrideWith((ref) async => null),
           vendorSubscriptionProvider.overrideWith(
             (ref) async => activeSubscription(),
           ),
@@ -337,13 +344,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final categoryDropdown = find
-        .byWidgetPredicate(
-          (widget) => widget is DropdownButtonFormField<String>,
-        )
-        .first;
+    final categoryDropdown = find.byKey(const Key('product-category'));
 
-    await tester.ensureVisible(categoryDropdown);
+    await tester.scrollUntilVisible(
+      categoryDropdown,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(categoryDropdown);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Jewellery').last);

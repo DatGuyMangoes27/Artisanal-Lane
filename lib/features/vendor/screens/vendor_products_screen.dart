@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/feature_flags.dart';
+import '../../../core/pricing/price_format.dart';
 import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/gradient_fab.dart';
@@ -11,9 +13,53 @@ import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_payout_setup.dart';
 import '../utils/vendor_subscription_setup.dart';
+import '../widgets/workspace/workspace_header.dart';
+import '../widgets/workspace/workspace_stat_tile.dart';
 
-class VendorProductsScreen extends ConsumerWidget {
+enum _ProductFilter { all, live, draft, soldOut }
+
+/// Pure filter used by the widget.
+List<Product> _filterVendorProducts(
+  List<Product> products, {
+  required String query,
+  required _ProductFilter filter,
+}) {
+  final normalized = query.trim().toLowerCase();
+  return products.where((product) {
+    final matchesQuery =
+        normalized.isEmpty || product.title.toLowerCase().contains(normalized);
+    if (!matchesQuery) return false;
+    switch (filter) {
+      case _ProductFilter.all:
+        return true;
+      case _ProductFilter.live:
+        return product.isPublished && product.stockQty > 0;
+      case _ProductFilter.draft:
+        return !product.isPublished;
+      case _ProductFilter.soldOut:
+        return product.stockQty <= 0;
+    }
+  }).toList();
+}
+
+class VendorProductsScreen extends ConsumerStatefulWidget {
   const VendorProductsScreen({super.key});
+
+  @override
+  ConsumerState<VendorProductsScreen> createState() =>
+      _VendorProductsScreenState();
+}
+
+class _VendorProductsScreenState extends ConsumerState<VendorProductsScreen> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  _ProductFilter _filter = _ProductFilter.all;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _showSubscriptionRequiredDialog(BuildContext context) {
     showDialog<void>(
@@ -77,7 +123,12 @@ class VendorProductsScreen extends ConsumerWidget {
     BuildContext context,
     bool payoutReady,
     bool subscriptionActive,
+    bool internalEditorTestMode,
   ) {
+    if (internalEditorTestMode) {
+      context.push('/vendor/products/new');
+      return;
+    }
     if (!subscriptionActive) {
       _showSubscriptionRequiredDialog(context);
       return;
@@ -234,7 +285,7 @@ class VendorProductsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final productsAsync = ref.watch(vendorProductsProvider);
     final payoutProfile =
         ref.watch(vendorPayoutProfileStreamProvider).value ??
@@ -245,30 +296,27 @@ class VendorProductsScreen extends ConsumerWidget {
       futureValue: ref.watch(vendorSubscriptionProvider).value,
     );
     final subscriptionActive = isVendorSubscriptionActive(subscription);
+    final internalEditorTestMode = isInternalProductEditorTestMode(
+      ref.watch(currentUserIdProvider),
+    );
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       floatingActionButton: GradientFabExtended(
         label: 'Add Product',
         icon: Icons.add_rounded,
-        onTap: () =>
-            _handleAddProductTap(context, payoutReady, subscriptionActive),
+        onTap: () => _handleAddProductTap(
+          context,
+          payoutReady,
+          subscriptionActive,
+          internalEditorTestMode,
+        ),
       ),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
-              child: Text(
-                'My Products',
-                style: GoogleFonts.playfairDisplay(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ),
+            const WorkspaceHeader(eyebrow: 'Your shop', title: 'Products'),
             Expanded(
               child: productsAsync.when(
                 data: (products) {
@@ -277,18 +325,100 @@ class VendorProductsScreen extends ConsumerWidget {
                       context,
                       payoutReady,
                       subscriptionActive,
+                      internalEditorTestMode,
                     );
                   }
+                  final visible = _filterVendorProducts(
+                    products,
+                    query: _query,
+                    filter: _filter,
+                  );
                   return RefreshIndicator(
                     color: AppTheme.terracotta,
                     onRefresh: () async =>
                         ref.invalidate(vendorProductsProvider),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-                      itemCount: products.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
-                      itemBuilder: (_, i) =>
-                          _buildProductTile(context, ref, products[i]),
+                    child: ListView(
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 100),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            decoration: InputDecoration(
+                              hintText: 'Search your products',
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              filled: true,
+                              fillColor: AppTheme.cardBg,
+                              suffixIcon: _query.isEmpty
+                                  ? null
+                                  : IconButton(
+                                      tooltip: 'Clear search',
+                                      icon: const Icon(Icons.close_rounded),
+                                      onPressed: () => setState(() {
+                                        _searchController.clear();
+                                        _query = '';
+                                      }),
+                                    ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          height: 40,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            children: [
+                              for (final entry in const [
+                                (_ProductFilter.all, 'All'),
+                                (_ProductFilter.live, 'Live'),
+                                (_ProductFilter.draft, 'Draft'),
+                                (_ProductFilter.soldOut, 'Sold out'),
+                              ])
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: WorkspaceFilterChip(
+                                    label: entry.$2,
+                                    selected: _filter == entry.$1,
+                                    onTap: () =>
+                                        setState(() => _filter = entry.$1),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (visible.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 32,
+                            ),
+                            child: Center(
+                              child: Text(
+                                'No products match your search or filter.',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              children: [
+                                for (final product in visible) ...[
+                                  _buildProductTile(context, ref, product),
+                                  const SizedBox(height: 12),
+                                ],
+                              ],
+                            ),
+                          ),
+                      ],
                     ),
                   );
                 },
@@ -370,7 +500,7 @@ class VendorProductsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'R${product.price.toStringAsFixed(0)} · $stockLabel${optionCount > 0 ? ' · $optionCount option(s)' : ''}',
+                    '${formatBrowsePrice(product.price)} · $stockLabel${optionCount > 0 ? ' · $optionCount option(s)' : ''}',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: isSoldOut
@@ -400,28 +530,13 @@ class VendorProductsScreen extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: product.isPublished
-                            ? AppTheme.baobab.withValues(alpha: 0.1)
-                            : AppTheme.textHint.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        product.isPublished ? 'Live' : 'Draft',
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: product.isPublished
-                              ? AppTheme.baobab
-                              : AppTheme.textHint,
-                        ),
-                      ),
+                    WorkspaceStatusPill(
+                      label: product.isPublished ? 'Live' : 'Draft',
+                      color: product.isPublished
+                          ? AppTheme.baobab
+                          : AppTheme.textHint,
                     ),
+                    const SizedBox(width: 4),
                     SizedBox(
                       width: 28,
                       height: 28,
@@ -550,6 +665,7 @@ class VendorProductsScreen extends ConsumerWidget {
     BuildContext context,
     bool payoutReady,
     bool subscriptionActive,
+    bool internalEditorTestMode,
   ) {
     return Center(
       child: Padding(
@@ -588,6 +704,7 @@ class VendorProductsScreen extends ConsumerWidget {
                 context,
                 payoutReady,
                 subscriptionActive,
+                internalEditorTestMode,
               ),
             ),
           ],

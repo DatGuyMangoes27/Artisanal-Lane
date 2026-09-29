@@ -10,7 +10,6 @@ import '../../../app/theme.dart';
 import '../../../models/shop_market_event.dart';
 import '../../../models/shipping_option.dart';
 import '../widgets/shipping_rates_reference.dart';
-import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -415,341 +414,369 @@ class _VendorShopSettingsScreenState
         data: (_) => marketEventsAsync.when(
           data: (_) => Form(
             key: _formKey,
-            child: ListView(
-              padding: const EdgeInsets.all(24),
+            child: Column(
               children: [
-                // ── Cover image ────────────────────────────────────
-                _buildLabel('Cover Image'),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () => _pickImage(isLogo: false),
-                  child: Container(
-                    height: 160,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: AppTheme.cardBg,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.sand, width: 1.5),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: _buildCoverPreview(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Logo ───────────────────────────────────────────
-                _buildLabel('Shop Logo'),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _pickImage(isLogo: true),
-                      child: Container(
-                        width: 90,
-                        height: 90,
-                        decoration: BoxDecoration(
-                          color: AppTheme.cardBg,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppTheme.sand, width: 1.5),
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: _buildLogoPreview(),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tap to change',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: AppTheme.textSecondary,
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
+                    children: [
+                      _buildShopPreviewHeader(),
+                      const SizedBox(height: 28),
+                      // ── Cover image ────────────────────────────────────
+                      _buildLabel('Cover Image'),
+                      const SizedBox(height: 8),
+                      GestureDetector(
+                        onTap: () => _pickImage(isLogo: false),
+                        child: Container(
+                          height: 160,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: AppTheme.cardBg,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppTheme.sand,
+                              width: 1.5,
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Square image works best',
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: AppTheme.textHint,
+                          clipBehavior: Clip.antiAlias,
+                          child: _buildCoverPreview(),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Logo ───────────────────────────────────────────
+                      _buildLabel('Shop Logo'),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _pickImage(isLogo: true),
+                            child: Container(
+                              width: 90,
+                              height: 90,
+                              decoration: BoxDecoration(
+                                color: AppTheme.cardBg,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.sand,
+                                  width: 1.5,
+                                ),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: _buildLogoPreview(),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Tap to change',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppTheme.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Square image works best',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: AppTheme.textHint,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
+                      const SizedBox(height: 24),
 
-                // ── Text fields ────────────────────────────────────
-                _buildLabel('Shop Name'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _nameController,
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Required' : null,
-                  decoration: const InputDecoration(hintText: 'Your shop name'),
-                ),
-                const SizedBox(height: 20),
-
-                _buildLabel('Bio'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _bioController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    hintText: 'Short description of your shop',
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                _buildLabel('Brand Story'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _brandStoryController,
-                  maxLines: 5,
-                  decoration: const InputDecoration(
-                    hintText: 'Tell your story...',
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                _buildLabel('Location'),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _locationController,
-                  decoration: const InputDecoration(
-                    hintText: 'e.g. Cape Town, South Africa',
-                  ),
-                ),
-                const SizedBox(height: 28),
-
-                _buildLabel('Upcoming Markets'),
-                const SizedBox(height: 4),
-                Text(
-                  'Show buyers where they can find you next. Market dates save immediately, and only active future dates appear on your public profile.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_marketEvents.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppTheme.sand.withValues(alpha: 0.4),
+                      // ── Text fields ────────────────────────────────────
+                      _buildLabel('Shop Name'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameController,
+                        validator: (v) =>
+                            v == null || v.trim().isEmpty ? 'Required' : null,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          hintText: 'Your shop name',
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'No market dates added yet',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Add upcoming events so buyers know when they can meet you in person.',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textHint,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                else
-                  ..._marketEvents.asMap().entries.map(
-                    (entry) => _buildMarketEventCard(entry.value, entry.key),
-                  ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _openMarketEventSheet(),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Add Market Date'),
-                ),
-                const SizedBox(height: 28),
+                      const SizedBox(height: 20),
 
-                _buildLabel('Vacation Mode'),
-                const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppTheme.sand.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      SwitchListTile(
-                        value: _isOffline,
-                        activeThumbColor: AppTheme.terracotta,
-                        title: Text(
-                          'Pause my shop while I am away',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
-                          ),
+                      _buildLabel('Bio'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _bioController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          hintText: 'Short description of your shop',
                         ),
-                        subtitle: Text(
-                          _isOffline
-                              ? 'Buyers can still view your shop, but the storefront is marked as offline.'
-                              : 'Turn this on when you need to put the store into vacation mode.',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textHint,
-                          ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {
-                            _isOffline = value;
-                            if (!value) {
-                              _backToWorkDate = null;
-                            }
-                          });
-                        },
                       ),
-                      if (_isOffline) ...[
-                        Divider(
-                          height: 1,
-                          color: AppTheme.sand.withValues(alpha: 0.5),
+                      const SizedBox(height: 20),
+
+                      _buildLabel('Brand Story'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _brandStoryController,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          hintText: 'Tell your story...',
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-                          child: Row(
+                      ),
+                      const SizedBox(height: 20),
+
+                      _buildLabel('Location'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _locationController,
+                        onChanged: (_) => setState(() {}),
+                        decoration: const InputDecoration(
+                          hintText: 'e.g. Cape Town, South Africa',
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      _buildLabel('Upcoming Markets'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Show buyers where they can find you next. Market dates save immediately, and only active future dates appear on your public profile.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_marketEvents.isEmpty)
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppTheme.sand.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              Text(
+                                'No market dates added yet',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Add upcoming events so buyers know when they can meet you in person.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: AppTheme.textHint,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        ..._marketEvents.asMap().entries.map(
+                          (entry) =>
+                              _buildMarketEventCard(entry.value, entry.key),
+                        ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _openMarketEventSheet(),
+                        icon: const Icon(Icons.add_rounded),
+                        label: const Text('Add Market Date'),
+                      ),
+                      const SizedBox(height: 28),
+
+                      _buildLabel('Vacation Mode'),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: AppTheme.sand.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            SwitchListTile(
+                              value: _isOffline,
+                              activeThumbColor: AppTheme.terracotta,
+                              title: Text(
+                                'Pause my shop while I am away',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                              subtitle: Text(
+                                _isOffline
+                                    ? 'Buyers can still view your shop, but the storefront is marked as offline.'
+                                    : 'Turn this on when you need to put the store into vacation mode.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12,
+                                  color: AppTheme.textHint,
+                                ),
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _isOffline = value;
+                                  if (!value) {
+                                    _backToWorkDate = null;
+                                  }
+                                });
+                              },
+                            ),
+                            if (_isOffline) ...[
+                              Divider(
+                                height: 1,
+                                color: AppTheme.sand.withValues(alpha: 0.5),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  14,
+                                  16,
+                                  16,
+                                ),
+                                child: Row(
                                   children: [
-                                    Text(
-                                      'Back to work date',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppTheme.textPrimary,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Back to work date',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: AppTheme.textPrimary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            _backToWorkDate != null
+                                                ? '${_backToWorkDate!.day}/${_backToWorkDate!.month}/${_backToWorkDate!.year}'
+                                                : 'Optional. Let customers know when you expect to return.',
+                                            style: GoogleFonts.poppins(
+                                              fontSize: 12,
+                                              color: AppTheme.textHint,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      _backToWorkDate != null
-                                          ? '${_backToWorkDate!.day}/${_backToWorkDate!.month}/${_backToWorkDate!.year}'
-                                          : 'Optional. Let customers know when you expect to return.',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: AppTheme.textHint,
-                                      ),
+                                    const SizedBox(width: 12),
+                                    OutlinedButton(
+                                      onPressed: () async {
+                                        final now = DateTime.now();
+                                        final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate: _backToWorkDate ?? now,
+                                          firstDate: DateTime(
+                                            now.year,
+                                            now.month,
+                                            now.day,
+                                          ),
+                                          lastDate: DateTime(now.year + 2),
+                                        );
+                                        if (picked != null) {
+                                          setState(
+                                            () => _backToWorkDate = picked,
+                                          );
+                                        }
+                                      },
+                                      child: const Text('Choose date'),
                                     ),
+                                    if (_backToWorkDate != null) ...[
+                                      const SizedBox(width: 8),
+                                      IconButton(
+                                        onPressed: () {
+                                          setState(
+                                            () => _backToWorkDate = null,
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          color: AppTheme.textHint,
+                                        ),
+                                        tooltip: 'Clear date',
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              OutlinedButton(
-                                onPressed: () async {
-                                  final now = DateTime.now();
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: _backToWorkDate ?? now,
-                                    firstDate: DateTime(
-                                      now.year,
-                                      now.month,
-                                      now.day,
-                                    ),
-                                    lastDate: DateTime(now.year + 2),
-                                  );
-                                  if (picked != null) {
-                                    setState(() => _backToWorkDate = picked);
-                                  }
-                                },
-                                child: const Text('Choose date'),
-                              ),
-                              if (_backToWorkDate != null) ...[
-                                const SizedBox(width: 8),
-                                IconButton(
-                                  onPressed: () {
-                                    setState(() => _backToWorkDate = null);
-                                  },
-                                  icon: const Icon(
-                                    Icons.close_rounded,
-                                    color: AppTheme.textHint,
-                                  ),
-                                  tooltip: 'Clear date',
-                                ),
-                              ],
                             ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+
+                      // ── Shipping & Delivery ────────────────────────────
+                      _buildLabel('Shipping & Delivery'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Choose which methods you offer and set your own price for each.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.cardBg,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppTheme.borderColor),
+                        ),
+                        child: SwitchListTile.adaptive(
+                          value: _combinedShippingEnabled,
+                          activeTrackColor: AppTheme.terracotta,
+                          onChanged: (value) =>
+                              setState(() => _combinedShippingEnabled = value),
+                          title: Text(
+                            'Combine shipping for one order',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                          ),
+                          subtitle: Text(
+                            'Recommended. Buyers pay one delivery fee when ordering multiple products from your shop. We use the highest applicable rate. Turn this off only when every item must ship separately.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: AppTheme.textHint,
+                            ),
                           ),
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 12),
+                      const ShippingRatesReferenceCard(),
+                      const SizedBox(height: 12),
+                      ..._shippingOptions.map(
+                        (opt) => _buildShippingOptionCard(opt),
+                      ),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
-                const SizedBox(height: 36),
-
-                // ── Shipping & Delivery ────────────────────────────
-                _buildLabel('Shipping & Delivery'),
-                const SizedBox(height: 4),
-                Text(
-                  'Choose which methods you offer and set your own price for each.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.cardBg,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppTheme.borderColor),
-                  ),
-                  child: SwitchListTile.adaptive(
-                    value: _combinedShippingEnabled,
-                    activeTrackColor: AppTheme.terracotta,
-                    onChanged: (value) =>
-                        setState(() => _combinedShippingEnabled = value),
-                    title: Text(
-                      'Combine shipping for one order',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    subtitle: Text(
-                      'Recommended. Buyers pay one delivery fee when ordering multiple products from your shop. We use the highest applicable rate. Turn this off only when every item must ship separately.',
-                      style: GoogleFonts.poppins(
-                        fontSize: 11,
-                        color: AppTheme.textHint,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const ShippingRatesReferenceCard(),
-                const SizedBox(height: 12),
-                ..._shippingOptions.map((opt) => _buildShippingOptionCard(opt)),
-                const SizedBox(height: 36),
-
-                GradientButton(
-                  label: 'Save Changes',
+                _StickySaveBar(
                   isLoading: _isLoading,
-                  onPressed: _isLoading ? null : _save,
+                  onSave: _isLoading ? null : _save,
                 ),
-                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -1191,6 +1218,121 @@ class _VendorShopSettingsScreenState
     );
   }
 
+  Widget _buildShopPreviewHeader() {
+    final name = _nameController.text.trim().isEmpty
+        ? 'Your shop name'
+        : _nameController.text.trim();
+    final location = _locationController.text.trim();
+
+    Widget coverImage;
+    if (_pendingCover != null) {
+      coverImage = Image.file(_pendingCover!, fit: BoxFit.cover);
+    } else if (_coverUrl != null && _coverUrl!.isNotEmpty) {
+      coverImage = CachedNetworkImage(imageUrl: _coverUrl!, fit: BoxFit.cover);
+    } else {
+      coverImage = Container(color: AppTheme.clay);
+    }
+
+    Widget logoImage;
+    if (_pendingLogo != null) {
+      logoImage = Image.file(_pendingLogo!, fit: BoxFit.cover);
+    } else if (_logoUrl != null && _logoUrl!.isNotEmpty) {
+      logoImage = CachedNetworkImage(imageUrl: _logoUrl!, fit: BoxFit.cover);
+    } else {
+      logoImage = Container(
+        color: AppTheme.bone,
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.storefront_outlined,
+          color: AppTheme.terracotta,
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(height: 84, width: double.infinity, child: coverImage),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppTheme.bone,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.cardBg, width: 3),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: logoImage,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        if (location.isNotEmpty)
+                          Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
+                          )
+                        else
+                          Text(
+                            'How buyers will see your shop',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCoverPreview() {
     if (_pendingCover != null) {
       return Stack(
@@ -1555,6 +1697,62 @@ class _VendorShopSettingsScreenState
         fontSize: 13,
         fontWeight: FontWeight.w600,
         color: AppTheme.textPrimary,
+      ),
+    );
+  }
+}
+
+class _StickySaveBar extends StatelessWidget {
+  final bool isLoading;
+  final VoidCallback? onSave;
+
+  const _StickySaveBar({required this.isLoading, required this.onSave});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+        decoration: BoxDecoration(
+          color: AppTheme.scaffoldBg,
+          border: Border(
+            top: BorderSide(color: AppTheme.sand.withValues(alpha: 0.3)),
+          ),
+        ),
+        child: SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton(
+            onPressed: onSave,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.terracotta,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: AppTheme.terracotta.withValues(
+                alpha: 0.5,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(26),
+              ),
+            ),
+            child: isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    'Save Changes',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+        ),
       ),
     );
   }

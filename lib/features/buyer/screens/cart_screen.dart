@@ -1,13 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/cart_item.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/cart_stock_guard.dart';
+import '../../../widgets/skeleton.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -20,6 +23,11 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _isGift = false;
   final _recipientController = TextEditingController();
   final _messageController = TextEditingController();
+
+  /// Ids removed optimistically (via swipe or tap) but not yet confirmed by
+  /// the server. Filtered out of the displayed list immediately so
+  /// Dismissible's item count stays in sync.
+  final Set<String> _pendingRemovalIds = {};
 
   @override
   void initState() {
@@ -37,10 +45,82 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     super.dispose();
   }
 
-  Future<void> _removeItem(String cartItemId) async {
+  /// Removes [item] immediately (optimistic) and shows a "Removed · Undo"
+  /// snackbar. Undo re-adds the same product/variant/quantity. On failure,
+  /// the item reappears and a friendly error is shown.
+  Future<void> _removeItemWithUndo(CartItem item) async {
+    HapticFeedback.lightImpact();
+    setState(() => _pendingRemovalIds.add(item.id));
     final service = ref.read(supabaseServiceProvider);
-    await service.removeCartItem(cartItemId);
-    ref.invalidate(cartItemsProvider);
+    try {
+      await service.removeCartItem(item.id);
+      ref.invalidate(cartItemsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Removed · Undo',
+              style: GoogleFonts.poppins(color: Colors.white),
+            ),
+            backgroundColor: AppTheme.textPrimary,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: AppTheme.ochre,
+              onPressed: () => _undoRemove(item),
+            ),
+          ),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _pendingRemovalIds.remove(item.id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              fallback: "Couldn't remove that item. Please try again.",
+            ),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _undoRemove(CartItem item) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+    final service = ref.read(supabaseServiceProvider);
+    try {
+      await service.addToCart(
+        userId,
+        item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+      );
+      setState(() => _pendingRemovalIds.remove(item.id));
+      ref.invalidate(cartItemsProvider);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              fallback: "Couldn't bring that item back. Please try again.",
+            ),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _updateQuantity(String cartItemId, int newQty) async {
@@ -69,41 +149,93 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   @override
   Widget build(BuildContext context) {
     final cartItems = ref.watch(cartItemsProvider);
+    final canPop = context.canPop();
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       body: cartItems.when(
         data: (items) {
-          if (items.isEmpty) return _buildEmptyState(context);
-          return _buildCartContent(context, items);
+          final visibleItems = items
+              .where((i) => !_pendingRemovalIds.contains(i.id))
+              .toList(growable: false);
+          if (visibleItems.isEmpty) {
+            return RefreshIndicator(
+              color: AppTheme.terracotta,
+              onRefresh: () => ref.refresh(cartItemsProvider.future),
+              child: _buildEmptyState(context, canPop: canPop),
+            );
+          }
+          return _buildCartContent(context, visibleItems, canPop: canPop);
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            color: AppTheme.terracotta,
-            strokeWidth: 2,
-          ),
+        loading: () => Column(
+          children: [
+            if (canPop) _buildBackRow(context),
+            Expanded(child: _buildLoadingSkeleton(canPop: canPop)),
+          ],
         ),
-        error: (error, _) => Center(child: Text('Error: $error')),
+        error: (error, _) => Column(
+          children: [
+            if (canPop) _buildBackRow(context),
+            Expanded(
+              child: ErrorRetryView(
+                error: error,
+                title: "Couldn't load your basket",
+                onRetry: () => ref.invalidate(cartItemsProvider),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Back Row (shown only when this screen was pushed) ────────────
+  Widget _buildBackRow(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: _BackButton(onTap: () => context.pop()),
+        ),
       ),
     );
   }
 
   // ── Header ──────────────────────────────────────────────────────
-  Widget _buildHeader() {
+  Widget _buildHeader({bool canPop = false}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (canPop) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _BackButton(onTap: () => context.pop()),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
-            'Your Basket',
+            'YOUR BASKET',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.3,
+              color: AppTheme.terracotta,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Ready to check out',
             style: GoogleFonts.playfairDisplay(
-              fontSize: 32,
+              fontSize: 28,
               fontWeight: FontWeight.w700,
               color: AppTheme.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             'Handcrafted items awaiting checkout',
             style: GoogleFonts.poppins(
@@ -116,75 +248,146 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     );
   }
 
-  // ── Empty State ─────────────────────────────────────────────────
-  Widget _buildEmptyState(BuildContext context) {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+  // ── Loading skeleton ───────────────────────────────────────────
+  Widget _buildLoadingSkeleton({bool canPop = false}) {
+    return Skeleton(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        children: [
+          SkeletonBox(width: 140, height: 12, radius: 6),
+          const SizedBox(height: 12),
+          SkeletonBox(width: 200, height: 26, radius: 8),
+          const SizedBox(height: 24),
+          for (int i = 0; i < 3; i++) ...[
             Container(
-              width: 80,
-              height: 80,
+              height: 112,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppTheme.bone.withValues(alpha: 0.5),
-                shape: BoxShape.circle,
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.shopping_bag_outlined,
-                  size: 32,
-                  color: AppTheme.textHint,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Your Basket is Empty',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Add handcrafted items to get started',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                color: AppTheme.textSecondary,
+              child: Row(
+                children: [
+                  SkeletonBox(width: 80, height: 80, radius: 12),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SkeletonBox(width: double.infinity, height: 16),
+                        const SizedBox(height: 10),
+                        SkeletonBox(width: 100, height: 12),
+                        const Spacer(),
+                        SkeletonBox(width: 60, height: 14),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 32),
-            OutlinedButton(
-              onPressed: () => context.go('/home'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.terracotta,
-                side: const BorderSide(color: AppTheme.terracotta),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 32,
-                  vertical: 16,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                'Start Shopping',
-                style: GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            const SizedBox(height: 16),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+
+  // ── Empty State ─────────────────────────────────────────────────
+  Widget _buildEmptyState(BuildContext context, {bool canPop = false}) {
+    return SafeArea(
+      child: Column(
+        children: [
+          if (canPop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: _BackButton(onTap: () => context.pop()),
+              ),
+            ),
+          Expanded(
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              children: [
+                SizedBox(height: MediaQuery.of(context).size.height * 0.12),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppTheme.bone.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 32,
+                          color: AppTheme.textHint,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Your Basket is Empty',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Add handcrafted items to get started',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    OutlinedButton(
+                      onPressed: () => context.go('/home'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.terracotta,
+                        side: const BorderSide(color: AppTheme.terracotta),
+                        minimumSize: const Size(0, 48),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 32,
+                          vertical: 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26),
+                        ),
+                      ),
+                      child: Text(
+                        'Start Shopping',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   // ── Cart Content ────────────────────────────────────────────────
-  Widget _buildCartContent(BuildContext context, List<CartItem> items) {
+  Widget _buildCartContent(
+    BuildContext context,
+    List<CartItem> items, {
+    bool canPop = false,
+  }) {
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
     final giftFee = giftFeeForSelection(isGift: _isGift);
     final expiringSoonCount = items.where((i) => i.isExpiringSoon).length;
@@ -196,15 +399,22 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           if (expiringSoonCount > 0)
             _buildExpiryWarningBanner(expiringSoonCount),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.only(bottom: 24),
-              itemCount: items.length + 2, // +1 header, +1 gift card
-              separatorBuilder: (_, __) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                if (index == 0) return _buildHeader();
-                if (index == items.length + 1) return _buildGiftCard();
-                return _buildCartItem(items[index - 1]);
-              },
+            child: RefreshIndicator(
+              color: AppTheme.terracotta,
+              onRefresh: () => ref.refresh(cartItemsProvider.future),
+              child: ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
+                padding: const EdgeInsets.only(bottom: 24),
+                itemCount: items.length + 2, // +1 header, +1 gift card
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  if (index == 0) return _buildHeader(canPop: canPop);
+                  if (index == items.length + 1) return _buildGiftCard();
+                  return _buildCartItem(items[index - 1]);
+                },
+              ),
             ),
           ),
           _buildSummaryBar(context, subtotal, giftFee),
@@ -251,163 +461,186 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-          border: Border.all(color: borderColor),
+      child: Dismissible(
+        key: ValueKey('cart-item-${item.id}'),
+        direction: DismissDirection.endToStart,
+        background: Container(
+          margin: const EdgeInsets.only(bottom: 0),
+          decoration: BoxDecoration(
+            color: AppTheme.error,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
         ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 80,
-                height: 80,
-                child: CachedNetworkImage(
-                  imageUrl: item.displayImage,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(color: AppTheme.bone),
-                  errorWidget: (_, __, ___) => Container(color: AppTheme.bone),
+        onDismissed: (_) => _removeItemWithUndo(item),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppTheme.cardBg,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+            border: Border.all(color: borderColor),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CachedNetworkImage(
+                    imageUrl: item.displayImage,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(color: AppTheme.bone),
+                    errorWidget: (_, __, ___) =>
+                        Container(color: AppTheme.bone),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product?.title ?? 'Product',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 16,
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            product?.title ?? 'Product',
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textPrimary,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Semantics(
+                          button: true,
+                          label:
+                              'Remove ${product?.title ?? 'item'} from basket',
+                          child: InkResponse(
+                            onTap: () => _removeItemWithUndo(item),
+                            radius: 22,
+                            child: const SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 18,
+                                color: AppTheme.textHint,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      product?.shopName ?? '',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
+                    if (item.variantName != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Option: ${item.variantName}',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    _ExpiryChip(item: item),
+                    const SizedBox(height: 8),
+                    if (hasReachedStockLimit) ...[
+                      Text(
+                        stockLimitMessage(availableStock),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.ochre,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'R${((item.variant?.price ?? product?.price) ?? 0).toStringAsFixed(0)}',
+                          style: GoogleFonts.poppins(
+                            fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                      GestureDetector(
-                        onTap: () => _removeItem(item.id),
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 8, bottom: 8),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: AppTheme.textHint,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    product?.shopName ?? '',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppTheme.textHint,
-                    ),
-                  ),
-                  if (item.variantName != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Option: ${item.variantName}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  _ExpiryChip(item: item),
-                  const SizedBox(height: 8),
-                  if (hasReachedStockLimit) ...[
-                    Text(
-                      stockLimitMessage(availableStock),
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.ochre,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'R${((item.variant?.price ?? product?.price) ?? 0).toStringAsFixed(0)}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.scaffoldBg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _StepperButton(
-                              icon: Icons.remove_rounded,
-                              onTap: item.quantity > 1
-                                  ? () => _updateQuantity(
-                                      item.id,
-                                      item.quantity - 1,
-                                    )
-                                  : null,
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppTheme.scaffoldBg,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: AppTheme.sand.withValues(alpha: 0.5),
                             ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _StepperButton(
+                                icon: Icons.remove_rounded,
+                                onTap: item.quantity > 1
+                                    ? () => _updateQuantity(
+                                        item.id,
+                                        item.quantity - 1,
+                                      )
+                                    : null,
                               ),
-                              child: Text(
-                                '${item.quantity}',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Text(
+                                  '${item.quantity}',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                            _StepperButton(
-                              icon: Icons.add_rounded,
-                              onTap: canIncreaseCartItemQuantity(item)
-                                  ? () => _updateQuantity(
-                                      item.id,
-                                      item.quantity + 1,
-                                    )
-                                  : null,
-                            ),
-                          ],
+                              _StepperButton(
+                                icon: Icons.add_rounded,
+                                onTap: canIncreaseCartItemQuantity(item)
+                                    ? () => _updateQuantity(
+                                        item.id,
+                                        item.quantity + 1,
+                                      )
+                                    : null,
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -421,8 +654,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: AppTheme.cardBg,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: _isGift
                 ? AppTheme.terracotta.withValues(alpha: 0.4)
@@ -430,9 +663,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
@@ -637,16 +870,23 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   }
 
   // ── Bottom Summary Bar ──────────────────────────────────────────
-  Widget _buildSummaryBar(BuildContext context, double subtotal, double giftFee) {
+  Widget _buildSummaryBar(
+    BuildContext context,
+    double subtotal,
+    double giftFee,
+  ) {
     final total = subtotal + giftFee;
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.cardBg,
+        border: Border(
+          top: BorderSide(color: AppTheme.sand.withValues(alpha: 0.35)),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
+            blurRadius: 15,
             offset: const Offset(0, -4),
           ),
         ],
@@ -743,43 +983,28 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 ],
               ),
             ],
-            const SizedBox(height: 24),
-            // Gradient checkout button
+            const SizedBox(height: 20),
+            // Primary pill checkout button
             SizedBox(
               width: double.infinity,
-              height: 56,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                    colors: [AppTheme.terracotta, AppTheme.baobab],
+              height: 52,
+              child: ElevatedButton(
+                onPressed: () => context.push('/cart/checkout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.terracotta,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(26),
                   ),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.terracotta.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
                 ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => context.push('/cart/checkout'),
-                    borderRadius: BorderRadius.circular(16),
-                    child: Center(
-                      child: Text(
-                        'Proceed to Checkout',
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
+                child: Text(
+                  'Proceed to Checkout · R${total.toStringAsFixed(0)}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),
@@ -838,6 +1063,46 @@ class _ExpiryChip extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Back Button ──────────────────────────────────────────────────
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Back',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.arrow_back_rounded,
+            size: 20,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+      ),
     );
   }
 }

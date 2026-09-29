@@ -78,4 +78,48 @@ void main() {
       expect(order.pickupPointSummary, contains('2Acre Hardware'));
     },
   );
+
+  test(
+    'Order parser tolerates a buyer embed limited to display_name only '
+    '(column-level privacy on profiles)',
+    () {
+      final order = Order.fromJson({
+        'id': '12345678-1234-1234-1234-123456789abc',
+        'buyer_id': 'buyer-1',
+        'shop_id': 'shop-1',
+        'status': 'paid',
+        'total': 100,
+        'shipping_cost': 0,
+        'shipping_method': null,
+        'shipping_address': null,
+        'payment_state': 'paid',
+        'is_gift': false,
+        'created_at': '2026-05-14T08:00:00.000Z',
+        'updated_at': '2026-05-14T08:00:00.000Z',
+        'shops': null,
+        'buyer': {'display_name': 'Jane Buyer'},
+        'order_items': const [],
+      });
+
+      expect(order.buyerDisplayName, 'Jane Buyer');
+      expect(order.buyerEmail, isNull);
+      expect(order.buyerPhone, isNull);
+    },
+  );
+
+  test('OrderBuyerContact parses the RPC row shape', () {
+    final contact = OrderBuyerContact.fromJson({
+      'order_id': 'order-1',
+      'buyer_id': 'buyer-1',
+      'display_name': 'Jane Buyer',
+      'email': 'jane@example.com',
+      'phone': '0821234567',
+    });
+
+    expect(contact.orderId, 'order-1');
+    expect(contact.buyerId, 'buyer-1');
+    expect(contact.displayName, 'Jane Buyer');
+    expect(contact.email, 'jane@example.com');
+    expect(contact.phone, '0821234567');
+  });
 }

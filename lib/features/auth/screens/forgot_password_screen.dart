@@ -8,7 +8,9 @@ import '../utils/forgot_password_validation.dart';
 import '../../../widgets/gradient_button.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
-  const ForgotPasswordScreen({super.key});
+  const ForgotPasswordScreen({super.key, this.sendReset});
+
+  final Future<void> Function(String email)? sendReset;
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -28,38 +30,33 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _resetPassword() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_isLoading || !_formKey.currentState!.validate()) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
     try {
       final email = normalizeForgotPasswordEmail(_emailController.text);
-      final profileRows = await Supabase.instance.client
-          .from('profiles')
-          .select('id')
-          .ilike('email', email)
-          .limit(1);
-      final profileRow = profileRows is List && profileRows.isNotEmpty
-          ? profileRows.first
-          : null;
-
-      if (!isRegisteredEmailLookupResult(profileRow)) {
-        if (mounted) {
-          setState(() => _errorMessage = forgotPasswordEmailNotFoundMessage);
-        }
-        return;
+      // Auth handles recovery without exposing the profile directory to guests.
+      // RLS-protected profiles must never determine whether recovery is sent.
+      if (widget.sendReset != null) {
+        await widget.sendReset!(email);
+      } else {
+        await Supabase.instance.client.auth.resetPasswordForEmail(
+          email,
+          redirectTo: AppConstants.authRedirectUrl,
+        );
       }
-
-      await Supabase.instance.client.auth.resetPasswordForEmail(
-        email,
-        redirectTo: AppConstants.authRedirectUrl,
-      );
       if (mounted) setState(() => _emailSent = true);
     } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+      if (mounted) setState(() => _errorMessage = e.message);
     } catch (_) {
-      setState(() => _errorMessage = 'An unexpected error occurred');
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'Could not request a reset link. Please try again.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -88,7 +85,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppTheme.sand),
                     ),
-                    child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16, color: AppTheme.textPrimary),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -131,14 +132,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     decoration: BoxDecoration(
                       color: AppTheme.baobab.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.baobab.withValues(alpha: 0.3)),
+                      border: Border.all(
+                        color: AppTheme.baobab.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.mark_email_read_outlined, size: 48, color: AppTheme.baobab),
+                        const Icon(
+                          Icons.mark_email_read_outlined,
+                          size: 48,
+                          color: AppTheme.baobab,
+                        ),
                         const SizedBox(height: 16),
                         Text(
-                          'Email Sent!',
+                          'Check your email',
                           style: GoogleFonts.playfairDisplay(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
@@ -147,9 +154,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'We\'ve sent a password reset link to ${_emailController.text.trim()}',
+                          'If an account exists for ${_emailController.text.trim()}, you will receive a password reset link.',
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textSecondary),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppTheme.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -157,23 +167,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   const SizedBox(height: 32),
                   GradientButton(
                     label: 'Back to Sign In',
+                    borderRadius: 28,
                     onPressed: () => context.go('/login'),
                   ),
                 ] else ...[
                   if (_errorMessage != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppTheme.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
-                      ),
-                      child: Text(
-                        _errorMessage!,
-                        style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
-                      ),
-                    ),
+                    _ErrorBanner(message: _errorMessage!),
                     const SizedBox(height: 20),
                   ],
                   Text(
@@ -191,18 +190,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _resetPassword(),
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Email is required';
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Email is required';
+                      }
                       if (!v.contains('@')) return 'Enter a valid email';
                       return null;
                     },
                     decoration: const InputDecoration(
                       hintText: 'you@example.com',
-                      prefixIcon: Icon(Icons.email_outlined, color: AppTheme.textHint),
+                      prefixIcon: Icon(
+                        Icons.email_outlined,
+                        color: AppTheme.textHint,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 32),
                   GradientButton(
                     label: 'Send Reset Link',
+                    borderRadius: 28,
                     isLoading: _isLoading,
                     onPressed: _isLoading ? null : _resetPassword,
                   ),
@@ -211,6 +216,43 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Calm, warm error banner used across the auth screens.
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: AppTheme.error,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/gradient_fab.dart';
+import '../../../widgets/skeleton.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
 
@@ -76,6 +77,7 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
@@ -148,8 +150,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
                     const SizedBox(height: 8),
                     GradientButton(
                       label: 'Save Address',
-                      verticalPadding: 16,
-                      borderRadius: 14,
+                      verticalPadding: 14,
+                      borderRadius: 26,
                       fontSize: 15,
                       onPressed: () {
                         if (!formKey.currentState!.validate()) {
@@ -393,10 +395,20 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         onTap: () => _showAddressSheet(),
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: AppTheme.terracotta,
-                strokeWidth: 2,
+          ? Skeleton(
+              child: ListView(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                children: [
+                  for (int i = 0; i < 3; i++) ...[
+                    SkeletonBox(
+                      width: double.infinity,
+                      height: 130,
+                      radius: 20,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ],
               ),
             )
           : _addresses.isEmpty
@@ -462,8 +474,8 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDefault
               ? AppTheme.terracotta.withValues(alpha: 0.3)
@@ -471,9 +483,9 @@ class _SavedAddressesScreenState extends ConsumerState<SavedAddressesScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
           ),
         ],
       ),

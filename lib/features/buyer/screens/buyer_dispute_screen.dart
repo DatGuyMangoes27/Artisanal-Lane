@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../chat/utils/live_chat_messages.dart';
 import '../../chat/widgets/chat_widgets.dart';
@@ -330,15 +331,13 @@ class _BuyerDisputeScreenState extends ConsumerState<BuyerDisputeScreen> {
       return Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
         appBar: AppBar(backgroundColor: AppTheme.scaffoldBg),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Could not load this dispute.\n$disputeError',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(color: AppTheme.textSecondary),
-            ),
-          ),
+        body: ErrorRetryView(
+          error: disputeError,
+          title: "Couldn't load this dispute",
+          onRetry: () {
+            ref.invalidate(buyerActiveDisputeStreamProvider(widget.orderId));
+            ref.invalidate(buyerActiveDisputeProvider(widget.orderId));
+          },
         ),
       );
     }

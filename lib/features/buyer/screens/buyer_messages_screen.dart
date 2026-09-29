@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
+import '../../../widgets/skeleton.dart';
 import '../../chat/widgets/chat_widgets.dart';
 import '../providers/buyer_providers.dart';
 
@@ -40,17 +42,52 @@ class BuyerMessagesScreen extends ConsumerWidget {
           },
           onTap: (thread) => context.push('/profile/messages/${thread.id}'),
         ),
-        loading: () => const Center(
-          child: CircularProgressIndicator(color: AppTheme.terracotta),
+        loading: () => const _InboxSkeleton(),
+        error: (error, _) => ErrorRetryView(
+          error: error,
+          title: "Couldn't load your conversations",
+          onRetry: () {
+            ref.invalidate(buyerThreadsProvider);
+            ref.invalidate(buyerThreadsStreamProvider);
+          },
         ),
-        error: (error, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Could not load your conversations.\n$error',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(color: AppTheme.textSecondary),
-            ),
+      ),
+    );
+  }
+}
+
+class _InboxSkeleton extends StatelessWidget {
+  const _InboxSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      itemCount: 6,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, __) => Skeleton(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              const SkeletonBox(width: 48, height: 48, circle: true),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SkeletonBox(width: 120, height: 14),
+                    const SizedBox(height: 8),
+                    SkeletonBox(width: double.infinity, height: 12),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

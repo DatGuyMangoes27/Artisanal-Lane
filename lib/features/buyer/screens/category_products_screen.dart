@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../../widgets/african_patterns.dart';
-import '../../../widgets/product_card.dart';
+import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/product_sorting.dart';
+import '../widgets/shop_product_tile.dart';
 
 class CategoryProductsScreen extends ConsumerStatefulWidget {
   final String categoryId;
@@ -88,7 +90,7 @@ class _CategoryProductsScreenState
               ),
             ),
 
-            // Product grid
+            // Product grid — same two-column ShopProductTile layout as Shop.
             productsAsync.when(
               data: (items) {
                 final filteredItems = filterProductsForDisplay(
@@ -105,43 +107,53 @@ class _CategoryProductsScreenState
                     ? SliverFillRemaining(child: _buildEmptyState())
                     : SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 16,
-                                crossAxisSpacing: 16,
-                                childAspectRatio: 0.65,
+                        sliver: SliverLayoutBuilder(
+                          builder: (context, constraints) {
+                            final width =
+                                (constraints.crossAxisExtent - 14) / 2;
+                            return SliverGrid.builder(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisExtent:
+                                        width / .9 +
+                                        shopProductDetailsHeight(
+                                          MediaQuery.textScalerOf(context),
+                                        ),
+                                    mainAxisSpacing: 18,
+                                    crossAxisSpacing: 14,
+                                  ),
+                              itemCount: sortedItems.length,
+                              itemBuilder: (context, index) => ShopProductTile(
+                                key: ValueKey(sortedItems[index].id),
+                                product: sortedItems[index],
                               ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) =>
-                                ProductCard(product: sortedItems[index]),
-                            childCount: sortedItems.length,
-                          ),
+                            );
+                          },
                         ),
                       );
               },
-              loading: () => const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.terracotta,
-                    strokeWidth: 3,
+              loading: () => SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 18,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 0.65,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) =>
+                        const Skeleton(child: SkeletonBox(radius: 16)),
+                    childCount: 6,
                   ),
                 ),
               ),
               error: (error, _) => SliverFillRemaining(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text(
-                      'Error: $error',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
+                child: ErrorRetryView(
+                  error: error,
+                  onRetry: () =>
+                      ref.invalidate(categoryProductsProvider(_filter)),
                 ),
               ),
             ),
@@ -340,6 +352,7 @@ class _CategoryProductsScreenState
 
     showModalBottomSheet(
       context: context,
+      useRootNavigator: true,
       backgroundColor: Colors.white,
       isScrollControlled: true,
       useSafeArea: true,

@@ -1,3 +1,5 @@
+import '../../../core/pricing/price_format.dart';
+
 const String productShareBaseUrl = 'https://artisanlanesa.co.za/products';
 
 String buildProductShareText({
@@ -6,7 +8,7 @@ String buildProductShareText({
   required double price,
 }) {
   final productUrl = '$productShareBaseUrl/${Uri.encodeComponent(productId)}';
-  return 'Check out $title on Artisan Lane! R${price.toStringAsFixed(0)}\n'
+  return 'Check out $title on Artisan Lane! ${formatBrowsePrice(price)}\n'
       '$productUrl';
 }
 

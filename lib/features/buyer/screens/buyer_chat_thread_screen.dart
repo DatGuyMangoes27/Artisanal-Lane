@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../chat/utils/live_chat_messages.dart';
 import '../../chat/widgets/chat_widgets.dart';
@@ -192,24 +193,21 @@ class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
           onSend: userId == null ? null : () => _sendMessage(userId, thread),
         ),
       ),
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: Center(
+        appBar: AppBar(backgroundColor: AppTheme.scaffoldBg),
+        body: const Center(
           child: CircularProgressIndicator(color: AppTheme.terracotta),
         ),
       ),
       error: (error, _) => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
         appBar: AppBar(backgroundColor: AppTheme.scaffoldBg),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Could not load this conversation.\n$error',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(color: AppTheme.textSecondary),
-            ),
-          ),
+        body: ErrorRetryView(
+          error: error,
+          title: "Couldn't load this conversation",
+          onRetry: () =>
+              ref.invalidate(buyerChatThreadProvider(widget.threadId)),
         ),
       ),
     );

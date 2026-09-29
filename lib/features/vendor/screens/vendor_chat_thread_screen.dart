@@ -177,9 +177,7 @@ class _VendorChatThreadScreenState
         final title = isAdminThread
             ? 'Artisan Lane Support'
             : (thread.buyerDisplayName ?? 'Buyer');
-        final subtitle = isAdminThread
-            ? 'Platform team'
-            : thread.shopName;
+        final subtitle = isAdminThread ? 'Platform team' : thread.shopName;
         final avatarUrl = isAdminThread ? null : thread.buyerAvatarUrl;
         final avatarFallback = isAdminThread
             ? 'A'

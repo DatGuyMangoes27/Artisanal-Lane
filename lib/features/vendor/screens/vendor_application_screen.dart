@@ -165,14 +165,23 @@ class _VendorApplicationScreenState
       backgroundColor: AppTheme.scaffoldBg,
       appBar: AppBar(
         backgroundColor: AppTheme.scaffoldBg,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => context.pop(),
         ),
         title: Text(
           'Become a Vendor',
-          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+          style: GoogleFonts.playfairDisplay(
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary,
+          ),
         ),
+        centerTitle: true,
       ),
       body: appAsync.when(
         data: (existing) {

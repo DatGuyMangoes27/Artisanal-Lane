@@ -143,55 +143,88 @@ class _VendorSubscriptionScreenState
   Future<void> _confirmAndCancelSubscription(
     VendorSubscription subscription,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final message = subscription.currentPeriodEnd != null
+        ? 'Your subscription will stay active until '
+              '${_formatDialogDate(subscription.currentPeriodEnd!)}. '
+              'PayFast will not bill you again, and after that date your '
+              'shop listings will be paused until you resubscribe.'
+        : 'PayFast will stop future billing and your shop listings will '
+              'be paused until you resubscribe.';
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Cancel subscription?',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        content: Text(
-          subscription.currentPeriodEnd != null
-              ? 'Your subscription will stay active until '
-                    '${_formatDialogDate(subscription.currentPeriodEnd!)}. '
-                    'PayFast will not bill you again, and after that date your '
-                    'shop listings will be paused until you resubscribe.'
-              : 'PayFast will stop future billing and your shop listings will '
-                    'be paused until you resubscribe.',
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: AppTheme.textSecondary,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Keep subscription',
-              style: GoogleFonts.poppins(
-                color: AppTheme.textSecondary,
-                fontWeight: FontWeight.w600,
+      useRootNavigator: true,
+      showDragHandle: true,
+      backgroundColor: AppTheme.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Cancel subscription?',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
               ),
-            ),
+              const SizedBox(height: 10),
+              Text(
+                message,
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(sheetContext).pop(true),
+                  child: Text(
+                    'Cancel subscription',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    side: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.6),
+                    ),
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(sheetContext).pop(false),
+                  child: Text(
+                    'Keep subscription',
+                    style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ],
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.error,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Cancel subscription',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
+        ),
       ),
     );
 

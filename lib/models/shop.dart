@@ -13,6 +13,7 @@ class Shop {
   final bool isActive;
   final bool isOffline;
   final bool isSpotlight;
+  final bool isVerified;
   final DateTime? backToWorkDate;
   final DateTime? spotlightedAt;
   final List<ShippingOption> shippingOptions;
@@ -38,6 +39,7 @@ class Shop {
     this.isActive = true,
     this.isOffline = false,
     this.isSpotlight = false,
+    this.isVerified = false,
     this.backToWorkDate,
     this.spotlightedAt,
     List<ShippingOption>? shippingOptions,
@@ -64,6 +66,7 @@ class Shop {
       isActive: json['is_active'] as bool? ?? true,
       isOffline: json['is_offline'] as bool? ?? false,
       isSpotlight: json['is_spotlight'] as bool? ?? false,
+      isVerified: json['is_verified'] as bool? ?? false,
       backToWorkDate: json['back_to_work_date'] != null
           ? DateTime.parse(json['back_to_work_date'] as String)
           : null,
@@ -103,4 +106,7 @@ class Shop {
     'shipping_options': shippingOptions.map((o) => o.toJson()).toList(),
     'combined_shipping_enabled': combinedShippingEnabled,
   };
+
+  /// Public @handle, derived from the shop's unique slug.
+  String get handle => '@$slug';
 }

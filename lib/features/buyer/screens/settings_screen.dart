@@ -50,56 +50,198 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showDeleteAccountDialog() {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Delete Account',
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-        content: Text(
-          'This permanently deletes your account from Artisan Lane. Your profile, saved addresses, cart, favourites, and access to the app will be removed. Historical order records may be kept without your personal profile attached.',
-          style: GoogleFonts.poppins(
-            fontSize: 14,
-            color: AppTheme.textSecondary,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: _isDeletingAccount ? null : () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.textSecondary,
+      useRootNavigator: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppTheme.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppTheme.error,
+                  size: 26,
+                ),
               ),
-            ),
-          ),
-          TextButton(
-            onPressed: _isDeletingAccount
-                ? null
-                : () async {
+              const SizedBox(height: 16),
+              Text(
+                'Delete Account',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'This permanently deletes your account from Artisan Lane. Your profile, saved addresses, cart, favourites, and access to the app will be removed. Historical order records may be kept without your personal profile attached.',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
                     Navigator.pop(ctx);
-                    await _deleteAccount();
+                    _deleteAccount();
                   },
-            child: Text(
-              'Delete Account',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.error,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  child: Text(
+                    'Delete Account',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    side: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.6),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  void _showLogOutSheet() {
+    showModalBottomSheet(
+      context: context,
+      useRootNavigator: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Log Out',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Are you sure you want to log out?',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      await Supabase.instance.client.auth.signOut();
+                    } catch (_) {}
+                    if (mounted) {
+                      GoRouter.of(context).go('/welcome');
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.error,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  child: Text(
+                    'Log Out',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.textSecondary,
+                    side: BorderSide(
+                      color: AppTheme.sand.withValues(alpha: 0.6),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -218,123 +360,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 40),
 
-              // ── Account Actions ────────────────────────────────────
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        title: Text(
-                          'Log Out',
-                          style: GoogleFonts.playfairDisplay(
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary,
-                          ),
-                        ),
-                        content: Text(
-                          'Are you sure you want to log out?',
-                          style: GoogleFonts.poppins(
-                            fontSize: 14,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: Text(
-                              'Cancel',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.pop(ctx);
-                              try {
-                                await Supabase.instance.client.auth.signOut();
-                              } catch (_) {}
-                              if (context.mounted) {
-                                GoRouter.of(context).go('/welcome');
-                              }
-                            },
-                            child: Text(
-                              'Log Out',
-                              style: GoogleFonts.poppins(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.error,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: AppTheme.error.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    backgroundColor: AppTheme.error.withValues(alpha: 0.05),
-                  ),
-                  child: Text(
-                    'Log Out',
-                    style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.error,
-                    ),
-                  ),
-                ),
-              ),
+              // ── Danger Zone ─────────────────────────────────────────
+              const _SectionTitle(title: 'Danger zone'),
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: _isDeletingAccount
-                      ? null
-                      : _showDeleteAccountDialog,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(
-                        color: AppTheme.error.withValues(alpha: 0.28),
-                      ),
+              _SettingsGroup(
+                children: [
+                  _SettingsTile(
+                    icon: Icons.logout_rounded,
+                    title: 'Log Out',
+                    titleColor: AppTheme.textPrimary,
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppTheme.textHint,
                     ),
-                    backgroundColor: Colors.white,
+                    onTap: _showLogOutSheet,
                   ),
-                  child: _isDeletingAccount
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTheme.error,
+                  _Divider(),
+                  _SettingsTile(
+                    icon: Icons.delete_outline_rounded,
+                    title: 'Delete Account',
+                    titleColor: AppTheme.error,
+                    iconColor: AppTheme.error,
+                    trailing: _isDeletingAccount
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.error,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: AppTheme.textHint,
                           ),
-                        )
-                      : Text(
-                          'Delete Account',
-                          style: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.error,
-                          ),
-                        ),
-                ),
+                    onTap: _isDeletingAccount ? null : _showDeleteAccountDialog,
+                  ),
+                ],
               ),
 
               const SizedBox(height: 40),
@@ -344,7 +408,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 16),
               Center(
                 child: Text(
-                  'Artisan Lane v1.0.0',
+                  'Artisan Lane',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppTheme.textHint,
@@ -413,12 +477,16 @@ class _SettingsTile extends StatelessWidget {
   final String title;
   final Widget? trailing;
   final VoidCallback? onTap;
+  final Color? titleColor;
+  final Color? iconColor;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
     this.trailing,
     this.onTap,
+    this.titleColor,
+    this.iconColor,
   });
 
   @override
@@ -430,7 +498,7 @@ class _SettingsTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
         child: Row(
           children: [
-            Icon(icon, size: 22, color: AppTheme.textPrimary),
+            Icon(icon, size: 22, color: iconColor ?? AppTheme.textPrimary),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
@@ -438,7 +506,7 @@ class _SettingsTile extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: AppTheme.textPrimary,
+                  color: titleColor ?? AppTheme.textPrimary,
                 ),
               ),
             ),

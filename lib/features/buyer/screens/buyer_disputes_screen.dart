@@ -5,8 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/order.dart';
 import '../../../widgets/african_patterns.dart';
+import '../../../widgets/skeleton.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
 
@@ -101,25 +103,48 @@ class BuyerDisputesScreen extends ConsumerWidget {
                     },
                   );
                 },
-                loading: () => const Center(
-                  child: CircularProgressIndicator(
-                    color: AppTheme.terracotta,
-                    strokeWidth: 2.5,
-                  ),
-                ),
-                error: (error, _) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Text(
-                      'Could not load disputes.\n$error',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(color: AppTheme.textSecondary),
-                    ),
-                  ),
+                loading: () => const _DisputesSkeleton(),
+                error: (error, _) => ErrorRetryView(
+                  error: error,
+                  title: "Couldn't load disputes",
+                  onRetry: () => ref.invalidate(ordersStreamProvider),
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisputesSkeleton extends StatelessWidget {
+  const _DisputesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+      itemCount: 3,
+      separatorBuilder: (_, __) => const SizedBox(height: 20),
+      itemBuilder: (context, __) => Skeleton(
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SkeletonBox(width: 140, height: 16),
+              const SizedBox(height: 10),
+              const SkeletonBox(width: 90, height: 12),
+              const SizedBox(height: 20),
+              SkeletonBox(width: double.infinity, height: 40, radius: 10),
+            ],
+          ),
         ),
       ),
     );

@@ -5,15 +5,24 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/feature_flags.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
+import '../widgets/creator_feed/creator_feed_post_card.dart';
 import '../widgets/review_widgets.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
+import '../../../widgets/skeleton.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
+import '../providers/creator_parity_providers.dart';
 import '../utils/shop_profile_actions.dart';
+import '../widgets/content_report_sheet.dart';
+import '../../vendor/services/creator_post_media.dart';
+import '../../../services/content_view_session.dart';
 
 class ShopProfileScreen extends ConsumerStatefulWidget {
   final String shopId;
@@ -26,6 +35,19 @@ class ShopProfileScreen extends ConsumerStatefulWidget {
 
 class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
   int _selectedTab = 0; // 0 = Products, 1 = Posts, 2 = Reviews
+  bool? _followOptimistic;
+  bool _isTogglingFollow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Best effort; recordContentView never throws for the caller.
+    Future.microtask(() async {
+      try {
+        await recordContentView(ref, 'shop', widget.shopId);
+      } catch (_) {}
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +63,11 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       shopMarketEventsProvider(widget.shopId),
     );
     final isFollowingAsync = ref.watch(isFollowingProvider(widget.shopId));
-    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final followerCount = ref
+        .watch(followerCountProvider(widget.shopId))
+        .asData
+        ?.value;
+    final currentUserId = ref.watch(currentUserIdProvider);
     final loadedReviews = reviewsAsync.value ?? const <ShopReview>[];
     ShopReview? myReview;
     if (currentUserId != null) {
@@ -54,386 +80,405 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     }
 
     return shopAsync.when(
-      data: (shop) => Scaffold(
-        backgroundColor: AppTheme.scaffoldBg, // White
-        body: Stack(
-          children: [
-            // ── Main scrollable content ──────────────────────
-            RefreshIndicator(
-              color: AppTheme.terracotta,
-              onRefresh: () async {
-                ref.invalidate(shopDetailProvider(widget.shopId));
-                ref.invalidate(shopProductsProvider(widget.shopId));
-                ref.invalidate(shopPostsProvider(widget.shopId));
-                ref.invalidate(shopReviewsProvider(widget.shopId));
-                ref.invalidate(shopReviewSummaryProvider(widget.shopId));
-                ref.invalidate(canReviewShopProvider(widget.shopId));
-                ref.invalidate(shopMarketEventsProvider(widget.shopId));
-                ref.invalidate(isFollowingProvider(widget.shopId));
-              },
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(
-                  parent: AlwaysScrollableScrollPhysics(),
-                ),
-                slivers: [
-                  // Hero
-                  SliverToBoxAdapter(
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        _ShopHero(shop: shop),
-                        Positioned(
-                          left: 20,
-                          right: 20,
-                          bottom: -60,
-                          child: _MakerIdentityCard(
-                            shop: shop,
-                            isFollowing:
-                                isFollowingAsync.asData?.value ?? false,
-                            onFollowToggle: () => _toggleFollow(
-                              isFollowingAsync.asData?.value ?? false,
-                            ),
-                            onMessageTap: () => _contactArtisan(shop),
-                          ),
-                        ),
-                      ],
-                    ),
+      data: (shop) {
+        final isOwnShop =
+            currentUserId != null && currentUserId == shop.vendorId;
+        return Scaffold(
+          backgroundColor: AppTheme.scaffoldBg, // White
+          body: Stack(
+            children: [
+              // ── Main scrollable content ──────────────────────
+              RefreshIndicator(
+                color: AppTheme.terracotta,
+                onRefresh: () async {
+                  ref.invalidate(shopDetailProvider(widget.shopId));
+                  ref.invalidate(shopProductsProvider(widget.shopId));
+                  ref.invalidate(shopPostsProvider(widget.shopId));
+                  ref.invalidate(shopReviewsProvider(widget.shopId));
+                  ref.invalidate(shopReviewSummaryProvider(widget.shopId));
+                  ref.invalidate(canReviewShopProvider(widget.shopId));
+                  ref.invalidate(shopMarketEventsProvider(widget.shopId));
+                  ref.invalidate(isFollowingProvider(widget.shopId));
+                },
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics(),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 84)),
-
-                  // Offline banner
-                  if (shop.isOffline)
-                    SliverToBoxAdapter(child: _OfflineBanner(shop: shop)),
-
-                  // Story
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _ShopStoryCard(shop: shop),
-                    ),
-                  ),
-
-                  SliverToBoxAdapter(
-                    child: marketEventsAsync.when(
-                      data: (events) {
-                        if (events.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                          child: _UpcomingMarketsCard(events: events),
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
-
-                  // Tab selector: Products / Posts
-                  SliverToBoxAdapter(
-                    child: _TabSelector(
-                      selectedIndex: _selectedTab,
-                      onChanged: (i) => setState(() => _selectedTab = i),
-                    ),
-                  ),
-
-                  // ── Products tab content ──────────────────
-                  if (_selectedTab == 0) ...[
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  slivers: [
+                    // Hero
                     SliverToBoxAdapter(
-                      child: _ShopSectionHeader(
-                        title: 'Collection',
-                        subtitle: 'All available works',
-                        trailing: Text(
-                          'Latest',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.terracotta,
-                            fontWeight: FontWeight.w600,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _ShopHero(shop: shop),
+                          Positioned(
+                            left: 20,
+                            right: 20,
+                            bottom: -60,
+                            child: _MakerIdentityCard(
+                              shop: shop,
+                              followerCount: followerCount,
+                              postsCount: postsAsync.asData?.value.length,
+                              productsCount: productsAsync.asData?.value.length,
+                              isFollowing:
+                                  _followOptimistic ??
+                                  (isFollowingAsync.asData?.value ?? false),
+                              onFollowToggle: () => _toggleFollow(
+                                _followOptimistic ??
+                                    (isFollowingAsync.asData?.value ?? false),
+                              ),
+                              onMessageTap: () => _contactArtisan(shop),
+                              isOwnShop: isOwnShop,
+                              onInsightsTap: () =>
+                                  context.push('/vendor/insights'),
+                              onEditShopTap: () =>
+                                  context.push('/vendor/profile/shop'),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                    productsAsync.when(
-                      data: (products) {
-                        if (products.isEmpty) {
-                          return const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
-                              child: _EmptyCollection(
-                                message:
-                                    'This maker has not listed products yet.',
-                              ),
-                            ),
-                          );
-                        }
-                        return SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                          sliver: SliverGrid(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) => ProductCard(
-                                product: products[index],
-                                showShopName: false,
-                              ),
-                              childCount: products.length,
-                            ),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 16,
-                                  crossAxisSpacing: 16,
-                                  childAspectRatio: 0.65,
-                                ),
-                          ),
-                        );
-                      },
-                      loading: () => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 30),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      ),
-                      error: (e, _) => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: _InlineError(
-                            message: 'Could not load products right now.',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 84)),
 
-                  // ── Posts tab content ─────────────────────
-                  if (_selectedTab == 1) ...[
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
-                    postsAsync.when(
-                      data: (posts) {
-                        if (posts.isEmpty) {
-                          return const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(20, 24, 20, 32),
-                              child: _EmptyCollection(
-                                message:
-                                    'This maker hasn\'t shared any updates yet.\nCheck back soon!',
-                              ),
-                            ),
-                          );
-                        }
-                        return SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) => Padding(
-                                padding: const EdgeInsets.only(bottom: 20),
-                                child: _PostCard(
-                                  post: posts[index],
-                                  shop: shop,
-                                ),
-                              ),
-                              childCount: posts.length,
-                            ),
-                          ),
-                        );
-                      },
-                      loading: () => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 30),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      ),
-                      error: (e, _) => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: _InlineError(
-                            message: 'Could not load posts right now.',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                    // Offline banner
+                    if (shop.isOffline)
+                      SliverToBoxAdapter(child: _OfflineBanner(shop: shop)),
 
-                  if (_selectedTab == 2) ...[
-                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                    // Story
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const _ShopSectionHeader(
-                              title: 'Reviews',
-                              subtitle: 'What buyers are saying',
-                            ),
-                            reviewSummaryAsync.when(
-                              data: (summary) => ReviewSummaryCard(
-                                summary: summary,
-                                emptyLabel: 'No reviews yet',
-                              ),
-                              loading: () => const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24),
-                                child: Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                              ),
-                              error: (_, __) => const SizedBox.shrink(),
-                            ),
-                            const SizedBox(height: 16),
-                            if (currentUserId == null)
-                              _ReviewActionCard(
-                                title: 'Sign in to leave a review',
-                                subtitle:
-                                    'Delivered orders unlock buyer reviews for this shop.',
-                                buttonLabel: 'Sign In To Review',
-                                onTap: () => _openShopReviewSheet(shop),
-                              )
-                            else if (myReview != null ||
-                                (canReviewAsync.value ?? false))
-                              _ReviewActionCard(
-                                title: myReview != null
-                                    ? 'Update your review'
-                                    : 'Share your experience',
-                                subtitle: myReview != null
-                                    ? 'You can update your thoughts anytime.'
-                                    : 'Tell other buyers about the quality, service, and packaging.',
-                                buttonLabel: myReview != null
-                                    ? 'Edit Review'
-                                    : 'Write Review',
-                                onTap: () => _openShopReviewSheet(
-                                  shop,
-                                  existingReview: myReview,
-                                ),
-                              )
-                            else if (canReviewAsync.isLoading)
-                              const SizedBox.shrink()
-                            else
-                              const _ReviewStatusNote(
-                                message:
-                                    'Reviews unlock after a delivered or completed order from this shop.',
-                              ),
-                            const SizedBox(height: 20),
-                          ],
-                        ),
+                        child: _ShopStoryCard(shop: shop),
                       ),
                     ),
-                    reviewsAsync.when(
-                      data: (reviews) {
-                        if (reviews.isEmpty) {
-                          return const SliverToBoxAdapter(
-                            child: Padding(
-                              padding: EdgeInsets.fromLTRB(20, 0, 20, 32),
-                              child: EmptyReviewsCard(
-                                title: 'No reviews yet',
-                                subtitle:
-                                    'Once buyers receive their orders, their reviews will appear here.',
+
+                    SliverToBoxAdapter(
+                      child: marketEventsAsync.when(
+                        data: (events) {
+                          if (events.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+                            child: _UpcomingMarketsCard(events: events),
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                    ),
+
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                    // Tab selector: Products / Posts
+                    SliverToBoxAdapter(
+                      child: _TabSelector(
+                        selectedIndex: _selectedTab,
+                        onChanged: (i) => setState(() => _selectedTab = i),
+                      ),
+                    ),
+
+                    // ── Products tab content ──────────────────
+                    if (_selectedTab == 0) ...[
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      SliverToBoxAdapter(
+                        child: _ShopSectionHeader(
+                          title: 'Collection',
+                          subtitle: 'All available works',
+                          trailing: Text(
+                            'Latest',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.terracotta,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                      productsAsync.when(
+                        data: (products) {
+                          if (products.isEmpty) {
+                            return const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
+                                child: _EmptyCollection(
+                                  message:
+                                      'This maker has not listed products yet.',
+                                ),
                               ),
+                            );
+                          }
+                          return SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                            sliver: SliverGrid(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) => ProductCard(
+                                  product: products[index],
+                                  showShopName: false,
+                                ),
+                                childCount: products.length,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 16,
+                                    crossAxisSpacing: 16,
+                                    childAspectRatio: 0.65,
+                                  ),
                             ),
                           );
-                        }
-
-                        return SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                          sliver: SliverList(
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) => Padding(
-                                padding: const EdgeInsets.only(bottom: 14),
-                                child: BuyerReviewCard(
-                                  avatarUrl: reviews[index].buyerAvatarUrl,
-                                  authorName:
-                                      reviews[index].buyerDisplayName ??
-                                      'Verified buyer',
-                                  rating: reviews[index].rating,
-                                  reviewText: reviews[index].reviewText,
-                                  createdAt: reviews[index].createdAt,
-                                ),
+                        },
+                        loading: () => const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 30),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        ),
+                        error: (e, _) => SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: _InlineError(
+                              message: 'Could not load products right now.',
+                              onRetry: () => ref.invalidate(
+                                shopProductsProvider(widget.shopId),
                               ),
-                              childCount: reviews.length,
                             ),
-                          ),
-                        );
-                      },
-                      loading: () => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 30),
-                          child: Center(child: CircularProgressIndicator()),
-                        ),
-                      ),
-                      error: (e, _) => const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: _InlineError(
-                            message: 'Could not load reviews right now.',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.only(bottom: 40),
-                      child: Center(child: TripleDot()),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ── Floating top bar ─────────────────────────────
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                  child: Row(
-                    children: [
-                      _HeroIconButton(
-                        icon: Icons.arrow_back_rounded,
-                        onTap: () => context.pop(),
-                      ),
-                      const Spacer(),
-                      _HeroIconButton(
-                        icon: Icons.share_outlined,
-                        onTap: () => Share.share(
-                          buildShopShareText(
-                            shopId: shop.id,
-                            shopName: shop.name,
                           ),
                         ),
                       ),
                     ],
+
+                    // ── Posts tab content ─────────────────────
+                    if (_selectedTab == 1) ...[
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      postsAsync.when(
+                        data: (posts) {
+                          if (posts.isEmpty) {
+                            return const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(20, 24, 20, 32),
+                                child: _EmptyCollection(
+                                  message:
+                                      'This maker hasn\'t shared any updates yet.\nCheck back soon!',
+                                ),
+                              ),
+                            );
+                          }
+                          return SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                            sliver: SliverGrid(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) => _PostGridTile(
+                                  post: posts[index],
+                                  onTap: () => _openPost(posts[index], shop),
+                                ),
+                                childCount: posts.length,
+                              ),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 3,
+                                    mainAxisSpacing: 4,
+                                    crossAxisSpacing: 4,
+                                    childAspectRatio: 1,
+                                  ),
+                            ),
+                          );
+                        },
+                        loading: () => const SliverPadding(
+                          padding: EdgeInsets.fromLTRB(20, 0, 20, 32),
+                          sliver: _PostsGridSkeleton(),
+                        ),
+                        error: (e, _) => SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: _InlineError(
+                              message: 'Could not load posts right now.',
+                              onRetry: () => ref.invalidate(
+                                shopPostsProvider(widget.shopId),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    if (_selectedTab == 2) ...[
+                      const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const _ShopSectionHeader(
+                                title: 'Reviews',
+                                subtitle: 'What buyers are saying',
+                              ),
+                              reviewSummaryAsync.when(
+                                data: (summary) => ReviewSummaryCard(
+                                  summary: summary,
+                                  emptyLabel: 'No reviews yet',
+                                ),
+                                loading: () => const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 24),
+                                  child: Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                                error: (_, __) => const SizedBox.shrink(),
+                              ),
+                              const SizedBox(height: 16),
+                              if (currentUserId == null)
+                                _ReviewActionCard(
+                                  title: 'Sign in to leave a review',
+                                  subtitle:
+                                      'Delivered orders unlock buyer reviews for this shop.',
+                                  buttonLabel: 'Sign In To Review',
+                                  onTap: () => _openShopReviewSheet(shop),
+                                )
+                              else if (myReview != null ||
+                                  (canReviewAsync.value ?? false))
+                                _ReviewActionCard(
+                                  title: myReview != null
+                                      ? 'Update your review'
+                                      : 'Share your experience',
+                                  subtitle: myReview != null
+                                      ? 'You can update your thoughts anytime.'
+                                      : 'Tell other buyers about the quality, service, and packaging.',
+                                  buttonLabel: myReview != null
+                                      ? 'Edit Review'
+                                      : 'Write Review',
+                                  onTap: () => _openShopReviewSheet(
+                                    shop,
+                                    existingReview: myReview,
+                                  ),
+                                )
+                              else if (canReviewAsync.isLoading)
+                                const SizedBox.shrink()
+                              else
+                                const _ReviewStatusNote(
+                                  message:
+                                      'Reviews unlock after a delivered or completed order from this shop.',
+                                ),
+                              const SizedBox(height: 20),
+                            ],
+                          ),
+                        ),
+                      ),
+                      reviewsAsync.when(
+                        data: (reviews) {
+                          if (reviews.isEmpty) {
+                            return const SliverToBoxAdapter(
+                              child: Padding(
+                                padding: EdgeInsets.fromLTRB(20, 0, 20, 32),
+                                child: EmptyReviewsCard(
+                                  title: 'No reviews yet',
+                                  subtitle:
+                                      'Once buyers receive their orders, their reviews will appear here.',
+                                ),
+                              ),
+                            );
+                          }
+
+                          return SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 14),
+                                  child: BuyerReviewCard(
+                                    avatarUrl: reviews[index].buyerAvatarUrl,
+                                    authorName:
+                                        reviews[index].buyerDisplayName ??
+                                        'Verified buyer',
+                                    rating: reviews[index].rating,
+                                    reviewText: reviews[index].reviewText,
+                                    createdAt: reviews[index].createdAt,
+                                  ),
+                                ),
+                                childCount: reviews.length,
+                              ),
+                            ),
+                          );
+                        },
+                        loading: () => const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 30),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        ),
+                        error: (e, _) => SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: _InlineError(
+                              message: 'Could not load reviews right now.',
+                              onRetry: () => ref.invalidate(
+                                shopReviewsProvider(widget.shopId),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: 40),
+                        child: Center(child: TripleDot()),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Floating top bar ─────────────────────────────
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Row(
+                      children: [
+                        _HeroIconButton(
+                          icon: Icons.arrow_back_rounded,
+                          onTap: () => context.pop(),
+                        ),
+                        const Spacer(),
+                        _ShopMoreMenuButton(shop: shop, isOwnShop: isOwnShop),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
       loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: const Center(child: CircularProgressIndicator()),
+        body: const SafeArea(child: _ShopProfileSkeleton()),
       ),
       error: (error, _) => Scaffold(
-        appBar: AppBar(title: const Text('Maker Profile')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Could not load this maker.\n$error',
-              textAlign: TextAlign.center,
-            ),
-          ),
+        backgroundColor: AppTheme.scaffoldBg,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: const Text('Maker Profile'),
+        ),
+        body: ErrorRetryView(
+          error: error,
+          title: "Couldn't load this maker",
+          onRetry: () => ref.invalidate(shopDetailProvider(widget.shopId)),
         ),
       ),
     );
   }
 
   Future<void> _toggleFollow(bool currentlyFollowing) async {
+    if (_isTogglingFollow) return;
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
       await showSignInPromptSheet(
@@ -445,16 +490,65 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       return;
     }
 
-    final service = ref.read(supabaseServiceProvider);
-    if (currentlyFollowing) {
-      await service.unfollowShop(user.id, widget.shopId);
-    } else {
-      await service.followShop(user.id, widget.shopId);
+    final nextFollowing = !currentlyFollowing;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isTogglingFollow = true;
+      _followOptimistic = nextFollowing;
+    });
+
+    try {
+      final service = ref.read(supabaseServiceProvider);
+      if (nextFollowing) {
+        await service.followShop(user.id, widget.shopId);
+      } else {
+        await service.unfollowShop(user.id, widget.shopId);
+      }
+      ref.invalidate(isFollowingProvider(widget.shopId));
+      ref.invalidate(followedShopIdsProvider);
+      ref.invalidate(followerCountProvider(widget.shopId));
+      ref.invalidate(followingFeedProvider);
+      if (mounted) {
+        setState(() {
+          _isTogglingFollow = false;
+          _followOptimistic = null;
+        });
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isTogglingFollow = false;
+        _followOptimistic = currentlyFollowing;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(
+              error,
+              fallback: nextFollowing
+                  ? "Couldn't follow this maker. Please try again."
+                  : "Couldn't unfollow this maker. Please try again.",
+            ),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-    ref.invalidate(isFollowingProvider(widget.shopId));
-    ref.invalidate(followedShopIdsProvider);
-    ref.invalidate(followerCountProvider(widget.shopId));
-    ref.invalidate(followingFeedProvider);
+  }
+
+  void _openPost(ShopPost post, Shop shop) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _ShopPostViewerScreen(
+          post: post,
+          shopId: widget.shopId,
+          onFollowToggle: (currentlyFollowing) =>
+              _toggleFollow(currentlyFollowing),
+        ),
+      ),
+    );
   }
 
   Future<void> _contactArtisan(Shop shop) async {
@@ -485,7 +579,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not open chat: $error',
+            friendlyErrorMessage(error, fallback: 'Could not open chat.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -571,7 +665,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not save review: $error',
+            friendlyErrorMessage(error, fallback: 'Could not save review.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -665,24 +759,167 @@ class _HeroIconButton extends StatelessWidget {
   }
 }
 
+enum _ShopMoreMenuAction { copyLink, share, mute, report }
+
+/// The maker profile's ⋯ menu: copy link, share, mute/unmute this maker,
+/// and (when [creatorSafetyEnabled] and signed in, never on your own shop)
+/// report this maker.
+class _ShopMoreMenuButton extends ConsumerWidget {
+  final Shop shop;
+  final bool isOwnShop;
+
+  const _ShopMoreMenuButton({required this.shop, required this.isOwnShop});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isSignedIn = ref.watch(currentUserIdProvider) != null;
+    final isMuted = ref.watch(isShopMutedProvider(shop.id));
+    final canModerate = isSignedIn && !isOwnShop;
+    return PopupMenuButton<_ShopMoreMenuAction>(
+      offset: const Offset(0, 48),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: _ShopMoreMenuAction.copyLink,
+          child: Row(
+            children: [
+              Icon(Icons.link_rounded, size: 18, color: AppTheme.textPrimary),
+              SizedBox(width: 10),
+              Text('Copy link'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: _ShopMoreMenuAction.share,
+          child: Row(
+            children: [
+              Icon(Icons.share_outlined, size: 18, color: AppTheme.textPrimary),
+              SizedBox(width: 10),
+              Text('Share'),
+            ],
+          ),
+        ),
+        if (canModerate)
+          PopupMenuItem(
+            value: _ShopMoreMenuAction.mute,
+            child: Row(
+              children: [
+                Icon(
+                  isMuted
+                      ? Icons.volume_up_outlined
+                      : Icons.volume_off_outlined,
+                  size: 18,
+                  color: AppTheme.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Text(isMuted ? 'Unmute' : 'Mute'),
+              ],
+            ),
+          ),
+        if (creatorSafetyEnabled && canModerate)
+          const PopupMenuItem(
+            value: _ShopMoreMenuAction.report,
+            child: Row(
+              children: [
+                Icon(Icons.flag_outlined, size: 18, color: AppTheme.error),
+                SizedBox(width: 10),
+                Text('Report', style: TextStyle(color: AppTheme.error)),
+              ],
+            ),
+          ),
+      ],
+      onSelected: (action) async {
+        switch (action) {
+          case _ShopMoreMenuAction.copyLink:
+            await Clipboard.setData(
+              ClipboardData(
+                text: '$shopShareBaseUrl/${Uri.encodeComponent(shop.id)}',
+              ),
+            );
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Link copied'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            break;
+          case _ShopMoreMenuAction.share:
+            await Share.share(
+              buildShopShareText(shopId: shop.id, shopName: shop.name),
+            );
+            break;
+          case _ShopMoreMenuAction.mute:
+            await setShopMuted(
+              ref,
+              context,
+              shop.id,
+              muted: !isMuted,
+              shopName: shop.name,
+            );
+            break;
+          case _ShopMoreMenuAction.report:
+            await showContentReportSheet(
+              context,
+              shopId: shop.id,
+              targetId: shop.id,
+            );
+            break;
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: const Icon(
+          Icons.more_horiz_rounded,
+          size: 20,
+          color: AppTheme.textPrimary,
+        ),
+      ),
+    );
+  }
+}
+
 class _MakerIdentityCard extends StatelessWidget {
   final Shop shop;
+  final int? followerCount;
+  final int? postsCount;
+  final int? productsCount;
   final bool isFollowing;
   final VoidCallback onFollowToggle;
   final VoidCallback onMessageTap;
+  final bool isOwnShop;
+  final VoidCallback? onInsightsTap;
+  final VoidCallback? onEditShopTap;
 
   const _MakerIdentityCard({
     required this.shop,
+    required this.followerCount,
+    this.postsCount,
+    this.productsCount,
     required this.isFollowing,
     required this.onFollowToggle,
     required this.onMessageTap,
+    this.isOwnShop = false,
+    this.onInsightsTap,
+    this.onEditShopTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final founded = shop.createdAt.year.toString();
     final location = shop.location ?? 'South Africa';
-    final countLabel = shopCollectionMetaLabel(shop.productCount);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -725,15 +962,38 @@ class _MakerIdentityCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            shop.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.textPrimary,
+                              height: 1.1,
+                            ),
+                          ),
+                        ),
+                        if (shop.isVerified) ...[
+                          const SizedBox(width: 5),
+                          const Icon(
+                            Icons.verified,
+                            color: AppTheme.baobab,
+                            size: 18,
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
                     Text(
-                      shop.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                        height: 1.1,
+                      shop.handle,
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textHint,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -745,11 +1005,15 @@ class _MakerIdentityCard extends StatelessWidget {
                           color: AppTheme.textSecondary,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          location,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.textSecondary,
+                        Expanded(
+                          child: Text(
+                            location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ),
                       ],
@@ -760,34 +1024,119 @@ class _MakerIdentityCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              if (countLabel != null) ...[
-                _MetaPill(icon: Icons.storefront_outlined, text: countLabel),
-                const SizedBox(width: 8),
-              ],
-              _MetaPill(
-                icon: Icons.auto_awesome_outlined,
-                text: 'Since $founded',
-              ),
-            ],
+          _ProfileStatsRow(
+            followerCount: followerCount,
+            productsCount: productsCount,
+            postsCount: postsCount,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Since $founded',
+            style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.textHint),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: _FollowButton(
-              isFollowing: isFollowing,
-              onTap: onFollowToggle,
+          if (isOwnShop) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onInsightsTap,
+                    icon: const Icon(Icons.insights_outlined, size: 17),
+                    label: const Text('Insights'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onEditShopTap,
+                    icon: const Icon(Icons.edit_outlined, size: 17),
+                    label: const Text('Edit shop'),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: _MessageButton(onTap: onMessageTap),
-          ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              child: _FollowButton(
+                isFollowing: isFollowing,
+                onTap: onFollowToggle,
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: _MessageButton(onTap: onMessageTap),
+            ),
+          ],
         ],
       ),
     );
+  }
+}
+
+/// Instagram-style profile counts: value above label, evenly spaced.
+/// Followers stay hidden at zero so a brand-new shop doesn't read as empty.
+class _ProfileStatsRow extends StatelessWidget {
+  final int? followerCount;
+  final int? productsCount;
+  final int? postsCount;
+
+  const _ProfileStatsRow({
+    required this.followerCount,
+    required this.productsCount,
+    required this.postsCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <(String, String)>[
+      if ((followerCount ?? 0) > 0)
+        (
+          _compactCount(followerCount!),
+          followerCount == 1 ? 'follower' : 'followers',
+        ),
+      (_compactCount(productsCount ?? 0), 'products'),
+      (_compactCount(postsCount ?? 0), 'posts'),
+    ];
+    return Row(
+      children: [
+        for (final entry in entries)
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entry.$1,
+                  style: GoogleFonts.poppins(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                Text(
+                  entry.$2,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _compactCount(int value) {
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)}M';
+    }
+    if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return '$value';
   }
 }
 
@@ -878,39 +1227,6 @@ class _MessageButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MetaPill extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _MetaPill({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppTheme.bone,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: AppTheme.terracotta),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              color: AppTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1089,119 +1405,124 @@ class _ReviewStatusNote extends StatelessWidget {
   }
 }
 
-class _PostCard extends StatelessWidget {
+/// Square thumbnail tile for the Posts grid. Videos show a play icon over
+/// their cover image rather than a "Private video" wall of text — the post
+/// is still visible to buyers, only the raw file access is private.
+class _PostGridTile extends StatelessWidget {
   final ShopPost post;
-  final Shop shop;
+  final VoidCallback onTap;
 
-  const _PostCard({required this.post, required this.shop});
+  const _PostGridTile({required this.post, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Post image
-          if (post.mediaUrls.isNotEmpty)
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(19),
-              ),
-              child: AspectRatio(
-                aspectRatio: 1,
-                child: CachedNetworkImage(
-                  imageUrl: post.primaryImage,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
-                    color: AppTheme.bone,
-                    child: const Center(
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    color: AppTheme.bone,
-                    child: const Icon(
-                      Icons.image_not_supported_outlined,
-                      color: AppTheme.textHint,
-                    ),
-                  ),
-                ),
-              ),
-            ),
+    final isVideo =
+        post.mediaUrls.isNotEmpty &&
+        isCreatorPostMediaMarker(post.primaryImage);
+    final coverImage = post.mediaUrls.firstWhere(
+      (url) => !isCreatorPostMediaMarker(url),
+      orElse: () => '',
+    );
 
-          // Maker info + caption
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Maker row
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 18,
-                      backgroundColor: AppTheme.bone,
-                      backgroundImage: shop.logoUrl != null
-                          ? CachedNetworkImageProvider(shop.logoUrl!)
-                          : null,
-                      child: shop.logoUrl == null
-                          ? Text(
-                              shop.name[0],
-                              style: GoogleFonts.playfairDisplay(
-                                color: AppTheme.terracotta,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        shop.name,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      post.timeAgo,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textHint,
-                      ),
-                    ),
-                  ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        color: AppTheme.bone,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (coverImage.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: coverImage,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Skeleton(child: SkeletonBox(radius: 0)),
+                errorWidget: (_, __, ___) => const Icon(
+                  Icons.image_not_supported_outlined,
+                  color: AppTheme.textHint,
                 ),
-                if (post.caption.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    post.caption,
-                    style: GoogleFonts.poppins(
-                      fontSize: 14,
-                      color: AppTheme.textSecondary,
-                      height: 1.6,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              )
+            else if (!isVideo)
+              const Icon(
+                Icons.image_not_supported_outlined,
+                color: AppTheme.textHint,
+              ),
+            if (isVideo)
+              Container(
+                color: Colors.black.withValues(
+                  alpha: coverImage.isEmpty ? 0.85 : 0.15,
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.play_circle_fill_rounded,
+                  size: 30,
+                  color: Colors.white,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PostsGridSkeleton extends StatelessWidget {
+  const _PostsGridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverGrid(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => Skeleton(child: SkeletonBox(radius: 0)),
+        childCount: 9,
+      ),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+        childAspectRatio: 1,
+      ),
+    );
+  }
+}
+
+/// Full-screen viewer for a single maker post, opened by tapping a tile in
+/// the Posts grid. Reuses [CreatorFeedPostCard] so a post looks the same
+/// here as it does in the creator feed.
+class _ShopPostViewerScreen extends ConsumerWidget {
+  final ShopPost post;
+  final String shopId;
+  final Future<void> Function(bool currentlyFollowing) onFollowToggle;
+
+  const _ShopPostViewerScreen({
+    required this.post,
+    required this.shopId,
+    required this.onFollowToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isFollowing =
+        ref.watch(isFollowingProvider(shopId)).asData?.value ?? false;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(
+          post.shopName ?? 'Post',
+          style: GoogleFonts.poppins(color: Colors.white, fontSize: 16),
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: CreatorFeedPostCard(
+            post: post,
+            isFollowing: isFollowing,
+            onOpenShop: () => Navigator.of(context).pop(),
+            onFollowToggle: () => onFollowToggle(isFollowing),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1502,17 +1823,31 @@ class _UpcomingMarketsCard extends StatelessWidget {
 
 class _InlineError extends StatelessWidget {
   final String message;
-  const _InlineError({required this.message});
+  final VoidCallback? onRetry;
+  const _InlineError({required this.message, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.poppins(color: AppTheme.textHint),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(color: AppTheme.textHint),
+            ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded, size: 16),
+                label: const Text('Try again'),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -1628,6 +1963,55 @@ class _EmptyCollection extends StatelessWidget {
             style: GoogleFonts.poppins(fontSize: 14, color: AppTheme.textHint),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shimmering placeholder for the maker profile while it first loads, so
+/// the screen never sits on a bare spinner.
+class _ShopProfileSkeleton extends StatelessWidget {
+  const _ShopProfileSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeleton(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 76, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const SkeletonBox(width: 60, height: 60, circle: true),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        SkeletonBox(width: 160, height: 20),
+                        SizedBox(height: 8),
+                        SkeletonBox(width: 100, height: 14),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const SkeletonBox(width: double.infinity, height: 44),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(child: SkeletonBox(height: 220)),
+                  const SizedBox(width: 12),
+                  Expanded(child: SkeletonBox(height: 220)),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

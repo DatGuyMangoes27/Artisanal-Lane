@@ -18,6 +18,7 @@ import 'package:artisanal_lane/features/buyer/screens/buyer_profile_screen.dart'
 import 'package:artisanal_lane/features/buyer/screens/order_detail_screen.dart';
 import 'package:artisanal_lane/features/buyer/screens/settings_screen.dart';
 import 'package:artisanal_lane/core/pricing/pricing.dart';
+import 'package:artisanal_lane/core/pricing/price_format.dart';
 import 'package:artisanal_lane/models/checkout_quote.dart';
 import 'package:artisanal_lane/features/buyer/utils/shop_profile_actions.dart';
 import 'package:artisanal_lane/features/buyer/utils/curated_collection_destination.dart';
@@ -1099,6 +1100,44 @@ void main() {
     );
   });
 
+  test('Post share text quotes the caption and links to the maker shop', () {
+    expect(
+      buildPostShareText(
+        shopId: 'shop-123',
+        shopName: 'Lianne Studio',
+        caption: '  New glaze\n  just out of the kiln ',
+      ),
+      '"New glaze just out of the kiln" — Lianne Studio on Artisan Lane\n'
+      'https://artisanlanesa.co.za/shops/shop-123',
+    );
+    expect(
+      buildPostShareText(shopId: 'shop-123', shopName: null, caption: ''),
+      'See this maker on Artisan Lane!\n'
+      'https://artisanlanesa.co.za/shops/shop-123',
+    );
+    final long = buildPostShareText(
+      shopId: 's',
+      shopName: 'M',
+      caption: 'x' * 300,
+    );
+    expect(long.split('\n').first.length, lessThan(170));
+    expect(long, contains('…'));
+  });
+
+  test('Browse prices drop empty cents but never round real cents', () {
+    expect(formatBrowsePrice(480), 'R480');
+    expect(formatBrowsePrice(480.0), 'R480');
+    expect(formatBrowsePrice(153.85), 'R153.85');
+    expect(formatBrowsePrice(99.5), 'R99.50');
+    expect(formatBrowsePrice(0.1 + 0.2), 'R0.30');
+  });
+
+  test('Follower count label is singular for one follower', () {
+    expect(followerCountLabel(0), '0 followers');
+    expect(followerCountLabel(1), '1 follower');
+    expect(followerCountLabel(42), '42 followers');
+  });
+
   test('Favourites require sign-in when no current user exists', () {
     expect(requiresSignInForFavourite(null), isTrue);
     expect(requiresSignInForFavourite('user-1'), isFalse);
@@ -2044,7 +2083,8 @@ void main() {
 
     expect(find.text('2'), findsOneWidget);
     expect(find.text('4'), findsOneWidget);
-    expect(find.text('6'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('profile-stat-In Cart')),
+      matching: find.text('6')), findsOneWidget);
     expect(find.text('Payment Methods'), findsNothing);
     expect(find.text('My Orders'), findsOneWidget);
   });

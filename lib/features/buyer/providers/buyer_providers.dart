@@ -297,6 +297,17 @@ final searchProductsProvider = FutureProvider.family<List<Product>, String>((
   return service.getProducts(search: query);
 });
 
+/// Server-side search across title/description/shop name for the Shop tab's
+/// inline search bar (broader than [searchProductsProvider]'s title-only
+/// match). Empty query resolves to an empty list.
+final shopSearchProductsProvider = FutureProvider.family<List<Product>, String>(
+  (ref, query) async {
+    if (query.trim().isEmpty) return const [];
+    final service = ref.read(supabaseServiceProvider);
+    return service.searchProducts(query, limit: 60);
+  },
+);
+
 // ── Shops ───────────────────────────────────────────────────────
 final shopShippingOptionsProvider =
     FutureProvider.family<List<ShippingOption>, String>((ref, shopId) async {

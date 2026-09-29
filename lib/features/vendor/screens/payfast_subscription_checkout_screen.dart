@@ -117,7 +117,10 @@ class _PayfastSubscriptionCheckoutScreenState
         backgroundColor: AppTheme.scaffoldBg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppTheme.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_rounded,
+            color: AppTheme.textPrimary,
+          ),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(
@@ -199,9 +202,13 @@ class _SubscriptionCheckoutErrorState extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppTheme.terracotta,
                 foregroundColor: Colors.white,
+                minimumSize: const Size(0, 50),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
+                  horizontal: 28,
                   vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(26),
                 ),
               ),
               child: Text(

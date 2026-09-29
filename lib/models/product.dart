@@ -34,6 +34,8 @@ class Product {
   // Joined data
   final String? shopName;
   final String? shopLogoUrl;
+  final bool shopIsVerified;
+  final String? shopLocation;
   final String? categoryName;
   final String? subcategoryName;
 
@@ -67,6 +69,8 @@ class Product {
     required this.updatedAt,
     this.shopName,
     this.shopLogoUrl,
+    this.shopIsVerified = false,
+    this.shopLocation,
     this.categoryName,
     this.subcategoryName,
   });
@@ -171,7 +175,8 @@ class Product {
       leadMinDays: json['made_to_order_lead_min_days'] as int?,
       leadMaxDays: json['made_to_order_lead_max_days'] as int?,
       madeToOrderCapacity: json['made_to_order_capacity'] as int?,
-      allowCustomNote: json['made_to_order_allow_custom_note'] as bool? ?? false,
+      allowCustomNote:
+          json['made_to_order_allow_custom_note'] as bool? ?? false,
       featuredAt: json['featured_at'] != null
           ? DateTime.parse(json['featured_at'] as String)
           : null,
@@ -179,6 +184,8 @@ class Product {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       shopName: shopData?['name'] as String?,
       shopLogoUrl: shopData?['logo_url'] as String?,
+      shopIsVerified: shopData?['is_verified'] as bool? ?? false,
+      shopLocation: shopData?['location'] as String?,
       categoryName: categoryData?['name'] as String?,
       subcategoryName: subcategoryData?['name'] as String?,
     );
@@ -198,7 +205,9 @@ class Product {
     'option_groups': optionGroups.map((group) => group.toJson()).toList(),
     'product_variants': variants.map((variant) => variant.toJson()).toList(),
     'tags': tags,
-    'shipping_options': shippingOptions.map((option) => option.toJson()).toList(),
+    'shipping_options': shippingOptions
+        .map((option) => option.toJson())
+        .toList(),
     'is_published': isPublished,
     'is_featured': isFeatured,
     'care_instructions': careInstructions,
@@ -241,6 +250,7 @@ class Product {
     }
     return '${min ?? max} days';
   }
+
   ProductVariant? get defaultVariant {
     for (final variant in variants) {
       if (variant.isActive) {
@@ -253,7 +263,8 @@ class Product {
   bool get isInStock => stockQty > 0;
   bool get isLowStock => stockQty > 0 && stockQty <= 5;
   bool get supportsMadeToOrder =>
-      fulfillmentMode == 'made_to_order' || fulfillmentMode == 'stocked_with_mto';
+      fulfillmentMode == 'made_to_order' ||
+      fulfillmentMode == 'stocked_with_mto';
 
   /// Made-to-order products stay buyable at zero stock, so listings must not
   /// hide them the way plain out-of-stock items are hidden.

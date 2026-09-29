@@ -249,8 +249,9 @@ class _RaiseDisputeScreenState extends ConsumerState<RaiseDisputeScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.error,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        AppTheme.error.withValues(alpha: 0.35),
+                    disabledBackgroundColor: AppTheme.error.withValues(
+                      alpha: 0.35,
+                    ),
                     disabledForegroundColor: Colors.white70,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     elevation: 0,
@@ -292,9 +293,7 @@ class _RaiseDisputeScreenState extends ConsumerState<RaiseDisputeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Submit Dispute?',
           style: GoogleFonts.playfairDisplay(
@@ -332,7 +331,11 @@ class _RaiseDisputeScreenState extends ConsumerState<RaiseDisputeScreen> {
                 final reason = _selectedReason ?? '';
                 final desc = _descriptionController.text;
                 final fullReason = desc.isNotEmpty ? '$reason: $desc' : reason;
-                await service.createDispute(widget.orderId, Supabase.instance.client.auth.currentUser!.id, fullReason);
+                await service.createDispute(
+                  widget.orderId,
+                  Supabase.instance.client.auth.currentUser!.id,
+                  fullReason,
+                );
                 ref.invalidate(ordersProvider);
                 ref.invalidate(orderDetailProvider(widget.orderId));
               } catch (_) {}
@@ -341,11 +344,16 @@ class _RaiseDisputeScreenState extends ConsumerState<RaiseDisputeScreen> {
                   SnackBar(
                     content: Text(
                       'Dispute submitted. We\'ll be in touch.',
-                      style: GoogleFonts.poppins(fontSize: 14, color: Colors.white),
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: Colors.white,
+                      ),
                     ),
                     backgroundColor: AppTheme.baobab,
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 );
                 context.pop();

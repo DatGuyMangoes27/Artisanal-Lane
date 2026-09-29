@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/constants/feature_flags.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../buyer/providers/buyer_providers.dart'
     show notificationsStreamProvider;
 import '../providers/vendor_providers.dart';
 import '../utils/vendor_subscription_setup.dart';
+import '../widgets/workspace/workspace_header.dart';
 
 class VendorProfileScreen extends ConsumerWidget {
   const VendorProfileScreen({super.key});
@@ -36,73 +38,99 @@ class VendorProfileScreen extends ConsumerWidget {
       backgroundColor: AppTheme.scaffoldBg,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const SizedBox(height: 8),
-              // Avatar and name
-              shopAsync.when(
-                data: (shop) => Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 44,
-                      backgroundColor: AppTheme.bone,
-                      backgroundImage: shop?.logoUrl != null
-                          ? NetworkImage(shop!.logoUrl!)
-                          : null,
-                      child: shop?.logoUrl == null
-                          ? const Icon(
-                              Icons.store_rounded,
-                              size: 36,
-                              color: AppTheme.terracotta,
-                            )
-                          : null,
+              const WorkspaceHeader(eyebrow: 'Your shop', title: 'You'),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBg,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: AppTheme.sand.withValues(alpha: 0.4),
                     ),
-                    const SizedBox(height: 14),
-                    Text(
-                      shop?.name ?? '',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
                       ),
-                    ),
-                    if (shop?.location != null)
-                      Text(
-                        shop!.location!,
-                        style: GoogleFonts.poppins(
-                          fontSize: 13,
-                          color: AppTheme.textSecondary,
+                    ],
+                  ),
+                  child: shopAsync.when(
+                    data: (shop) => Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 44,
+                          backgroundColor: AppTheme.bone,
+                          backgroundImage: shop?.logoUrl != null
+                              ? NetworkImage(shop!.logoUrl!)
+                              : null,
+                          child: shop?.logoUrl == null
+                              ? const Icon(
+                                  Icons.store_rounded,
+                                  size: 36,
+                                  color: AppTheme.terracotta,
+                                )
+                              : null,
                         ),
-                      ),
-                    profileAsync.when(
-                      data: (profile) => profile != null
-                          ? Text(
-                              profile.email ?? '',
-                              style: GoogleFonts.poppins(
-                                fontSize: 12,
-                                color: AppTheme.textHint,
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
+                        const SizedBox(height: 14),
+                        Text(
+                          shop?.name ?? '',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        if (shop?.location != null)
+                          Text(
+                            shop!.location!,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
+                        profileAsync.when(
+                          data: (profile) => profile != null
+                              ? Text(
+                                  profile.email ?? '',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: AppTheme.textHint,
+                                  ),
+                                )
+                              : const SizedBox.shrink(),
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                loading: () => const CircularProgressIndicator(
-                  color: AppTheme.terracotta,
-                  strokeWidth: 2,
-                ),
-                error: (_, __) => const Icon(
-                  Icons.store_rounded,
-                  size: 48,
-                  color: AppTheme.textHint,
+                    loading: () => const CircularProgressIndicator(
+                      color: AppTheme.terracotta,
+                      strokeWidth: 2,
+                    ),
+                    error: (_, __) => const Icon(
+                      Icons.store_rounded,
+                      size: 48,
+                      color: AppTheme.textHint,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
 
               // Menu items
+              if (creatorCommercePreviewEnabled)
+                _buildMenuItem(
+                  context,
+                  Icons.auto_awesome_rounded,
+                  'Creator Commerce Preview',
+                  'Explore the new Feed, Shop and AI seller studio',
+                  () => context.push('/internal/creator-commerce'),
+                ),
               _buildMenuItem(
                 context,
                 Icons.chat_bubble_outline_rounded,
@@ -190,12 +218,12 @@ class VendorProfileScreen extends ConsumerWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.fromLTRB(24, 0, 24, 10),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+          border: Border.all(color: AppTheme.sand.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [

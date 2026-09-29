@@ -162,24 +162,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 32),
                 if (_errorMessage != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: AppTheme.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AppTheme.error.withValues(alpha: 0.3),
-                      ),
-                    ),
-                    child: Text(
-                      _errorMessage!,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: AppTheme.error,
-                      ),
-                    ),
-                  ),
+                  _ErrorBanner(message: _errorMessage!),
                   const SizedBox(height: 20),
                 ],
                 _buildLabel('Email'),
@@ -251,6 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 24),
                 GradientButton(
                   label: 'Sign In',
+                  borderRadius: 28,
                   onPressed: _isLoading ? null : _signIn,
                   isLoading: _isLoading,
                 ),
@@ -380,10 +364,47 @@ class _OAuthButton extends StatelessWidget {
           side: BorderSide(color: AppTheme.sand.withValues(alpha: 0.8)),
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(28),
           ),
           backgroundColor: Colors.white,
         ),
+      ),
+    );
+  }
+}
+
+/// Calm, warm error banner used across the auth screens.
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 18,
+            color: AppTheme.error,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+            ),
+          ),
+        ],
       ),
     );
   }

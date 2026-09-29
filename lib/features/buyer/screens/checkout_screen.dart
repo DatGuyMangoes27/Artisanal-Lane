@@ -7,12 +7,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/courier_guy_locker.dart';
 import '../../../models/pargo_pickup_point.dart';
 import '../../../models/shipping_option.dart';
 import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/checkout_validation.dart';
 import '../utils/checkout_shipping_layout.dart';
@@ -572,6 +574,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
+  Widget? _stickyPayBar;
+
   @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartItemsProvider);
@@ -583,6 +587,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         : 'Contact Details';
     final nameLabel = isGift ? 'Recipient Full Name' : 'Full Name';
     final phoneLabel = isGift ? 'Recipient Phone Number' : 'Phone Number';
+    _stickyPayBar = null;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -610,9 +615,63 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         data: (items) {
           if (items.isEmpty) {
             return Center(
-              child: Text(
-                'Your cart is empty',
-                style: GoogleFonts.poppins(color: AppTheme.textSecondary),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        color: AppTheme.bone.withValues(alpha: 0.6),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 30,
+                        color: AppTheme.textHint,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Your basket is empty',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Add something handmade before you check out.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    OutlinedButton(
+                      onPressed: () => context.go('/home'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.terracotta,
+                        side: const BorderSide(color: AppTheme.terracotta),
+                        minimumSize: const Size(0, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26),
+                        ),
+                      ),
+                      child: Text(
+                        'Start shopping',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -654,10 +713,23 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             discountAmount: _discountAmount,
           );
 
+          _stickyPayBar = _buildStickyPayBar(
+            total: total,
+            onPressed: () => _submitCheckout(
+              items: items,
+              subtotal: subtotal,
+              giftFee: giftFee,
+              shippingCost: shippingCost,
+              total: total,
+              enabledOptions: enabledOptions,
+            ),
+          );
+
           return SafeArea(
+            bottom: false,
             child: SingleChildScrollView(
               controller: _scrollController,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
               child: Form(
                 key: _formKey,
                 autovalidateMode: _submitAttempted
@@ -778,7 +850,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.03),
@@ -946,35 +1018,107 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ],
                       ),
                     ),
-
-                    const SizedBox(height: 40),
-
-                    GradientButton(
-                      label: 'Pay Now',
-                      isLoading: _isSubmittingPayment,
-                      onPressed: () => _submitCheckout(
-                        items: items,
-                        subtotal: subtotal,
-                        giftFee: giftFee,
-                        shippingCost: shippingCost,
-                        total: total,
-                        enabledOptions: enabledOptions,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
             ),
           );
         },
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            color: AppTheme.terracotta,
-            strokeWidth: 2,
+        loading: () => _buildLoadingSkeleton(),
+        error: (error, _) => ErrorRetryView(
+          error: error,
+          title: "Couldn't load checkout",
+          onRetry: () => ref.invalidate(cartItemsProvider),
+        ),
+      ),
+      bottomNavigationBar: _stickyPayBar,
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return Skeleton(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        children: [
+          SkeletonBox(width: 160, height: 20, radius: 8),
+          const SizedBox(height: 16),
+          SkeletonBox(width: double.infinity, height: 56, radius: 12),
+          const SizedBox(height: 16),
+          SkeletonBox(width: double.infinity, height: 56, radius: 12),
+          const SizedBox(height: 24),
+          SkeletonBox(width: 160, height: 20, radius: 8),
+          const SizedBox(height: 16),
+          SkeletonBox(width: double.infinity, height: 76, radius: 20),
+          const SizedBox(height: 24),
+          SkeletonBox(width: double.infinity, height: 220, radius: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStickyPayBar({
+    required double total,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg,
+        border: Border(
+          top: BorderSide(color: AppTheme.sand.withValues(alpha: 0.35)),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 15,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Total',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                    Text(
+                      'R${total.toStringAsFixed(0)}',
+                      style: GoogleFonts.playfairDisplay(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: GradientButton(
+                  label: 'Pay Now',
+                  isLoading: _isSubmittingPayment,
+                  borderRadius: 26,
+                  verticalPadding: 14,
+                  onPressed: onPressed,
+                ),
+              ),
+            ],
           ),
         ),
-        error: (error, _) => Center(child: Text('Error: $error')),
       ),
     );
   }
@@ -1482,7 +1626,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.03),

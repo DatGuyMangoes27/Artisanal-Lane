@@ -6,6 +6,7 @@ import '../../../app/theme.dart';
 import '../../../models/order.dart';
 import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 import 'tradesafe_checkout_screen.dart';
 
@@ -22,12 +23,29 @@ class OrderConfirmationScreen extends ConsumerWidget {
 
     return orderAsync.when(
       data: (order) => _buildContent(context, ref, order),
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: Center(
-          child: CircularProgressIndicator(
-            color: AppTheme.terracotta,
-            strokeWidth: 2,
+        body: SafeArea(
+          child: Skeleton(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SkeletonBox(width: 100, height: 100, circle: true),
+                    const SizedBox(height: 32),
+                    SkeletonBox(width: 220, height: 26, radius: 8),
+                    const SizedBox(height: 24),
+                    SkeletonBox(
+                      width: double.infinity,
+                      height: 180,
+                      radius: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -41,7 +59,9 @@ class OrderConfirmationScreen extends ConsumerWidget {
 
   Widget _buildContent(BuildContext context, WidgetRef ref, Order? order) {
     final orderNumber = order != null ? '#${order.shortId}' : '#---';
-    final itemCount = order?.items != null ? '${order!.items!.length} items' : '--';
+    final itemCount = order?.items != null
+        ? '${order!.items!.length} items'
+        : '--';
     final totalPaid = order != null
         ? 'R${order.grandTotal.toStringAsFixed(2)}'
         : '--';
@@ -205,9 +225,12 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 48),
-                if (isAwaitingPayment && order != null && order.paymentUrl != null) ...[
+                if (isAwaitingPayment &&
+                    order != null &&
+                    order.paymentUrl != null) ...[
                   GradientButton(
                     label: 'Open TradeSafe Checkout',
+                    borderRadius: 26,
                     onPressed: () async {
                       final uri = Uri.tryParse(order.paymentUrl!);
                       if (uri != null && context.mounted) {
@@ -226,9 +249,16 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: () => ref.invalidate(orderDetailStreamProvider(order.id)),
+                      onPressed: () =>
+                          ref.invalidate(orderDetailStreamProvider(order.id)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppTheme.textPrimary,
+                        side: BorderSide(
+                          color: AppTheme.sand.withValues(alpha: 0.6),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: Text(
@@ -243,7 +273,8 @@ class OrderConfirmationScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                 ],
                 GradientButton(
-                  label: 'View My Orders',
+                  label: 'Track Order',
+                  borderRadius: 26,
                   onPressed: () => context.go('/profile/orders'),
                 ),
                 const SizedBox(height: 16),
@@ -256,7 +287,7 @@ class OrderConfirmationScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                     child: Text(
-                      'Continue Shopping',
+                      'Keep Shopping',
                       style: GoogleFonts.poppins(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,

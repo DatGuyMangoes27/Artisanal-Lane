@@ -1,15 +1,23 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/pricing/price_format.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../app/theme.dart';
+import '../../../services/content_view_session.dart';
 import '../../../services/meta_app_events_service.dart';
+import '../../../widgets/cart_nav_icon.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../../widgets/product_card.dart';
+import '../../../widgets/skeleton.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../models/models.dart';
+import '../providers/favourite_actions.dart';
 import '../utils/product_detail_actions.dart';
 import '../utils/product_image_zoom.dart';
 import '../utils/cart_stock_guard.dart';
@@ -38,10 +46,12 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   int _currentImageIndex = 0;
   bool _isAddingToCart = false;
+  bool _showAllReviews = false;
   final Map<int, String> _selectedOptionValues = {};
   late final PageController _pageController;
   final _customNoteController = TextEditingController();
   String? _lastTrackedViewKey;
+  bool _contentViewRecorded = false;
 
   @override
   void initState() {
@@ -211,17 +221,27 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           .read(metaAppEventsServiceProvider)
           .logAddToCart(product, variant: variant);
       ref.invalidate(cartItemsProvider);
+      HapticFeedback.mediumImpact();
       if (mounted) {
+        final thumb = (variant?.images.isNotEmpty ?? false)
+            ? variant!.images.first
+            : product.primaryImage;
+        ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Added to basket',
-              style: GoogleFonts.poppins(color: Colors.white),
-            ),
-            backgroundColor: AppTheme.baobab,
+            content: _AddedToBasketToast(imageUrl: thumb, title: product.title),
+            backgroundColor: AppTheme.textPrimary,
             behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            duration: const Duration(seconds: 4),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            action: SnackBarAction(
+              label: 'View basket',
+              textColor: AppTheme.ochre,
+              onPressed: () => context.push('/cart'),
             ),
           ),
         );
@@ -230,7 +250,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       if (mounted) {
         final message = e is StateError
             ? e.message.toString()
-            : 'Failed to add to basket';
+            : friendlyErrorMessage(e, fallback: 'Failed to add to basket');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -259,6 +279,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ref
           .read(metaAppEventsServiceProvider)
           .logViewedProduct(product, variant: variant);
+    });
+    if (_contentViewRecorded) return;
+    _contentViewRecorded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      recordContentView(ref, 'product', product.id);
     });
   }
 
@@ -305,60 +331,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  Future<void> _toggleFavourite(String productId, bool currentlyFav) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (requiresSignInForFavourite(userId)) {
-      await showSignInPromptSheet(
-        context,
-        title: 'Sign in to save favourites',
-        message:
-            'Create an account or sign in to save this item to your favourites.',
-      );
-      return;
-    }
-
-    final service = ref.read(supabaseServiceProvider);
-    try {
-      if (currentlyFav) {
-        await service.removeFavourite(userId!, productId);
-      } else {
-        await service.addFavourite(userId!, productId);
-      }
-      ref.invalidate(favouriteIdsProvider);
-      ref.invalidate(favouriteIdsStreamProvider);
-      ref.invalidate(favouriteProductsProvider);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            currentlyFav ? 'Removed from favourites' : 'Saved to favourites',
-            style: GoogleFonts.poppins(color: Colors.white),
-          ),
-          backgroundColor: AppTheme.baobab,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Could not update favourites right now.',
-            style: GoogleFonts.poppins(color: Colors.white),
-          ),
-          backgroundColor: AppTheme.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-    }
-  }
-
   Future<void> _contactArtisan(Product product) async {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
@@ -383,7 +355,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not open chat: $error',
+            friendlyErrorMessage(error, fallback: 'Could not open chat.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -473,7 +445,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not save review: $error',
+            friendlyErrorMessage(error, fallback: 'Could not save review.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -489,7 +461,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final cartItems = ref.watch(cartItemsProvider).value ?? const <CartItem>[];
 
-    final favIds = ref.watch(currentFavouriteIdsProvider);
     final reviewSummaryAsync = ref.watch(
       productReviewSummaryProvider(widget.productId),
     );
@@ -503,7 +474,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
     return productAsync.when(
       data: (product) {
-        final isFav = favIds.contains(product.id);
+        final isFav = ref.watch(isFavouriteProvider(product.id));
         final shopAsync = ref.watch(shopDetailProvider(product.shopId));
         final shop = shopAsync.asData?.value;
         final shopOffline = shop?.isOffline ?? false;
@@ -535,8 +506,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         final mtoEnabled = product.isMadeToOrderEnabled;
         final isMtoMode =
             mtoEnabled && (product.isMadeToOrderOnly || displayStock <= 0);
-        final openMtoUnits =
-            (mtoEnabled && product.madeToOrderCapacity != null)
+        final openMtoUnits = (mtoEnabled && product.madeToOrderCapacity != null)
             ? (ref.watch(madeToOrderOpenUnitsProvider(product.id)).value ?? 0)
             : 0;
         final capacityFull =
@@ -604,7 +574,33 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                     ? AppTheme.error
                                     : AppTheme.textPrimary,
                                 onTap: () =>
-                                    _toggleFavourite(product.id, isFav),
+                                    toggleFavourite(ref, context, product.id),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => context.push('/cart'),
+                                child: Container(
+                                  width: 44,
+                                  height: 44,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.9),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.1,
+                                        ),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: CartNavIcon(
+                                    count: cartBadgeCount(cartItems),
+                                    isActive: false,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -639,16 +635,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                         fit: BoxFit.cover,
                                         width: double.infinity,
                                         height: double.infinity,
-                                        placeholder: (_, __) => Container(
-                                          color: AppTheme.clay.withValues(
-                                            alpha: 0.1,
-                                          ),
-                                          child: Center(
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              color: AppTheme.terracotta
-                                                  .withValues(alpha: 0.5),
-                                            ),
+                                        placeholder: (_, __) => Skeleton(
+                                          child: SkeletonBox(
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            radius: 0,
                                           ),
                                         ),
                                         errorWidget: (_, __, ___) => Container(
@@ -661,11 +652,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                             color: AppTheme.textHint,
                                           ),
                                         ),
-                                      ),
-                                      const Positioned(
-                                        right: 18,
-                                        bottom: 18,
-                                        child: _ZoomHintPill(),
                                       ),
                                     ],
                                   ),
@@ -774,16 +760,18 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                         letterSpacing: 1.2,
                                       ),
                                     ),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.star_rounded,
-                                        size: 18,
-                                        color: AppTheme.ochre,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      reviewSummaryAsync.when(
-                                        data: (summary) => Text(
+                                  reviewSummaryAsync.when(
+                                    data: (summary) => Row(
+                                      children: [
+                                        if (summary.hasReviews) ...[
+                                          const Icon(
+                                            Icons.star_rounded,
+                                            size: 18,
+                                            color: AppTheme.ochre,
+                                          ),
+                                          const SizedBox(width: 4),
+                                        ],
+                                        Text(
                                           summary.hasReviews
                                               ? '${summary.averageRating.toStringAsFixed(1)} (${summary.reviewCount} reviews)'
                                               : 'No reviews yet',
@@ -793,24 +781,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                             color: AppTheme.textSecondary,
                                           ),
                                         ),
-                                        loading: () => Text(
-                                          'Loading reviews...',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: AppTheme.textSecondary,
-                                          ),
-                                        ),
-                                        error: (_, __) => Text(
-                                          'Reviews unavailable',
-                                          style: GoogleFonts.poppins(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w500,
-                                            color: AppTheme.textSecondary,
-                                          ),
-                                        ),
+                                      ],
+                                    ),
+                                    loading: () => Text(
+                                      'Loading reviews...',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.textSecondary,
                                       ),
-                                    ],
+                                    ),
+                                    error: (_, __) => Text(
+                                      'Reviews unavailable',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.textSecondary,
+                                      ),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -833,7 +821,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    'R${displayPrice.toStringAsFixed(0)}',
+                                    formatBrowsePrice(displayPrice),
                                     style: GoogleFonts.playfairDisplay(
                                       fontSize: 32,
                                       fontWeight: FontWeight.w700,
@@ -846,7 +834,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                     Padding(
                                       padding: const EdgeInsets.only(bottom: 6),
                                       child: Text(
-                                        'R${displayCompareAtPrice!.toStringAsFixed(0)}',
+                                        formatBrowsePrice(
+                                          displayCompareAtPrice!,
+                                        ),
                                         style: GoogleFonts.poppins(
                                           fontSize: 16,
                                           color: AppTheme.textHint,
@@ -858,6 +848,29 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                   ],
                                 ],
                               ),
+                              if (_shippingSummary(product) != null) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.local_shipping_outlined,
+                                      size: 15,
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _shippingSummary(product)!,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          color: AppTheme.textSecondary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 24),
 
                               if (product.hasVariants) ...[
@@ -1039,8 +1052,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                               // Fragrance Options
                               if (product.fragranceDescription != null &&
-                                  product.fragranceDescription!
-                                      .isNotEmpty) ...[
+                                  product.fragranceDescription!.isNotEmpty) ...[
                                 const SizedBox(height: 32),
                                 _buildFragranceCard(
                                   product.fragranceDescription!,
@@ -1108,14 +1120,39 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                                 color: AppTheme.textHint,
                                               ),
                                             ),
-                                            Text(
-                                              product.shopName!,
-                                              style:
-                                                  GoogleFonts.playfairDisplay(
-                                                    fontSize: 18,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: AppTheme.textPrimary,
+                                            Row(
+                                              children: [
+                                                Flexible(
+                                                  child: Text(
+                                                    product.shopName!,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style:
+                                                        GoogleFonts.playfairDisplay(
+                                                          fontSize: 18,
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          color: AppTheme
+                                                              .textPrimary,
+                                                        ),
                                                   ),
+                                                ),
+                                                if (product.shopIsVerified) ...[
+                                                  const SizedBox(width: 6),
+                                                  Tooltip(
+                                                    message: 'Verified artisan',
+                                                    child: Semantics(
+                                                      label: 'Verified artisan',
+                                                      child: const Icon(
+                                                        Icons.verified_rounded,
+                                                        size: 17,
+                                                        color: AppTheme.baobab,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
                                           ],
                                         ),
@@ -1181,6 +1218,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                       ),
                                     ],
                                   ),
+                                ),
+                              _MoreFromMakerSection(
+                                shopId: product.shopId,
+                                excludeProductId: product.id,
+                              ),
+                              if (product.categoryId != null)
+                                _YouMayAlsoLikeSection(
+                                  categoryId: product.categoryId!,
+                                  excludeProductId: product.id,
+                                  excludeShopId: product.shopId,
                                 ),
                               const SizedBox(height: 32),
                               Text(
@@ -1250,28 +1297,45 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                     );
                                   }
 
-                                  final visibleReviews = reviews
-                                      .take(3)
-                                      .toList();
+                                  final visibleReviews = _showAllReviews
+                                      ? reviews
+                                      : reviews.take(3).toList();
                                   return Column(
-                                    children: visibleReviews
-                                        .map(
-                                          (review) => Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 12,
+                                    children: [
+                                      ...visibleReviews.map(
+                                        (review) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 12,
+                                          ),
+                                          child: BuyerReviewCard(
+                                            avatarUrl: review.buyerAvatarUrl,
+                                            authorName:
+                                                review.buyerDisplayName ??
+                                                'Verified buyer',
+                                            rating: review.rating,
+                                            reviewText: review.reviewText,
+                                            createdAt: review.createdAt,
+                                          ),
+                                        ),
+                                      ),
+                                      if (!_showAllReviews &&
+                                          reviews.length > 3)
+                                        Center(
+                                          child: TextButton(
+                                            onPressed: () => setState(
+                                              () => _showAllReviews = true,
                                             ),
-                                            child: BuyerReviewCard(
-                                              avatarUrl: review.buyerAvatarUrl,
-                                              authorName:
-                                                  review.buyerDisplayName ??
-                                                  'Verified buyer',
-                                              rating: review.rating,
-                                              reviewText: review.reviewText,
-                                              createdAt: review.createdAt,
+                                            child: Text(
+                                              'See all ${reviews.length} reviews',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: AppTheme.terracotta,
+                                              ),
                                             ),
                                           ),
-                                        )
-                                        .toList(),
+                                        ),
+                                    ],
                                   );
                                 },
                                 loading: () => const Padding(
@@ -1307,7 +1371,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             ],
           ),
           bottomNavigationBar: Container(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
             decoration: BoxDecoration(
               color: Colors.white,
               boxShadow: [
@@ -1331,14 +1395,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           : isMtoMode
                           ? (capacityFull
                                 ? 'Fully Booked'
-                                : 'Made to Order • R${mtoPrice.toStringAsFixed(0)}')
+                                : 'Made to Order • ${formatBrowsePrice(mtoPrice)}')
                           : displayStock <= 0
                           ? 'Sold Out'
                           : hasReachedCartStockLimit
                           ? 'Max In Basket'
                           : shopOffline
-                          ? 'Pre-order • R${displayPrice.toStringAsFixed(0)}'
-                          : 'Add to Basket • R${displayPrice.toStringAsFixed(0)}',
+                          ? 'Pre-order • ${formatBrowsePrice(displayPrice)}'
+                          : 'Add to Basket • ${formatBrowsePrice(displayPrice)}',
                       onPressed: canPurchase
                           ? () => _addToCart(
                               product,
@@ -1358,11 +1422,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           ),
         );
       },
-      loading: () => const Scaffold(
+      loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: Center(
-          child: CircularProgressIndicator(color: AppTheme.terracotta),
-        ),
+        body: SafeArea(child: _ProductDetailSkeleton(screenWidth: screenWidth)),
       ),
       error: (error, _) => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
@@ -1377,7 +1439,12 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             onPressed: () => context.pop(),
           ),
         ),
-        body: Center(child: Text('Error: $error')),
+        body: ErrorRetryView(
+          error: error,
+          title: "Couldn't load this product",
+          onRetry: () =>
+              ref.invalidate(productDetailProvider(widget.productId)),
+        ),
       ),
     );
   }
@@ -1649,6 +1716,47 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
+  /// A short, honest delivery line built only from shipping options the
+  /// artisan has actually configured. Returns null when nothing is known,
+  /// rather than inventing a delivery promise.
+  String? _shippingSummary(Product product) {
+    final enabled = product.shippingOptions
+        .where((option) => option.enabled)
+        .toList(growable: false);
+    if (enabled.isEmpty) return null;
+
+    double? cheapest;
+    var hasPickup = false;
+    var hasCourier = false;
+    for (final option in enabled) {
+      if (cheapest == null || option.price < cheapest) {
+        cheapest = option.price;
+      }
+      if (option.key == 'market_pickup') {
+        hasPickup = true;
+      } else {
+        hasCourier = true;
+      }
+    }
+
+    final parts = <String>[];
+    if (cheapest != null) {
+      parts.add(
+        cheapest <= 0
+            ? 'Free delivery'
+            : 'Delivery from ${formatBrowsePrice(cheapest)}',
+      );
+    }
+    if (hasPickup && hasCourier) {
+      parts.add('collect or courier');
+    } else if (hasPickup) {
+      parts.add('collection available');
+    } else if (hasCourier) {
+      parts.add('courier delivery');
+    }
+    return parts.join(' · ');
+  }
+
   Widget _floatingIconButton({
     required IconData icon,
     required VoidCallback onTap,
@@ -1809,36 +1917,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 }
 
-class _ZoomHintPill extends StatelessWidget {
-  const _ZoomHintPill();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.46),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.zoom_in_rounded, size: 16, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(
-            'Tap to zoom',
-            style: GoogleFonts.poppins(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ProductImageZoomScreen extends StatefulWidget {
   final List<String> images;
   final int initialIndex;
@@ -1856,6 +1934,9 @@ class _ProductImageZoomScreen extends StatefulWidget {
 class _ProductImageZoomScreenState extends State<_ProductImageZoomScreen> {
   late final PageController _controller;
   late int _currentIndex;
+  bool _isZoomed = false;
+  double _dismissDrag = 0;
+  bool _isDismissDragging = false;
 
   @override
   void initState() {
@@ -1870,40 +1951,65 @@ class _ProductImageZoomScreenState extends State<_ProductImageZoomScreen> {
     super.dispose();
   }
 
+  void _handleDismissDragUpdate(DragUpdateDetails details) {
+    if (_isZoomed) return;
+    setState(() {
+      _isDismissDragging = true;
+      _dismissDrag = (_dismissDrag + details.delta.dy).clamp(-200.0, 200.0);
+    });
+  }
+
+  void _handleDismissDragEnd(DragEndDetails details) {
+    if (_isZoomed) return;
+    if (_dismissDrag.abs() > 110 ||
+        details.velocity.pixelsPerSecond.dy.abs() > 800) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _isDismissDragging = false;
+      _dismissDrag = 0;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dragProgress = (_dismissDrag.abs() / 200).clamp(0.0, 1.0);
+    final backgroundOpacity = _isDismissDragging
+        ? 1 - (dragProgress * 0.6)
+        : 1.0;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.black.withValues(alpha: backgroundOpacity),
       body: SafeArea(
         child: Stack(
           children: [
-            PageView.builder(
-              controller: _controller,
-              itemCount: widget.images.length,
-              onPageChanged: (index) => setState(() => _currentIndex = index),
-              itemBuilder: (context, index) {
-                return InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 4,
-                  child: Center(
-                    child: CachedNetworkImage(
+            AnimatedContainer(
+              duration: _isDismissDragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              transform: Matrix4.translationValues(0, _dismissDrag, 0),
+              child: GestureDetector(
+                onVerticalDragUpdate: _handleDismissDragUpdate,
+                onVerticalDragEnd: _handleDismissDragEnd,
+                child: PageView.builder(
+                  controller: _controller,
+                  physics: _isZoomed
+                      ? const NeverScrollableScrollPhysics()
+                      : const BouncingScrollPhysics(),
+                  itemCount: widget.images.length,
+                  onPageChanged: (index) =>
+                      setState(() => _currentIndex = index),
+                  itemBuilder: (context, index) {
+                    return _ZoomableProductImage(
                       imageUrl: widget.images[index],
-                      fit: BoxFit.contain,
-                      placeholder: (_, __) => Center(
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.terracotta.withValues(alpha: 0.7),
-                        ),
-                      ),
-                      errorWidget: (_, __, ___) => const Icon(
-                        Icons.image_outlined,
-                        size: 64,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ),
-                );
-              },
+                      onZoomChanged: (zoomed) {
+                        if (index != _currentIndex) return;
+                        setState(() => _isZoomed = zoomed);
+                      },
+                    );
+                  },
+                ),
+              ),
             ),
             Positioned(
               top: 12,
@@ -1931,26 +2037,338 @@ class _ProductImageZoomScreenState extends State<_ProductImageZoomScreen> {
                 left: 0,
                 right: 0,
                 child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '${_currentIndex + 1} / ${widget.images.length}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      widget.images.length,
+                      (i) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: i == _currentIndex ? 20 : 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        decoration: BoxDecoration(
+                          color: i == _currentIndex
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A single zoomable image: double-tap to zoom in/out at the tap point,
+/// pinch to zoom, and reports its zoom state so the enclosing [PageView]
+/// can stop fighting for swipe gestures while zoomed in.
+class _ZoomableProductImage extends StatefulWidget {
+  final String imageUrl;
+  final ValueChanged<bool> onZoomChanged;
+
+  const _ZoomableProductImage({
+    required this.imageUrl,
+    required this.onZoomChanged,
+  });
+
+  @override
+  State<_ZoomableProductImage> createState() => _ZoomableProductImageState();
+}
+
+class _ZoomableProductImageState extends State<_ZoomableProductImage>
+    with SingleTickerProviderStateMixin {
+  final TransformationController _transformController =
+      TransformationController();
+  TapDownDetails? _doubleTapDetails;
+  bool _zoomed = false;
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  void _setZoomed(bool zoomed) {
+    if (_zoomed == zoomed) return;
+    _zoomed = zoomed;
+    widget.onZoomChanged(zoomed);
+  }
+
+  void _handleDoubleTap() {
+    if (_transformController.value != Matrix4.identity()) {
+      _transformController.value = Matrix4.identity();
+      _setZoomed(false);
+      return;
+    }
+    final position = _doubleTapDetails?.localPosition ?? Offset.zero;
+    final zoomed = Matrix4.identity()
+      ..translateByDouble(-position.dx * 1.8, -position.dy * 1.8, 0, 1)
+      ..scaleByDouble(2.8, 2.8, 2.8, 1);
+    _transformController.value = zoomed;
+    _setZoomed(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onDoubleTapDown: (details) => _doubleTapDetails = details,
+      onDoubleTap: _handleDoubleTap,
+      child: InteractiveViewer(
+        transformationController: _transformController,
+        minScale: 1,
+        maxScale: 4,
+        onInteractionEnd: (_) {
+          final scale = _transformController.value.getMaxScaleOnAxis();
+          _setZoomed(scale > 1.02);
+        },
+        child: Center(
+          child: CachedNetworkImage(
+            imageUrl: widget.imageUrl,
+            fit: BoxFit.contain,
+            placeholder: (_, __) => const Center(
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white54,
+              ),
+            ),
+            errorWidget: (_, __, ___) => const Icon(
+              Icons.image_outlined,
+              size: 64,
+              color: Colors.white54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact "Added to basket" confirmation shown in the SnackBar so buyers
+/// can see what was added without leaving the product page.
+class _AddedToBasketToast extends StatelessWidget {
+  final String imageUrl;
+  final String title;
+
+  const _AddedToBasketToast({required this.imageUrl, required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CachedNetworkImage(
+            imageUrl: imageUrl,
+            width: 40,
+            height: 40,
+            fit: BoxFit.cover,
+            errorWidget: (_, __, ___) => Container(
+              width: 40,
+              height: 40,
+              color: Colors.white24,
+              child: const Icon(
+                Icons.image_outlined,
+                size: 18,
+                color: Colors.white70,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Added to basket',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(color: Colors.white70, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Horizontal row of other products from the same maker, so buyers can keep
+/// browsing without leaving the product page. Hides itself entirely when
+/// the maker only has this one product listed (or the data is unavailable).
+class _MoreFromMakerSection extends ConsumerWidget {
+  final String shopId;
+  final String excludeProductId;
+
+  const _MoreFromMakerSection({
+    required this.shopId,
+    required this.excludeProductId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final productsAsync = ref.watch(shopProductsProvider(shopId));
+    return productsAsync.when(
+      data: (products) {
+        final others = products
+            .where((p) => p.id != excludeProductId)
+            .toList(growable: false);
+        if (others.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'More from this maker',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 240,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: others.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) => SizedBox(
+                    width: 150,
+                    child: ProductCard(
+                      product: others[index],
+                      showShopName: false,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Horizontal row of same-category products, so buyers can keep browsing
+/// related pieces. Skips this product and this maker's own items (already
+/// covered by "More from this maker") and shows in-stock pieces first.
+/// Hides itself when nothing else fits.
+class _YouMayAlsoLikeSection extends ConsumerWidget {
+  final String categoryId;
+  final String excludeProductId;
+  final String excludeShopId;
+
+  const _YouMayAlsoLikeSection({
+    required this.categoryId,
+    required this.excludeProductId,
+    required this.excludeShopId,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final productsAsync = ref.watch(
+      categoryProductsProvider(CategoryProductFilter(categoryId: categoryId)),
+    );
+    return productsAsync.when(
+      data: (products) {
+        final others = products
+            .where((p) => p.id != excludeProductId && p.shopId != excludeShopId)
+            .toList();
+        others.sort((a, b) {
+          final byStock = (b.isInStock ? 1 : 0).compareTo(a.isInStock ? 1 : 0);
+          if (byStock != 0) return byStock;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+        if (others.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'You may also like',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 240,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: others.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) => SizedBox(
+                    width: 150,
+                    child: ProductCard(product: others[index]),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Skeleton placeholder shown while the product page's data loads, so the
+/// screen never sits on a bare spinner.
+class _ProductDetailSkeleton extends StatelessWidget {
+  final double screenWidth;
+
+  const _ProductDetailSkeleton({required this.screenWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    return Skeleton(
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SkeletonBox(width: double.infinity, height: screenWidth, radius: 0),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SkeletonBox(width: 120, height: 14),
+                  const SizedBox(height: 16),
+                  const SkeletonBox(width: 220, height: 26),
+                  const SizedBox(height: 12),
+                  const SkeletonBox(width: 100, height: 28),
+                  const SizedBox(height: 24),
+                  const SkeletonBox(width: double.infinity, height: 14),
+                  const SizedBox(height: 8),
+                  const SkeletonBox(width: double.infinity, height: 14),
+                  const SizedBox(height: 8),
+                  SkeletonBox(width: screenWidth * 0.6, height: 14),
+                ],
+              ),
+            ),
           ],
         ),
       ),

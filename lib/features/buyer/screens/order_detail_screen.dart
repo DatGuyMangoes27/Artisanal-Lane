@@ -5,12 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/order.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/african_patterns.dart';
+import '../../../widgets/skeleton.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/status_badge.dart';
 import '../providers/buyer_providers.dart';
@@ -22,6 +25,43 @@ class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
 
   const OrderDetailScreen({super.key, required this.orderId});
+
+  Future<void> _messageMaker(
+    BuildContext context,
+    WidgetRef ref,
+    Order order,
+  ) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      await showSignInPromptSheet(
+        context,
+        title: 'Sign in to message the maker',
+        message:
+            'Create an account or sign in to start a conversation with ${order.shopName ?? 'this artisan'}.',
+      );
+      return;
+    }
+    try {
+      final thread = await ref
+          .read(supabaseServiceProvider)
+          .getOrCreateThread(shopId: order.shopId, buyerId: user.id);
+      if (context.mounted) {
+        context.push('/profile/messages/${thread.id}');
+      }
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            friendlyErrorMessage(error, fallback: 'Could not open chat.'),
+            style: GoogleFonts.poppins(color: Colors.white),
+          ),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
 
   Future<void> _copyTrackingNumber(
     BuildContext context,
@@ -173,11 +213,17 @@ class OrderDetailScreen extends ConsumerWidget {
           'dd MMM yyyy, HH:mm',
         ).format(order.createdAt);
 
+        final canAct =
+            order.status == 'shipped' ||
+            order.status == 'delivered' ||
+            order.status == 'disputed';
+
         return Scaffold(
           backgroundColor: AppTheme.scaffoldBg,
           body: SafeArea(
+            bottom: false,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              padding: EdgeInsets.fromLTRB(24, 20, 24, canAct ? 16 : 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -382,129 +428,42 @@ class OrderDetailScreen extends ConsumerWidget {
                     const SizedBox(height: 20),
                   ],
 
-                  // ── Action Buttons ─────────────────────────
-                  if (order.status == 'shipped' ||
-                      order.status == 'delivered') ...[
-                    GradientButton(
-                      label: 'Confirm Receipt',
-                      onPressed: () =>
-                          context.push('/profile/orders/${order.id}/confirm'),
-                      verticalPadding: 16,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (order.status == 'delivered' ||
-                      order.status == 'shipped') ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            context.push('/profile/orders/${order.id}/dispute'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.error,
-                          side: BorderSide(
-                            color: AppTheme.error.withValues(alpha: 0.5),
-                            width: 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('Raise Dispute'),
-                      ),
-                    ),
-                  ] else if (order.status == 'disputed') ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            context.push('/profile/orders/${order.id}/dispute'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppTheme.error,
-                          side: BorderSide(
-                            color: AppTheme.error.withValues(alpha: 0.5),
-                            width: 1,
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: GoogleFonts.poppins(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child: const Text('Open Dispute'),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 40),
-
                   // ── TripleDot footer accent ────────────────
                   const Center(child: TripleDot()),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                 ],
               ),
             ),
           ),
+          bottomNavigationBar: canAct
+              ? _OrderActionBar(
+                  order: order,
+                  onMessageMaker: () => _messageMaker(context, ref, order),
+                )
+              : null,
         );
       },
       loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: const Center(
-          child: CircularProgressIndicator(color: AppTheme.terracotta),
-        ),
+        body: SafeArea(child: _OrderDetailSkeleton()),
       ),
       error: (error, _) => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _BackButton(onTap: () => context.pop()),
-                const Spacer(),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline_rounded,
-                        size: 48,
-                        color: AppTheme.error.withValues(alpha: 0.6),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading order',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$error',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          color: AppTheme.textHint,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-              ],
+        appBar: AppBar(
+          backgroundColor: AppTheme.scaffoldBg,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: AppTheme.textPrimary,
             ),
+            onPressed: () => context.pop(),
           ),
+        ),
+        body: ErrorRetryView(
+          error: error,
+          title: "Couldn't load this order",
+          onRetry: () => ref.invalidate(orderDetailStreamProvider(orderId)),
         ),
       ),
     );
@@ -683,7 +642,7 @@ class _ItemCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(0)}',
+                  'Qty: ${item.quantity} × R${item.unitPrice.toStringAsFixed(2)}',
                   style: GoogleFonts.poppins(
                     fontSize: 13,
                     color: AppTheme.textHint,
@@ -695,7 +654,7 @@ class _ItemCard extends StatelessWidget {
 
           // Line total
           Text(
-            'R${item.lineTotal.toStringAsFixed(0)}',
+            'R${item.lineTotal.toStringAsFixed(2)}',
             style: GoogleFonts.playfairDisplay(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -1035,13 +994,13 @@ class _PaymentCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _row('Subtotal', 'R${subtotal.toStringAsFixed(0)}'),
+          _row('Subtotal', 'R${subtotal.toStringAsFixed(2)}'),
           if (giftFee > 0) ...[
             const SizedBox(height: 12),
-            _row(giftServiceLabel, 'R${giftFee.toStringAsFixed(0)}'),
+            _row(giftServiceLabel, 'R${giftFee.toStringAsFixed(2)}'),
           ],
           const SizedBox(height: 12),
-          _row('Shipping', 'R${shippingCost.toStringAsFixed(0)}'),
+          _row('Shipping', 'R${shippingCost.toStringAsFixed(2)}'),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Divider(
@@ -1062,7 +1021,7 @@ class _PaymentCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'R${grandTotal.toStringAsFixed(0)}',
+                'R${grandTotal.toStringAsFixed(2)}',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -1200,6 +1159,159 @@ class _StatusTimeline extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Sticky bottom action bar
+// ═══════════════════════════════════════════════════════════════════
+
+class _OrderActionBar extends StatelessWidget {
+  final Order order;
+  final VoidCallback onMessageMaker;
+
+  const _OrderActionBar({required this.order, required this.onMessageMaker});
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = order.status == 'shipped' || order.status == 'delivered';
+    final canDispute =
+        order.status == 'shipped' ||
+        order.status == 'delivered' ||
+        order.status == 'disputed';
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onMessageMaker,
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 18,
+                    ),
+                    label: const Text('Message maker'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.terracotta,
+                      side: const BorderSide(color: AppTheme.terracotta),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      textStyle: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                if (canDispute) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () =>
+                          context.push('/profile/orders/${order.id}/dispute'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.error,
+                        side: BorderSide(
+                          color: AppTheme.error.withValues(alpha: 0.5),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        textStyle: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      child: Text(
+                        order.status == 'disputed'
+                            ? 'Open dispute'
+                            : 'Raise dispute',
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            if (canConfirm) ...[
+              const SizedBox(height: 10),
+              GradientButton(
+                label: 'Confirm Receipt',
+                onPressed: () =>
+                    context.push('/profile/orders/${order.id}/confirm'),
+                verticalPadding: 14,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Loading skeleton
+// ═══════════════════════════════════════════════════════════════════
+
+class _OrderDetailSkeleton extends StatelessWidget {
+  const _OrderDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Skeleton(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const SkeletonBox(width: 44, height: 44, radius: 12),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SkeletonBox(width: 160, height: 18),
+                      const SizedBox(height: 8),
+                      const SkeletonBox(width: 110, height: 12),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            SkeletonBox(width: double.infinity, height: 120, radius: 20),
+            const SizedBox(height: 32),
+            const SkeletonBox(width: 80, height: 18),
+            const SizedBox(height: 16),
+            SkeletonBox(width: double.infinity, height: 90, radius: 16),
+            const SizedBox(height: 32),
+            const SkeletonBox(width: 80, height: 18),
+            const SizedBox(height: 16),
+            SkeletonBox(width: double.infinity, height: 160, radius: 20),
+          ],
+        ),
+      ),
     );
   }
 }

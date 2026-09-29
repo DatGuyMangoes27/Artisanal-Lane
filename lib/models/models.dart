@@ -10,6 +10,7 @@ export 'shop_market_event.dart';
 export 'shop_coupon.dart';
 export 'shipping_option.dart';
 export 'shop_post.dart';
+export 'creator_parity.dart';
 export 'product.dart';
 export 'product_option_group.dart';
 export 'product_variant.dart';

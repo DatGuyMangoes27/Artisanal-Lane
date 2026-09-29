@@ -55,6 +55,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Keep internal previews installable alongside the signed live app.
+            applicationIdSuffix = ".preview"
+            versionNameSuffix = "-preview"
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
         }

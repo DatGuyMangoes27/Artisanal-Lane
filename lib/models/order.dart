@@ -247,3 +247,32 @@ class OrderItem {
     return '${min ?? max} days';
   }
 }
+
+/// Buyer contact details for a single order, returned by the
+/// `get_order_buyer_contacts` RPC. Only populated for orders placed with
+/// shops the caller owns.
+class OrderBuyerContact {
+  final String orderId;
+  final String buyerId;
+  final String? displayName;
+  final String? email;
+  final String? phone;
+
+  const OrderBuyerContact({
+    required this.orderId,
+    required this.buyerId,
+    this.displayName,
+    this.email,
+    this.phone,
+  });
+
+  factory OrderBuyerContact.fromJson(Map<String, dynamic> json) {
+    return OrderBuyerContact(
+      orderId: json['order_id'] as String,
+      buyerId: json['buyer_id'] as String,
+      displayName: json['display_name'] as String?,
+      email: json['email'] as String?,
+      phone: json['phone'] as String?,
+    );
+  }
+}
