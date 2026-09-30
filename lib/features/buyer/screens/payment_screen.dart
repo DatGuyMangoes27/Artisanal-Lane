@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
+import '../../../models/bobgo.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
 import 'tradesafe_checkout_screen.dart';
@@ -41,6 +42,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         giftRecipient: gift.recipient,
         giftMessage: gift.message,
         couponCode: data['couponCode'] as String?,
+        bobgo: data['bobgo'] as BobGoSelection?,
       );
 
       // Reset gift state after order is placed

@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../widgets/gradient_fab.dart';
 import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../buyer/widgets/removed_post_banner.dart';
 import '../providers/vendor_providers.dart';
 import '../services/creator_post_media.dart';
 import '../widgets/composer/composer_format_picker.dart';
@@ -123,7 +124,33 @@ class VendorPostsScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            if (post.isScheduled)
+            if (post.isRemoved)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: ColoredBox(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 5,
+                    ),
+                    child: Text(
+                      'Removed by Artisan Lane',
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (post.isScheduled && !post.isRemoved)
               Positioned(
                 right: 6,
                 top: 6,
@@ -173,6 +200,10 @@ class VendorPostsScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (post.isRemoved) ...[
+                RemovedPostBanner(post: post),
+                const SizedBox(height: 12),
+              ],
               Text(
                 post.caption,
                 maxLines: 3,
@@ -183,19 +214,20 @@ class VendorPostsScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                minLeadingWidth: 44,
-                leading: const Icon(
-                  Icons.edit_outlined,
-                  color: AppTheme.terracotta,
+              if (!post.isRemoved)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  minLeadingWidth: 44,
+                  leading: const Icon(
+                    Icons.edit_outlined,
+                    color: AppTheme.terracotta,
+                  ),
+                  title: Text('Edit post', style: GoogleFonts.poppins()),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    context.push('/vendor/profile/posts/${post.id}');
+                  },
                 ),
-                title: Text('Edit post', style: GoogleFonts.poppins()),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  context.push('/vendor/profile/posts/${post.id}');
-                },
-              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 minLeadingWidth: 44,

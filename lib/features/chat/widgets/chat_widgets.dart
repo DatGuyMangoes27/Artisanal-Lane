@@ -124,6 +124,9 @@ class ChatThreadScaffold extends StatelessWidget {
   final Widget composer;
   final String? Function(String senderId)? senderLabelResolver;
 
+  /// Optional app bar actions (for example a ⋯ menu).
+  final List<Widget>? actions;
+
   const ChatThreadScaffold({
     super.key,
     required this.messagesAsync,
@@ -134,6 +137,7 @@ class ChatThreadScaffold extends StatelessWidget {
     this.subtitle,
     this.avatarUrl,
     this.senderLabelResolver,
+    this.actions,
   });
 
   @override
@@ -144,6 +148,7 @@ class ChatThreadScaffold extends StatelessWidget {
         backgroundColor: AppTheme.scaffoldBg,
         scrolledUnderElevation: 0,
         titleSpacing: 0,
+        actions: actions,
         title: Row(
           children: [
             CircleAvatar(

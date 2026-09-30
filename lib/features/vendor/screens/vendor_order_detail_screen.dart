@@ -1,9 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
+import '../../../widgets/bobgo_courier_card.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../buyer/utils/tracking_links.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/vendor_providers.dart';
 
@@ -22,6 +29,7 @@ class _VendorOrderDetailScreenState
   final _trackingController = TextEditingController();
   final _trackingUrlController = TextEditingController();
   bool _isShipping = false;
+  bool _isBobGoBusy = false;
 
   String _friendlyError(Object error) {
     final message = error.toString().toLowerCase();
@@ -32,6 +40,65 @@ class _VendorOrderDetailScreenState
       return 'Connection problem. Check your internet connection and try again.';
     }
     return 'We could not update this order. Please try again.';
+  }
+
+  void _showMessage(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: GoogleFonts.poppins()),
+        backgroundColor: error ? AppTheme.error : AppTheme.baobab,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<void> _downloadWaybill() async {
+    if (_isBobGoBusy) return;
+    setState(() => _isBobGoBusy = true);
+    try {
+      final waybill = await ref
+          .read(supabaseServiceProvider)
+          .getBobGoWaybill(widget.orderId);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${waybill.fileName}');
+      await file.writeAsBytes(waybill.bytes, flush: true);
+      await Share.shareXFiles([
+        XFile(file.path, mimeType: 'application/pdf'),
+      ], subject: 'Order waybill');
+    } catch (_) {
+      _showMessage(
+        'We could not load the waybill right now. Please try again shortly.',
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _isBobGoBusy = false);
+    }
+  }
+
+  Future<void> _retryBobGoBooking() async {
+    if (_isBobGoBusy) return;
+    setState(() => _isBobGoBusy = true);
+    try {
+      await ref.read(supabaseServiceProvider).retryBobGoBooking(widget.orderId);
+      ref.invalidate(vendorOrderDetailProvider(widget.orderId));
+      ref.invalidate(vendorOrderDetailStreamProvider(widget.orderId));
+      _showMessage('Courier booking requested');
+    } catch (_) {
+      _showMessage(
+        'The courier could not be booked yet. Please try again later.',
+        error: true,
+      );
+    } finally {
+      if (mounted) setState(() => _isBobGoBusy = false);
+    }
+  }
+
+  Future<void> _openTracking(String url) async {
+    final uri = normalizeTrackingUri(url);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showMessage('Could not open the tracking link', error: true);
+    }
   }
 
   @override
@@ -177,6 +244,17 @@ class _VendorOrderDetailScreenState
             const SizedBox(height: 20),
             _OrderTimeline(status: order.status),
             const SizedBox(height: 20),
+            if (order.isBobGo) ...[
+              BobGoCourierCard(
+                order: order,
+                isVendor: true,
+                isBusy: _isBobGoBusy,
+                onDownloadWaybill: _downloadWaybill,
+                onRetryBooking: _retryBobGoBooking,
+                onOpenTracking: () => _openTracking(order.trackingUrl ?? ''),
+              ),
+              const SizedBox(height: 20),
+            ],
 
             // Items
             Text(
@@ -490,7 +568,7 @@ class _VendorOrderDetailScreenState
 
             // Fulfilment details — the sticky "Mark as Shipped" action lives
             // in the bottom bar so it stays reachable while scrolling.
-            if (order.status == 'paid') ...[
+            if (order.status == 'paid' && !order.isBobGo) ...[
               Text(
                 'Fulfillment',
                 style: GoogleFonts.playfairDisplay(
@@ -549,6 +627,8 @@ class _VendorOrderDetailScreenState
               ),
               const SizedBox(height: 80),
             ],
+            if (order.status == 'paid' && order.isBobGo)
+              const SizedBox(height: 80),
             if (order.status == 'disputed') ...[
               GradientButton(
                 label: 'Open Dispute Conversation',

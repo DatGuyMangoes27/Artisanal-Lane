@@ -1,9 +1,28 @@
 import '../../../models/vendor_subscription.dart';
 
-const artisanSubscriptionAmount = 349.0;
+/// Founders offer price for new sign-ups (first 100 shops, locked for 12 months).
+const artisanSubscriptionAmount = 199.0;
+const artisanSubscriptionStandardAmount = 349.0;
 const artisanSubscriptionPlanLabel = 'Artisan Subscription';
 const vendorSubscriptionGateMessage =
-    'Start your free first two months now. After that, your artisan subscription is R349/month before listing products or receiving new buyer checkouts.';
+    'Start your free first month now. After that, your artisan subscription is R199/month, locked in for 12 months (founders offer, first 100 shops), before listing products or receiving new buyer checkouts.';
+
+String formatSubscriptionAmount(double amount) {
+  return amount == amount.roundToDouble()
+      ? amount.toStringAsFixed(0)
+      : amount.toStringAsFixed(2);
+}
+
+/// Price line for a shop's own subscription. Uses the subscription's actual
+/// amount when one exists, otherwise the offer copy for new sign-ups.
+String vendorSubscriptionPriceLine(VendorSubscription? subscription) {
+  if (subscription != null &&
+      subscription.amount > 0 &&
+      isVendorSubscriptionActive(subscription)) {
+    return 'R${formatSubscriptionAmount(subscription.amount)} / month';
+  }
+  return 'First month free, then R${formatSubscriptionAmount(artisanSubscriptionAmount)} / month for 12 months';
+}
 
 bool isVendorSubscriptionActive(VendorSubscription? subscription) {
   if (subscription == null) return false;

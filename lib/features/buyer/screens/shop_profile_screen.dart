@@ -17,6 +17,7 @@ import '../../../widgets/african_patterns.dart';
 import '../../../widgets/product_card.dart';
 import '../../../widgets/skeleton.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../providers/blocking_providers.dart';
 import '../providers/buyer_providers.dart';
 import '../providers/creator_parity_providers.dart';
 import '../utils/shop_profile_actions.dart';
@@ -759,7 +760,7 @@ class _HeroIconButton extends StatelessWidget {
   }
 }
 
-enum _ShopMoreMenuAction { copyLink, share, mute, report }
+enum _ShopMoreMenuAction { copyLink, share, mute, block, report }
 
 /// The maker profile's ⋯ menu: copy link, share, mute/unmute this maker,
 /// and (when [creatorSafetyEnabled] and signed in, never on your own shop)
@@ -774,6 +775,7 @@ class _ShopMoreMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isSignedIn = ref.watch(currentUserIdProvider) != null;
     final isMuted = ref.watch(isShopMutedProvider(shop.id));
+    final isBlocked = ref.watch(isUserBlockedProvider(shop.vendorId));
     final canModerate = isSignedIn && !isOwnShop;
     return PopupMenuButton<_ShopMoreMenuAction>(
       offset: const Offset(0, 48),
@@ -813,6 +815,21 @@ class _ShopMoreMenuButton extends ConsumerWidget {
                 ),
                 const SizedBox(width: 10),
                 Text(isMuted ? 'Unmute' : 'Mute'),
+              ],
+            ),
+          ),
+        if (canModerate)
+          PopupMenuItem(
+            value: _ShopMoreMenuAction.block,
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.block_outlined,
+                  size: 18,
+                  color: AppTheme.textPrimary,
+                ),
+                const SizedBox(width: 10),
+                Text(isBlocked ? 'Unblock' : 'Block'),
               ],
             ),
           ),
@@ -858,6 +875,19 @@ class _ShopMoreMenuButton extends ConsumerWidget {
               muted: !isMuted,
               shopName: shop.name,
             );
+            break;
+          case _ShopMoreMenuAction.block:
+            if (isBlocked) {
+              await unblockUser(ref, shop.vendorId, shopId: shop.id);
+            } else {
+              await confirmBlockUser(
+                ref,
+                context,
+                userId: shop.vendorId,
+                name: shop.name,
+                shopId: shop.id,
+              );
+            }
             break;
           case _ShopMoreMenuAction.report:
             await showContentReportSheet(

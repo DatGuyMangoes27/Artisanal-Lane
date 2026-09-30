@@ -75,6 +75,13 @@ class ShippingOption {
       description: 'Courier delivery to your address, 2–4 business days',
       icon: Icons.local_shipping_outlined,
     ),
+    // Not stored on shops: offered at checkout from a live Bob Go quote when
+    // the artisan has enabled it and the server flag is on.
+    'bobgo_door_to_door': _MethodMeta(
+      name: 'Bob Go Door to Door',
+      description: 'Courier delivery to your address, priced live',
+      icon: Icons.local_shipping_outlined,
+    ),
     'pargo': _MethodMeta(
       name: 'Pargo',
       description: 'Pick up at a Pargo point near you',

@@ -9,8 +9,10 @@ import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
 import '../../../models/shop_market_event.dart';
 import '../../../models/shipping_option.dart';
+import '../widgets/bobgo_collection_section.dart';
 import '../widgets/shipping_rates_reference.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../providers/bobgo_vendor_providers.dart';
 import '../providers/vendor_providers.dart';
 
 class VendorShopSettingsScreen extends ConsumerStatefulWidget {
@@ -770,6 +772,7 @@ class _VendorShopSettingsScreenState
                         (opt) => _buildShippingOptionCard(opt),
                       ),
                       const SizedBox(height: 12),
+                      ..._buildBobGoSection(shopAsync.asData?.value?.id),
                     ],
                   ),
                 ),
@@ -1688,6 +1691,54 @@ class _VendorShopSettingsScreenState
         ],
       ),
     );
+  }
+
+  /// Courier (Bob Go) collection details. Hidden until the server flag is on.
+  List<Widget> _buildBobGoSection(String? shopId) {
+    if (shopId == null) return const [];
+    final enabled = ref.watch(bobGoServerEnabledProvider).asData?.value ?? false;
+    if (!enabled) return const [];
+    final profile = ref.watch(shopFulfillmentProfileProvider(shopId));
+    return [
+      const SizedBox(height: 12),
+      profile.when(
+        data: (value) => BobGoCollectionSection(
+          shopId: shopId,
+          initial: value,
+          onSave: (draft) async {
+            await ref
+                .read(supabaseServiceProvider)
+                .saveShopFulfillmentProfile(draft);
+            ref.invalidate(shopFulfillmentProfileProvider(shopId));
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Courier details saved',
+                  style: GoogleFonts.poppins(),
+                ),
+                backgroundColor: AppTheme.baobab,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+        ),
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: CircularProgressIndicator(
+              color: AppTheme.terracotta,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
+        error: (_, _) => Text(
+          'We could not load your courier details right now.',
+          style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.error),
+        ),
+      ),
+      const SizedBox(height: 12),
+    ];
   }
 
   Widget _buildLabel(String text) {

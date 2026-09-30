@@ -37,6 +37,7 @@ import '../features/buyer/screens/buyer_disputes_screen.dart';
 import '../features/buyer/screens/buyer_profile_screen.dart';
 import '../features/buyer/screens/buyer_messages_screen.dart';
 import '../features/buyer/screens/buyer_chat_thread_screen.dart';
+import '../features/buyer/screens/blocked_accounts_screen.dart';
 import '../features/buyer/screens/settings_screen.dart';
 import '../features/buyer/screens/notifications_screen.dart';
 import '../features/buyer/screens/saved_addresses_screen.dart';
@@ -327,6 +328,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     GoRoute(
                       path: 'settings',
                       builder: (context, state) => const SettingsScreen(),
+                      routes: [
+                        GoRoute(
+                          path: 'blocked',
+                          builder: (context, state) =>
+                              const BlockedAccountsScreen(),
+                        ),
+                      ],
                     ),
                     GoRoute(
                       path: 'orders',
@@ -607,6 +615,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(
                   path: 'settings',
                   builder: (context, state) => const SettingsScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'blocked',
+                      builder: (context, state) =>
+                          const BlockedAccountsScreen(),
+                    ),
+                  ],
                 ),
                 GoRoute(
                   path: 'orders',

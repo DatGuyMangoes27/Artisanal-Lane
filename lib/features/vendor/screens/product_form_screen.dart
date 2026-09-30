@@ -16,10 +16,13 @@ import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../providers/bobgo_vendor_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/parcel_measurements.dart';
 import '../utils/product_form_copy.dart';
 import '../utils/vendor_payout_setup.dart';
 import '../utils/vendor_subscription_setup.dart';
+import '../widgets/parcel_measurements_fields.dart';
 import '../widgets/shipping_rates_reference.dart';
 import 'listing_assistant_screen.dart';
 
@@ -51,6 +54,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _priceController = TextEditingController();
   final _compareAtPriceController = TextEditingController();
   final _stockController = TextEditingController();
+  final _parcelWeightController = TextEditingController();
+  final _parcelLengthController = TextEditingController();
+  final _parcelWidthController = TextEditingController();
+  final _parcelHeightController = TextEditingController();
+  String? _parcelError;
   final _careController = TextEditingController();
   final _fragranceController = TextEditingController();
   final _marketPickupNameController = TextEditingController();
@@ -392,6 +400,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.dispose();
     _compareAtPriceController.dispose();
     _stockController.dispose();
+    _parcelWeightController.dispose();
+    _parcelLengthController.dispose();
+    _parcelWidthController.dispose();
+    _parcelHeightController.dispose();
     _careController.dispose();
     _fragranceController.dispose();
     _marketPickupNameController.dispose();
@@ -426,6 +438,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _priceController.text = pricingFields.currentPriceText;
     _compareAtPriceController.text = pricingFields.salePriceText;
     _stockController.text = product.stockQty.toString();
+    String parcelText(double? v) => v == null ? '' : v.toString();
+    _parcelWeightController.text = parcelText(product.shippingWeightKg);
+    _parcelLengthController.text = parcelText(product.shippingLengthCm);
+    _parcelWidthController.text = parcelText(product.shippingWidthCm);
+    _parcelHeightController.text = parcelText(product.shippingHeightCm);
     _selectedCategoryId = product.categoryId;
     _selectedSubcategoryId = product.subcategoryId;
     _selectedTags.addAll(product.tags);
@@ -1418,6 +1435,21 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       _scrollToTop();
       return;
     }
+    final parcel = parseParcelMeasurements(
+      weightKg: _parcelWeightController.text,
+      lengthCm: _parcelLengthController.text,
+      widthCm: _parcelWidthController.text,
+      heightCm: _parcelHeightController.text,
+    );
+    if (parcel.error != null) {
+      setState(() {
+        _parcelError = parcel.error;
+        _formError = parcel.error;
+      });
+      _scrollToTop();
+      return;
+    }
+    _parcelError = null;
     final productShippingOptions = _buildProductShippingOptions();
     if (!productShippingOptions.any((option) => option.enabled)) {
       setState(
@@ -1550,6 +1582,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         'shipping_options': productShippingOptions
             .map((option) => option.toJson())
             .toList(),
+        ...parcel.measurements.toProductJson(),
         'variants': variantPayloads,
         if (_selectedCategoryId != null) 'category_id': _selectedCategoryId,
         'subcategory_id': _selectedSubcategoryId,
@@ -2869,6 +2902,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         const ShippingRatesReferenceCard(),
         const SizedBox(height: 12),
         ..._shippingOptions.map(_buildProductShippingOptionCard),
+        if (ref.watch(bobGoServerEnabledProvider).asData?.value ?? false) ...[
+          const SizedBox(height: 16),
+          ParcelMeasurementsFields(
+            weightController: _parcelWeightController,
+            lengthController: _parcelLengthController,
+            widthController: _parcelWidthController,
+            heightController: _parcelHeightController,
+            errorText: _parcelError,
+          ),
+        ],
       ],
     );
   }

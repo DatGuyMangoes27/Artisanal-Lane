@@ -17,6 +17,12 @@ class Product {
   final List<ProductVariant> variants;
   final List<String> tags;
   final List<ShippingOption> shippingOptions;
+
+  /// Packed parcel size for courier (Bob Go) quotes; null when not set.
+  final double? shippingWeightKg;
+  final double? shippingLengthCm;
+  final double? shippingWidthCm;
+  final double? shippingHeightCm;
   final bool isPublished;
   final bool isFeatured;
   final String? careInstructions;
@@ -54,6 +60,10 @@ class Product {
     this.variants = const [],
     this.tags = const [],
     this.shippingOptions = const [],
+    this.shippingWeightKg,
+    this.shippingLengthCm,
+    this.shippingWidthCm,
+    this.shippingHeightCm,
     this.isPublished = true,
     this.isFeatured = false,
     this.careInstructions,
@@ -164,6 +174,10 @@ class Product {
         json['shipping_options'],
         fallback: const [],
       ),
+      shippingWeightKg: (json['shipping_weight_kg'] as num?)?.toDouble(),
+      shippingLengthCm: (json['shipping_length_cm'] as num?)?.toDouble(),
+      shippingWidthCm: (json['shipping_width_cm'] as num?)?.toDouble(),
+      shippingHeightCm: (json['shipping_height_cm'] as num?)?.toDouble(),
       isPublished: json['is_published'] as bool? ?? true,
       isFeatured: json['is_featured'] as bool? ?? false,
       careInstructions: json['care_instructions'] as String?,
@@ -208,6 +222,10 @@ class Product {
     'shipping_options': shippingOptions
         .map((option) => option.toJson())
         .toList(),
+    'shipping_weight_kg': shippingWeightKg,
+    'shipping_length_cm': shippingLengthCm,
+    'shipping_width_cm': shippingWidthCm,
+    'shipping_height_cm': shippingHeightCm,
     'is_published': isPublished,
     'is_featured': isFeatured,
     'care_instructions': careInstructions,

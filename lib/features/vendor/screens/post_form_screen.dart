@@ -27,6 +27,7 @@ import '../widgets/composer/composer_settings_section.dart';
 import '../widgets/composer/composer_step_captions.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../buyer/widgets/removed_post_banner.dart';
 import '../providers/vendor_providers.dart';
 
 enum _MediaKind { image, pendingImage, pendingVideo }
@@ -105,6 +106,9 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
   bool _closingPoll = false;
 
   String? _validationError;
+
+  /// Set when Artisan Lane took this post down; editing is disabled.
+  String? _removedMessage;
 
   bool get _isEditing => widget.postId != null;
 
@@ -219,8 +223,8 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
           .from('shop_posts')
           .select(
             creatorCommerceEnabled
-                ? 'caption, media_urls, product_ids, comments_enabled, hide_like_count, scheduled_for, format, step_captions'
-                : 'caption, media_urls, comments_enabled, hide_like_count, scheduled_for, format, step_captions',
+                ? 'caption, media_urls, product_ids, comments_enabled, hide_like_count, scheduled_for, format, step_captions, removed_at, removed_reason'
+                : 'caption, media_urls, comments_enabled, hide_like_count, scheduled_for, format, step_captions, removed_at, removed_reason',
           )
           .eq('id', widget.postId!)
           .eq('shop_id', shop.id)
@@ -242,6 +246,16 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
         );
         _commentsEnabled = row['comments_enabled'] as bool? ?? true;
         _hideLikeCount = row['hide_like_count'] as bool? ?? false;
+        _removedMessage = row['removed_at'] == null
+            ? null
+            : ShopPost.fromJson({
+                'id': '',
+                'shop_id': '',
+                'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
+                'removed_at': row['removed_at'],
+                'removed_reason': row['removed_reason'],
+              }).removedMessage;
         _scheduledFor = row['scheduled_for'] is String
             ? DateTime.tryParse(row['scheduled_for'] as String)
             : null;
@@ -586,7 +600,7 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
   }
 
   Future<void> _save() async {
-    if (_isLoading) return;
+    if (_isLoading || _removedMessage != null) return;
     final formatError = _formatValidationError();
     final scheduleError = composerScheduleError(_scheduledFor);
     final error = formatError ?? scheduleError;
@@ -901,7 +915,8 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
     }
 
     final totalImages = _totalImages;
-    final canPublish = !_isLoading && _media.isNotEmpty;
+    final canPublish =
+        !_isLoading && _media.isNotEmpty && _removedMessage == null;
     final shop = ref.watch(vendorShopProvider).value;
     final showAddPhoto =
         _format != PostFormat.video &&
@@ -978,8 +993,13 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
                         "Your post is saved but not published yet. Tap Post to finish it before making changes.",
                       ),
                     ),
+                  if (_removedMessage != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: RemovedPostBanner.message(_removedMessage!),
+                    ),
                   IgnorePointer(
-                    ignoring: _submissionStarted,
+                    ignoring: _submissionStarted || _removedMessage != null,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

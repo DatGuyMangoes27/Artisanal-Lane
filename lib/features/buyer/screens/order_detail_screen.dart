@@ -11,6 +11,7 @@ import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/order.dart';
+import '../../../widgets/bobgo_courier_card.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../../widgets/skeleton.dart';
@@ -312,6 +313,10 @@ class OrderDetailScreen extends ConsumerWidget {
                   // ── Shipping Section ───────────────────────
                   _SectionTitle(title: 'Shipping'),
                   const SizedBox(height: 16),
+                  if (order.isBobGo) ...[
+                    BobGoCourierCard(order: order),
+                    const SizedBox(height: 16),
+                  ],
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(

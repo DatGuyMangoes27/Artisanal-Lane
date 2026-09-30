@@ -9,7 +9,10 @@ import '../../../app/theme.dart';
 import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../chat/utils/live_chat_messages.dart';
+import '../../chat/widgets/chat_block_bar.dart';
 import '../../chat/widgets/chat_widgets.dart';
+import '../../buyer/providers/blocking_providers.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../providers/vendor_providers.dart';
 
 class VendorChatThreadScreen extends ConsumerStatefulWidget {
@@ -28,6 +31,7 @@ class _VendorChatThreadScreenState
   final List<ChatMessage> _localMessages = [];
   ChatAttachment? _pendingAttachment;
   bool _isSending = false;
+  bool _cannotReply = false;
   String? _lastMarkedMessageId;
 
   @override
@@ -115,7 +119,18 @@ class _VendorChatThreadScreenState
       ref.invalidate(vendorThreadsProvider);
       ref.invalidate(vendorChatThreadProvider(widget.threadId));
     } catch (error) {
-      _showSnack('Could not send message: $error', isError: true);
+      if (isPermissionRejection(error)) {
+        if (mounted) setState(() => _cannotReply = true);
+        _showSnack(blockedChatMessage, isError: true);
+      } else {
+        _showSnack(
+          friendlyErrorMessage(
+            error,
+            fallback: "Couldn't send your message. Please try again.",
+          ),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -182,21 +197,46 @@ class _VendorChatThreadScreenState
         final avatarFallback = isAdminThread
             ? 'A'
             : (thread.buyerDisplayName ?? 'B');
+        final otherId = isAdminThread ? null : thread.buyerId;
+        final blocked =
+            otherId != null && ref.watch(isUserBlockedProvider(otherId));
         return ChatThreadScaffold(
+          actions: otherId == null
+              ? null
+              : [
+                  _BlockMenu(
+                    blocked: blocked,
+                    onSelected: () => blocked
+                        ? unblockUser(ref, otherId)
+                        : confirmBlockUser(
+                            ref,
+                            context,
+                            userId: otherId,
+                            name: thread.buyerDisplayName ?? 'this buyer',
+                          ),
+                  ),
+                ],
           messagesAsync: displayedMessagesAsync,
           currentUserId: userId ?? '',
           title: title,
           subtitle: subtitle,
           avatarUrl: avatarUrl,
           avatarFallback: avatarFallback,
-          composer: _ChatComposer(
-            controller: _messageController,
-            pendingAttachment: _pendingAttachment,
-            isSending: _isSending,
-            onAttach: _pickAttachment,
-            onRemoveAttachment: () => setState(() => _pendingAttachment = null),
-            onSend: userId == null ? null : () => _sendMessage(userId, thread),
-          ),
+          composer: blocked
+              ? ChatBlockBar.blocked(onUnblock: () => unblockUser(ref, otherId))
+              : _cannotReply
+              ? const ChatBlockBar.cannotReply()
+              : _ChatComposer(
+                  controller: _messageController,
+                  pendingAttachment: _pendingAttachment,
+                  isSending: _isSending,
+                  onAttach: _pickAttachment,
+                  onRemoveAttachment: () =>
+                      setState(() => _pendingAttachment = null),
+                  onSend: userId == null
+                      ? null
+                      : () => _sendMessage(userId, thread),
+                ),
         );
       },
       loading: () => const Scaffold(
@@ -357,4 +397,21 @@ String? _guessMimeType(String? extension) {
     default:
       return null;
   }
+}
+
+/// The ⋯ menu in a conversation's app bar: block or unblock the other person.
+class _BlockMenu extends StatelessWidget {
+  const _BlockMenu({required this.blocked, required this.onSelected});
+  final bool blocked;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Conversation options',
+    icon: const Icon(Icons.more_horiz_rounded),
+    onSelected: (_) => onSelected(),
+    itemBuilder: (_) => [
+      PopupMenuItem(value: 'block', child: Text(blocked ? 'Unblock' : 'Block')),
+    ],
+  );
 }

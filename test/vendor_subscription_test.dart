@@ -115,8 +115,9 @@ void main() {
     expect(find.textContaining('Current period ends'), findsOneWidget);
   });
 
-  test('inactive subscription copy mentions the free first two months', () {
-    expect(vendorSubscriptionGateMessage, contains('free first two months'));
+  test('inactive subscription copy mentions the free first month and founders price', () {
+    expect(vendorSubscriptionGateMessage, contains('free first month'));
+    expect(vendorSubscriptionGateMessage, contains('R199/month'));
   });
 
   test(
@@ -207,7 +208,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Start Subscription • R349/month'), findsNothing);
-      expect(find.textContaining('First two months free'), findsWidgets);
+      expect(find.textContaining('First month free'), findsWidgets);
     },
   );
 

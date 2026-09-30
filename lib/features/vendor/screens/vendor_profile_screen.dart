@@ -32,7 +32,7 @@ class VendorProfileScreen extends ConsumerWidget {
     );
     final subscriptionSubtitle = isVendorSubscriptionActive(subscription)
         ? vendorSubscriptionStatusMessage(subscription)
-        : 'Manage your R349/month PayFast artisan subscription';
+        : 'Manage your artisan subscription';
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,

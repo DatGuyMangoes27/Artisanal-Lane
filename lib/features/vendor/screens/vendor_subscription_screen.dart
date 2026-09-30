@@ -379,12 +379,20 @@ class _VendorSubscriptionScreenState
               const SizedBox(height: 20),
               _FeatureCard(
                 title: 'Billing',
-                items: const [
-                  'First two months free',
-                  'R349 per month after your free trial',
-                  'Secure recurring card billing through PayFast',
-                  'Add your card now, with the first charge starting in two months',
-                ],
+                items: subscription != null &&
+                        subscription.amount > 0 &&
+                        isActive
+                    ? [
+                        'R${formatSubscriptionAmount(subscription.amount)} per month',
+                        'Secure recurring card billing through PayFast',
+                      ]
+                    : const [
+                        'First month free',
+                        'Founders offer: R199 per month, locked in for 12 months (first 100 shops)',
+                        'Then R349 per month, with your first month free',
+                        'Secure recurring card billing through PayFast',
+                        'Add your card now, with the first charge starting in one month',
+                      ],
               ),
               const SizedBox(height: 24),
               GradientButton(
@@ -548,7 +556,7 @@ class _SubscriptionHeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'First two months free, then R${artisanSubscriptionAmount.toStringAsFixed(0)} / month',
+            vendorSubscriptionPriceLine(subscription),
             style: GoogleFonts.poppins(
               fontSize: 16,
               fontWeight: FontWeight.w600,

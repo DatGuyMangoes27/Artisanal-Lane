@@ -7,6 +7,8 @@ enum CheckoutField {
   phoneNumber,
   shippingMethod,
   pickupPoint,
+  suburb,
+  bobGoRate,
 }
 
 class CheckoutFormSnapshot {
@@ -22,6 +24,12 @@ class CheckoutFormSnapshot {
   final bool requiresPickupPoint;
   final String pickupPoint;
 
+  /// Bob Go door-to-door needs a suburb and a current saved rate.
+  final bool requiresSuburb;
+  final String suburb;
+  final bool requiresBobGoRate;
+  final bool hasUsableBobGoRate;
+
   const CheckoutFormSnapshot({
     required this.fullName,
     required this.streetAddress,
@@ -34,6 +42,10 @@ class CheckoutFormSnapshot {
     required this.requiresShippingAddress,
     required this.requiresPickupPoint,
     required this.pickupPoint,
+    this.requiresSuburb = false,
+    this.suburb = '',
+    this.requiresBobGoRate = false,
+    this.hasUsableBobGoRate = false,
   });
 }
 
@@ -46,6 +58,9 @@ CheckoutField? firstIncompleteCheckoutField(CheckoutFormSnapshot snapshot) {
     if (snapshot.city.trim().isEmpty) return CheckoutField.city;
     if (snapshot.postalCode.trim().isEmpty) return CheckoutField.postalCode;
     if ((snapshot.province ?? '').trim().isEmpty) return CheckoutField.province;
+    if (snapshot.requiresSuburb && snapshot.suburb.trim().isEmpty) {
+      return CheckoutField.suburb;
+    }
   }
   if (snapshot.phoneNumber.trim().isEmpty) return CheckoutField.phoneNumber;
   if (!snapshot.hasAvailableShippingMethods ||
@@ -55,12 +70,21 @@ CheckoutField? firstIncompleteCheckoutField(CheckoutFormSnapshot snapshot) {
   if (snapshot.requiresPickupPoint && snapshot.pickupPoint.trim().isEmpty) {
     return CheckoutField.pickupPoint;
   }
+  if (snapshot.requiresBobGoRate && !snapshot.hasUsableBobGoRate) {
+    return CheckoutField.bobGoRate;
+  }
   return null;
 }
 
 String checkoutBlockingMessage(CheckoutField? field) {
   if (field == CheckoutField.pickupPoint) {
     return 'Please enter the pickup point or drop-off location for this shipping method.';
+  }
+  if (field == CheckoutField.bobGoRate) {
+    return 'Get delivery rates and choose a courier service before paying.';
+  }
+  if (field == CheckoutField.suburb) {
+    return 'Please add your suburb so the courier can price delivery.';
   }
   if (field == CheckoutField.shippingMethod) {
     return 'This product does not have any shipping options available yet.';

@@ -4,6 +4,7 @@ enum CheckoutShippingInlineDetails {
   pargoPickupPointSearch,
   pickupPointEntry,
   marketPickupNote,
+  bobGoRates,
 }
 
 CheckoutShippingInlineDetails inlineDetailsForShippingMethod(
@@ -14,6 +15,8 @@ CheckoutShippingInlineDetails inlineDetailsForShippingMethod(
       return CheckoutShippingInlineDetails.courierGuyLockerSearch;
     case 'courier_guy_door_to_door':
       return CheckoutShippingInlineDetails.none;
+    case 'bobgo_door_to_door':
+      return CheckoutShippingInlineDetails.bobGoRates;
     case 'pargo':
       return CheckoutShippingInlineDetails.pargoPickupPointSearch;
     case 'market_pickup':

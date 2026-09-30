@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -2192,6 +2193,8 @@ class SupabaseService {
     required double shippingCost,
     required bool isGift,
     required String couponCode,
+    Map<String, dynamic>? shippingAddress,
+    BobGoSelection? bobgo,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) {
@@ -2211,6 +2214,8 @@ class SupabaseService {
         'isGift': isGift,
         'couponCode': couponCode.trim().toUpperCase(),
         'previewOnly': true,
+        if (shippingAddress != null) 'shippingAddress': shippingAddress,
+        if (bobgo != null) ...bobgo.toCheckoutJson(),
       },
     );
 
@@ -2227,6 +2232,7 @@ class SupabaseService {
     String? giftRecipient,
     String? giftMessage,
     String? couponCode,
+    BobGoSelection? bobgo,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) {
@@ -2249,11 +2255,119 @@ class SupabaseService {
         'giftRecipient': giftRecipient,
         'giftMessage': giftMessage,
         'couponCode': couponCode?.trim().toUpperCase(),
+        if (bobgo != null) ...bobgo.toCheckoutJson(),
       },
     );
 
     return CheckoutSession.fromJson(
       Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  // ── Bob Go collection details (private, vendor-only via RLS) ──
+  Future<ShopFulfillmentProfile?> getShopFulfillmentProfile(
+    String shopId,
+  ) async {
+    final row = await _client
+        .from('shop_fulfillment_profiles')
+        .select()
+        .eq('shop_id', shopId)
+        .maybeSingle();
+    return row == null ? null : ShopFulfillmentProfile.fromJson(row);
+  }
+
+  Future<void> saveShopFulfillmentProfile(
+    ShopFulfillmentProfile profile,
+  ) async {
+    await _client
+        .from('shop_fulfillment_profiles')
+        .upsert(profile.toUpsertJson(), onConflict: 'shop_id');
+  }
+
+  // ── Bob Go door-to-door ──────────────────────────────────────
+  /// Whether Bob Go can quote this basket (server flag on, artisan enabled,
+  /// parcel measurements present). Never throws: any failure means "not offered".
+  Future<bool> isBobGoAvailable() async {
+    try {
+      final headers = await _authorizedFunctionHeaders();
+      final response = await _client.functions.invoke(
+        'bobgo-quote',
+        headers: headers,
+        body: {'action': 'availability'},
+      );
+      final data = response.data;
+      return data is Map && data['available'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Server-side Bob Go switch (off in production until sign-off).
+  Future<bool> isBobGoEnabled() async {
+    try {
+      final response = await _client.functions.invoke(
+        'bobgo-quote',
+        headers: await _authorizedFunctionHeaders(),
+        body: {'action': 'status'},
+      );
+      final data = response.data;
+      return data is Map && data['enabled'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Requests VAT-inclusive door-to-door rates. The quote is saved server-side
+  /// for ~20 minutes; pass the returned [BobGoQuote.quoteId] and a rate to
+  /// [createCheckout] via [BobGoSelection].
+  Future<BobGoQuote> requestBobGoQuote(BobGoDeliveryDetails delivery) async {
+    try {
+      final headers = await _authorizedFunctionHeaders();
+      final response = await _client.functions.invoke(
+        'bobgo-quote',
+        headers: headers,
+        body: {'action': 'quote', 'delivery': delivery.toJson()},
+      );
+      return BobGoQuote.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map && details['error'] != null
+          ? details['error'].toString().trim()
+          : '';
+      throw BobGoQuoteException(
+        message.isNotEmpty
+            ? message
+            : 'We could not get delivery rates right now. Please try again.',
+      );
+    }
+  }
+
+  /// Vendor/admin: the courier waybill PDF as `(fileName, bytes)`.
+  Future<({String fileName, List<int> bytes})> getBobGoWaybill(
+    String orderId,
+  ) async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'bobgo-shipment',
+      headers: headers,
+      body: {'orderId': orderId, 'action': 'waybill'},
+    );
+    final data = Map<String, dynamic>.from(response.data as Map);
+    return (
+      fileName: data['fileName'] as String? ?? 'waybill.pdf',
+      bytes: base64Decode(data['base64'] as String),
+    );
+  }
+
+  /// Vendor/admin: retry a failed courier booking for a paid order.
+  Future<void> retryBobGoBooking(String orderId) async {
+    final headers = await _authorizedFunctionHeaders();
+    await _client.functions.invoke(
+      'bobgo-shipment',
+      headers: headers,
+      body: {'orderId': orderId, 'action': 'retry_booking'},
     );
   }
 
@@ -3012,6 +3126,54 @@ class SupabaseService {
                   true
               ? (row['profiles'] as Map)['display_name'] as String
               : 'Someone',
+        ),
+    ];
+  }
+
+  // ── Blocking ────────────────────────────────────────────────────────────
+
+  /// Accounts the signed-in user has blocked.
+  Future<Set<String>> getBlockedUserIds() async {
+    final rows = await _client.from('user_blocks').select('blocked_id');
+    return {for (final row in rows as List) row['blocked_id'] as String};
+  }
+
+  Future<void> setUserBlocked(String userId, bool blocked) async {
+    if (blocked) {
+      await _client.from('user_blocks').upsert({
+        'blocked_id': userId,
+      }, ignoreDuplicates: true);
+    } else {
+      await _client.from('user_blocks').delete().eq('blocked_id', userId);
+    }
+  }
+
+  /// Ids of the shops owned by any of [vendorIds].
+  Future<Set<String>> getShopIdsForVendors(Set<String> vendorIds) async {
+    if (vendorIds.isEmpty) return <String>{};
+    final rows = await _client
+        .from('shops')
+        .select('id')
+        .inFilter('vendor_id', vendorIds.toList());
+    return {for (final row in rows as List) row['id'] as String};
+  }
+
+  /// Public profile details (id, display name, avatar) for [ids].
+  Future<List<({String id, String name, String? avatarUrl})>>
+  getPublicProfileSummaries(Set<String> ids) async {
+    if (ids.isEmpty) return const [];
+    final rows = await _client
+        .from('profiles')
+        .select('id, display_name, avatar_url')
+        .inFilter('id', ids.toList());
+    return [
+      for (final row in rows as List)
+        (
+          id: row['id'] as String,
+          name: ((row['display_name'] as String?)?.trim().isNotEmpty ?? false)
+              ? (row['display_name'] as String).trim()
+              : 'Artisan Lane member',
+          avatarUrl: row['avatar_url'] as String?,
         ),
     ];
   }

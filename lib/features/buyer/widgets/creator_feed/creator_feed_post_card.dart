@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../removed_post_banner.dart';
 import '../../../../app/theme.dart';
 import '../../../../core/constants/feature_flags.dart';
 import '../../../../core/pricing/price_format.dart';
@@ -256,6 +257,7 @@ class _CreatorFeedPostCardState extends ConsumerState<CreatorFeedPostCard> {
               ],
             ),
           ),
+          if (post.isRemoved) RemovedPostBanner(post: post),
           AspectRatio(
             aspectRatio: 1.06,
             child: Stack(
@@ -308,7 +310,7 @@ class _CreatorFeedPostCardState extends ConsumerState<CreatorFeedPostCard> {
               ),
             ),
           if (post.format == PostFormat.poll) PostPollCard(post: post),
-          PostSocialBar(post: post),
+          if (!post.isRemoved) PostSocialBar(post: post),
           if (post.caption.trim().isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),

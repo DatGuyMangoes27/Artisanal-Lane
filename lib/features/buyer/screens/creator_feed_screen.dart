@@ -17,6 +17,7 @@ import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../../widgets/skeleton.dart';
 import '../../vendor/services/creator_post_media.dart'
     show isCreatorPostMediaMarker;
+import '../providers/blocking_providers.dart';
 import '../providers/buyer_providers.dart';
 import '../providers/creator_parity_providers.dart';
 import '../providers/feed_preferences.dart';
@@ -403,9 +404,8 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final mutedShopIds =
-        ref.watch(mutedShopIdsProvider).value ?? const <String>{};
-    final visiblePosts = filterMutedPosts(_posts, mutedShopIds);
+    final hiddenShopIds = ref.watch(hiddenShopIdsProvider);
+    final visiblePosts = filterMutedPosts(_posts, hiddenShopIds);
     final displayPosts = _mode == _FeedMode.forYou
         ? rankForYouFeed(visiblePosts, _buildRankingSignals())
         : visiblePosts;

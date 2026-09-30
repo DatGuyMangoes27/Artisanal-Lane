@@ -1,4 +1,5 @@
 import '../core/pricing/pricing.dart';
+import 'bobgo_status.dart';
 
 class Order {
   final String id;
@@ -11,6 +12,13 @@ class Order {
   final Map<String, dynamic>? shippingAddress;
   final String? trackingNumber;
   final String? trackingUrl;
+
+  /// Bob Go courier booking/tracking (null for other delivery methods).
+  final String? bobgoBookingState;
+  final String? bobgoStatus;
+  final String? bobgoStatusDetail;
+  final String? bobgoBookingError;
+  final DateTime? bobgoLastEventAt;
   final String paymentState;
   final String? paymentProvider;
   final String? paymentUrl;
@@ -41,6 +49,11 @@ class Order {
     this.shippingAddress,
     this.trackingNumber,
     this.trackingUrl,
+    this.bobgoBookingState,
+    this.bobgoStatus,
+    this.bobgoStatusDetail,
+    this.bobgoBookingError,
+    this.bobgoLastEventAt,
     this.paymentState = 'created',
     this.paymentProvider,
     this.paymentUrl,
@@ -76,6 +89,13 @@ class Order {
       shippingAddress: json['shipping_address'] as Map<String, dynamic>?,
       trackingNumber: json['tracking_number'] as String?,
       trackingUrl: json['tracking_url'] as String?,
+      bobgoBookingState: json['bobgo_booking_state'] as String?,
+      bobgoStatus: json['bobgo_status'] as String?,
+      bobgoStatusDetail: json['bobgo_status_detail'] as String?,
+      bobgoBookingError: json['bobgo_booking_error'] as String?,
+      bobgoLastEventAt: json['bobgo_last_event_at'] is String
+          ? DateTime.tryParse(json['bobgo_last_event_at'] as String)
+          : null,
       paymentState: json['payment_state'] as String? ?? 'created',
       paymentProvider: json['payment_provider'] as String?,
       paymentUrl: json['payment_url'] as String?,
@@ -97,6 +117,24 @@ class Order {
       buyerPhone: buyerData?['phone'] as String?,
       items: itemsData?.map((e) => OrderItem.fromJson(e)).toList(),
     );
+  }
+
+  bool get isBobGo => shippingMethod == 'bobgo_door_to_door';
+
+  /// True once the courier has been booked and a waybill exists.
+  bool get bobgoIsBooked => isBobGo && bobgoBookingState == 'booked';
+
+  /// Buyer-facing courier progress line, or null for non-Bob Go orders.
+  String? get bobgoCourierSummary {
+    if (!isBobGo) return null;
+    switch (bobgoBookingState) {
+      case 'booked':
+        return bobGoStatusLabel(bobgoStatus);
+      case 'cancelled':
+        return 'Courier booking cancelled';
+      default:
+        return 'We are arranging your courier. Tracking appears here once it is booked.';
+    }
   }
 
   String get shortId => id.substring(0, 8).toUpperCase();
@@ -154,6 +192,8 @@ class Order {
         return 'Courier Guy Locker';
       case 'courier_guy_door_to_door':
         return 'Courier Guy Door to Door';
+      case 'bobgo_door_to_door':
+        return 'Bob Go Door to Door';
       case 'pargo':
         return 'Pargo';
       case 'paxi':

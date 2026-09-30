@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/pricing.dart';
 import '../../../core/ui/friendly_error.dart';
+import '../../../models/bobgo.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/courier_guy_locker.dart';
 import '../../../models/pargo_pickup_point.dart';
@@ -15,10 +16,13 @@ import '../../../models/shipping_option.dart';
 import '../../../services/meta_app_events_service.dart';
 import '../../../widgets/gradient_button.dart';
 import '../../../widgets/skeleton.dart';
+import '../providers/bobgo_providers.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/bobgo_checkout.dart';
 import '../utils/checkout_validation.dart';
 import '../utils/checkout_shipping_layout.dart';
 import '../utils/product_shipping_checkout.dart';
+import '../widgets/bobgo_rate_picker.dart';
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -50,6 +54,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _postalFieldKey = GlobalKey();
   final _provinceFieldKey = GlobalKey();
   final _phoneFieldKey = GlobalKey();
+  final _suburbFieldKey = GlobalKey();
   final _shippingSectionKey = GlobalKey();
   final _pickupPointFieldKey = GlobalKey();
   final _nameFocusNode = FocusNode();
@@ -57,6 +62,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _cityFocusNode = FocusNode();
   final _postalFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
+  final _suburbFocusNode = FocusNode();
   final _pickupPointFocusNode = FocusNode();
 
   final _nameController = TextEditingController(text: '');
@@ -64,6 +70,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _cityController = TextEditingController(text: '');
   final _postalController = TextEditingController(text: '');
   final _phoneController = TextEditingController(text: '');
+  final _suburbController = TextEditingController(text: '');
   final _couponController = TextEditingController(text: '');
   final _pickupPointController = TextEditingController(text: '');
   final _courierGuySearchController = TextEditingController(text: '');
@@ -86,6 +93,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   PargoPickupPoint? _selectedPargoPoint;
   List<PargoPickupPoint> _pargoPickupPoints = const [];
   Timer? _pargoSearchDebounce;
+
+  // Bob Go door-to-door: the quote is saved server-side; we only keep its id
+  // and the rate the buyer picked.
+  BobGoQuote? _bobGoQuote;
+  BobGoRate? _selectedBobGoRate;
+  String? _bobGoQuotedFingerprint;
+  String? _bobGoError;
+  bool _isLoadingBobGoRates = false;
+  Timer? _bobGoExpiryTimer;
 
   void _clearAppliedCoupon() {
     _appliedCouponCode = null;
@@ -124,6 +140,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       setState(() => _couponError = 'Select a shipping method first.');
       return;
     }
+    if (shippingMethod == bobGoShippingKey &&
+        _bobGoStatus() != BobGoQuoteStatus.ready) {
+      setState(
+        () => _couponError = 'Choose a delivery service before applying a code.',
+      );
+      return;
+    }
 
     FocusScope.of(context).unfocus();
     setState(() {
@@ -139,6 +162,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             shippingCost: shippingCost,
             isGift: isGift,
             couponCode: code,
+            shippingAddress: shippingMethod == bobGoShippingKey
+                ? _bobGoAddressMap()
+                : null,
+            bobgo: shippingMethod == bobGoShippingKey ? _bobGoSelection() : null,
           );
       if (!mounted) return;
       setState(() {
@@ -164,7 +191,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _cityFocusNode.dispose();
     _postalFocusNode.dispose();
     _phoneFocusNode.dispose();
+    _suburbFocusNode.dispose();
     _pickupPointFocusNode.dispose();
+    _bobGoExpiryTimer?.cancel();
     _courierGuySearchDebounce?.cancel();
     _pargoSearchDebounce?.cancel();
     _nameController.dispose();
@@ -172,6 +201,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _cityController.dispose();
     _postalController.dispose();
     _phoneController.dispose();
+    _suburbController.dispose();
     _couponController.dispose();
     _pickupPointController.dispose();
     _courierGuySearchController.dispose();
@@ -185,6 +215,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     required bool combinedShippingEnabled,
   }) {
     if (_selectedShipping == null) return 0;
+    if (_selectedShipping == bobGoShippingKey) {
+      return _bobGoStatus() == BobGoQuoteStatus.ready
+          ? _selectedBobGoRate!.amount
+          : 0;
+    }
     return calculateProductShippingTotal(
       methodKey: _selectedShipping!,
       itemQuantities: items
@@ -221,7 +256,104 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   bool _requiresShippingAddress(String? shippingMethod) {
-    return shippingMethod == 'courier_guy_door_to_door';
+    return shippingMethod == 'courier_guy_door_to_door' ||
+        shippingMethod == bobGoShippingKey;
+  }
+
+  BobGoDeliveryDetails _bobGoDetails() => BobGoDeliveryDetails(
+    fullName: _nameController.text,
+    phone: _phoneController.text,
+    streetAddress: _streetController.text,
+    localArea: _suburbController.text,
+    city: _cityController.text,
+    province: _selectedProvince ?? '',
+    postalCode: _postalController.text,
+  );
+
+  BobGoSelection? _bobGoSelection() =>
+      _bobGoStatus() == BobGoQuoteStatus.ready
+      ? BobGoSelection(quoteId: _bobGoQuote!.quoteId, rate: _selectedBobGoRate!)
+      : null;
+
+  /// Address sent to create-checkout. `local_area` must match the quoted
+  /// suburb exactly or the server rejects the saved quote.
+  Map<String, dynamic> _bobGoAddressMap() => {
+    'name': _nameController.text,
+    'country': 'South Africa',
+    'phone': _phoneController.text,
+    'street': _streetController.text,
+    'local_area': _suburbController.text,
+    'city': _cityController.text,
+    'postal_code': _postalController.text,
+    'province': _selectedProvince,
+  };
+
+  BobGoQuoteStatus _bobGoStatus() => bobGoQuoteStatus(
+    quote: _bobGoQuote,
+    selectedRate: _selectedBobGoRate,
+    quotedFingerprint: _bobGoQuotedFingerprint,
+    currentFingerprint: _bobGoDetails().fingerprint,
+    now: DateTime.now(),
+  );
+
+  bool get _bobGoAddressComplete =>
+      _streetController.text.trim().isNotEmpty &&
+      _suburbController.text.trim().isNotEmpty &&
+      _cityController.text.trim().isNotEmpty &&
+      _postalController.text.trim().isNotEmpty &&
+      (_selectedProvince ?? '').isNotEmpty &&
+      _nameController.text.trim().isNotEmpty &&
+      _phoneController.text.trim().isNotEmpty;
+
+  void _clearBobGoQuote({bool keepError = false}) {
+    _bobGoExpiryTimer?.cancel();
+    _bobGoQuote = null;
+    _selectedBobGoRate = null;
+    _bobGoQuotedFingerprint = null;
+    if (!keepError) _bobGoError = null;
+  }
+
+  Future<void> _requestBobGoRates() async {
+    if (_isLoadingBobGoRates) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isLoadingBobGoRates = true;
+      _clearBobGoQuote();
+      _clearAppliedCoupon();
+    });
+    final details = _bobGoDetails();
+    try {
+      final quote = await ref.read(bobGoGatewayProvider).requestQuote(details);
+      if (!mounted) return;
+      setState(() {
+        _bobGoQuote = quote;
+        _bobGoQuotedFingerprint = details.fingerprint;
+        _selectedBobGoRate = quote.rates.length == 1
+            ? quote.rates.first
+            : null;
+      });
+      _scheduleBobGoExpiry(quote);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _bobGoError = error is BobGoQuoteException
+            ? error.message
+            : 'We could not get delivery rates right now. Please try again.';
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingBobGoRates = false);
+    }
+  }
+
+  void _scheduleBobGoExpiry(BobGoQuote quote) {
+    _bobGoExpiryTimer?.cancel();
+    final expiry = quote.expiresAt;
+    if (expiry == null) return;
+    final wait = expiry.difference(DateTime.now());
+    _bobGoExpiryTimer = Timer(wait.isNegative ? Duration.zero : wait, () {
+      // Rebuild so the picker and Pay button reflect the expired quote.
+      if (mounted) setState(_clearAppliedCoupon);
+    });
   }
 
   String _pickupPointLabel(String? shippingMethod) {
@@ -406,6 +538,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       requiresShippingAddress: _requiresShippingAddress(_selectedShipping),
       requiresPickupPoint: _requiresPickupPoint(_selectedShipping),
       pickupPoint: _pickupPointController.text,
+      requiresSuburb: _selectedShipping == bobGoShippingKey,
+      suburb: _suburbController.text,
+      requiresBobGoRate: _selectedShipping == bobGoShippingKey,
+      hasUsableBobGoRate: _bobGoStatus() == BobGoQuoteStatus.ready,
     );
   }
 
@@ -419,6 +555,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       CheckoutField.phoneNumber => _phoneFieldKey.currentContext,
       CheckoutField.shippingMethod => _shippingSectionKey.currentContext,
       CheckoutField.pickupPoint => _pickupPointFieldKey.currentContext,
+      CheckoutField.suburb => _suburbFieldKey.currentContext,
+      CheckoutField.bobGoRate => _shippingSectionKey.currentContext,
     };
 
     if (context != null) {
@@ -457,6 +595,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       case CheckoutField.pickupPoint:
         _pickupPointFocusNode.requestFocus();
         break;
+      case CheckoutField.suburb:
+        _suburbFocusNode.requestFocus();
+        break;
+      case CheckoutField.bobGoRate:
       case CheckoutField.province:
       case CheckoutField.shippingMethod:
         FocusScope.of(this.context).unfocus();
@@ -519,6 +661,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     final selectedOption = enabledOptions
         .where((option) => option.key == _selectedShipping)
         .firstOrNull;
+    final isBobGo = _selectedShipping == bobGoShippingKey;
     final address = <String, dynamic>{
       'name': _nameController.text,
       'country': 'South Africa',
@@ -528,6 +671,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'city': _cityController.text,
         'postal_code': _postalController.text,
         'province': _selectedProvince,
+        if (isBobGo) 'local_area': _suburbController.text,
       },
       if (_selectedShipping == 'courier_guy' &&
           _selectedCourierGuyLocker != null)
@@ -555,6 +699,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       'total': total,
       'couponCode': _appliedCouponCode,
       'address': address,
+      if (isBobGo) 'bobgo': _bobGoSelection(),
     };
 
     try {
@@ -579,6 +724,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartItemsProvider);
+    final bobGoAvailable =
+        ref.watch(bobGoAvailabilityProvider).asData?.value ?? false;
     final giftOptions = ref.watch(giftOptionsProvider);
     final isGift = giftOptions.isGift;
     final requiresShippingAddress = _requiresShippingAddress(_selectedShipping);
@@ -691,9 +838,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ?.value
                         .combinedShippingEnabled ??
                     true;
-          final enabledOptions = availableShippingOptionsForProducts(
-            productShippingOptions,
-          );
+          final enabledOptions = [
+            ...availableShippingOptionsForProducts(productShippingOptions),
+            if (bobGoAvailable)
+              ShippingOption(
+                key: bobGoShippingKey,
+                enabled: true,
+                price: _selectedBobGoRate?.amount ?? 0,
+              ),
+          ];
           _initSelection(enabledOptions);
 
           final subtotal = items.fold<double>(
@@ -789,6 +942,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                         ],
                       ),
+                      if (_selectedShipping == bobGoShippingKey) ...[
+                        const SizedBox(height: 16),
+                        _buildTextField(
+                          key: _suburbFieldKey,
+                          label: 'Suburb',
+                          controller: _suburbController,
+                          focusNode: _suburbFocusNode,
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       _buildDropdownField(
                         key: _provinceFieldKey,
@@ -999,7 +1162,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           const SizedBox(height: 12),
                           _summaryRow(
                             'Shipping',
-                            shippingCost == 0
+                            _selectedShipping == bobGoShippingKey
+                                ? (_bobGoStatus() == BobGoQuoteStatus.ready
+                                      ? '${formatBobGoPrice(shippingCost)} incl. VAT'
+                                      : 'Get rates')
+                                : shippingCost == 0
                                 ? 'FREE'
                                 : 'R${shippingCost.toStringAsFixed(0)}',
                           ),
@@ -1620,6 +1787,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         if (!_requiresPickupPoint(option.key)) {
           _pickupPointController.clear();
         }
+        if (option.key != bobGoShippingKey) {
+          _clearBobGoQuote();
+        }
       }),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
@@ -1686,11 +1856,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                 ),
                 Text(
-                  isFree ? 'FREE' : 'R${option.price.toStringAsFixed(0)}',
+                  option.key == bobGoShippingKey
+                      ? (_selectedBobGoRate == null
+                            ? 'Get rates'
+                            : formatBobGoPrice(option.price))
+                      : isFree
+                      ? 'FREE'
+                      : 'R${option.price.toStringAsFixed(0)}',
                   style: GoogleFonts.poppins(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: isFree ? AppTheme.baobab : AppTheme.textPrimary,
+                    color: isFree && option.key != bobGoShippingKey
+                        ? AppTheme.baobab
+                        : AppTheme.textPrimary,
                   ),
                 ),
               ],
@@ -1850,6 +2028,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               ? 'For market pickup, please message the seller after checkout to confirm which market, date, and collection time applies to your order.'
               : 'Market pickup: $marketSummary. Please only choose this if you can collect from this market.',
         );
+      case CheckoutShippingInlineDetails.bobGoRates:
+        return BobGoRatePicker(
+          status: _bobGoStatus(),
+          quote: _bobGoQuote,
+          selectedRate: _selectedBobGoRate,
+          isLoading: _isLoadingBobGoRates,
+          errorMessage: _bobGoError,
+          canRequest: _bobGoAddressComplete,
+          now: DateTime.now(),
+          onRequest: _requestBobGoRates,
+          onSelect: (rate) => setState(() {
+            _selectedBobGoRate = rate;
+            _bobGoError = null;
+            _clearAppliedCoupon();
+          }),
+        );
       case CheckoutShippingInlineDetails.none:
         return const SizedBox.shrink();
     }
@@ -1859,16 +2053,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: GoogleFonts.poppins(
-            fontSize: isTotal ? 16 : 14,
-            fontWeight: isTotal ? FontWeight.w600 : FontWeight.w400,
-            color: isTotal ? AppTheme.textPrimary : AppTheme.textSecondary,
+        Flexible(
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: isTotal ? 16 : 14,
+              fontWeight: isTotal ? FontWeight.w600 : FontWeight.w400,
+              color: isTotal ? AppTheme.textPrimary : AppTheme.textSecondary,
+            ),
           ),
         ),
-        Text(
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(
           value,
+          textAlign: TextAlign.end,
           style: isTotal
               ? GoogleFonts.playfairDisplay(
                   fontSize: 24,
@@ -1880,6 +2079,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   fontWeight: FontWeight.w500,
                   color: AppTheme.textPrimary,
                 ),
+          ),
         ),
       ],
     );

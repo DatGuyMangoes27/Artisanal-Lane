@@ -9,7 +9,9 @@ import '../../../app/theme.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../chat/utils/live_chat_messages.dart';
+import '../../chat/widgets/chat_block_bar.dart';
 import '../../chat/widgets/chat_widgets.dart';
+import '../providers/blocking_providers.dart';
 import '../providers/buyer_providers.dart';
 
 class BuyerChatThreadScreen extends ConsumerStatefulWidget {
@@ -27,6 +29,7 @@ class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
   final List<ChatMessage> _localMessages = [];
   ChatAttachment? _pendingAttachment;
   bool _isSending = false;
+  bool _cannotReply = false;
   String? _lastMarkedMessageId;
 
   @override
@@ -114,7 +117,18 @@ class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
       ref.invalidate(buyerThreadsProvider);
       ref.invalidate(buyerChatThreadProvider(widget.threadId));
     } catch (error) {
-      _showSnack('Could not send message: $error', isError: true);
+      if (isPermissionRejection(error)) {
+        if (mounted) setState(() => _cannotReply = true);
+        _showSnack(blockedChatMessage, isError: true);
+      } else {
+        _showSnack(
+          friendlyErrorMessage(
+            error,
+            fallback: "Couldn't send your message. Please try again.",
+          ),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -171,28 +185,60 @@ class _BuyerChatThreadScreenState extends ConsumerState<BuyerChatThreadScreen> {
     }
 
     return threadAsync.when(
-      data: (thread) => ChatThreadScaffold(
-        messagesAsync: displayedMessagesAsync,
-        currentUserId: userId ?? '',
-        title: thread.kind.isAdminThread
-            ? 'Artisan Lane Support'
-            : thread.shopName ?? 'Artisan',
-        subtitle: thread.kind.isAdminThread
-            ? 'The Artisan Lane team'
-            : thread.vendorDisplayName,
-        avatarUrl: thread.kind.isAdminThread ? null : thread.shopLogoUrl,
-        avatarFallback: thread.kind.isAdminThread
-            ? 'Artisan Lane'
-            : thread.shopName ?? 'A',
-        composer: _ChatComposer(
-          controller: _messageController,
-          pendingAttachment: _pendingAttachment,
-          isSending: _isSending,
-          onAttach: _pickAttachment,
-          onRemoveAttachment: () => setState(() => _pendingAttachment = null),
-          onSend: userId == null ? null : () => _sendMessage(userId, thread),
-        ),
-      ),
+      data: (thread) {
+        final otherId = thread.kind.isAdminThread ? null : thread.vendorId;
+        final blocked =
+            otherId != null && ref.watch(isUserBlockedProvider(otherId));
+        final name = thread.shopName ?? 'this maker';
+        return ChatThreadScaffold(
+          actions: otherId == null
+              ? null
+              : [
+                  _BlockMenu(
+                    blocked: blocked,
+                    onSelected: () => blocked
+                        ? unblockUser(ref, otherId, shopId: thread.shopId)
+                        : confirmBlockUser(
+                            ref,
+                            context,
+                            userId: otherId,
+                            name: name,
+                            shopId: thread.shopId,
+                          ),
+                  ),
+                ],
+          messagesAsync: displayedMessagesAsync,
+          currentUserId: userId ?? '',
+          title: thread.kind.isAdminThread
+              ? 'Artisan Lane Support'
+              : thread.shopName ?? 'Artisan',
+          subtitle: thread.kind.isAdminThread
+              ? 'The Artisan Lane team'
+              : thread.vendorDisplayName,
+          avatarUrl: thread.kind.isAdminThread ? null : thread.shopLogoUrl,
+          avatarFallback: thread.kind.isAdminThread
+              ? 'Artisan Lane'
+              : thread.shopName ?? 'A',
+          composer: blocked
+              ? ChatBlockBar.blocked(
+                  onUnblock: () =>
+                      unblockUser(ref, otherId, shopId: thread.shopId),
+                )
+              : _cannotReply
+              ? const ChatBlockBar.cannotReply()
+              : _ChatComposer(
+                  controller: _messageController,
+                  pendingAttachment: _pendingAttachment,
+                  isSending: _isSending,
+                  onAttach: _pickAttachment,
+                  onRemoveAttachment: () =>
+                      setState(() => _pendingAttachment = null),
+                  onSend: userId == null
+                      ? null
+                      : () => _sendMessage(userId, thread),
+                ),
+        );
+      },
       loading: () => Scaffold(
         backgroundColor: AppTheme.scaffoldBg,
         appBar: AppBar(backgroundColor: AppTheme.scaffoldBg),
@@ -348,4 +394,21 @@ String? _guessMimeType(String? extension) {
     default:
       return null;
   }
+}
+
+/// The ⋯ menu in a conversation's app bar: block or unblock the other person.
+class _BlockMenu extends StatelessWidget {
+  const _BlockMenu({required this.blocked, required this.onSelected});
+  final bool blocked;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => PopupMenuButton<String>(
+    tooltip: 'Conversation options',
+    icon: const Icon(Icons.more_horiz_rounded),
+    onSelected: (_) => onSelected(),
+    itemBuilder: (_) => [
+      PopupMenuItem(value: 'block', child: Text(blocked ? 'Unblock' : 'Block')),
+    ],
+  );
 }

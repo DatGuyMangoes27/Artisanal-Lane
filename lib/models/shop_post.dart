@@ -38,6 +38,10 @@ class ShopPost {
   final String? shopLocation;
   final String? shopHandle;
 
+  /// Set when Artisan Lane took the post down (visible to its maker only).
+  final DateTime? removedAt;
+  final String? removedReason;
+
   const ShopPost({
     required this.id,
     required this.shopId,
@@ -58,6 +62,8 @@ class ShopPost {
     this.shopIsVerified = false,
     this.shopLocation,
     this.shopHandle,
+    this.removedAt,
+    this.removedReason,
   }) : publishedAt = publishedAt ?? scheduledFor ?? createdAt;
 
   factory ShopPost.fromJson(Map<String, dynamic> json) {
@@ -95,6 +101,8 @@ class ShopPost {
       shopIsVerified: shopData?['is_verified'] as bool? ?? false,
       shopLocation: shopData?['location'] as String?,
       shopHandle: shopData?['slug'] as String?,
+      removedAt: date(json['removed_at']),
+      removedReason: json['removed_reason'] as String?,
     );
   }
 
@@ -111,6 +119,16 @@ class ShopPost {
     'format': format.name,
     'step_captions': stepCaptions,
   };
+
+  bool get isRemoved => removedAt != null;
+
+  /// Banner copy for makers, e.g. "Removed by Artisan Lane: reason".
+  String get removedMessage {
+    final reason = removedReason?.trim() ?? '';
+    return reason.isEmpty
+        ? 'Removed by Artisan Lane'
+        : 'Removed by Artisan Lane: $reason';
+  }
 
   /// Scheduled for later and not yet visible to the public.
   bool get isScheduled =>

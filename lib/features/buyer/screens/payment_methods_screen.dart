@@ -51,7 +51,7 @@ class PaymentMethodsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'Secure Payments via PayFast',
+                'Secure payments via TradeSafe',
                 style: GoogleFonts.playfairDisplay(
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
@@ -61,8 +61,8 @@ class PaymentMethodsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'All payments on Artisan Lane are processed securely through PayFast at checkout. '
-                'Your card details are never stored on our servers.',
+                'Checkout payments on Artisan Lane are processed securely by TradeSafe, which holds '
+                'your payment in escrow until your order arrives. Your card details are never stored on our servers.',
                 style: GoogleFonts.poppins(
                   fontSize: 14,
                   color: AppTheme.textSecondary,

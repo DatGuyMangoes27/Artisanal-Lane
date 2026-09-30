@@ -9,6 +9,7 @@ import '../../../widgets/skeleton.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../vendor/providers/vendor_providers.dart';
 import '../../vendor/screens/story_composer_screen.dart';
+import '../providers/blocking_providers.dart';
 import '../providers/story_providers.dart';
 import '../screens/story_viewer_screen.dart';
 
@@ -97,7 +98,14 @@ class _CreatorStoryRailState extends ConsumerState<CreatorStoryRail>
         ),
       ),
       data: (stories) {
-        final groups = groupLiveStories(stories, seen, DateTime.now());
+        final hidden = ref.watch(hiddenShopIdsProvider);
+        final groups = groupLiveStories(
+          hidden.isEmpty
+              ? stories
+              : stories.where((s) => !hidden.contains(s.shopId)).toList(),
+          seen,
+          DateTime.now(),
+        );
         if (groups.isEmpty && shop == null) {
           return const SizedBox.shrink();
         }

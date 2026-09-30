@@ -329,6 +329,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
               const SizedBox(height: 32),
 
+              // ── Safety Section ─────────────────────────────────────
+              const _SectionTitle(title: 'Safety'),
+              const SizedBox(height: 16),
+              _SettingsGroup(
+                children: [
+                  _SettingsTile(
+                    icon: Icons.block_outlined,
+                    title: 'Blocked accounts',
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppTheme.textHint,
+                    ),
+                    onTap: () => context.push('/profile/settings/blocked'),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 32),
+
               // ── Legal Section ──────────────────────────────────────
               const _SectionTitle(title: 'Legal'),
               const SizedBox(height: 16),

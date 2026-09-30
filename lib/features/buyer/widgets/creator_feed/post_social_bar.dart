@@ -133,7 +133,7 @@ void showPostOptionsSheet(
                 );
               },
             ),
-          if (canReport)
+          if (canReport && !isOwner)
             ListTile(
               leading: const Icon(Icons.flag_outlined),
               title: const Text('Report'),

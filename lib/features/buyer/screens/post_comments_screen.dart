@@ -9,6 +9,7 @@ import '../../../models/post_interaction.dart';
 import '../../../widgets/sign_in_prompt_sheet.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../vendor/providers/vendor_providers.dart';
+import '../providers/blocking_providers.dart';
 import '../providers/post_social_providers.dart';
 import '../providers/creator_safety_providers.dart';
 import '../widgets/content_report_sheet.dart';
@@ -305,7 +306,7 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
       _text.clear();
       _requestId = null;
       _lastAttemptedText = null;
-    } catch (_) {
+    } catch (error) {
       if (mounted && ref.read(currentUserIdProvider) == user) {
         final idx = _comments.indexWhere((c) => c.id == requestId);
         if (idx != -1) {
@@ -316,7 +317,11 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
             ),
           );
         }
-        setState(() => _saveError = "Couldn't post. Tap to retry.");
+        setState(
+          () => _saveError = isPermissionRejection(error)
+              ? blockedCommentMessage
+              : "Couldn't post. Tap to retry.",
+        );
       }
     } finally {
       if (mounted && ref.read(currentUserIdProvider) == user) {
@@ -392,8 +397,9 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
     final ownShop = user == null ? null : ref.watch(vendorShopProvider).value;
     final canDelete = user == comment.userId || ownShop?.id == widget.shopId;
     final canEdit = user == comment.userId;
-    final canReport =
-        creatorSafetyEnabled && user != null && user != comment.userId;
+    final isOthers = user != null && user != comment.userId;
+    final canReport = creatorSafetyEnabled && isOthers;
+    final canBlock = isOthers;
     return InkWell(
       onTap: comment.failed ? () => _retryFailed(comment) : null,
       borderRadius: BorderRadius.circular(12),
@@ -454,13 +460,20 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
                 ),
               ),
             ),
-            if (canDelete || canEdit || canReport)
+            if (canDelete || canEdit || canReport || canBlock)
               PopupMenuButton<String>(
                 tooltip: 'Comment options',
                 enabled: !_sending,
                 onSelected: (action) {
                   if (action == 'delete') {
                     _delete(comment);
+                  } else if (action == 'block') {
+                    confirmBlockUser(
+                      ref,
+                      context,
+                      userId: comment.userId,
+                      name: comment.author,
+                    );
                   } else if (action == 'report') {
                     showContentReportSheet(
                       context,
@@ -483,6 +496,11 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
                       value: 'report',
                       child: Text('Report comment'),
                     ),
+                  if (canBlock)
+                    PopupMenuItem(
+                      value: 'block',
+                      child: Text('Block ${comment.author}'),
+                    ),
                   if (canDelete)
                     const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
@@ -496,6 +514,7 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserIdProvider);
+    final blocked = ref.watch(blockedUserIdsProvider).value ?? const <String>{};
     final body = SafeArea(
       top: !widget.embedded,
       child: LayoutBuilder(
@@ -515,7 +534,10 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(20),
                         children: [
-                          if (_comments.isEmpty && !_loading)
+                          if (!_loading &&
+                              !_comments.any(
+                                (c) => !blocked.contains(c.userId),
+                              ))
                             const Padding(
                               padding: EdgeInsets.symmetric(vertical: 60),
                               child: Text(
@@ -523,9 +545,9 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
                                 textAlign: TextAlign.center,
                               ),
                             ),
-                          ..._comments.map(
-                            (comment) => _commentRow(context, comment),
-                          ),
+                          ..._comments
+                              .where((c) => !blocked.contains(c.userId))
+                              .map((comment) => _commentRow(context, comment)),
                           if (_loadMoreError != null)
                             Center(
                               child: TextButton.icon(
