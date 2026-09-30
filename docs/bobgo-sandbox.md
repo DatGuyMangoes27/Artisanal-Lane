@@ -30,3 +30,5 @@ explicitly enabled.
 
 Do not deploy the migration or Edge Function changes until the sandbox checkout,
 payment callback, shipment, waybill, cancellation, and refund cases are signed off.
+
+See `docs/bobgo-go-live.md` for secrets, deploy order, the sandbox test script and the production flag flip.
