@@ -107,4 +107,36 @@ describe("Bob Go shipping", () => {
     expect(rates[0].amount).toBe(100);
     expect(rates.every((rate) => rate.deliveryType === "door")).toBe(true);
   });
+
+  it("passes through courier delivery estimates when supplied", () => {
+    const rates = flattenBobGoDoorRates({
+      provider_rate_requests: [
+        {
+          rate_response_id: 1,
+          provider_id: 1,
+          provider_slug: "sandbox",
+          provider_name: "Sandbox",
+          status: "success",
+          responses: [
+            {
+              service_level_code: "ECO",
+              rate_amount: 90,
+              status: "success",
+              min_delivery_days: 2,
+              max_delivery_days: 4,
+              service_level: { name: "Economy", delivery_type: "door" },
+            },
+            {
+              service_level_code: "EXP",
+              rate_amount: 120,
+              status: "success",
+              service_level: { name: "Express", delivery_type: "door" },
+            },
+          ],
+        },
+      ],
+    });
+    expect(rates[0]).toMatchObject({ etaMinDays: 2, etaMaxDays: 4 });
+    expect(rates[1]).toMatchObject({ etaMinDays: null, etaMaxDays: null, etaFrom: null });
+  });
 });

@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
-import { markVendorOrderShipped } from "@/app/vendor/actions";
+import { markVendorOrderShipped, retryBobGoBooking } from "@/app/vendor/actions";
+import { bobGoStatusLabel } from "@/lib/marketplace/bobgo-status";
 import { getVendorOrder, requireVendorShop } from "@/lib/marketplace/vendor-data";
 import { formatPrice } from "@/lib/marketplace/format";
 import { formatVendorStatus } from "@/lib/marketplace/vendor-utils";
@@ -32,6 +33,9 @@ export default async function VendorOrderDetailPage({
   if (!order) {
     notFound();
   }
+
+  const isBobGo = order.shippingMethod === "bobgo_door_to_door";
+  const bobGoBooked = order.bobgoBookingState === "booked";
 
   return (
     <div>
@@ -104,21 +108,86 @@ export default async function VendorOrderDetailPage({
             </div>
           </VendorPanel>
 
-          <VendorPanel title="Mark shipped" description="This uses the shared mark-order-shipped Edge Function.">
+          {isBobGo ? (
+            <VendorPanel
+              title="Bob Go courier"
+              description="The courier is booked automatically once the buyer's payment is secured."
+            >
+              <div className="space-y-3 text-sm">
+                {bobGoBooked ? (
+                  <>
+                    <p>
+                      Status:{" "}
+                      <span className="font-medium text-artisan-sienna">
+                        {bobGoStatusLabel(order.bobgoStatus)}
+                      </span>
+                    </p>
+                    {order.trackingNumber ? <p>Waybill / tracking: {order.trackingNumber}</p> : null}
+                    <Button asChild variant="outline" className="rounded-full">
+                      <a
+                        href={`/api/vendor/bobgo-waybill?orderId=${order.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Download waybill (PDF)
+                      </a>
+                    </Button>
+                    <p className="text-muted-foreground">
+                      Print the waybill, attach it to the parcel and have it ready for the courier
+                      collection. Then mark the order shipped below.
+                    </p>
+                  </>
+                ) : order.bobgoBookingState === "cancelled" ? (
+                  <p className="text-muted-foreground">The courier booking was cancelled.</p>
+                ) : order.status === "paid" ? (
+                  <>
+                    <p className="text-muted-foreground">
+                      {order.bobgoBookingState === "failed"
+                        ? "Booking the courier did not go through. You can try again."
+                        : "The courier booking is in progress."}
+                    </p>
+                    {order.bobgoBookingState === "failed" || order.bobgoBookingState === "not_requested" ? (
+                      <form action={retryBobGoBooking}>
+                        <input type="hidden" name="orderId" value={order.id} />
+                        <Button className="rounded-full">Book courier again</Button>
+                      </form>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="text-muted-foreground">
+                    The courier is booked once payment is confirmed.
+                  </p>
+                )}
+              </div>
+            </VendorPanel>
+          ) : null}
+
+          <VendorPanel
+            title="Mark shipped"
+            description={
+              isBobGo
+                ? "Confirm once the courier has collected the parcel. Tracking comes from the courier booking."
+                : "This uses the shared mark-order-shipped Edge Function."
+            }
+          >
             <form action={markVendorOrderShipped} className="grid gap-3">
               <input type="hidden" name="orderId" value={order.id} />
-              <input
-                name="trackingNumber"
-                defaultValue={order.trackingNumber ?? ""}
-                placeholder="Tracking number"
-                className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
-              />
-              <input
-                name="trackingUrl"
-                defaultValue={order.trackingUrl ?? ""}
-                placeholder="Tracking URL"
-                className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
-              />
+              {isBobGo ? null : (
+                <>
+                  <input
+                    name="trackingNumber"
+                    defaultValue={order.trackingNumber ?? ""}
+                    placeholder="Tracking number"
+                    className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+                  />
+                  <input
+                    name="trackingUrl"
+                    defaultValue={order.trackingUrl ?? ""}
+                    placeholder="Tracking URL"
+                    className="rounded-2xl border border-artisan-clay px-4 py-3 text-sm"
+                  />
+                </>
+              )}
               <Button className="rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90">
                 Mark order shipped
               </Button>

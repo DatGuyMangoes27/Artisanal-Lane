@@ -6,6 +6,7 @@ import { AdminActionButtonForm } from "@/components/admin/admin-action-button-fo
 import { AdminPageHeader, PanelCard, StatusBadge } from "@/components/admin/admin-ui";
 import { Button } from "@/components/ui/button";
 import { listShops } from "@/lib/admin-data";
+import { parseShopSubscriptionFilter } from "@/lib/admin-shop-subscription";
 
 function readParam(
   value: string | string[] | undefined,
@@ -24,6 +25,7 @@ function buildPageHref(
     query: string;
     status: string;
     availability: string;
+    subscription: string;
     sort: string;
   },
   page: number,
@@ -32,6 +34,7 @@ function buildPageHref(
   if (filters.query) params.set("query", filters.query);
   if (filters.status) params.set("status", filters.status);
   if (filters.availability) params.set("availability", filters.availability);
+  if (filters.subscription) params.set("subscription", filters.subscription);
   if (filters.sort !== "newest") params.set("sort", filters.sort);
   if (page > 1) params.set("page", String(page));
 
@@ -48,20 +51,27 @@ export default async function AdminShopsPage({
   const query = readParam(params.query);
   const status = readParam(params.status);
   const availability = readParam(params.availability);
+  const subscription = parseShopSubscriptionFilter(readParam(params.subscription));
   const sort = readParam(params.sort, "newest");
   const requestedPage = readPage(params.page);
   const shopPage = await listShops({
     query,
     status,
     availability,
+    subscription,
     sort,
     page: requestedPage,
     pageSize: 20,
   });
-  const { items: shops, page, pageSize, total, totalPages } = shopPage;
+  const { items: shops, page, pageSize, total, totalPages, subscriptionCounts } = shopPage;
   const firstShop = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const lastShop = Math.min(page * pageSize, total);
-  const pageFilters = { query, status, availability, sort };
+  const pageFilters = { query, status, availability, subscription, sort };
+  const subscriptionTabs = [
+    { value: "", label: "All shops", count: subscriptionCounts.all },
+    { value: "subscribed", label: "Subscribed", count: subscriptionCounts.subscribed },
+    { value: "not-subscribed", label: "Not subscribed yet", count: subscriptionCounts.notSubscribed },
+  ];
 
   return (
     <>
@@ -75,7 +85,28 @@ export default async function AdminShopsPage({
         title="Store Directory"
         description="Each row includes seller context, product volume, post volume, and current storefront availability."
       >
+        <nav aria-label="Subscription filter" className="mb-4 flex flex-wrap gap-2">
+          {subscriptionTabs.map((tab) => {
+            const selected = tab.value === subscription;
+            return (
+              <Link
+                key={tab.value || "all"}
+                aria-current={selected ? "page" : undefined}
+                className={
+                  selected
+                    ? "rounded-full border border-artisan-sienna bg-artisan-sienna px-4 py-2 text-sm font-semibold text-white"
+                    : "rounded-full border border-artisan-clay bg-white px-4 py-2 text-sm font-medium text-artisan-sienna transition hover:border-artisan-terracotta"
+                }
+                href={buildPageHref({ ...pageFilters, subscription: tab.value }, 1)}
+              >
+                {tab.label} ({tab.count})
+              </Link>
+            );
+          })}
+        </nav>
+
         <form className="mb-6 grid gap-3 md:grid-cols-5" method="get">
+          {subscription ? <input name="subscription" type="hidden" value={subscription} /> : null}
           <input
             className="rounded-2xl border border-artisan-clay bg-white px-4 py-2 text-sm outline-none transition focus:border-artisan-terracotta"
             defaultValue={query}
@@ -165,6 +196,7 @@ export default async function AdminShopsPage({
                       {shop.name}
                     </h3>
                     <StatusBadge value={shop.is_active ? "active" : "suspended"} />
+                    <StatusBadge value={shop.subscribed ? "subscribed" : "not subscribed"} />
                     {shop.is_spotlight ? <StatusBadge value="spotlight" /> : null}
                     {shop.is_offline ? <StatusBadge value="offline" /> : null}
                   </div>

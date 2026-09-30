@@ -563,6 +563,37 @@ export async function markVendorOrderShipped(formData: FormData) {
   revalidatePath(`/vendor/orders/${orderId}`);
 }
 
+export async function retryBobGoBooking(formData: FormData) {
+  const { supabase, shop } = await requireVendorShop("/vendor/orders");
+  const orderId = requireId(formData, "orderId");
+  const admin = createAdminClient();
+  const { data: order } = await admin
+    .from("orders")
+    .select("id")
+    .eq("id", orderId)
+    .eq("shop_id", shop.id)
+    .maybeSingle();
+  if (!order) {
+    notFound();
+  }
+
+  const { data: sessionResult } = await supabase.auth.getSession();
+  const accessToken = sessionResult.session?.access_token;
+  const { data, error } = await supabase.functions.invoke("bobgo-shipment", {
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    body: { orderId, action: "retry_booking" },
+  });
+
+  if (error || (data as { error?: string } | null)?.error) {
+    throw new Error(
+      (data as { error?: string } | null)?.error ?? "Unable to book the courier right now.",
+      { cause: error },
+    );
+  }
+
+  revalidatePath(`/vendor/orders/${orderId}`);
+}
+
 export async function saveVendorPayoutDetails(formData: FormData) {
   const { user } = await requireVendorSession("/vendor/profile/payouts");
   const identityNumber = parseRequiredText(formData.get("identityNumber"));

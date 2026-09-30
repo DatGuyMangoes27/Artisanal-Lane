@@ -167,7 +167,7 @@ export default async function ArtisansPage({
               </Link>
               <div
                 className="inline-flex items-stretch overflow-hidden rounded-2xl shadow-sm"
-                aria-label="0% commission and your first two months free"
+                aria-label="0% commission and your first month free"
               >
                 <div className="flex flex-col justify-center bg-[#4B5320] px-4 py-2 text-white">
                   <span className="text-2xl font-extrabold leading-none">0%</span>
@@ -177,13 +177,13 @@ export default async function ArtisansPage({
                 </div>
                 <div className="flex flex-col justify-center bg-[#7A0000] px-4 py-2 text-white">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                    Two months
+                    One month
                   </span>
                   <span className="text-2xl font-extrabold uppercase leading-none">Free</span>
                 </div>
               </div>
             </div>
-            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground">R349 per month after your first two months free. Your subscription includes your own shopfront, product listings, order management and customer messaging, with no Artisan Lane sales commission. Payment processing fees still apply.</p>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground">Your first month is free, then R199 per month locked in for 12 months (founders offer, first 100 shops), then R349 per month. Your subscription includes your own shopfront, product listings, order management and customer messaging, with no Artisan Lane sales commission. Payment processing fees still apply.</p>
           </div>
         </section>
 

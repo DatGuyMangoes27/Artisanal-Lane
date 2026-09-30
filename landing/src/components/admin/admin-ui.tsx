@@ -90,6 +90,7 @@ export function StatusBadge({
       normalized === "published" ||
       normalized === "featured" ||
       normalized === "spotlight" ||
+      normalized === "subscribed" ||
       normalized === "verified" ||
       normalized === "released" ||
       normalized === "completed" ||

@@ -71,7 +71,8 @@ export function LearningResourceForm({
           className={inputClass}
           defaultValue={resource?.content_url ?? ""}
           name="contentUrl"
-          type="url"
+          type="text"
+          inputMode="url"
           placeholder="https://..."
           required
         />
@@ -110,7 +111,8 @@ export function LearningResourceForm({
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-artisan-sienna">Thumbnail image</span>
-        <input className={inputClass} name="thumbnail" type="file" accept="image/*" />
+        <input className={inputClass} name="thumbnail" type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" />
+        <span className="text-xs text-muted-foreground">JPG, PNG or WebP, up to 4 MB.</span>
         {resource?.thumbnail_url ? (
           <span className="text-xs text-muted-foreground">
             Leave empty to keep the current thumbnail.

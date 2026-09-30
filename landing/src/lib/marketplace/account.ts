@@ -26,6 +26,8 @@ const buyerOrderSelect = `
   shipping_address,
   tracking_number,
   tracking_url,
+  bobgo_status,
+  bobgo_booking_state,
   payment_state,
   payment_provider,
   payment_url,

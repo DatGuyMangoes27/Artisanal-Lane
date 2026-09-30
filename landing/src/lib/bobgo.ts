@@ -38,6 +38,11 @@ export type BobGoRate = {
   amount: number;
   amountExcludingVat: number;
   chargedWeightKg: number;
+  /** Optional courier delivery estimate; null when Bob Go does not supply one. */
+  etaFrom?: string | null;
+  etaTo?: string | null;
+  etaMinDays?: number | null;
+  etaMaxDays?: number | null;
 };
 
 type BobGoRateResponse = {
@@ -54,11 +59,21 @@ type BobGoRateResponse = {
       rate_amount_excl_vat?: unknown;
       charged_weight_kg?: unknown;
       status?: unknown;
+      delivery_date_from?: unknown;
+      delivery_date_to?: unknown;
+      min_delivery_date?: unknown;
+      max_delivery_date?: unknown;
+      min_delivery_days?: unknown;
+      max_delivery_days?: unknown;
       service_level?: {
         name?: unknown;
         description?: unknown;
         type?: unknown;
         delivery_type?: unknown;
+        delivery_date_from?: unknown;
+        delivery_date_to?: unknown;
+        min_delivery_days?: unknown;
+        max_delivery_days?: unknown;
       };
     }>;
   }>;
@@ -145,6 +160,28 @@ export function buildBobGoRateRequest(input: {
   };
 }
 
+function isoOrNull(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function positiveOrNull(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+// Keep in sync with extractRateEta in supabase/functions/_shared/bobgo-tracking.mjs.
+function rateEta(response: NonNullable<NonNullable<BobGoRateResponse["provider_rate_requests"]>[number]["responses"]>[number]) {
+  const service = response.service_level;
+  return {
+    etaFrom: isoOrNull(response.delivery_date_from ?? response.min_delivery_date ?? service?.delivery_date_from),
+    etaTo: isoOrNull(response.delivery_date_to ?? response.max_delivery_date ?? service?.delivery_date_to),
+    etaMinDays: positiveOrNull(response.min_delivery_days ?? service?.min_delivery_days),
+    etaMaxDays: positiveOrNull(response.max_delivery_days ?? service?.max_delivery_days),
+  };
+}
+
 export function flattenBobGoDoorRates(payload: BobGoRateResponse): BobGoRate[] {
   const rates: BobGoRate[] = [];
 
@@ -176,6 +213,7 @@ export function flattenBobGoDoorRates(payload: BobGoRateResponse): BobGoRate[] {
         amount,
         amountExcludingVat: Number(response.rate_amount_excl_vat ?? amount),
         chargedWeightKg: Number(response.charged_weight_kg ?? 0),
+        ...rateEta(response),
       });
     }
   }
@@ -218,5 +256,27 @@ export async function requestBobGoRates(
     requestId,
     rates: flattenBobGoDoorRates(payload),
     raw: payload,
+  };
+}
+
+/** Fetches the PDF waybill for a booked shipment (server-side only). */
+export async function fetchBobGoWaybill(
+  trackingReference: string,
+  options: { apiKey?: string; baseUrl?: string } = {},
+) {
+  const apiKey = options.apiKey ?? process.env.BOBGO_SANDBOX_API_KEY;
+  if (!apiKey) throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
+  const baseUrl = (options.baseUrl ?? process.env.BOBGO_SANDBOX_BASE_URL ?? DEFAULT_SANDBOX_BASE_URL)
+    .replace(/\/+$/, "");
+  const response = await fetch(
+    `${baseUrl}/shipments/waybill?tracking_reference=${encodeURIComponent(trackingReference)}`,
+    { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw new Error(`Bob Go waybill lookup failed with status ${response.status}.`);
+  }
+  return {
+    body: await response.arrayBuffer(),
+    contentType: response.headers.get("content-type") ?? "application/pdf",
   };
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  CreditCard,
   GraduationCap,
   LayoutDashboard,
   Library,
@@ -13,6 +14,7 @@ import {
   PackageOpen,
   Receipt,
   ShieldAlert,
+  ShieldCheck,
   Store,
   Users,
 } from "lucide-react";
@@ -77,6 +79,16 @@ const navItems = [
     label: "Disputes",
     icon: ShieldAlert,
   },
+  {
+    href: "/admin/moderation",
+    label: "Moderation",
+    icon: ShieldCheck,
+  },
+  {
+    href: "/admin/billing",
+    label: "Billing",
+    icon: CreditCard,
+  },
 ];
 
 type AdminShellProps = {
@@ -84,6 +96,7 @@ type AdminShellProps = {
   displayName: string;
   email: string;
   unreadMessageCount?: number;
+  openReportCount?: number;
 };
 
 export function AdminShell({
@@ -91,6 +104,7 @@ export function AdminShell({
   displayName,
   email,
   unreadMessageCount = 0,
+  openReportCount = 0,
 }: AdminShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -149,6 +163,19 @@ export function AdminShell({
                       )}
                     >
                       {unreadMessageCount}
+                    </span>
+                  ) : null}
+                  {item.href === "/admin/moderation" && openReportCount > 0 ? (
+                    <span
+                      aria-label={`${openReportCount} open content reports`}
+                      className={cn(
+                        "ml-auto rounded-full px-2 py-0.5 text-xs font-semibold",
+                        isActive
+                          ? "bg-white text-artisan-terracotta"
+                          : "bg-artisan-terracotta text-white",
+                      )}
+                    >
+                      {openReportCount}
                     </span>
                   ) : null}
                 </Link>
@@ -221,6 +248,19 @@ export function AdminShell({
                         )}
                       >
                         {unreadMessageCount}
+                      </span>
+                    ) : null}
+                    {item.href === "/admin/moderation" && openReportCount > 0 ? (
+                      <span
+                        aria-label={`${openReportCount} open content reports`}
+                        className={cn(
+                          "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
+                          isActive
+                            ? "bg-white text-artisan-terracotta"
+                            : "bg-artisan-terracotta text-white",
+                        )}
+                      >
+                        {openReportCount}
                       </span>
                     ) : null}
                   </Link>

@@ -57,8 +57,8 @@ export function VendorSubscriptionGate({ active }: { active: boolean }) {
         </h2>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">
           To keep uploading or editing products, you&apos;ll need an active Artisan Lane
-          subscription. Your first two months are free, then it&apos;s R349/month with 0%
-          commission on your sales.
+          subscription. Your first month is free, then it&apos;s R199/month locked in for 12 months
+          (founders offer, first 100 shops), with 0% commission on your sales.
         </p>
         <Button
           asChild

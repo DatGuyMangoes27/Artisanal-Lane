@@ -29,6 +29,8 @@ export type BuyerOrder = {
   shippingAddress: Record<string, unknown> | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
+  bobgoStatus: string | null;
+  bobgoBookingState: string | null;
   paymentState: string;
   paymentProvider: string | null;
   paymentUrl: string | null;
@@ -212,6 +214,8 @@ export function mapBuyerOrder(row: JsonRecord): BuyerOrder {
     shippingAddress: toRecord(row.shipping_address),
     trackingNumber: toStringOrNull(row.tracking_number),
     trackingUrl: toStringOrNull(row.tracking_url),
+    bobgoStatus: toStringOrNull(row.bobgo_status),
+    bobgoBookingState: toStringOrNull(row.bobgo_booking_state),
     paymentState: toStringOrNull(row.payment_state) ?? "created",
     paymentProvider: toStringOrNull(row.payment_provider),
     paymentUrl: toStringOrNull(row.payment_url),

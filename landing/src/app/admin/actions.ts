@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 
 import type { AdminActionState } from "@/lib/admin-action-state";
 import { requireAdminSession } from "@/lib/admin-auth";
+import {
+  normalizeLearningContentUrl,
+  parseLearningSortOrder,
+  resolveLearningThumbnail,
+} from "@/lib/admin-learning";
 import { canAdminTriggerTradeSafePayout } from "@/lib/admin-payout";
 import {
   getOrCreateAdminApplicantThread,
@@ -1086,14 +1091,14 @@ function learningChecked(formData: FormData, key: string): boolean {
 
 async function uploadLearningThumbnail(file: File): Promise<string> {
   const admin = createAdminClient();
-  const extension = file.name.includes(".") ? file.name.split(".").pop() : "jpg";
+  const { extension, contentType } = resolveLearningThumbnail(file);
   const path = `${crypto.randomUUID()}.${extension}`;
   const { error } = await admin.storage.from("learning-assets").upload(path, file, {
-    contentType: file.type || "image/jpeg",
+    contentType,
     upsert: false,
   });
   if (error) {
-    throw new Error("Unable to upload thumbnail.");
+    throw new Error(`Unable to upload thumbnail: ${error.message}`);
   }
   return admin.storage.from("learning-assets").getPublicUrl(path).data.publicUrl;
 }
@@ -1117,12 +1122,8 @@ export async function saveLearningResource(
     if (!title) {
       throw new Error("Title is required.");
     }
-    if (!contentUrl || !/^https?:\/\//i.test(contentUrl)) {
-      throw new Error("A valid link (https://...) is required.");
-    }
-
-    const sortOrderRaw = learningString(formData, "sortOrder");
-    const sortOrder = Number.parseInt(sortOrderRaw, 10);
+    const normalizedContentUrl = normalizeLearningContentUrl(contentUrl);
+    const sortOrder = parseLearningSortOrder(learningString(formData, "sortOrder"));
 
     const thumbnailFile = formData.get("thumbnail");
     let thumbnailUrl = learningNullableString(formData, "existingThumbnailUrl");
@@ -1139,13 +1140,13 @@ export async function saveLearningResource(
       destination,
       title,
       description: learningNullableString(formData, "description"),
-      content_url: contentUrl,
+      content_url: normalizedContentUrl,
       thumbnail_url: thumbnailUrl,
       author: learningNullableString(formData, "author"),
       duration_label: learningNullableString(formData, "durationLabel"),
       is_published: learningChecked(formData, "isPublished"),
       is_featured: learningChecked(formData, "isFeatured"),
-      sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+      sort_order: sortOrder,
     };
 
     const admin = createAdminClient();
@@ -1164,6 +1165,7 @@ export async function saveLearningResource(
     revalidatePath("/learn");
     revalidatePath("/tutorials");
     revalidatePath("/vendor/library");
+    revalidatePath("/admin/library");
 
     return createSuccessState(resourceId ? "Resource updated." : "Resource added.");
   } catch (error) {
@@ -1194,6 +1196,7 @@ export async function deleteLearningResource(
     revalidatePath("/learn");
     revalidatePath("/tutorials");
     revalidatePath("/vendor/library");
+    revalidatePath("/admin/library");
 
     return createSuccessState("Resource deleted.");
   } catch (error) {

@@ -25,6 +25,7 @@ import {
   getOrderPickupPointSummary,
   normalizeTrackingUrl,
 } from "@/lib/marketplace/orders";
+import { describeBobGoCourier } from "@/lib/marketplace/bobgo-status";
 import { canReviewOrderStatus } from "@/lib/marketplace/reviews";
 
 import { confirmBuyerOrderReceipt } from "../actions";
@@ -53,6 +54,7 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
   const canOpenDispute = canOpenDisputeForOrderStatus(order.status);
   const canConfirmOrderReceipt = canConfirmReceipt(order);
   const trackingHref = normalizeTrackingUrl(order.trackingUrl);
+  const bobGoCourier = describeBobGoCourier(order);
 
   return (
     <div className="min-h-screen bg-background">
@@ -238,6 +240,18 @@ export default async function BuyerOrderDetailPage({ params }: BuyerOrderDetailP
                   <p>
                     <span className="font-semibold text-foreground">Pickup: </span>
                     <span className="text-muted-foreground">{pickupSummary}</span>
+                  </p>
+                ) : null}
+                {bobGoCourier ? (
+                  <p
+                    className={
+                      bobGoCourier.tone === "warning"
+                        ? "rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-800"
+                        : "rounded-2xl border border-artisan-clay bg-artisan-bone/40 p-3 text-foreground"
+                    }
+                  >
+                    <span className="font-semibold">Courier: </span>
+                    {bobGoCourier.headline}
                   </p>
                 ) : null}
                 {order.trackingNumber ? (

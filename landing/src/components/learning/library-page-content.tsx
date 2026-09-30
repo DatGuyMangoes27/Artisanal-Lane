@@ -115,7 +115,7 @@ export async function LibraryPageContent() {
       />
 
       <VendorPanel
-        title="What your R349 monthly subscription gives you"
+        title="What your artisan subscription gives you"
         description="Your subscription keeps your artisan shop and its connected marketplace tools active."
       >
         <div className="grid gap-4 md:grid-cols-2">

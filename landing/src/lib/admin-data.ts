@@ -1,6 +1,13 @@
 import "server-only";
 
 import { getPostgrestSearchTokens } from "@/lib/admin-search";
+import {
+  activeSubscriptionVendorIds,
+  countBySubscription,
+  filterBySubscription,
+  parseShopSubscriptionFilter,
+  type SubscriptionRow,
+} from "@/lib/admin-shop-subscription";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ProfileRecord = {
@@ -181,6 +188,7 @@ type ShopListOptions = {
   query?: string;
   status?: string;
   availability?: string;
+  subscription?: string;
   sort?: string;
   page?: number;
   pageSize?: number;
@@ -589,9 +597,11 @@ type AdminShopRow = ShopRecord & {
   productCount: number;
   totalPostCount: number;
   publishedPostCount: number;
+  subscribed: boolean;
 };
 
 export type AdminShopPage = {
+  subscriptionCounts: { all: number; subscribed: number; notSubscribed: number };
   items: AdminShopRow[];
   total: number;
   page: number;
@@ -624,6 +634,28 @@ async function loadAllAdminShops() {
       return shops;
     }
   }
+}
+
+async function loadActiveSubscriptionVendorIds(vendorIds: Array<string | null>) {
+  const uniqueIds = Array.from(
+    new Set(vendorIds.filter((id): id is string => Boolean(id))),
+  );
+  const admin = createAdminClient();
+  const rows: SubscriptionRow[] = [];
+
+  for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+    const { data, error } = await admin
+      .from("vendor_subscriptions")
+      .select("vendor_id, status, current_period_end")
+      .in("vendor_id", uniqueIds.slice(offset, offset + 100));
+
+    if (error) {
+      throw new Error(`Unable to load vendor subscriptions: ${error.message}`);
+    }
+    rows.push(...((data ?? []) as SubscriptionRow[]));
+  }
+
+  return activeSubscriptionVendorIds(rows);
 }
 
 async function loadShopContentCounts(shopIds: string[]) {
@@ -703,9 +735,14 @@ export async function listShops(
     shops.map((shop) => shop.vendor_id ?? ""),
   );
 
+  const subscribedVendorIds = await loadActiveSubscriptionVendorIds(
+    shops.map((shop) => shop.vendor_id),
+  );
+
   let rows: AdminShopRow[] = shops.map((shop) => ({
     ...shop,
     vendor: shop.vendor_id ? profiles.get(shop.vendor_id) ?? null : null,
+    subscribed: shop.vendor_id ? subscribedVendorIds.has(shop.vendor_id) : false,
     productCount: 0,
     totalPostCount: 0,
     publishedPostCount: 0,
@@ -740,6 +777,12 @@ export async function listShops(
 
     return haystack.includes(query);
   });
+
+  const subscriptionCounts = countBySubscription(rows);
+  rows = filterBySubscription(
+    rows,
+    parseShopSubscriptionFilter(options.subscription),
+  );
 
   const requiresGlobalContentCounts =
     options.sort === "products-high" || options.sort === "posts-high";
@@ -795,6 +838,7 @@ export async function listShops(
   }
 
   return {
+    subscriptionCounts,
     items,
     total,
     page: requestedPage,

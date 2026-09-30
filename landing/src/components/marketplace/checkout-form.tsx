@@ -27,6 +27,7 @@ import {
 import { getAddressSummary, normalizeSavedAddresses, type SavedAddress } from "@/lib/marketplace/buyer-preferences";
 import { formatPrice } from "@/lib/marketplace/format";
 import { shippingMethodDescription, shippingMethodName } from "@/lib/marketplace/shipping";
+import { formatRateEta, isBobGoQuoteExpired } from "@/lib/marketplace/bobgo-status";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -63,6 +64,10 @@ type BobGoRate = {
   amount: number;
   amountExcludingVat: number;
   chargedWeightKg: number;
+  etaFrom?: string | null;
+  etaTo?: string | null;
+  etaMinDays?: number | null;
+  etaMaxDays?: number | null;
 };
 
 type CourierGuyLocker = {
@@ -179,6 +184,7 @@ export function CheckoutForm() {
   const [pargoPointError, setPargoPointError] = useState<string | null>(null);
   const [bobGoQuoteId, setBobGoQuoteId] = useState<string | null>(null);
   const [bobGoQuoteFingerprint, setBobGoQuoteFingerprint] = useState<string | null>(null);
+  const [bobGoQuoteExpiresAt, setBobGoQuoteExpiresAt] = useState<string | null>(null);
   const [bobGoRates, setBobGoRates] = useState<BobGoRate[]>([]);
   const [selectedBobGoRate, setSelectedBobGoRate] = useState<BobGoRate | null>(null);
   const [isLoadingBobGoRates, setIsLoadingBobGoRates] = useState(false);
@@ -378,6 +384,7 @@ export function CheckoutForm() {
     setSelectedBobGoRate(null);
     setBobGoQuoteId(null);
     setBobGoQuoteFingerprint(null);
+    setBobGoQuoteExpiresAt(null);
 
     try {
       const supabase = createClient();
@@ -410,6 +417,7 @@ export function CheckoutForm() {
       });
       const payload = (await response.json()) as {
         quoteId?: string;
+        expiresAt?: string;
         rates?: BobGoRate[];
         error?: string;
       };
@@ -418,6 +426,7 @@ export function CheckoutForm() {
       }
 
       setBobGoQuoteId(payload.quoteId);
+      setBobGoQuoteExpiresAt(payload.expiresAt ?? null);
       setBobGoQuoteFingerprint(bobGoInputFingerprint);
       setBobGoRates(payload.rates);
     } catch (rateError) {
@@ -438,6 +447,27 @@ export function CheckoutForm() {
       setBobGoRateError("Your basket or address changed. Request a fresh Bob Go rate.");
     }
   }, [bobGoInputFingerprint, bobGoQuoteFingerprint, bobGoQuoteId]);
+
+  // Saved quotes live for 20 minutes server-side. Drop an expired one here so
+  // the buyer is asked for a fresh rate instead of hitting a checkout error.
+  useEffect(() => {
+    if (!bobGoQuoteId || !bobGoQuoteExpiresAt) return;
+    const remaining = new Date(bobGoQuoteExpiresAt).getTime() - Date.now();
+    const expire = () => {
+      setBobGoQuoteId(null);
+      setBobGoQuoteFingerprint(null);
+      setBobGoQuoteExpiresAt(null);
+      setBobGoRates([]);
+      setSelectedBobGoRate(null);
+      setBobGoRateError("Your delivery quote expired. Request a fresh Bob Go rate.");
+    };
+    if (Number.isNaN(remaining) || remaining <= 0) {
+      expire();
+      return;
+    }
+    const timer = window.setTimeout(expire, remaining);
+    return () => window.clearTimeout(timer);
+  }, [bobGoQuoteExpiresAt, bobGoQuoteId]);
 
   // Mirror mobile: search runs automatically (debounced) as the buyer types
   // or changes the province filter.
@@ -478,6 +508,7 @@ export function CheckoutForm() {
     if (key !== "bobgo_door_to_door") {
       setBobGoQuoteId(null);
       setBobGoQuoteFingerprint(null);
+      setBobGoQuoteExpiresAt(null);
       setBobGoRates([]);
       setSelectedBobGoRate(null);
       setBobGoRateError(null);
@@ -536,6 +567,10 @@ export function CheckoutForm() {
       (!bobGoQuoteId || !selectedBobGoRate)
     ) {
       setError("Request and select a Bob Go door-to-door rate before payment.");
+      return;
+    }
+    if (selectedShipping.key === "bobgo_door_to_door" && isBobGoQuoteExpired(bobGoQuoteExpiresAt)) {
+      setError("Your delivery quote expired. Request a fresh Bob Go rate before payment.");
       return;
     }
 
@@ -925,9 +960,17 @@ export function CheckoutForm() {
                             <span className="mt-1 block text-sm text-muted-foreground">
                               {rate.description} · charged weight {rate.chargedWeightKg} kg
                             </span>
+                            {formatRateEta(rate) ? (
+                              <span className="mt-1 block text-sm text-muted-foreground">
+                                {formatRateEta(rate)}
+                              </span>
+                            ) : null}
                           </span>
                           <span className="flex items-center gap-3">
-                            <span className="font-semibold">{formatPrice(rate.amount)}</span>
+                            <span className="text-right">
+                              <span className="block font-semibold">{formatPrice(rate.amount)}</span>
+                              <span className="block text-xs text-muted-foreground">incl. VAT</span>
+                            </span>
                             <input
                               type="radio"
                               name="bobGoRate"

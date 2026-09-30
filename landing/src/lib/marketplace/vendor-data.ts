@@ -200,6 +200,9 @@ export type VendorOrder = {
   shippingAddress: JsonRecord | null;
   trackingNumber: string | null;
   trackingUrl: string | null;
+  bobgoStatus: string | null;
+  bobgoBookingState: string | null;
+  bobgoBookingError: string | null;
   paymentState: string | null;
   shippedAt: string | null;
   receivedAt: string | null;
@@ -330,6 +333,9 @@ const orderSelect = `
   shipping_address,
   tracking_number,
   tracking_url,
+  bobgo_status,
+  bobgo_booking_state,
+  bobgo_booking_error,
   payment_state,
   shipped_at,
   received_at,
@@ -1138,6 +1144,9 @@ function mapVendorOrder(row: JsonRecord): VendorOrder {
     shippingAddress: toRecord(row.shipping_address),
     trackingNumber: toStringOrNull(row.tracking_number),
     trackingUrl: toStringOrNull(row.tracking_url),
+    bobgoStatus: toStringOrNull(row.bobgo_status),
+    bobgoBookingState: toStringOrNull(row.bobgo_booking_state),
+    bobgoBookingError: toStringOrNull(row.bobgo_booking_error),
     paymentState: toStringOrNull(row.payment_state),
     shippedAt: toStringOrNull(row.shipped_at),
     receivedAt: toStringOrNull(row.received_at),
