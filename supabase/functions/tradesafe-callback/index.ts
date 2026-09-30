@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { jsonResponse } from "../_shared/http.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
-import { createBobGoShipment } from "../_shared/bobgo.ts";
+import { bookBobGoShipmentForOrder } from "../_shared/bobgo-booking.ts";
 import {
   mapTradeSafeEscrowStatus,
   mapTradeSafeOrderStatus,
@@ -121,63 +121,11 @@ Deno.serve(async (request) => {
       .eq("order_id", order.id);
 
     if (orderStatus === "paid" || orderStatus === "completed") {
-      if (
-        order.shipping_method === "bobgo_door_to_door" &&
-        !order.bobgo_shipment_id &&
-        order.bobgo_quote_id &&
-        order.bobgo_provider_slug &&
-        order.bobgo_service_level_code
-      ) {
-        const { data: claimedOrder } = await admin
-          .from("orders")
-          .update({ bobgo_booking_state: "booking", bobgo_booking_error: null })
-          .eq("id", order.id)
-          .in("bobgo_booking_state", ["not_requested", "failed"])
-          .is("bobgo_shipment_id", null)
-          .select("id")
-          .maybeSingle();
-
-        if (claimedOrder) {
-          try {
-            const { data: quote, error: quoteError } = await admin
-              .from("bobgo_shipping_quotes")
-              .select("request_snapshot")
-              .eq("id", order.bobgo_quote_id)
-              .single();
-            if (quoteError || !quote) {
-              throw new Error("The saved Bob Go shipment quote could not be loaded.");
-            }
-
-            const shipment = await createBobGoShipment({
-              orderId: order.id,
-              providerSlug: order.bobgo_provider_slug as string,
-              serviceLevelCode: order.bobgo_service_level_code as string,
-              rateRequestSnapshot: quote.request_snapshot,
-            });
-            await admin
-              .from("orders")
-              .update({
-                bobgo_shipment_id: shipment.shipmentId,
-                bobgo_booking_state: "booked",
-                bobgo_status: shipment.status,
-                bobgo_charged_amount: shipment.chargedAmount,
-                tracking_number: shipment.trackingReference,
-              })
-              .eq("id", order.id);
-          } catch (bookingError) {
-            const message = bookingError instanceof Error
-              ? bookingError.message
-              : "Bob Go booking failed.";
-            console.error(`[bobgo] order ${order.id} booking failed: ${message}`);
-            await admin
-              .from("orders")
-              .update({
-                bobgo_booking_state: "failed",
-                bobgo_booking_error: message,
-              })
-              .eq("id", order.id);
-          }
-        }
+      // Idempotent: a duplicate callback finds the booking already claimed.
+      // Failures are recorded on the order and retried by bobgo-shipment /
+      // bobgo-sync-tracking; they never fail the payment callback.
+      if (order.shipping_method === "bobgo_door_to_door") {
+        await bookBobGoShipmentForOrder(admin, order);
       }
 
       await admin

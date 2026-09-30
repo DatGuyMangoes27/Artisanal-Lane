@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.send-receipt-reminders]
 verify_jwt = false
+
+# Bob Go tracking webhook is called by Bob Go with a shared secret, not a JWT.
+[functions.bobgo-webhook]
+verify_jwt = false
+
+# Scheduled reconciliation; authenticated with the service role key or
+# BOBGO_SYNC_SECRET inside the function.
+[functions.bobgo-sync-tracking]
+verify_jwt = false

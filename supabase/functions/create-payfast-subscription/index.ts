@@ -9,6 +9,11 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 const artisanSubscriptionAmount = 349;
 const artisanSubscriptionPlanCode = "artisan-monthly";
+// Founders offer: the first 100 shops pay R199/month, price locked for a year.
+const foundersPlanCode = "founders-199";
+const foundersAmount = 199;
+const foundersLimit = 100;
+const signUpFreeMonths = 1;
 const subscriptionReturnUrl =
   "https://artisanlanesa.co.za/vendor/subscription/success";
 const subscriptionCancelUrl =
@@ -70,7 +75,7 @@ Deno.serve(async (request) => {
           .maybeSingle(),
         admin
           .from("vendor_subscriptions")
-          .select("status, current_period_end")
+          .select("status, current_period_end, plan_code")
           .eq("vendor_id", user.id)
           .maybeSingle(),
       ]);
@@ -103,6 +108,26 @@ Deno.serve(async (request) => {
       );
     }
 
+    // Returning founders keep their plan; otherwise founders places are
+    // first come, first served among shops that actually started billing.
+    let isFounder = existingSubscription?.plan_code === foundersPlanCode;
+    if (!isFounder) {
+      const { count, error: foundersError } = await admin
+        .from("vendor_subscriptions")
+        .select("vendor_id", { count: "exact", head: true })
+        .eq("plan_code", foundersPlanCode)
+        .not("started_at", "is", null);
+      if (foundersError != null) {
+        return jsonResponse(
+          { error: "Could not prepare your subscription. Please try again." },
+          { status: 500 },
+        );
+      }
+      isFounder = (count ?? 0) < foundersLimit;
+    }
+    const planCode = isFounder ? foundersPlanCode : artisanSubscriptionPlanCode;
+    const planAmount = isFounder ? foundersAmount : artisanSubscriptionAmount;
+
     const checkoutReference = crypto.randomUUID();
     const paymentReference = `artisan-subscription-${user.id}`;
     const displayName = firstNonEmptyString(profile?.display_name, shop.name) ??
@@ -113,9 +138,14 @@ Deno.serve(async (request) => {
 
     const checkoutUrl = buildPayFastSubscriptionCheckoutUrl({
       amount: 0,
-      recurringAmount: artisanSubscriptionAmount,
-      itemName: "Artisan Lane Subscription",
-      itemDescription: "Artisan subscription with first two months free",
+      recurringAmount: planAmount,
+      itemName: isFounder
+        ? "Artisan Lane Founders Subscription"
+        : "Artisan Lane Subscription",
+      itemDescription: isFounder
+        ? "First month free, then R199/month locked for 12 months"
+        : "First month free, then R349/month",
+      freeMonths: signUpFreeMonths,
       reference: paymentReference,
       vendorId: user.id,
       checkoutReference,
@@ -129,14 +159,16 @@ Deno.serve(async (request) => {
     const checkoutRecord = existingSubscription == null
       ? admin.from("vendor_subscriptions").insert({
         vendor_id: user.id,
-        plan_code: artisanSubscriptionPlanCode,
-        amount: artisanSubscriptionAmount,
+        plan_code: planCode,
+        amount: planAmount,
         currency: "ZAR",
         status: "inactive",
         checkout_reference: checkoutReference,
         status_reason: "Awaiting PayFast confirmation.",
       })
       : admin.from("vendor_subscriptions").update({
+        plan_code: planCode,
+        amount: planAmount,
         checkout_reference: checkoutReference,
         status: "inactive",
         status_reason: "Awaiting PayFast confirmation.",
@@ -159,6 +191,8 @@ Deno.serve(async (request) => {
       checkoutUrl,
       checkoutReference,
       amount: 0,
+      recurringAmount: planAmount,
+      founders: isFounder,
       status: "inactive",
     });
   } catch (error) {

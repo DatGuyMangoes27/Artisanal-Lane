@@ -117,10 +117,14 @@ export function buildPayFastSubscriptionCheckoutUrl(input: {
   returnUrl: string;
   cancelUrl: string;
   notifyUrl: string;
+  /** Free months before the first recurring charge (default 2). */
+  freeMonths?: number;
 }) {
   const config = getPayFastConfig();
   const { firstName, lastName } = splitDisplayName(input.displayName);
-  const billingDate = addMonths(new Date(), 2).toISOString().slice(0, 10);
+  const billingDate = addMonths(new Date(), input.freeMonths ?? 2)
+    .toISOString()
+    .slice(0, 10);
   const entries: Array<[string, string]> = [
     ["merchant_id", config.merchantId],
     ["merchant_key", config.merchantKey],
@@ -367,7 +371,115 @@ export function nextSubscriptionPeriodEnd(fromIso?: string | null) {
  * created with billing_date two months out ("first two months free"), so the
  * vendor's access must also run for two months until the first real charge.
  */
-export function initialSubscriptionPeriodEnd(fromIso?: string | null) {
+export function initialSubscriptionPeriodEnd(
+  fromIso?: string | null,
+  freeMonths = 2,
+) {
   const baseDate = fromIso != null ? new Date(fromIso) : new Date();
-  return addMonths(baseDate, 2).toISOString();
+  return addMonths(baseDate, freeMonths).toISOString();
+}
+
+/** Adds whole calendar months, clamping to the target month's last day. */
+export function addSubscriptionMonths(fromIso: string, months: number) {
+  return addMonths(new Date(fromIso), months).toISOString().slice(0, 10);
+}
+
+export type PayFastSubscriptionDetails = {
+  ok: boolean;
+  status: number;
+  amountCents: number | null;
+  runDate: string | null;
+  statusText: string | null;
+  body: unknown;
+};
+
+/** PayFast update body: amount in cents and the next charge date. */
+export function buildPayFastUpdateBody(input: {
+  amountRands?: number | null;
+  runDate?: string | null;
+}) {
+  const body: Record<string, string> = {};
+  if (input.amountRands != null) {
+    if (!Number.isFinite(input.amountRands) || input.amountRands <= 0) {
+      throw new Error("Amount must be a positive number of rands.");
+    }
+    body.amount = String(Math.round(input.amountRands * 100));
+  }
+  if (input.runDate != null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.runDate)) {
+      throw new Error("Next charge date must be YYYY-MM-DD.");
+    }
+    body.run_date = input.runDate;
+  }
+  if (Object.keys(body).length === 0) {
+    throw new Error("Nothing to update.");
+  }
+  return body;
+}
+
+async function callPayFastSubscriptionApi(
+  token: string,
+  action: "fetch" | "update",
+  body?: Record<string, string>,
+): Promise<PayFastSubscriptionDetails> {
+  const config = getPayFastConfig();
+  const timestamp = payFastApiTimestamp();
+  const apiHeaders: Record<string, string> = {
+    "merchant-id": config.merchantId,
+    version: "v1",
+    timestamp,
+  };
+  // PayFast signs header and body variables together.
+  const { signature } = buildPayFastApiSignature(
+    { ...apiHeaders, ...(body ?? {}) },
+    config.passphrase,
+  );
+  const path = `${PAYFAST_API_BASE}/subscriptions/${encodeURIComponent(token)}/${action}`;
+  const response = await fetch(config.sandbox ? `${path}?testing=true` : path, {
+    method: action === "fetch" ? "GET" : "PATCH",
+    headers: {
+      ...apiHeaders,
+      signature,
+      "Content-Type": "application/json",
+      accept: "application/json",
+    },
+    body: body == null ? undefined : JSON.stringify(body),
+  });
+  const text = await response.text();
+  let json: unknown = null;
+  try {
+    json = text.length > 0 ? JSON.parse(text) : null;
+  } catch {
+    json = null;
+  }
+  const data = (json as { data?: { response?: Record<string, unknown> } } | null)
+    ?.data?.response ?? null;
+  const amount = data?.amount;
+  const runDate = data?.run_date;
+  return {
+    ok: response.ok &&
+      (json as { status?: string } | null)?.status !== "failed",
+    status: response.status,
+    amountCents: typeof amount === "number"
+      ? amount
+      : typeof amount === "string" && amount.trim() !== ""
+      ? Number(amount)
+      : null,
+    runDate: typeof runDate === "string" ? runDate.slice(0, 10) : null,
+    statusText: typeof data?.status_text === "string" ? data.status_text : null,
+    body: json ?? text,
+  };
+}
+
+/** Reads a subscription's real amount and next charge date from PayFast. */
+export function fetchPayFastSubscription(token: string) {
+  return callPayFastSubscriptionApi(token, "fetch");
+}
+
+/** Changes a subscription's recurring amount and/or next charge date. */
+export function updatePayFastSubscription(
+  token: string,
+  input: { amountRands?: number | null; runDate?: string | null },
+) {
+  return callPayFastSubscriptionApi(token, "update", buildPayFastUpdateBody(input));
 }

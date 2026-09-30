@@ -71,7 +71,7 @@ Deno.serve(async (request) => {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "id, shop_id, status, shipping_method, tradesafe_allocation_id, payment_state, shipped_at, tracking_number, tracking_url",
+        "id, shop_id, status, shipping_method, tradesafe_allocation_id, payment_state, shipped_at, tracking_number, tracking_url, bobgo_booking_state, bobgo_tracking_url",
       )
       .eq("id", orderId)
       .single();
@@ -131,6 +131,25 @@ Deno.serve(async (request) => {
       );
     }
 
+    // Bob Go orders use the courier booked automatically after payment. The
+    // artisan cannot hand over a parcel that has no waybill yet, and the
+    // tracking details come from the booking rather than manual entry.
+    let effectiveTrackingNumber = trackingNumber ?? null;
+    let effectiveTrackingUrl = trackingUrl ?? null;
+    if (order.shipping_method === "bobgo_door_to_door") {
+      if (order.bobgo_booking_state !== "booked") {
+        return jsonResponse(
+          {
+            error:
+              "The courier has not been booked for this order yet. Please try again shortly or contact support.",
+          },
+          { status: 409 },
+        );
+      }
+      effectiveTrackingNumber = order.tracking_number as string | null;
+      effectiveTrackingUrl = (order.bobgo_tracking_url ?? order.tracking_url) as string | null;
+    }
+
     let allocationState = order.payment_state as string | null;
     if (
       order.tradesafe_allocation_id &&
@@ -145,8 +164,8 @@ Deno.serve(async (request) => {
     const shippedAt = new Date().toISOString();
     const orderUpdates: Record<string, string | null> = {
       status: "shipped",
-      tracking_number: trackingNumber ?? null,
-      tracking_url: trackingUrl ?? null,
+      tracking_number: effectiveTrackingNumber,
+      tracking_url: effectiveTrackingUrl,
       shipped_at: shippedAt,
     };
     if (allocationState != null) {

@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse, optionsResponse } from "../_shared/http.ts";
+import { isBobGoEnabled } from "../_shared/bobgo.ts";
 import {
   createCheckoutLink,
   createTradeSafeTransaction,
@@ -302,6 +303,12 @@ Deno.serve(async (request) => {
     const combinedShippingEnabled =
       items[0]?.product.shops?.combined_shipping_enabled !== false;
     if (shippingMethod === "bobgo_door_to_door") {
+      if (!isBobGoEnabled() || !Deno.env.get("TRADESAFE_ARTISAN_LANE_TOKEN_ID")) {
+        return jsonResponse(
+          { error: "Bob Go delivery is not available right now. Please choose another delivery option." },
+          { status: 400 },
+        );
+      }
       const quoteId = firstNonEmptyString(body.bobgoQuoteId);
       const rateResponseId = Number(body.bobgoRateResponseId);
       const providerSlug = firstNonEmptyString(body.bobgoProviderSlug);

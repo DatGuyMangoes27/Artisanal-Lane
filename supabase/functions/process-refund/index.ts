@@ -3,6 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
 import { cancelTradeSafeTransaction } from "../_shared/tradesafe.ts";
+import { cancelBobGoShipment } from "../_shared/bobgo.ts";
+import { shouldCancelBobGoShipment } from "../_shared/bobgo-tracking.mjs";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -77,7 +79,9 @@ Deno.serve(async (request) => {
 
     const { data: order } = await admin
       .from("orders")
-      .select("id, tradesafe_transaction_id")
+      .select(
+        "id, tradesafe_transaction_id, shipping_method, bobgo_shipment_id, bobgo_booking_state, bobgo_status, bobgo_cancelled_at, bobgo_delivered_at",
+      )
       .eq("id", orderId)
       .single();
 
@@ -92,11 +96,33 @@ Deno.serve(async (request) => {
       );
     }
 
+    // The buyer's money is refunded first (above). A booked courier is then
+    // cancelled best-effort: if Bob Go refuses (e.g. already collected) the
+    // refund still stands and the failure is recorded for an admin to follow up.
+    const bobGoUpdate: Record<string, unknown> = {};
+    let bobGoCancelError: string | null = null;
+    if (shouldCancelBobGoShipment(order)) {
+      try {
+        await cancelBobGoShipment(order.bobgo_shipment_id as string);
+        bobGoUpdate.bobgo_booking_state = "cancelled";
+        bobGoUpdate.bobgo_status = "cancelled";
+        bobGoUpdate.bobgo_cancelled_at = new Date().toISOString();
+        bobGoUpdate.bobgo_cancel_error = null;
+      } catch (cancelError) {
+        bobGoCancelError = cancelError instanceof Error
+          ? cancelError.message
+          : "Bob Go cancellation failed.";
+        console.error(`[bobgo] order ${orderId} shipment cancel failed: ${bobGoCancelError}`);
+        bobGoUpdate.bobgo_cancel_error = bobGoCancelError;
+      }
+    }
+
     await admin
       .from("orders")
       .update({
         status: "cancelled",
         payment_state: "refunded",
+        ...bobGoUpdate,
       })
       .eq("id", orderId);
 
@@ -119,7 +145,10 @@ Deno.serve(async (request) => {
       },
     });
 
-    return jsonResponse({ ok: true });
+    return jsonResponse({
+      ok: true,
+      ...(bobGoCancelError ? { bobGoCancelError } : {}),
+    });
   } catch (error) {
     return jsonResponse(
       { error: error instanceof Error ? error.message : "Refund failed." },

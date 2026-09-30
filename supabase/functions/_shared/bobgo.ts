@@ -1,4 +1,19 @@
+import { parseBobGoTrackingPayload } from "./bobgo-tracking.mjs";
+
 const DEFAULT_SANDBOX_BASE_URL = "https://api.sandbox.bobgo.co.za/v2";
+
+function bobGoConfig() {
+  const apiKey = Deno.env.get("BOBGO_SANDBOX_API_KEY");
+  if (!apiKey) throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
+  const baseUrl = (Deno.env.get("BOBGO_SANDBOX_BASE_URL") ?? DEFAULT_SANDBOX_BASE_URL)
+    .replace(/\/+$/, "");
+  return { apiKey, baseUrl };
+}
+
+/** Server-side switch mirroring the website flag. Off unless explicitly "true". */
+export function isBobGoEnabled() {
+  return Deno.env.get("BOBGO_SHIPPING_ENABLED") === "true";
+}
 
 type RateRequestSnapshot = {
   collection_address?: unknown;
@@ -81,10 +96,7 @@ export async function createBobGoShipment(input: {
   serviceLevelCode: string;
   rateRequestSnapshot: RateRequestSnapshot;
 }) {
-  const apiKey = Deno.env.get("BOBGO_SANDBOX_API_KEY");
-  if (!apiKey) throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
-  const baseUrl = (Deno.env.get("BOBGO_SANDBOX_BASE_URL") ?? DEFAULT_SANDBOX_BASE_URL)
-    .replace(/\/+$/, "");
+  const { apiKey, baseUrl } = bobGoConfig();
   const response = await fetch(`${baseUrl}/shipments`, {
     method: "POST",
     headers: {
@@ -108,5 +120,61 @@ export async function createBobGoShipment(input: {
     chargedAmount: Number.isFinite(Number(payload.charged_amount))
       ? Number(payload.charged_amount)
       : null,
+    trackingUrl: typeof payload.tracking_url === "string" && payload.tracking_url.trim()
+      ? payload.tracking_url.trim()
+      : null,
   };
+}
+
+/** GET /tracking?tracking_reference=... -> normalized snapshot (or null). */
+export async function getBobGoTracking(trackingReference: string) {
+  const { apiKey, baseUrl } = bobGoConfig();
+  const response = await fetch(
+    `${baseUrl}/tracking?tracking_reference=${encodeURIComponent(trackingReference)}`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(`Bob Go tracking lookup failed with status ${response.status}.`);
+  }
+  return parseBobGoTrackingPayload(
+    payload && typeof payload === "object" && !("tracking_reference" in payload)
+      ? { ...(payload as Record<string, unknown>), tracking_reference: trackingReference }
+      : payload,
+  );
+}
+
+/** GET /shipments/waybill?tracking_reference=... -> PDF bytes. */
+export async function fetchBobGoWaybill(trackingReference: string) {
+  const { apiKey, baseUrl } = bobGoConfig();
+  const response = await fetch(
+    `${baseUrl}/shipments/waybill?tracking_reference=${encodeURIComponent(trackingReference)}`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+  if (!response.ok) {
+    throw new Error(`Bob Go waybill lookup failed with status ${response.status}.`);
+  }
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    contentType: response.headers.get("content-type") ?? "application/pdf",
+  };
+}
+
+/**
+ * Cancels a booked shipment. The cancellation path is NOT confirmed in the
+ * public docs we could reach, so it is overridable with BOBGO_CANCEL_PATH
+ * (use {id} for the shipment id). Verify in the sandbox before go-live.
+ */
+export async function cancelBobGoShipment(shipmentId: string) {
+  const { apiKey, baseUrl } = bobGoConfig();
+  const template = Deno.env.get("BOBGO_CANCEL_PATH") ?? "/shipments/{id}/cancel";
+  const response = await fetch(
+    `${baseUrl}${template.replace("{id}", encodeURIComponent(shipmentId))}`,
+    { method: "POST", headers: { Authorization: `Bearer ${apiKey}` } },
+  );
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as Record<string, unknown> | null;
+    const reason = typeof payload?.message === "string" ? payload.message : null;
+    throw new Error(reason || `Bob Go shipment cancellation failed with status ${response.status}.`);
+  }
 }

@@ -63,6 +63,9 @@ try {
   insert into shop_stories values('${story}','${shop}','Kiln',now()+interval '1 day'),('${oldStory}','${shop}','Old',now()-interval '1 hour');`);
   await migration('20260925092400_creator_content_reports.sql');
   await migration('20260928090000_creator_parity_features.sql');
+  await migration('20260929100000_report_reviewer_from_server.sql');
+  // Supabase grants the service role on new tables by default.
+  await db.exec('grant all on creator_content_reports to service_role');
 
   await as(fan);
   const p = (await rows(`select comments_enabled,hide_like_count,format,published_at=created_at same from shop_posts where id='${post}'`))[0];
@@ -172,6 +175,9 @@ try {
   ok('maker reports snapshot the shop', rep.target_text_snapshot.startsWith('Loom') && rep.target_owner_id === otherMaker);
   await denied('closed shops cannot be reported', `insert into creator_content_reports(target_type,target_id,reason) values('shop','${closedShop}','spam')`);
   await db.exec(`insert into creator_content_reports(target_type,target_id,reason) values('post','${post}','other')`);
+  await db.exec(`reset role;set role service_role;update creator_content_reports set status='resolved',reviewed_by='${otherMaker}' where target_type='shop'`);
+  ok('server-side review keeps the admin it names', (await rows(`select reviewed_by from creator_content_reports where target_type='shop'`))[0].reviewed_by === otherMaker);
+  await as(fan);
   ok('post reports still work', (await rows(`select id from creator_content_reports where target_type='post'`)).length === 1);
 
   // Story reactions

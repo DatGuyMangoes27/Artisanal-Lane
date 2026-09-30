@@ -220,7 +220,7 @@ Deno.serve(async (request) => {
     await admin
       .from("vendor_subscriptions")
       .select(
-        "vendor_id, status, current_period_start, current_period_end, payfast_payment_id, payfast_subscription_id, payfast_token, started_at, last_payment_at, cancelled_at",
+        "vendor_id, status, plan_code, amount, current_period_start, current_period_end, payfast_payment_id, payfast_subscription_id, payfast_token, started_at, last_payment_at, cancelled_at",
       )
       .eq("vendor_id", vendorId)
       .maybeSingle();
@@ -259,15 +259,19 @@ Deno.serve(async (request) => {
 
   const isDuplicatePayment = payfastPaymentId != null &&
     payfastPaymentId === existingSubscription?.payfast_payment_id;
-  // The first activation is the R0 sign-up ITN: PayFast only bills from two
-  // months out (first two months free), so grant a two-month period. Renewal
-  // ITNs (real monthly charges) extend by one month as before.
+  // The first activation is the R0 sign-up ITN: access runs until PayFast's
+  // first real charge (its billing_date), falling back to the plan's free
+  // months. Renewal ITNs (real monthly charges) extend by one month.
   const isInitialActivation = existingSubscription?.started_at == null &&
     existingSubscription?.last_payment_at == null;
   const receivedSuccessfulPayment = mappedPayFastStatus === "active";
   const nextPeriodEnd = receivedSuccessfulPayment && !isDuplicatePayment
     ? (isInitialActivation
-      ? initialSubscriptionPeriodEnd()
+      ? initialPeriodEndFromBillingDate(params.get("billing_date")) ??
+        initialSubscriptionPeriodEnd(
+          undefined,
+          existingSubscription?.plan_code === "founders-199" ? 1 : 2,
+        )
       : nextSubscriptionPeriodEnd(
         existingSubscription?.current_period_end as string | null | undefined,
       ))
@@ -277,8 +281,9 @@ Deno.serve(async (request) => {
     .from("vendor_subscriptions")
     .upsert({
       vendor_id: vendorId,
-      plan_code: "artisan-monthly",
-      amount: 349,
+      // Keep the plan and price set at sign-up or by an admin billing change.
+      plan_code: existingSubscription?.plan_code ?? "artisan-monthly",
+      amount: existingSubscription?.amount ?? 349,
       currency: "ZAR",
       status: nextStatus,
       checkout_reference: checkoutReference,
@@ -328,3 +333,12 @@ Deno.serve(async (request) => {
 
   return textResponse("OK");
 });
+
+/** A valid future YYYY-MM-DD billing date from PayFast, as an ISO timestamp. */
+function initialPeriodEndFromBillingDate(value: string | null) {
+  if (value == null || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return null;
+  const date = new Date(`${value.trim()}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.getTime() <= Date.now()
+    ? null
+    : date.toISOString();
+}
