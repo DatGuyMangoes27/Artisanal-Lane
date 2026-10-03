@@ -81,13 +81,15 @@ export default async function AdminBillingPage() {
           <ApprovedChangesTable rows={rows} />
         </PanelCard>
 
-        <PanelCard title="No change (stay R349)">
-          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-            {NO_CHANGE_STAY_R349.map((email) => (
-              <li key={email}>{email}</li>
-            ))}
-          </ul>
-        </PanelCard>
+        {NO_CHANGE_STAY_R349.length > 0 ? (
+          <PanelCard title="No change (stay R349)">
+            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              {NO_CHANGE_STAY_R349.map((email) => (
+                <li key={email}>{email}</li>
+              ))}
+            </ul>
+          </PanelCard>
+        ) : null}
 
         <PanelCard
           title="Custom change"

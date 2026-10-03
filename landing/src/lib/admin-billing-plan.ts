@@ -91,6 +91,22 @@ export const APPROVED_CHANGES: ApprovedChange[] = [
     ],
     "signed up before the founders offer went live",
   ),
+  ...rows(
+    "r199-from-next",
+    [
+      "craftreworx@gmail.com",
+      "lulu.vermeulen@gmail.com",
+      "castfurniture@outlook.com",
+      "hellostarlingandcrow@gmail.com",
+      "keetgretha@gmail.com",
+      "kungeka@pureapparel.co.za",
+      "nickyhendricks04@gmail.com",
+      "nomagugupn@gmail.com",
+      "noorjehanhassen@hotmail.com",
+      "soulafrican@gmail.com",
+    ],
+    "everyone moves to R199",
+  ),
   ...rows("one-month-from-signup-then-r199", ["astridwood52@gmail.com"]),
   ...rows(
     "one-month-from-signup-then-r199",
@@ -100,11 +116,8 @@ export const APPROVED_CHANGES: ApprovedChange[] = [
   ...rows("reinstate-6-months", ["cinkeacreations@icloud.com"]),
 ];
 
-export const NO_CHANGE_STAY_R349: string[] = [
-  "craftreworx@gmail.com",
-  "lulu.vermeulen@gmail.com",
-  "castfurniture@outlook.com",
-];
+// Everyone moves to R199 now; kept empty so the page can show a note.
+export const NO_CHANGE_STAY_R349: string[] = [];
 
 // ---- date helpers ----
 
