@@ -7,7 +7,7 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const artisanSubscriptionAmount = 349;
+const artisanSubscriptionAmount = 299;
 const artisanSubscriptionPlanCode = "artisan-monthly";
 // Founders offer: the first 100 shops pay R199/month, price locked for a year.
 const foundersPlanCode = "founders-199";
@@ -144,7 +144,7 @@ Deno.serve(async (request) => {
         : "Artisan Lane Subscription",
       itemDescription: isFounder
         ? "First month free, then R199/month locked for 12 months"
-        : "First month free, then R349/month",
+        : "First month free, then R299/month",
       freeMonths: signUpFreeMonths,
       reference: paymentReference,
       vendorId: user.id,

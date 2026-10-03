@@ -389,7 +389,7 @@ class _VendorSubscriptionScreenState
                     : const [
                         'First month free',
                         'Founders offer: R199 per month, locked in for 12 months (first 100 shops)',
-                        'Then R349 per month, with your first month free',
+                        'Then R299 per month, with your first month free',
                         'Secure recurring card billing through PayFast',
                         'Add your card now, with the first charge starting in one month',
                       ],

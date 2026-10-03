@@ -2,7 +2,7 @@ import '../../../models/vendor_subscription.dart';
 
 /// Founders offer price for new sign-ups (first 100 shops, locked for 12 months).
 const artisanSubscriptionAmount = 199.0;
-const artisanSubscriptionStandardAmount = 349.0;
+const artisanSubscriptionStandardAmount = 299.0;
 const artisanSubscriptionPlanLabel = 'Artisan Subscription';
 const vendorSubscriptionGateMessage =
     'Start your free first month now. After that, your artisan subscription is R199/month, locked in for 12 months (founders offer, first 100 shops), before listing products or receiving new buyer checkouts.';

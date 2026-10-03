@@ -283,7 +283,7 @@ Deno.serve(async (request) => {
       vendor_id: vendorId,
       // Keep the plan and price set at sign-up or by an admin billing change.
       plan_code: existingSubscription?.plan_code ?? "artisan-monthly",
-      amount: existingSubscription?.amount ?? 349,
+      amount: existingSubscription?.amount ?? 299,
       currency: "ZAR",
       status: nextStatus,
       checkout_reference: checkoutReference,

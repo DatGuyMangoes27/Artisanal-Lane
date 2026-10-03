@@ -87,7 +87,7 @@ export default function TermsPage() {
           </p>
           <h3>5.4 Subscription</h3>
           <p>
-            Artisan Lane charges R349 per month after any applicable free promotional period,
+            Artisan Lane charges R299 per month after any applicable free promotional period,
             with no Artisan Lane sales commission. Payment-provider and transaction fees may still
             apply as shown at checkout. If your subscription is unpaid when due, your shop may be
             immediately removed from the public marketplace until payment is resolved.

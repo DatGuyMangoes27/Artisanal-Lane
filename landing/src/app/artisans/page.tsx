@@ -183,7 +183,7 @@ export default async function ArtisansPage({
                 </div>
               </div>
             </div>
-            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground">Your first month is free, then R199 per month locked in for 12 months (founders offer, first 100 shops), then R349 per month. Your subscription includes your own shopfront, product listings, order management and customer messaging, with no Artisan Lane sales commission. Payment processing fees still apply.</p>
+            <p className="mt-5 max-w-2xl text-sm leading-6 text-muted-foreground">Your first month is free, then R199 per month locked in for 12 months (founders offer, first 100 shops), then R299 per month. Your subscription includes your own shopfront, product listings, order management and customer messaging, with no Artisan Lane sales commission. Payment processing fees still apply.</p>
           </div>
         </section>
 
