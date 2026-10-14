@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ShoppingBag } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -22,7 +23,12 @@ function readGuestCartQuantity() {
   );
 }
 
+// The cart card floats over the bottom of the screen; on the cart and checkout
+// pages it would cover the payment button, and the cart is already on screen.
+const HIDDEN_ON_PATHS = ["/cart", "/checkout", "/payment"];
+
 export function FloatingCartNotice() {
+  const pathname = usePathname();
   const [quantity, setQuantity] = useState(0);
   const [wasJustUpdated, setWasJustUpdated] = useState(false);
 
@@ -61,7 +67,11 @@ export function FloatingCartNotice() {
     return () => window.clearTimeout(timeout);
   }, [wasJustUpdated]);
 
-  if (quantity <= 0) {
+  const hiddenHere =
+    pathname != null &&
+    HIDDEN_ON_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+
+  if (quantity <= 0 || hiddenHere) {
     return null;
   }
 
