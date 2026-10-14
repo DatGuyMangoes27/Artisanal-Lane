@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { resolveTrendingSearchTerms } from "./search-trends";
 import { isKnownShippingMethod } from "./shipping";
+import { SUBSCRIPTION_GRACE_DAYS } from "./vendor-utils";
 
 export type MarketplaceProductSort = "rotation" | "newest" | "price_asc" | "price_desc" | "popular";
 export type MarketplacePriceFilter = "under_200" | "between_200_500" | "over_500";
@@ -423,8 +424,8 @@ function isSubscriptionActive(row: VendorSubscriptionRow, now: number) {
     ? Date.parse(row.current_period_end)
     : null;
 
-  if (row.status === "active" && row.cancelled_at == null) {
-    return periodEnd == null || periodEnd > now;
+  if ((row.status === "active" || row.status === "past_due") && row.cancelled_at == null) {
+    return periodEnd == null || periodEnd + SUBSCRIPTION_GRACE_DAYS * 86_400_000 > now;
   }
 
   if (row.status === "cancelled") {

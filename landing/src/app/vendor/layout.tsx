@@ -4,7 +4,10 @@ import {
   getVendorSubscription,
   requireVendorSession,
 } from "@/lib/marketplace/vendor-data";
-import { isVendorSubscriptionActive } from "@/lib/marketplace/vendor-utils";
+import {
+  hasVendorSubscriptionPaymentIssue,
+  isVendorSubscriptionActive,
+} from "@/lib/marketplace/vendor-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +20,14 @@ export default async function VendorLayout({ children }: { children: React.React
   const isVendorRole = session.profile.role === "vendor";
   const subscription = isVendorRole ? await getVendorSubscription(session.user.id) : null;
   const requiresSubscription = isVendorRole && !isVendorSubscriptionActive(subscription);
+  const paymentIssue = isVendorRole && hasVendorSubscriptionPaymentIssue(subscription);
 
   return (
-    <VendorShell shop={shop} requiresSubscription={requiresSubscription}>
+    <VendorShell
+      shop={shop}
+      requiresSubscription={requiresSubscription}
+      paymentIssue={paymentIssue}
+    >
       {children}
     </VendorShell>
   );

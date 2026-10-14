@@ -26,6 +26,7 @@ import {
   parseNullableIntegerInput,
   parseNullableText,
   parseRequiredText,
+  hasVendorSubscriptionPaymentIssue,
 } from "@/lib/marketplace/vendor-utils";
 import { SHIPPING_METHOD_KEYS } from "@/lib/marketplace/shipping";
 import { validateVendorProofFiles } from "@/lib/marketplace/vendor-application-files";
@@ -634,7 +635,12 @@ export async function saveVendorPayoutDetails(formData: FormData) {
 }
 
 export async function startVendorSubscription() {
-  const { supabase } = await requireVendorSession("/vendor/profile/subscription");
+  const { supabase, user } = await requireVendorSession("/vendor/profile/subscription");
+  // A failed renewal on an existing PayFast subscription is fixed by updating
+  // the card; a new checkout would leave two subscriptions charging.
+  if (hasVendorSubscriptionPaymentIssue(await getVendorSubscription(user.id))) {
+    await updateVendorSubscriptionCard();
+  }
   const { data: sessionResult } = await supabase.auth.getSession();
   const accessToken = sessionResult.session?.access_token;
   const { data, error } = await supabase.functions.invoke("create-payfast-subscription", {

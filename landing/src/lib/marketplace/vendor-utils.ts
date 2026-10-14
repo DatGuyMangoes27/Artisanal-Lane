@@ -22,6 +22,11 @@ export type VendorSetupStatus = {
 
 const activeSubscriptionStatuses = new Set(["active", "trialing"]);
 
+// Days a recurring subscription stays usable after its paid-through date, so a
+// failed card (PayFast retries) or a late renewal notice doesn't lock the shop.
+export const SUBSCRIPTION_GRACE_DAYS = 5;
+const SUBSCRIPTION_GRACE_MS = SUBSCRIPTION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
 // TradeSafe only accepts these account types (mapped by the create-checkout
 // edge function); anything else blocks every checkout for the shop.
 export const PAYOUT_ACCOUNT_TYPES = [
@@ -80,14 +85,14 @@ export function isVendorSubscriptionActive(subscription: VendorSubscriptionLike 
     return false;
   }
 
-  // Mirror the create-checkout edge function: an "active" row whose paid
-  // period has lapsed must not count as active, or vendors see an enabled
-  // shop while every buyer checkout is rejected.
+  // Mirror the create-checkout edge function and vendor_subscription_is_active:
+  // a recurring subscription stays usable for a short grace period after its
+  // paid-through date while PayFast retries or its renewal notice arrives.
   const normalized = subscription.status.toLowerCase();
-  if (activeSubscriptionStatuses.has(normalized)) {
+  if (activeSubscriptionStatuses.has(normalized) || normalized === "past_due") {
     return (
       subscription.currentPeriodEnd == null ||
-      new Date(subscription.currentPeriodEnd).getTime() > Date.now()
+      new Date(subscription.currentPeriodEnd).getTime() + SUBSCRIPTION_GRACE_MS > Date.now()
     );
   }
 
@@ -96,6 +101,29 @@ export function isVendorSubscriptionActive(subscription: VendorSubscriptionLike 
   }
 
   return false;
+}
+
+/**
+ * A recurring PayFast subscription whose latest payment hasn't come through:
+ * it is past its paid-through date (in or after the grace period). The fix is
+ * updating the card on the existing subscription, not starting a new one.
+ */
+export function hasVendorSubscriptionPaymentIssue(
+  subscription: (VendorSubscriptionLike & { hasPayFastToken?: boolean }) | null | undefined,
+) {
+  if (!subscription?.status || !subscription.hasPayFastToken) {
+    return false;
+  }
+  const normalized = subscription.status.toLowerCase();
+  if (!activeSubscriptionStatuses.has(normalized) && normalized !== "past_due") {
+    return false;
+  }
+  // Renewal notices normally land within a few hours of the charge, so only
+  // flag a problem once the paid-through date is half a day behind.
+  return (
+    subscription.currentPeriodEnd != null &&
+    new Date(subscription.currentPeriodEnd).getTime() + 12 * 60 * 60 * 1000 <= Date.now()
+  );
 }
 
 export function isVendorPayoutReady(payout: VendorPayoutLike | null | undefined) {

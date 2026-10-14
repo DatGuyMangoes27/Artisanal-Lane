@@ -644,9 +644,16 @@ Deno.serve(async (request) => {
     // Active subscriptions unlock checkout. Cancelled subscriptions stay
     // unlocked until their paid-through current_period_end so artisans keep
     // full access during the grace window they already paid for.
+    // Recurring subscriptions get 5 days past their paid-through date while
+    // PayFast retries a failed card or a renewal notice arrives (mirrors
+    // public.vendor_subscription_is_active).
+    const withinPaymentGrace = sellerSubscriptionPeriodEndDate != null &&
+      sellerSubscriptionPeriodEndDate.getTime() + 5 * 24 * 60 * 60 * 1000 >
+        Date.now();
     const sellerSubscriptionActive =
-      (sellerSubscriptionStatus === "active" &&
-        (sellerSubscriptionPeriodEndDate == null || periodStillValid)) ||
+      ((sellerSubscriptionStatus === "active" ||
+        sellerSubscriptionStatus === "past_due") &&
+        (sellerSubscriptionPeriodEndDate == null || withinPaymentGrace)) ||
       (sellerSubscriptionStatus === "cancelled" && periodStillValid);
 
     if (!sellerSubscriptionActive) {

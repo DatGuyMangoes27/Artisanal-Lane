@@ -3,14 +3,22 @@ import { Button } from "@/components/ui/button";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { cancelVendorSubscription, startVendorSubscription, updateVendorSubscriptionCard } from "@/app/vendor/actions";
 import { getVendorSubscription, requireVendorSession } from "@/lib/marketplace/vendor-data";
-import { formatVendorStatus, isVendorSubscriptionActive } from "@/lib/marketplace/vendor-utils";
+import {
+  formatVendorStatus,
+  hasVendorSubscriptionPaymentIssue,
+  isVendorSubscriptionActive,
+} from "@/lib/marketplace/vendor-utils";
 
 export default async function VendorSubscriptionPage() {
   const { user } = await requireVendorSession("/vendor/profile/subscription");
   const subscription = await getVendorSubscription(user.id);
   const active = isVendorSubscriptionActive(subscription);
-  const displayStatus =
-    subscription?.status?.toLowerCase() === "active" && !active
+  // A failed renewal is fixed by updating the card on the existing PayFast
+  // subscription; starting a new one would leave two subscriptions running.
+  const paymentIssue = hasVendorSubscriptionPaymentIssue(subscription);
+  const displayStatus = paymentIssue
+    ? "Payment due"
+    : subscription?.status?.toLowerCase() === "active" && !active
       ? "Expired"
       : formatVendorStatus(subscription?.status);
 
@@ -33,9 +41,16 @@ export default async function VendorSubscriptionPage() {
                 )
               : "Not available"}
           </p>
-          <p>{active ? "Product creation is enabled by this subscription." : "Start checkout to enable product creation."}</p>
+          {paymentIssue ? (
+            <p className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+              Your latest payment didn&apos;t go through. Update your payment card below and
+              PayFast will try again. There&apos;s no need to subscribe again.
+            </p>
+          ) : (
+            <p>{active ? "Product creation is enabled by this subscription." : "Start checkout to enable product creation."}</p>
+          )}
           <div className="flex flex-wrap gap-3">
-            {active ? (
+            {active || paymentIssue ? (
               <form action={updateVendorSubscriptionCard}>
                 <Button className="rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90">
                   Update payment card
@@ -48,7 +63,7 @@ export default async function VendorSubscriptionPage() {
                 </Button>
               </form>
             )}
-            {active ? (
+            {active && !paymentIssue ? (
               <form action={cancelVendorSubscription}>
                 <Button type="submit" variant="outline">Cancel at PayFast</Button>
               </form>

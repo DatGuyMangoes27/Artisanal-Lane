@@ -24,12 +24,20 @@ String vendorSubscriptionPriceLine(VendorSubscription? subscription) {
   return 'First month free, then R${formatSubscriptionAmount(artisanSubscriptionAmount)} / month for 12 months';
 }
 
+/// Days a recurring subscription stays usable after its paid-through date
+/// while PayFast retries a failed card or a renewal notice arrives. Mirrors
+/// public.vendor_subscription_is_active and the website.
+const vendorSubscriptionGracePeriod = Duration(days: 5);
+
 bool isVendorSubscriptionActive(VendorSubscription? subscription) {
   if (subscription == null) return false;
   final status = subscription.status;
   final currentPeriodEnd = subscription.currentPeriodEnd;
-  if (status == 'active') {
-    return currentPeriodEnd == null || currentPeriodEnd.isAfter(DateTime.now());
+  if (status == 'active' || status == 'past_due') {
+    return currentPeriodEnd == null ||
+        currentPeriodEnd
+            .add(vendorSubscriptionGracePeriod)
+            .isAfter(DateTime.now());
   }
   if (status == 'cancelled') {
     return currentPeriodEnd != null && currentPeriodEnd.isAfter(DateTime.now());

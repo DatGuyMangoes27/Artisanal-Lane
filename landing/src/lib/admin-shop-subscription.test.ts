@@ -8,10 +8,12 @@ import {
 } from "./admin-shop-subscription";
 
 const future = new Date(Date.now() + 86_400_000).toISOString();
-const past = new Date(Date.now() - 86_400_000).toISOString();
+const past = new Date(Date.now() - 10 * 86_400_000).toISOString();
+// Inside the 5-day grace for a late or failed recurring payment.
+const lateWithinGrace = new Date(Date.now() - 86_400_000).toISOString();
 
 describe("admin shop subscription split", () => {
-  it("treats active, in-period cancelled as subscribed and the rest as not", () => {
+  it("treats active (with payment grace), in-period cancelled as subscribed and the rest as not", () => {
     const ids = activeSubscriptionVendorIds([
       { vendor_id: "a", status: "active", current_period_end: future },
       { vendor_id: "b", status: "active", current_period_end: past },
@@ -19,8 +21,10 @@ describe("admin shop subscription split", () => {
       { vendor_id: "d", status: "cancelled", current_period_end: past },
       { vendor_id: "e", status: "inactive", current_period_end: future },
       { vendor_id: "f", status: "past_due", current_period_end: future },
+      { vendor_id: "g", status: "active", current_period_end: lateWithinGrace },
+      { vendor_id: "h", status: "cancelled", current_period_end: lateWithinGrace },
     ]);
-    expect([...ids].sort()).toEqual(["a", "c"]);
+    expect([...ids].sort()).toEqual(["a", "c", "f", "g"]);
   });
 
   it("filters and counts", () => {

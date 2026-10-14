@@ -46,6 +46,27 @@ export function BuyerLoginForm() {
             },
           });
 
+    // Signing up with an email that already has an account (often a buyer who
+    // now wants to sell): Supabase either errors or returns a user with no
+    // identities. Send them to sign in; the vendor intent then takes them
+    // straight to the artisan application.
+    const emailAlreadyRegistered =
+      mode === "sign-up" &&
+      ((result.error &&
+        ((result.error as { code?: string }).code === "user_already_exists" ||
+          /already (been )?registered/i.test(result.error.message))) ||
+        (!result.error && result.data.user?.identities?.length === 0));
+    if (emailAlreadyRegistered) {
+      setMode("sign-in");
+      setMessage(
+        intent === "vendor"
+          ? "You already have an Artisan Lane account with this email. Sign in with it below (or use Forgot password) and you'll go straight to the artisan application."
+          : "You already have an Artisan Lane account with this email. Sign in with it below, or use Forgot password.",
+      );
+      setSubmitting(false);
+      return;
+    }
+
     if (result.error) {
       setError(result.error.message);
       setSubmitting(false);

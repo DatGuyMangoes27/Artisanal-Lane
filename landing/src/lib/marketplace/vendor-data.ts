@@ -77,6 +77,8 @@ export type VendorSubscription = {
   status: string;
   checkoutReference: string | null;
   payfastSubscriptionId: string | null;
+  /** True when PayFast holds a recurring card token (the token itself stays server-side). */
+  hasPayFastToken: boolean;
   currentPeriodEnd: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -524,7 +526,7 @@ export async function getVendorSubscription(
   const { data, error } = await admin
     .from("vendor_subscriptions")
     .select(
-      "vendor_id, plan_code, status, checkout_reference, payfast_subscription_id, current_period_end, cancelled_at, created_at",
+      "vendor_id, plan_code, status, checkout_reference, payfast_subscription_id, payfast_token, current_period_end, cancelled_at, created_at",
     )
     .eq("vendor_id", vendorId)
     .maybeSingle();
@@ -1063,6 +1065,7 @@ function mapVendorSubscription(row: JsonRecord): VendorSubscription {
     status: toStringOrNull(row.status) ?? "inactive",
     checkoutReference: toStringOrNull(row.checkout_reference),
     payfastSubscriptionId: toStringOrNull(row.payfast_subscription_id),
+    hasPayFastToken: toStringOrNull(row.payfast_token) != null,
     currentPeriodEnd: toStringOrNull(row.current_period_end),
     cancelledAt: toStringOrNull(row.cancelled_at),
     createdAt: String(row.created_at),

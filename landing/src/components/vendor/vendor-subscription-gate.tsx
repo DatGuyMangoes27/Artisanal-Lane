@@ -15,7 +15,14 @@ const SUBSCRIPTION_CHECKOUT_RETURN_PATH = "/vendor/subscription";
  * subscription. It blocks the portal until they subscribe, but stays hidden on
  * the subscription page itself so they can actually complete checkout.
  */
-export function VendorSubscriptionGate({ active }: { active: boolean }) {
+export function VendorSubscriptionGate({
+  active,
+  paymentIssue = false,
+}: {
+  active: boolean;
+  /** An existing PayFast subscription whose payment failed: update the card, don't re-subscribe. */
+  paymentIssue?: boolean;
+}) {
   const pathname = usePathname();
   const onSubscriptionPage = pathname != null &&
     (pathname.startsWith(SUBSCRIPTION_PATH) ||
@@ -53,23 +60,47 @@ export function VendorSubscriptionGate({ active }: { active: boolean }) {
           id="subscription-gate-title"
           className="mt-5 font-serif text-2xl font-bold text-artisan-sienna"
         >
-          Subscription required
+          {paymentIssue ? "Payment didn't go through" : "Subscription required"}
         </h2>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          To keep uploading or editing products, you&apos;ll need an active Artisan Lane
-          subscription. Your first month is free, then it&apos;s R199/month locked in for 12 months
-          (founders offer, first 100 shops), with 0% commission on your sales.
-        </p>
+        {paymentIssue ? (
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            Your latest Artisan Lane subscription payment didn&apos;t go through, so your shop
+            tools are paused. Update your payment card and PayFast will try again. You don&apos;t
+            need to subscribe again.
+          </p>
+        ) : (
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            To keep uploading or editing products, you&apos;ll need an active Artisan Lane
+            subscription. Your first month is free, then it&apos;s R199/month locked in for 12
+            months (founders offer, first 100 shops), with 0% commission on your sales.
+          </p>
+        )}
         <Button
           asChild
           className="mt-6 w-full rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90"
         >
-          <Link href={SUBSCRIPTION_PATH}>Subscribe to continue</Link>
+          <Link href={SUBSCRIPTION_PATH}>
+            {paymentIssue ? "Update payment card" : "Subscribe to continue"}
+          </Link>
         </Button>
         <p className="mt-4 text-xs text-muted-foreground">
           Need help? Message us on WhatsApp using the support button.
         </p>
       </div>
+    </div>
+  );
+}
+
+/** Non-blocking notice while a failed payment is inside the grace period. */
+export function VendorPaymentIssueBanner() {
+  return (
+    <div role="status" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
+      Your latest subscription payment didn&apos;t go through. Your shop stays open for a few
+      days while PayFast tries again.{" "}
+      <Link className="font-semibold underline" href={SUBSCRIPTION_PATH}>
+        Update your payment card
+      </Link>
+      .
     </div>
   );
 }
