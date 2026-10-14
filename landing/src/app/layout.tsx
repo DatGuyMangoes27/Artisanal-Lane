@@ -3,6 +3,13 @@ import { Inter, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 
+import { AuthHashHandler } from "@/components/auth/auth-hash-handler";
+import { AUTH_HASH_STORAGE_KEY } from "@/lib/auth/auth-hash";
+
+// Moves auth tokens from the URL fragment into sessionStorage before any
+// analytics script can read the page address.
+const STRIP_AUTH_HASH_SCRIPT = `(function(){try{var h=location.hash;if(h&&(h.indexOf("access_token=")>-1||h.indexOf("error_description=")>-1)){sessionStorage.setItem(${JSON.stringify(AUTH_HASH_STORAGE_KEY)},h.slice(1));history.replaceState(null,"",location.pathname+location.search);}}catch(e){}})();`;
+
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
@@ -47,6 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: STRIP_AUTH_HASH_SCRIPT }} />
         <meta
           name="facebook-domain-verification"
           content="vzpvpu5gikpmkqa7esir1tyo4lvzpe"
@@ -76,6 +84,7 @@ fbq('track', 'PageView');`}
         </noscript>
         {/* Subtle noise texture overlay */}
         <div className="pointer-events-none fixed inset-0 z-[100] opacity-[0.03] mix-blend-overlay" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+        <AuthHashHandler />
         {children}
       </body>
     </html>
