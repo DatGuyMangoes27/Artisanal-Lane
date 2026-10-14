@@ -24,12 +24,12 @@ export function AuthHashHandler() {
     if (!result) return;
     if (result.kind === "error") {
       if (result.type === "recovery" || stored.includes("otp_expired")) {
-        window.location.replace("/reset-password?status=invalid-link");
+        window.location.replace("/reset-password/?status=invalid-link");
       }
       return;
     }
 
-    void fetch("/auth/recovery/session", {
+    void fetch("/auth/recovery/session/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -41,9 +41,9 @@ export function AuthHashHandler() {
       .then((response) => response.json().catch(() => null))
       .then((data: { ok?: boolean; recovery?: boolean } | null) => {
         if (data?.recovery) {
-          window.location.replace("/reset-password");
+          window.location.replace("/reset-password/");
         } else if (result.type === "recovery") {
-          window.location.replace("/reset-password?status=invalid-link");
+          window.location.replace("/reset-password/?status=invalid-link");
         } else if (data?.ok) {
           window.location.reload();
         }
