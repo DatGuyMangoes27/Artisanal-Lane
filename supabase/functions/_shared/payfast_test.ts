@@ -3,6 +3,7 @@ import { assertEquals } from "jsr:@std/assert";
 import {
   buildPayFastSignature,
   buildPayFastSubscriptionCheckoutUrl,
+  nextSubscriptionPeriodEnd,
   payFastApiTimestamp,
   verifyPayFastItnSignatureFromRaw,
 } from "./payfast.ts";
@@ -150,4 +151,22 @@ Deno.test("payfast api timestamp includes timezone", () => {
   const timestamp = payFastApiTimestamp(new Date("2026-05-06T09:13:07.912Z"));
 
   assertEquals(timestamp, "2026-05-06T09:13:07+00:00");
+});
+
+Deno.test("renewal extends from now when the period end has lapsed", () => {
+  const now = new Date("2026-10-16T02:19:55.000Z");
+  // Paid on 16 Oct with a period end stuck in July: the new end is a month from the payment.
+  assertEquals(
+    nextSubscriptionPeriodEnd("2026-07-12T18:44:10.536Z", now),
+    "2026-11-16T02:19:55.000Z",
+  );
+  // An early renewal still extends from the existing (future) period end.
+  assertEquals(
+    nextSubscriptionPeriodEnd("2026-10-20T00:00:00.000Z", now),
+    "2026-11-20T00:00:00.000Z",
+  );
+  assertEquals(
+    nextSubscriptionPeriodEnd(null, now),
+    "2026-11-16T02:19:55.000Z",
+  );
 });

@@ -37,7 +37,8 @@ List<Product> _filterVendorProducts(
       case _ProductFilter.draft:
         return !product.isPublished;
       case _ProductFilter.soldOut:
-        return product.stockQty <= 0;
+        // Made-to-order pieces stay buyable at zero stock.
+        return product.stockQty <= 0 && !product.isMadeToOrderEnabled;
     }
   }).toList();
 }
@@ -443,8 +444,13 @@ class _VendorProductsScreenState extends ConsumerState<VendorProductsScreen> {
     Product product,
   ) {
     final optionCount = product.variants.length;
-    final isSoldOut = product.stockQty <= 0;
-    final stockLabel = isSoldOut ? 'Sold out' : 'Stock: ${product.stockQty}';
+    // Made-to-order pieces stay buyable at zero stock, so they aren't sold out.
+    final isSoldOut = product.stockQty <= 0 && !product.isMadeToOrderEnabled;
+    final stockLabel = isSoldOut
+        ? 'Sold out'
+        : product.stockQty <= 0
+        ? 'Made to order'
+        : 'Stock: ${product.stockQty}';
 
     return GestureDetector(
       onTap: () => context.push('/vendor/products/${product.id}'),

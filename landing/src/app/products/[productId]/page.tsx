@@ -19,6 +19,7 @@ import { shippingMethodName } from "@/lib/marketplace/shipping";
 import { createClient } from "@/lib/supabase/server";
 
 import { createBuyerThreadForShop } from "../../account/messages/actions";
+import { socialMetadata } from "@/lib/seo/social-metadata";
 
 type ProductPageProps = { params: Promise<{ productId: string }> };
 
@@ -26,10 +27,13 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   const { productId } = await params;
   const product = await getMarketplaceProduct(productId);
   if (!product) notFound();
-  return {
-    title: `${product.title} | Artisan Lane`,
-    description: product.description ?? `Shop ${product.title} from ${product.shop?.name ?? "an Artisan Lane maker"}.`,
-  };
+  return socialMetadata({
+    title: product.title,
+    description:
+      product.description ?? `Shop ${product.title} from ${product.shop?.name ?? "an Artisan Lane maker"}.`,
+    path: `/products/${product.id}/`,
+    image: product.images[0] ?? product.shop?.logoUrl,
+  });
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {

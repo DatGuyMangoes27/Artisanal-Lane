@@ -308,7 +308,9 @@ class _VendorSubscriptionScreenState
     final isCancelledButAccessible = isVendorSubscriptionCancelledButAccessible(
       subscription,
     );
-    final canCancel = status == 'active' && isActive;
+    // A live PayFast subscription can always be cancelled, even while its
+    // latest payment is overdue.
+    final canCancel = status == 'active' || status == 'past_due';
     final isActivating = _isWaitingForActivation && !isActive;
     final canStartSubscription =
         !isSubscriptionLoading &&

@@ -157,10 +157,18 @@ describe("shop profile page", () => {
   });
 
   it("returns shop metadata and a not-found fallback title", async () => {
-    await expect(generateMetadata({ params: Promise.resolve({ shopId: "copper-clay" }) })).resolves.toEqual({
+    const metadata = await generateMetadata({ params: Promise.resolve({ shopId: "copper-clay" }) });
+    expect(metadata).toMatchObject({
       title: "Copper & Clay Studio | Artisan Lane",
       description: "Hand-built ceramics for everyday rituals.",
+      // Social link previews show the shop, not the homepage.
+      openGraph: {
+        title: "Copper & Clay Studio",
+        url: expect.stringMatching(/^https:\/\/artisanlanesa\.co\.za\/shops\/.+\/$/),
+      },
+      twitter: { card: "summary_large_image" },
     });
+    expect((metadata.openGraph as { images: Array<{ url: string }> }).images[0].url).toBeTruthy();
 
     vi.mocked(getMarketplaceShop).mockResolvedValueOnce(null);
 

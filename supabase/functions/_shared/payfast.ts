@@ -361,8 +361,21 @@ export function mapPayFastSubscriptionStatus(paymentStatus: string | null | unde
   }
 }
 
-export function nextSubscriptionPeriodEnd(fromIso?: string | null) {
-  const baseDate = fromIso != null ? new Date(fromIso) : new Date();
+/**
+ * Period end after a successful renewal payment: one month after the later of
+ * the current period end and now. Extending a long-lapsed period end (e.g. a
+ * subscription whose payments failed for months) from its old date would leave
+ * a paying artisan still marked as overdue.
+ */
+export function nextSubscriptionPeriodEnd(
+  fromIso?: string | null,
+  now: Date = new Date(),
+) {
+  const periodEnd = fromIso != null ? new Date(fromIso) : null;
+  const baseDate = periodEnd != null && !Number.isNaN(periodEnd.getTime()) &&
+      periodEnd > now
+    ? periodEnd
+    : now;
   return addMonths(baseDate, 1).toISOString();
 }
 

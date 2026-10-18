@@ -1016,7 +1016,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               ],
 
                               // Stock Status
-                              _buildStockIndicator(stockQty: displayStock),
+                              _buildStockIndicator(
+                                stockQty: displayStock,
+                                madeToOrder: product.isMadeToOrderEnabled,
+                              ),
                               const SizedBox(height: 16),
 
                               // Made-to-order details
@@ -1893,7 +1896,30 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
-  Widget _buildStockIndicator({required int stockQty}) {
+  Widget _buildStockIndicator({
+    required int stockQty,
+    bool madeToOrder = false,
+  }) {
+    // A made-to-order piece at zero stock is still buyable.
+    if (stockQty <= 0 && madeToOrder) {
+      return Row(
+        children: [
+          const Icon(
+            Icons.handyman_outlined,
+            color: AppTheme.terracotta,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Made to order',
+            style: GoogleFonts.poppins(
+              color: AppTheme.terracotta,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    }
     if (stockQty <= 0) {
       return Row(
         children: [

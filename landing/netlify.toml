@@ -16,4 +16,4 @@
 
 [[edge_functions]]
   function = "facebook-crawler"
-  path = "/*"
+  path = "/"

@@ -44,7 +44,9 @@ export default async function VendorSubscriptionPage() {
           {paymentIssue ? (
             <p className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
               Your latest payment didn&apos;t go through. Update your payment card below and
-              PayFast will try again. There&apos;s no need to subscribe again.
+              PayFast will try again. There&apos;s no need to subscribe again. After you update
+              your card, the retry can take up to a day; this page updates once the payment goes
+              through.
             </p>
           ) : (
             <p>{active ? "Product creation is enabled by this subscription." : "Start checkout to enable product creation."}</p>
@@ -63,7 +65,7 @@ export default async function VendorSubscriptionPage() {
                 </Button>
               </form>
             )}
-            {active && !paymentIssue ? (
+            {active || paymentIssue ? (
               <form action={cancelVendorSubscription}>
                 <Button type="submit" variant="outline">Cancel at PayFast</Button>
               </form>

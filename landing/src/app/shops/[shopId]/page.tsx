@@ -30,6 +30,7 @@ import {
 } from "@/lib/marketplace/shop-profile-data";
 
 import { createBuyerThreadForShop } from "../../account/messages/actions";
+import { socialMetadata } from "@/lib/seo/social-metadata";
 
 type ShopProfilePageProps = {
   params: Promise<{
@@ -114,10 +115,12 @@ export async function generateMetadata({ params }: ShopProfilePageProps): Promis
     };
   }
 
-  return {
-    title: `${shop.name} | Artisan Lane`,
+  return socialMetadata({
+    title: shop.name,
     description: shop.bio ?? shop.brandStory ?? `Shop handcrafted pieces from ${shop.name}.`,
-  };
+    path: `/shops/${shop.slug ?? shop.id}/`,
+    image: shop.coverImageUrl ?? shop.logoUrl,
+  });
 }
 
 export default async function ShopProfilePage({ params }: ShopProfilePageProps) {
