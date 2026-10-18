@@ -47,5 +47,6 @@ const facebookCrawlerEdgeFunction = async (request: Request) => {
 export default facebookCrawlerEdgeFunction;
 
 export const config = {
-  path: "/*",
+  // Homepage only: shop and product pages serve their own link-preview tags.
+  path: "/",
 };
