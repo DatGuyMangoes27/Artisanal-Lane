@@ -16,6 +16,7 @@ import {
   requireVendorSession,
 } from "@/lib/marketplace/vendor-data";
 import { formatVendorStatus } from "@/lib/marketplace/vendor-utils";
+import { isBobGoCheckoutEnabled } from "@/lib/bobgo-eligibility";
 import {
   SHIPPING_METHOD_KEYS,
   defaultShippingPrice,
@@ -32,6 +33,8 @@ export default async function VendorShopSettingsPage() {
   const fulfillmentProfile = shop ? await getVendorFulfillmentProfile(shop.id) : null;
   const marketEvents = shop ? await listVendorMarketEvents(shop.id) : [];
   const shopName = shop?.name ?? "";
+  // Hidden until Bob Go is switched on for the website (mirrors the app).
+  const showBobGo = isBobGoCheckoutEnabled();
 
   return (
     <div>
@@ -134,6 +137,7 @@ export default async function VendorShopSettingsPage() {
           </div>
         </VendorPanel>
 
+        {showBobGo ? (
         <VendorPanel
           title="Bob Go collection address"
           description="Private courier collection details. Buyers never see this address. Bob Go is door-to-door only and remains separate from every existing delivery option."
@@ -193,6 +197,7 @@ export default async function VendorShopSettingsPage() {
             </label>
           </div>
         </VendorPanel>
+        ) : null}
 
         <VendorPanel
           title="Availability and shipping"

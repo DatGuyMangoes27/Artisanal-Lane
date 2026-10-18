@@ -125,7 +125,7 @@ export default async function VendorOrderDetailPage({
                     {order.trackingNumber ? <p>Waybill / tracking: {order.trackingNumber}</p> : null}
                     <Button asChild variant="outline" className="rounded-full">
                       <a
-                        href={`/api/vendor/bobgo-waybill?orderId=${order.id}`}
+                        href={`/api/vendor/bobgo-waybill/?orderId=${order.id}`}
                         target="_blank"
                         rel="noreferrer"
                       >

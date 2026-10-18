@@ -30,6 +30,7 @@ export function VendorProductForm({
   categories,
   subcategories,
   submitLabel,
+  showParcelFields = false,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   product?: VendorProduct | null;
@@ -37,6 +38,8 @@ export function VendorProductForm({
   categories: VendorCategory[];
   subcategories: VendorSubcategory[];
   submitLabel: string;
+  /** Bob Go parcel measurements; hidden (and left untouched on save) while Bob Go is off. */
+  showParcelFields?: boolean;
 }) {
   const shippingOptions = product?.shippingOptions.length ? product.shippingOptions : shop.shippingOptions;
 
@@ -185,7 +188,9 @@ export function VendorProductForm({
         </div>
       </section>
 
+      {showParcelFields ? (
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
+        <input type="hidden" name="parcelFieldsShown" value="1" />
         <h3 className="text-2xl font-semibold text-artisan-sienna">Packed parcel measurements</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Required only for Bob Go door-to-door quotes. Measure the product after it is packed,
@@ -242,6 +247,7 @@ export function VendorProductForm({
           </label>
         </div>
       </section>
+      ) : null}
 
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <h3 className="text-2xl font-semibold text-artisan-sienna">Shipping options</h3>

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { VendorProductForm } from "@/components/vendor/vendor-product-form";
+import { isBobGoCheckoutEnabled } from "@/lib/bobgo-eligibility";
 import { VendorPageHeader, VendorPanel } from "@/components/vendor/vendor-shell";
 import { deleteVendorProduct, updateVendorProduct } from "@/app/vendor/actions";
 import {
@@ -40,6 +41,7 @@ export default async function EditVendorProductPage({
         categories={taxonomy.categories}
         subcategories={taxonomy.subcategories}
         submitLabel="Save product"
+        showParcelFields={isBobGoCheckoutEnabled()}
       />
       <div className="mt-6">
         <VendorPanel title="Archive product" description="Archived products stay in order history but disappear from buyer-facing catalog pages.">

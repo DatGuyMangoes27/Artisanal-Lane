@@ -8,6 +8,7 @@ import {
   canAdminTriggerTradeSafePayout,
   tradeSafePayoutLabel,
 } from "@/lib/admin-payout";
+import { listBobGoAttentionOrders } from "@/lib/admin-bobgo";
 import { listOrders } from "@/lib/admin-data";
 
 function formatCurrency(value: number) {
@@ -39,7 +40,10 @@ export default async function AdminOrdersPage({
   const status = readParam(params.status, "all");
   const shipping = readParam(params.shipping, "all");
   const sort = readParam(params.sort, "newest");
-  const orders = await listOrders({ query, status, shipping, sort });
+  const [orders, bobGoAttention] = await Promise.all([
+    listOrders({ query, status, shipping, sort }),
+    listBobGoAttentionOrders(),
+  ]);
 
   return (
     <>
@@ -48,6 +52,26 @@ export default async function AdminOrdersPage({
         title="Marketplace Orders"
         description="Monitor order health, shipping progress, and payout-sensitive states across all shops."
       />
+
+      {bobGoAttention.length > 0 ? (
+        <PanelCard
+          title="Bob Go needs attention"
+          description="Courier bookings that failed or stalled, courier refusals, failed cancellations after refunds and courier charges above what the buyer paid. Check the shipment in the Bob Go dashboard using the order id as the custom reference."
+        >
+          <ul className="space-y-3 text-sm">
+            {bobGoAttention.map((order) => (
+              <li key={order.id} className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                <div className="font-medium">
+                  {order.id} · {order.shopName ?? "Unknown shop"} · {order.status} ·{" "}
+                  {order.bobgo_booking_state ?? "unknown"}
+                  {order.tracking_number ? ` · ${order.tracking_number}` : ""}
+                </div>
+                <div className="mt-1 break-words text-xs">{order.reason}</div>
+              </li>
+            ))}
+          </ul>
+        </PanelCard>
+      ) : null}
 
       <PanelCard title="Orders">
         <form className="mb-6 grid gap-3 md:grid-cols-5" method="get">
@@ -79,6 +103,8 @@ export default async function AdminOrdersPage({
           >
             <option value="all">All shipping methods</option>
             <option value="courier_guy">Courier Guy</option>
+            <option value="courier_guy_door_to_door">Courier Guy door to door</option>
+            <option value="bobgo_door_to_door">Bob Go door to door</option>
             <option value="pargo">Pargo</option>
             <option value="market_pickup">Market pickup</option>
             <option value="unknown">Unknown</option>
@@ -183,6 +209,11 @@ export default async function AdminOrdersPage({
                     </td>
                     <td className="px-4 py-3">
                       <div>{order.shipping_method ?? "Unknown"}</div>
+                      {order.shipping_method === "bobgo_door_to_door" ? (
+                        <div className="text-xs">
+                          Courier: {order.bobgo_booking_state ?? "unknown"}
+                        </div>
+                      ) : null}
                       {order.tracking_number ? (
                         <div className="text-xs">
                           Tracking: {order.tracking_number}

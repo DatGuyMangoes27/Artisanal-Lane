@@ -14,6 +14,7 @@ import {
   reserveGuestCartItem,
 } from "@/lib/marketplace/cart-reservations";
 import { formatPrice } from "@/lib/marketplace/format";
+import { useBobGoAvailability } from "@/lib/marketplace/use-bobgo-availability";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 
 export function CartReview() {
@@ -49,8 +50,10 @@ export function CartReview() {
 
   const lines = useMemo(() => buildCartLines(items, products), [items, products]);
   const subtotal = getCartSubtotal(lines);
-  const bobGoSandboxEnabled =
+  const bobGoFlagEnabled =
     process.env.NEXT_PUBLIC_BOBGO_SHIPPING_ENABLED === "true" || process.env.NODE_ENV === "development";
+  // Only skip the "no shared shipping option" blocker when Bob Go can really quote this cart.
+  const bobGoSandboxEnabled = useBobGoAvailability(lines, bobGoFlagEnabled);
   const blocker = getCheckoutBlocker(lines, { allowDynamicShipping: bobGoSandboxEnabled });
 
   async function updateReservedQuantity(line: (typeof lines)[number], nextQuantity: number) {

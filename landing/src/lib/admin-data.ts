@@ -52,6 +52,7 @@ type OrderRecord = {
   shipped_at: string | null;
   received_at: string | null;
   created_at: string;
+  bobgo_booking_state?: string | null;
 };
 
 type VendorApplicationRecord = {
@@ -922,7 +923,7 @@ export async function listOrders(options: OrderListOptions = {}) {
   const { data } = await admin
     .from("orders")
     .select(
-      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, payment_provider, payment_state, tradesafe_transaction_id, tradesafe_allocation_id, tracking_number, shipped_at, received_at, created_at",
+      "id, buyer_id, shop_id, status, total, shipping_cost, shipping_method, payment_provider, payment_state, tradesafe_transaction_id, tradesafe_allocation_id, tracking_number, shipped_at, received_at, created_at, bobgo_booking_state",
     )
     .order("created_at", { ascending: false })
     .limit(100);

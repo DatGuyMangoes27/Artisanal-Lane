@@ -1,4 +1,7 @@
+// Bob Go API reference: https://api-docs.bob.co.za/bobgo (Postman collection).
+// Sandbox base URL below; production is https://api.bobgo.co.za/v2.
 const DEFAULT_SANDBOX_BASE_URL = "https://api.sandbox.bobgo.co.za/v2";
+const REQUEST_TIMEOUT_MS = 25_000;
 
 export type BobGoAddress = {
   company?: string | null;
@@ -195,7 +198,9 @@ export function flattenBobGoDoorRates(payload: BobGoRateResponse): BobGoRate[] {
         response.status !== "success" ||
         service?.delivery_type !== "door" ||
         !Number.isFinite(amount) ||
-        amount < 0
+        amount <= 0 ||
+        !String(response.service_level_code ?? "").trim() ||
+        !String(provider.provider_slug ?? "").trim()
       ) {
         continue;
       }
@@ -230,17 +235,23 @@ export async function requestBobGoRates(
     throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
   }
 
-  const baseUrl = (options.baseUrl ?? process.env.BOBGO_SANDBOX_BASE_URL ?? DEFAULT_SANDBOX_BASE_URL)
+  const baseUrl = (options.baseUrl || process.env.BOBGO_SANDBOX_BASE_URL || DEFAULT_SANDBOX_BASE_URL)
     .replace(/\/+$/, "");
-  const response = await fetch(`${baseUrl}/rates`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/rates`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(request),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error("Bob Go did not respond in time. Please try again.");
+  }
 
   const payload = (await response.json().catch(() => null)) as BobGoRateResponse | null;
   if (!response.ok || !payload) {
@@ -248,7 +259,7 @@ export async function requestBobGoRates(
   }
 
   const requestId = Number(payload.id);
-  if (!Number.isFinite(requestId)) {
+  if (payload.id == null || !Number.isFinite(requestId)) {
     throw new Error("Bob Go did not return a rate request ID.");
   }
 
@@ -259,24 +270,59 @@ export async function requestBobGoRates(
   };
 }
 
-/** Fetches the PDF waybill for a booked shipment (server-side only). */
+function pickText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+/**
+ * Fetches the PDF waybill for a booked shipment (server-side only).
+ * GET /shipments/waybill?tracking_references=["REF"] per the Bob Go API
+ * reference. The response format is not documented, so both a raw PDF and a
+ * JSON body carrying a download URL or base64 PDF are accepted.
+ */
 export async function fetchBobGoWaybill(
   trackingReference: string,
   options: { apiKey?: string; baseUrl?: string } = {},
 ) {
   const apiKey = options.apiKey ?? process.env.BOBGO_SANDBOX_API_KEY;
   if (!apiKey) throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
-  const baseUrl = (options.baseUrl ?? process.env.BOBGO_SANDBOX_BASE_URL ?? DEFAULT_SANDBOX_BASE_URL)
+  const baseUrl = (options.baseUrl || process.env.BOBGO_SANDBOX_BASE_URL || DEFAULT_SANDBOX_BASE_URL)
     .replace(/\/+$/, "");
+  const references = encodeURIComponent(JSON.stringify([trackingReference]));
   const response = await fetch(
-    `${baseUrl}/shipments/waybill?tracking_reference=${encodeURIComponent(trackingReference)}`,
-    { headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store" },
+    `${baseUrl}/shipments/waybill?tracking_references=${references}&paper_size=A4`,
+    {
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/pdf, application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    },
   );
   if (!response.ok) {
     throw new Error(`Bob Go waybill lookup failed with status ${response.status}.`);
   }
-  return {
-    body: await response.arrayBuffer(),
-    contentType: response.headers.get("content-type") ?? "application/pdf",
-  };
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("json")) {
+    return { body: await response.arrayBuffer(), contentType: contentType || "application/pdf" };
+  }
+
+  const payload = (await response.json().catch(() => null)) as Record<string, unknown> | string | null;
+  const record: Record<string, unknown> = payload && typeof payload === "object" ? payload : {};
+  const inline = pickText(record.base64) ?? pickText(record.pdf) ?? pickText(record.file);
+  if (inline) {
+    const bytes = Uint8Array.from(Buffer.from(inline.replace(/^data:[^,]+,/, ""), "base64"));
+    return { body: bytes.buffer, contentType: "application/pdf" };
+  }
+  const url = typeof payload === "string"
+    ? payload
+    : pickText(record.url) ?? pickText(record.download_url) ?? pickText(record.waybill_url) ??
+      pickText(record.link);
+  if (url && /^https:\/\//i.test(url)) {
+    const file = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    if (!file.ok) throw new Error(`Bob Go waybill download failed with status ${file.status}.`);
+    return {
+      body: await file.arrayBuffer(),
+      contentType: file.headers.get("content-type") ?? "application/pdf",
+    };
+  }
+  throw new Error("Bob Go returned no waybill file.");
 }

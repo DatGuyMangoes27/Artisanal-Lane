@@ -1,4 +1,5 @@
 import { VendorProductForm } from "@/components/vendor/vendor-product-form";
+import { isBobGoCheckoutEnabled } from "@/lib/bobgo-eligibility";
 import { VendorPageHeader } from "@/components/vendor/vendor-shell";
 import { createVendorProduct } from "@/app/vendor/actions";
 import { listVendorCategories, requireVendorShop } from "@/lib/marketplace/vendor-data";
@@ -20,6 +21,7 @@ export default async function NewVendorProductPage() {
         categories={categories}
         subcategories={subcategories}
         submitLabel="Create product"
+        showParcelFields={isBobGoCheckoutEnabled()}
       />
     </div>
   );

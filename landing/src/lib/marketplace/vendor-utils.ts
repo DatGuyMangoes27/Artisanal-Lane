@@ -209,6 +209,26 @@ export function parseNullableCurrencyInput(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+/**
+ * Bob Go packed parcel measurements from the product form. Returns no keys when
+ * the fields were not shown (Bob Go off), so saving never wipes values; when
+ * shown, either all four are given or none (partial values cannot be quoted).
+ */
+export function parseParcelMeasurementFields(formData: Pick<FormData, "get">) {
+  if (formData.get("parcelFieldsShown") !== "1") return {};
+  const values = {
+    shipping_weight_kg: parseNullableCurrencyInput(formData.get("shippingWeightKg")),
+    shipping_length_cm: parseNullableCurrencyInput(formData.get("shippingLengthCm")),
+    shipping_width_cm: parseNullableCurrencyInput(formData.get("shippingWidthCm")),
+    shipping_height_cm: parseNullableCurrencyInput(formData.get("shippingHeightCm")),
+  };
+  const given = Object.values(values).filter((value) => value != null).length;
+  if (given > 0 && given < 4) {
+    throw new Error("Enter the packed weight, length, width and height together, or leave all four empty.");
+  }
+  return values;
+}
+
 export function parseNullableIntegerInput(
   value: FormDataEntryValue | string | null | undefined,
 ) {

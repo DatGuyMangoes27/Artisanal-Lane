@@ -28,6 +28,7 @@ import { getAddressSummary, normalizeSavedAddresses, type SavedAddress } from "@
 import { formatPrice } from "@/lib/marketplace/format";
 import { shippingMethodDescription, shippingMethodName } from "@/lib/marketplace/shipping";
 import { formatRateEta, isBobGoQuoteExpired } from "@/lib/marketplace/bobgo-status";
+import { useBobGoAvailability } from "@/lib/marketplace/use-bobgo-availability";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/browser";
 
@@ -266,8 +267,11 @@ export function CheckoutForm() {
     [addressFields, lines],
   );
   const staticShippingOptions = useMemo(() => getAvailableShippingOptionsForCart(lines), [lines]);
-  const bobGoSandboxEnabled =
+  const bobGoFlagEnabled =
     process.env.NEXT_PUBLIC_BOBGO_SHIPPING_ENABLED === "true" || process.env.NODE_ENV === "development";
+  // Bob Go is offered only when the server confirms this artisan enabled it
+  // with complete collection details and every product has parcel sizes.
+  const bobGoSandboxEnabled = useBobGoAvailability(lines, bobGoFlagEnabled);
   const shippingOptions = useMemo(() => {
     if (!bobGoSandboxEnabled || lines.length === 0) return staticShippingOptions;
     return [
@@ -395,7 +399,7 @@ export function CheckoutForm() {
         throw new Error("Sign in before requesting a Bob Go delivery rate.");
       }
 
-      const response = await fetch("/api/marketplace/bobgo/rates", {
+      const response = await fetch("/api/marketplace/bobgo/rates/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

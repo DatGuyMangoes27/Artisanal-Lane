@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 
 import { buildBobGoRateRequest, requestBobGoRates } from "@/lib/bobgo";
+import {
+  checkBobGoCartEligibility,
+  isBobGoCheckoutEnabled,
+  normalizeCartItems,
+} from "@/lib/bobgo-eligibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 type QuoteBody = {
-  items?: Array<{ productId?: unknown; quantity?: unknown }>;
+  items?: unknown;
   delivery?: {
     fullName?: unknown;
     email?: unknown;
@@ -26,11 +31,14 @@ function errorResponse(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/**
+ * Requests VAT-inclusive Bob Go door-to-door rates and saves the quote for 20
+ * minutes, bound to buyer, shop, basket and address. create-checkout re-checks
+ * all of that and only ever charges the saved rate.
+ */
 export async function POST(request: Request) {
-  const enabled = process.env.BOBGO_SHIPPING_ENABLED === "true" ||
-    (process.env.NODE_ENV === "development" && Boolean(process.env.BOBGO_SANDBOX_API_KEY));
-  if (!enabled) {
-    return errorResponse("Bob Go sandbox shipping is disabled.", 404);
+  if (!isBobGoCheckoutEnabled()) {
+    return errorResponse("Bob Go delivery is not available right now.", 404);
   }
 
   const supabase = await createClient();
@@ -40,69 +48,24 @@ export async function POST(request: Request) {
   if (!user) return errorResponse("Sign in to request delivery rates.", 401);
 
   const body = (await request.json().catch(() => null)) as QuoteBody | null;
-  const requestedItems = (body?.items ?? [])
-    .map((item) => ({
-      productId: text(item.productId),
-      quantity: Math.max(0, Math.trunc(Number(item.quantity))),
-    }))
-    .filter((item) => item.productId && item.quantity > 0);
-
-  if (requestedItems.length === 0) return errorResponse("Your cart is empty.");
-  if (requestedItems.reduce((sum, item) => sum + item.quantity, 0) > 20) {
-    return errorResponse("Please request a custom delivery quote for more than 20 parcels.");
-  }
+  const items = normalizeCartItems(body?.items);
 
   const admin = createAdminClient();
-  const { data: products, error: productsError } = await admin
-    .from("products")
-    .select(
-      "id, shop_id, title, price, shipping_weight_kg, shipping_length_cm, shipping_width_cm, shipping_height_cm",
-    )
-    .in("id", requestedItems.map((item) => item.productId))
-    .eq("is_published", true)
-    .is("archived_at", null);
-
-  if (productsError) return errorResponse("Product parcel measurements are not available yet.", 503);
-  if (!products || products.length !== requestedItems.length) {
-    return errorResponse("One or more products are unavailable.");
-  }
-
-  const shopIds = new Set(products.map((product) => String(product.shop_id)));
-  if (shopIds.size !== 1) {
-    return errorResponse("Complete each artisan shop checkout separately.");
-  }
-  const shopId = [...shopIds][0];
-
-  const { data: fulfillment, error: fulfillmentError } = await admin
-    .from("shop_fulfillment_profiles")
-    .select(
-      "contact_full_name, contact_email, contact_phone, company, street_address, local_area, city, province, postal_code, bobgo_enabled",
-    )
-    .eq("shop_id", shopId)
-    .maybeSingle();
-
-  if (fulfillmentError || !fulfillment?.bobgo_enabled) {
-    return errorResponse("This artisan has not enabled Bob Go door-to-door delivery.");
-  }
+  const eligibility = await checkBobGoCartEligibility(admin, items);
+  if (!eligibility.available) return errorResponse(eligibility.reason);
+  const { products, fulfillment, shopId } = eligibility;
 
   const delivery = body?.delivery;
   const deliveryEmail = text(delivery?.email) || user.email || "";
   try {
-    const productMap = new Map(products.map((product) => [String(product.id), product]));
-    const parcels = requestedItems.flatMap((item) => {
-      const product = productMap.get(item.productId)!;
-      const measurements = {
+    const parcels = items.flatMap((item) => {
+      const product = products.get(item.productId)!;
+      return Array.from({ length: item.quantity }, (_, index) => ({
+        description: String(product.title),
         lengthCm: Number(product.shipping_length_cm),
         widthCm: Number(product.shipping_width_cm),
         heightCm: Number(product.shipping_height_cm),
         weightKg: Number(product.shipping_weight_kg),
-      };
-      if (Object.values(measurements).some((value) => !Number.isFinite(value) || value <= 0)) {
-        throw new Error(`${product.title} needs packed parcel measurements before Bob Go can quote.`);
-      }
-      return Array.from({ length: item.quantity }, (_, index) => ({
-        description: String(product.title),
-        ...measurements,
         reference: `${product.id}-${index + 1}`,
       }));
     });
@@ -110,11 +73,11 @@ export async function POST(request: Request) {
     const rateRequest = buildBobGoRateRequest({
       collectionAddress: {
         company: fulfillment.company,
-        streetAddress: fulfillment.street_address,
-        localArea: fulfillment.local_area,
-        city: fulfillment.city,
-        province: fulfillment.province,
-        postalCode: fulfillment.postal_code,
+        streetAddress: String(fulfillment.street_address),
+        localArea: String(fulfillment.local_area),
+        city: String(fulfillment.city),
+        province: String(fulfillment.province),
+        postalCode: String(fulfillment.postal_code),
       },
       deliveryAddress: {
         streetAddress: text(delivery?.streetAddress),
@@ -124,9 +87,9 @@ export async function POST(request: Request) {
         postalCode: text(delivery?.postalCode),
       },
       collectionContact: {
-        fullName: fulfillment.contact_full_name,
-        email: fulfillment.contact_email,
-        phone: fulfillment.contact_phone,
+        fullName: String(fulfillment.contact_full_name),
+        email: String(fulfillment.contact_email),
+        phone: String(fulfillment.contact_phone),
       },
       deliveryContact: {
         fullName: text(delivery?.fullName),
@@ -134,8 +97,8 @@ export async function POST(request: Request) {
         phone: text(delivery?.phone),
       },
       parcels,
-      declaredValue: requestedItems.reduce((sum, item) => {
-        const product = productMap.get(item.productId)!;
+      declaredValue: items.reduce((sum, item) => {
+        const product = products.get(item.productId)!;
         return sum + Number(product.price) * item.quantity;
       }, 0),
     });
@@ -151,7 +114,7 @@ export async function POST(request: Request) {
         shop_id: shopId,
         rate_request_id: quote.requestId,
         rates: quote.rates,
-        items_snapshot: requestedItems
+        items_snapshot: items
           .map((item) => ({ productId: item.productId, quantity: item.quantity }))
           .sort((left, right) => left.productId.localeCompare(right.productId)),
         request_snapshot: rateRequest,
@@ -160,7 +123,7 @@ export async function POST(request: Request) {
       .single();
 
     if (quoteError || !savedQuote) {
-      return errorResponse("The quote was received but could not be saved locally.", 503);
+      return errorResponse("We could not save your delivery quote. Please try again.", 503);
     }
 
     return NextResponse.json({
