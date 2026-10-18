@@ -31,6 +31,8 @@ export type ModerationReportRow = {
   created_at: string;
 };
 
+type ReviewTargetDetails = { rating: number; text: string; authorName: string | null };
+
 export type ModerationTargetState =
   | { type: "post"; exists: false }
   | {
@@ -47,7 +49,19 @@ export type ModerationTargetState =
   | { type: "story"; exists: false }
   | { type: "story"; exists: true; caption: string; expiresAt: string; expired: boolean }
   | { type: "shop"; exists: false }
-  | { type: "shop"; exists: true; name: string; isActive: boolean };
+  | { type: "shop"; exists: true; name: string; isActive: boolean }
+  | { type: "product_review"; exists: false }
+  | ({ type: "product_review"; exists: true } & ReviewTargetDetails)
+  | { type: "shop_review"; exists: false }
+  | ({ type: "shop_review"; exists: true } & ReviewTargetDetails)
+  | { type: "message"; exists: false }
+  | {
+      type: "message";
+      exists: true;
+      body: string;
+      attachmentName: string | null;
+      threadId: string;
+    };
 
 export type ModerationReportView = ModerationReportRow & {
   reporter: { name: string | null; email: string | null } | null;
@@ -137,7 +151,16 @@ export async function listModerationReports(filters: ModerationFilters) {
   const idsByType = (type: ReportTargetType) =>
     uniq(reports.filter((report) => report.target_type === type).map((report) => report.target_id));
 
-  const [postsRes, commentsRes, storiesRes, shopTargetsRes, openRes] = await Promise.all([
+  const [
+    postsRes,
+    commentsRes,
+    storiesRes,
+    shopTargetsRes,
+    openRes,
+    productReviewsRes,
+    shopReviewsRes,
+    messagesRes,
+  ] = await Promise.all([
     idsByType("post").length
       ? admin
           .from("shop_posts")
@@ -167,6 +190,24 @@ export async function listModerationReports(filters: ModerationFilters) {
           .eq("status", "open")
           .in("target_id", uniq(reports.map((report) => report.target_id)))
       : Promise.resolve({ data: [] }),
+    idsByType("product_review").length
+      ? admin
+          .from("product_reviews")
+          .select("id, rating, review_text, buyer_id")
+          .in("id", idsByType("product_review"))
+      : Promise.resolve({ data: [] }),
+    idsByType("shop_review").length
+      ? admin
+          .from("shop_reviews")
+          .select("id, rating, review_text, buyer_id")
+          .in("id", idsByType("shop_review"))
+      : Promise.resolve({ data: [] }),
+    idsByType("message").length
+      ? admin
+          .from("chat_messages")
+          .select("id, body, attachment_name, thread_id")
+          .in("id", idsByType("message"))
+      : Promise.resolve({ data: [] }),
   ]);
 
   type PostRow = {
@@ -179,11 +220,23 @@ export async function listModerationReports(filters: ModerationFilters) {
   type CommentRow = { id: string; body: string; author_name: string | null };
   type StoryRow = { id: string; caption: string | null; expires_at: string };
   type ShopRow = { id: string; name: string; is_active: boolean };
+  type ReviewRow = { id: string; rating: number; review_text: string | null; buyer_id: string };
+  type MessageRow = {
+    id: string;
+    body: string | null;
+    attachment_name: string | null;
+    thread_id: string;
+  };
 
   const posts = new Map(((postsRes.data ?? []) as PostRow[]).map((row) => [row.id, row]));
   const comments = new Map(((commentsRes.data ?? []) as CommentRow[]).map((row) => [row.id, row]));
   const stories = new Map(((storiesRes.data ?? []) as StoryRow[]).map((row) => [row.id, row]));
   const shops = new Map(((shopTargetsRes.data ?? []) as ShopRow[]).map((row) => [row.id, row]));
+  const productReviews = new Map(
+    ((productReviewsRes.data ?? []) as ReviewRow[]).map((row) => [row.id, row]),
+  );
+  const shopReviews = new Map(((shopReviewsRes.data ?? []) as ReviewRow[]).map((row) => [row.id, row]));
+  const messages = new Map(((messagesRes.data ?? []) as MessageRow[]).map((row) => [row.id, row]));
   const groups = groupReportsByTarget(
     (openRes.data ?? []) as Array<{
       target_type: string;
@@ -250,6 +303,34 @@ export async function listModerationReports(filters: ModerationFilters) {
             expired: new Date(story.expires_at).getTime() <= now,
           }
         : { type: "story", exists: false };
+    } else if (report.target_type === "product_review" || report.target_type === "shop_review") {
+      const isProduct = report.target_type === "product_review";
+      const review = (isProduct ? productReviews : shopReviews).get(report.target_id);
+      const details: ReviewTargetDetails | null = review
+        ? {
+            rating: review.rating,
+            text: review.review_text ?? "",
+            authorName: profiles.get(review.buyer_id)?.display_name ?? null,
+          }
+        : null;
+      target = isProduct
+        ? details
+          ? { type: "product_review", exists: true, ...details }
+          : { type: "product_review", exists: false }
+        : details
+          ? { type: "shop_review", exists: true, ...details }
+          : { type: "shop_review", exists: false };
+    } else if (report.target_type === "message") {
+      const message = messages.get(report.target_id);
+      target = message
+        ? {
+            type: "message",
+            exists: true,
+            body: message.body ?? "",
+            attachmentName: message.attachment_name,
+            threadId: message.thread_id,
+          }
+        : { type: "message", exists: false };
     } else {
       const shop = shops.get(report.target_id);
       target = shop

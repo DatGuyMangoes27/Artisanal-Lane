@@ -7,6 +7,7 @@ import { requireAdminSession } from "@/lib/admin-auth";
 import {
   type ModerationActionKind,
   type ModerationLogTargetType,
+  chatThreadPreview,
   isModerationAction,
   isTakedownAction,
   planModerationAction,
@@ -53,6 +54,45 @@ async function logModerationAction(
 }
 
 type ReportTarget = { id: string; target_type: string; target_id: string };
+
+/** Keeps a conversation's inbox preview from showing a deleted message. */
+async function refreshChatThreadPreview(admin: AdminClient, threadId: string) {
+  const { data: latest, error } = await admin
+    .from("chat_messages")
+    .select("body, attachment_name, message_type, sender_id, created_at")
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Message deleted but the inbox preview was not updated: ${error.message}`);
+  const row = latest as {
+    body: string | null;
+    attachment_name: string | null;
+    message_type: string;
+    sender_id: string;
+    created_at: string;
+  } | null;
+  const { error: updateError } = await admin
+    .from("chat_threads")
+    .update(
+      row
+        ? {
+            last_message_preview: chatThreadPreview(row),
+            last_message_type: row.message_type,
+            last_message_sender_id: row.sender_id,
+            last_message_at: row.created_at,
+          }
+        : {
+            last_message_preview: null,
+            last_message_sender_id: null,
+            last_message_at: null,
+          },
+    )
+    .eq("id", threadId);
+  if (updateError) {
+    throw new Error(`Message deleted but the inbox preview was not updated: ${updateError.message}`);
+  }
+}
 
 /** Closes a report and every other open report on the same item, logging each one. */
 async function closeReports(
@@ -124,6 +164,18 @@ async function isReportedTargetTakenDown(admin: AdminClient, report: ReportTarge
         .eq("id", report.target_id)
         .maybeSingle();
       return !data || data.is_active === false;
+    }
+    case "product_review":
+    case "shop_review":
+    case "message": {
+      const table =
+        report.target_type === "product_review"
+          ? "product_reviews"
+          : report.target_type === "shop_review"
+            ? "shop_reviews"
+            : "chat_messages";
+      const { data } = await admin.from(table).select("id").eq("id", report.target_id).maybeSingle();
+      return !data;
     }
     default:
       return false;
@@ -232,6 +284,15 @@ export async function runModerationAction(
     } else {
       const change = plan.change;
       const table = change.table;
+      let messageThreadId: string | null = null;
+      if (kind === "delete_message") {
+        const { data: messageRow } = await admin
+          .from("chat_messages")
+          .select("thread_id")
+          .eq("id", targetId)
+          .maybeSingle();
+        messageThreadId = (messageRow as { thread_id: string } | null)?.thread_id ?? null;
+      }
       const result =
         change.kind === "delete"
           ? await admin.from(table).delete().eq("id", targetId).select("id")
@@ -240,6 +301,7 @@ export async function runModerationAction(
       if (!result.data || result.data.length === 0) {
         throw new Error("That content no longer exists.");
       }
+      if (messageThreadId) await refreshChatThreadPreview(admin, messageThreadId);
       await logModerationAction(admin, {
         adminId,
         action: kind,
@@ -256,6 +318,9 @@ export async function runModerationAction(
           remove_story: "Story removed.",
           suspend_shop: "Shop suspended.",
           restore_shop: "Shop restored.",
+          delete_product_review: "Review deleted.",
+          delete_shop_review: "Review deleted.",
+          delete_message: "Message deleted.",
         }[kind as string] ?? "Done.";
     }
 

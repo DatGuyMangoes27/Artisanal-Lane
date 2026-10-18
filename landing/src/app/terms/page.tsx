@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 
@@ -122,7 +123,21 @@ export default function TermsPage() {
             <li>Move a buyer, order, or payment off the Platform</li>
             <li>Harass, abuse, or threaten other users</li>
             <li>Attempt to gain unauthorised access to any part of the Platform</li>
+            <li>Post or send hateful, harassing, sexual, or otherwise objectionable content</li>
           </ul>
+          <h3>6.1 User Content and Community Guidelines</h3>
+          <p>
+            You are responsible for everything you post or send on the Platform, including shop
+            details, posts, stories, polls, comments, reviews, chat messages, and your profile name.
+            There is no tolerance for objectionable content or abusive users. All user content must
+            follow our{" "}
+            <Link href="/community-guidelines" className="text-[#7A0000] hover:underline">
+              Community Guidelines
+            </Link>
+            . Objectionable language is filtered, any content or user can be reported or blocked,
+            and we review reports within 24 hours. We remove content that breaks these rules and
+            suspend or terminate the accounts responsible.
+          </p>
 
           <h2>7. Intellectual Property</h2>
           <p>

@@ -1,6 +1,14 @@
 // Pure moderation helpers (no I/O) so they can be unit tested without the database.
 
-export const REPORT_TARGET_TYPES = ["post", "comment", "story", "shop"] as const;
+export const REPORT_TARGET_TYPES = [
+  "post",
+  "comment",
+  "story",
+  "shop",
+  "product_review",
+  "shop_review",
+  "message",
+] as const;
 export type ReportTargetType = (typeof REPORT_TARGET_TYPES)[number];
 
 export const REPORT_REASONS = [
@@ -27,6 +35,9 @@ export const MODERATION_ACTIONS = [
   "restore_user",
   "resolve_report",
   "dismiss_report",
+  "delete_product_review",
+  "delete_shop_review",
+  "delete_message",
 ] as const;
 export type ModerationActionKind = (typeof MODERATION_ACTIONS)[number];
 
@@ -36,7 +47,61 @@ export type ModerationLogTargetType =
   | "story"
   | "shop"
   | "user"
-  | "report";
+  | "report"
+  | "product_review"
+  | "shop_review"
+  | "message";
+
+const TARGET_TYPE_LABELS: Record<ReportTargetType, string> = {
+  post: "Post",
+  comment: "Comment",
+  story: "Story",
+  shop: "Shop",
+  product_review: "Product review",
+  shop_review: "Shop review",
+  message: "Chat message",
+};
+
+export function formatTargetTypeLabel(type: string) {
+  return TARGET_TYPE_LABELS[type as ReportTargetType] ?? formatReasonLabel(type);
+}
+
+/** Who `target_owner_id` is for a report type: the maker, or the review/message author. */
+export function ownerRoleLabel(type: string) {
+  if (type === "product_review" || type === "shop_review") return "Reviewer";
+  if (type === "message") return "Sender";
+  return "Maker";
+}
+
+/**
+ * Shop suspension is offered only when the reported item is the shop's own
+ * content. A review's shop is the shop being reviewed and a message's shop is
+ * the conversation's shop, so those reports act on the author's account instead.
+ */
+export function canSuspendShopForTarget(type: string) {
+  return type === "post" || type === "comment" || type === "story" || type === "shop";
+}
+
+/** The takedown that deletes a reported review or message, if any. */
+export function deleteActionForTarget(type: string): ModerationActionKind | null {
+  if (type === "product_review") return "delete_product_review";
+  if (type === "shop_review") return "delete_shop_review";
+  if (type === "message") return "delete_message";
+  return null;
+}
+
+/**
+ * Inbox preview for a conversation after a message is deleted, mirroring
+ * public.touch_chat_thread_on_message. Null when no messages remain.
+ */
+export function chatThreadPreview(
+  latest: { body: string | null; attachment_name: string | null } | null,
+): string | null {
+  if (!latest) return null;
+  const body = latest.body?.trim() ?? "";
+  if (body.length > 0) return body.slice(0, 120);
+  return latest.attachment_name ?? "Attachment";
+}
 
 export const MODERATION_PAGE_SIZE = 10;
 export const MODERATION_LOG_PAGE_SIZE = 25;
@@ -76,6 +141,9 @@ const NOTE_REQUIRED: ReadonlySet<ModerationActionKind> = new Set([
   "remove_story",
   "suspend_shop",
   "suspend_user",
+  "delete_product_review",
+  "delete_shop_review",
+  "delete_message",
 ]);
 
 export function isNoteRequired(kind: ModerationActionKind) {
@@ -110,7 +178,7 @@ export type ModerationChange =
   | { kind: "update"; table: "shop_posts"; values: Record<string, unknown> }
   | { kind: "update"; table: "shop_stories"; values: Record<string, unknown> }
   | { kind: "update"; table: "shops"; values: Record<string, unknown> }
-  | { kind: "delete"; table: "shop_post_comments" }
+  | { kind: "delete"; table: "shop_post_comments" | "product_reviews" | "shop_reviews" | "chat_messages" }
   | { kind: "auth_ban"; banDuration: string }
   | { kind: "report_status"; values: Record<string, unknown> };
 
@@ -153,6 +221,24 @@ export function planModerationAction(
         action: kind,
         logTargetType: "comment",
         change: { kind: "delete", table: "shop_post_comments" },
+      };
+    case "delete_product_review":
+      return {
+        action: kind,
+        logTargetType: "product_review",
+        change: { kind: "delete", table: "product_reviews" },
+      };
+    case "delete_shop_review":
+      return {
+        action: kind,
+        logTargetType: "shop_review",
+        change: { kind: "delete", table: "shop_reviews" },
+      };
+    case "delete_message":
+      return {
+        action: kind,
+        logTargetType: "message",
+        change: { kind: "delete", table: "chat_messages" },
       };
     case "remove_story":
       return {
@@ -212,7 +298,10 @@ export function isTakedownAction(kind: ModerationActionKind) {
     kind === "delete_comment" ||
     kind === "remove_story" ||
     kind === "suspend_shop" ||
-    kind === "suspend_user"
+    kind === "suspend_user" ||
+    kind === "delete_product_review" ||
+    kind === "delete_shop_review" ||
+    kind === "delete_message"
   );
 }
 

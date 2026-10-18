@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canSuspendShopForTarget,
+  chatThreadPreview,
+  deleteActionForTarget,
   firstImageUrl,
+  formatTargetTypeLabel,
   groupReportsByTarget,
   isBannedUntil,
+  isModerationAction,
   isNoteRequired,
   isTakedownAction,
+  ownerRoleLabel,
   parseReasonFilter,
   parseReportStatus,
   parseTargetTypeFilter,
@@ -154,5 +160,79 @@ describe("misc helpers", () => {
     expect(isBannedUntil("2126-01-01T00:00:00Z", now)).toBe(true);
     expect(isBannedUntil("2020-01-01T00:00:00Z", now)).toBe(false);
     expect(isBannedUntil(null, now)).toBe(false);
+  });
+});
+
+describe("review and message reports", () => {
+  it("accepts the new target types as filters and labels them", () => {
+    expect(parseTargetTypeFilter("product_review")).toBe("product_review");
+    expect(parseTargetTypeFilter("shop_review")).toBe("shop_review");
+    expect(parseTargetTypeFilter("message")).toBe("message");
+    expect(formatTargetTypeLabel("product_review")).toBe("Product review");
+    expect(formatTargetTypeLabel("message")).toBe("Chat message");
+    expect(formatTargetTypeLabel("post")).toBe("Post");
+    expect(ownerRoleLabel("shop_review")).toBe("Reviewer");
+    expect(ownerRoleLabel("message")).toBe("Sender");
+    expect(ownerRoleLabel("comment")).toBe("Maker");
+  });
+
+  it("hard deletes reviews and messages and logs them under their own type", () => {
+    expect(planModerationAction("delete_product_review", "x", now)).toEqual({
+      action: "delete_product_review",
+      logTargetType: "product_review",
+      change: { kind: "delete", table: "product_reviews" },
+    });
+    expect(planModerationAction("delete_shop_review", "x", now)).toEqual({
+      action: "delete_shop_review",
+      logTargetType: "shop_review",
+      change: { kind: "delete", table: "shop_reviews" },
+    });
+    expect(planModerationAction("delete_message", "x", now)).toEqual({
+      action: "delete_message",
+      logTargetType: "message",
+      change: { kind: "delete", table: "chat_messages" },
+    });
+  });
+
+  it("treats the deletes as takedowns that need a note", () => {
+    for (const kind of ["delete_product_review", "delete_shop_review", "delete_message"] as const) {
+      expect(isModerationAction(kind)).toBe(true);
+      expect(isNoteRequired(kind)).toBe(true);
+      expect(isTakedownAction(kind)).toBe(true);
+      expect(validateModerationNote(kind, "").ok).toBe(false);
+      expect(validateModerationNote(kind, "a".repeat(1000)).ok).toBe(true);
+    }
+  });
+
+  it("offers the matching delete action and keeps shop suspension for shop content", () => {
+    expect(deleteActionForTarget("product_review")).toBe("delete_product_review");
+    expect(deleteActionForTarget("shop_review")).toBe("delete_shop_review");
+    expect(deleteActionForTarget("message")).toBe("delete_message");
+    expect(deleteActionForTarget("post")).toBeNull();
+    for (const type of ["post", "comment", "story", "shop"]) {
+      expect(canSuspendShopForTarget(type)).toBe(true);
+    }
+    // A review's shop is the shop being reviewed, not the reviewer's.
+    for (const type of ["product_review", "shop_review", "message"]) {
+      expect(canSuspendShopForTarget(type)).toBe(false);
+    }
+  });
+
+  it("rebuilds the chat inbox preview after a message is deleted", () => {
+    expect(chatThreadPreview(null)).toBeNull();
+    expect(chatThreadPreview({ body: "  Hello there  ", attachment_name: null })).toBe("Hello there");
+    expect(chatThreadPreview({ body: "x".repeat(200), attachment_name: null })).toHaveLength(120);
+    expect(chatThreadPreview({ body: "   ", attachment_name: "quote.pdf" })).toBe("quote.pdf");
+    expect(chatThreadPreview({ body: null, attachment_name: null })).toBe("Attachment");
+  });
+
+  it("groups duplicate message reports separately from reviews with the same id", () => {
+    const groups = groupReportsByTarget([
+      { target_type: "message", target_id: "m1", reason: "spam", reporter_id: "u1" },
+      { target_type: "message", target_id: "m1", reason: "harassment", reporter_id: "u2" },
+      { target_type: "product_review", target_id: "m1", reason: "spam", reporter_id: "u1" },
+    ]);
+    expect(groups.get("message:m1")?.count).toBe(2);
+    expect(groups.get("product_review:m1")?.count).toBe(1);
   });
 });

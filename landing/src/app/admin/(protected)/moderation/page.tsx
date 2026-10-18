@@ -5,7 +5,11 @@ import { ModerationActionForm } from "@/components/admin/moderation-action-form"
 import {
   REPORT_REASONS,
   REPORT_TARGET_TYPES,
+  canSuspendShopForTarget,
+  deleteActionForTarget,
   formatReasonLabel,
+  formatTargetTypeLabel,
+  ownerRoleLabel,
   parseReasonFilter,
   parseReportStatus,
   parseTargetTypeFilter,
@@ -68,7 +72,8 @@ function TargetState({ report }: { report: ModerationReportView }) {
   if (!target.exists) {
     return (
       <p className="text-sm text-muted-foreground">
-        This {report.target_type} no longer exists (deleted or expired).
+        This {formatTargetTypeLabel(report.target_type).toLowerCase()} no longer exists (deleted
+        or expired).
       </p>
     );
   }
@@ -111,6 +116,33 @@ function TargetState({ report }: { report: ModerationReportView }) {
         ) : null}
         {target.body}
       </p>
+    );
+  }
+  if (target.type === "product_review" || target.type === "shop_review") {
+    return (
+      <div className="space-y-1 text-sm">
+        <p className="font-medium text-artisan-sienna">
+          {target.rating}/5{target.authorName ? ` · ${target.authorName}` : ""}
+        </p>
+        <p className="whitespace-pre-wrap break-words">
+          {target.text || <span className="text-muted-foreground">No written review</span>}
+        </p>
+      </div>
+    );
+  }
+  if (target.type === "message") {
+    return (
+      <div className="space-y-1 text-sm">
+        <p className="whitespace-pre-wrap break-words">
+          {target.body || <span className="text-muted-foreground">No text</span>}
+        </p>
+        {target.attachmentName ? (
+          <p className="text-xs text-muted-foreground">Attachment: {target.attachmentName}</p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">
+          Conversation {target.threadId.slice(0, 8)}
+        </p>
+      </div>
     );
   }
   if (target.type === "story") {
@@ -196,7 +228,28 @@ function ReportActions({ report }: { report: ModerationReportView }) {
       />,
     );
   }
-  if (report.shop) {
+  const deleteKind = deleteActionForTarget(report.target_type);
+  if (deleteKind && target.exists) {
+    const isMessage = deleteKind === "delete_message";
+    buttons.push(
+      <ModerationActionForm
+        key="delete"
+        kind={deleteKind}
+        targetId={report.target_id}
+        reportId={reportId}
+        label={isMessage ? "Delete message" : "Delete review"}
+        title={isMessage ? "Permanently delete this message?" : "Permanently delete this review?"}
+        description={
+          isMessage
+            ? "The message is removed from the conversation for both people and cannot be restored. The report snapshot is kept. Open reports on it are resolved."
+            : "The review and its rating are deleted and cannot be restored. The report snapshot is kept. Open reports on it are resolved."
+        }
+        noteRequired
+        tone="danger"
+      />,
+    );
+  }
+  if (report.shop && canSuspendShopForTarget(report.target_type)) {
     buttons.push(
       report.shop.isActive ? (
         <ModerationActionForm
@@ -232,7 +285,7 @@ function ReportActions({ report }: { report: ModerationReportView }) {
           targetId={report.target_owner_id}
           label="Restore account"
           title="Restore this account?"
-          description="The maker can sign in again. Their shops stay as they are and can be restored separately."
+          description="They can sign in again. Their shops stay as they are and can be restored separately."
           noteRequired={false}
         />
       ) : (
@@ -242,8 +295,8 @@ function ReportActions({ report }: { report: ModerationReportView }) {
           targetId={report.target_owner_id}
           reportId={reportId}
           label="Suspend account"
-          title="Suspend this maker's account?"
-          description="The account is banned from signing in and all of their shops are suspended."
+          title={`Suspend this ${ownerRoleLabel(report.target_type).toLowerCase()}'s account?`}
+          description="The account is banned from signing in and any shops they own are suspended."
           noteRequired
           tone="danger"
         />
@@ -285,8 +338,8 @@ function ReportCard({ report }: { report: ModerationReportView }) {
   return (
     <div className="rounded-3xl border border-artisan-clay bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-artisan-clay bg-artisan-bone px-3 py-1 text-xs font-medium capitalize text-artisan-sienna">
-          {report.target_type}
+        <span className="rounded-full border border-artisan-clay bg-artisan-bone px-3 py-1 text-xs font-medium text-artisan-sienna">
+          {formatTargetTypeLabel(report.target_type)}
         </span>
         <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
           {formatReasonLabel(report.reason)}
@@ -307,7 +360,9 @@ function ReportCard({ report }: { report: ModerationReportView }) {
             {personLabel(report.reporter)}
           </p>
           <p>
-            <span className="font-medium text-artisan-sienna">Maker:</span>{" "}
+            <span className="font-medium text-artisan-sienna">
+              {ownerRoleLabel(report.target_type)}:
+            </span>{" "}
             {personLabel(report.owner)}{" "}
             {report.ownerSuspended ? <StatusBadge value="suspended" /> : null}
           </p>
@@ -426,7 +481,7 @@ export default async function AdminModerationPage({
       <AdminPageHeader
         eyebrow="Moderation"
         title="Content Reports"
-        description="Review reports on creator posts, comments, stories and shops. Every action is recorded in the moderation log."
+        description="Review reports on creator posts, comments, stories, shops, reviews and chat messages. Aim to act on every report within 24 hours; every action is recorded in the moderation log."
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -526,7 +581,7 @@ async function ReportsView({ query }: { query: Query }) {
           <option value="">All target types</option>
           {REPORT_TARGET_TYPES.map((value) => (
             <option key={value} value={value}>
-              {formatReasonLabel(value)}
+              {formatTargetTypeLabel(value)}
             </option>
           ))}
         </select>
