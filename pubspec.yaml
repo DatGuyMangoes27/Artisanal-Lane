@@ -97,6 +97,7 @@ flutter:
     - assets/preview/angel-bear-original.jpg
     - assets/preview/foldaway-tote.jpg
     - assets/preview/nerd-no1.jpg
+    - shorebird.yaml
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
