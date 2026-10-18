@@ -311,6 +311,25 @@ void main() {
       expect(bobGoStatusLabel('who-knows'), 'In progress');
       expect(bobGoStatusLabel(null), 'In progress');
     });
+
+    test('official Bob Go statuses and server aliases are grouped', () {
+      for (final status in [
+        'collection-exception',
+        'delivery-exception',
+        'failed-collection',
+        'exception',
+      ]) {
+        expect(bobGoStatusGroup(status), BobGoStatusGroup.exception);
+      }
+      expect(
+        bobGoStatusGroup('ready-for-pickup'),
+        BobGoStatusGroup.outForDelivery,
+      );
+      expect(
+        bobGoStatusGroup('pending-collection'),
+        BobGoStatusGroup.awaitingCollection,
+      );
+    });
   });
 
   group('Parcel measurements', () {

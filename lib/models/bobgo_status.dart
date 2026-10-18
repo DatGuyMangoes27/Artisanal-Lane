@@ -1,6 +1,8 @@
 /// Courier status vocabulary for Bob Go shipments. Mirrors
 /// supabase/functions/_shared/bobgo-tracking.mjs; unknown statuses are shown as
-/// "In progress" rather than as raw courier text.
+/// "In progress" rather than as raw courier text. The server also stores
+/// known aliases for official statuses older builds lack (see
+/// canonicalBobGoStatus), so released builds label them correctly too.
 enum BobGoStatusGroup {
   awaitingCollection,
   collected,
@@ -35,11 +37,15 @@ const _groups = <BobGoStatusGroup, List<String>>{
     'lost',
     'damaged',
     'undeliverable',
+    'collection-exception',
+    'delivery-exception',
+    'failed-collection',
   ],
   BobGoStatusGroup.outForDelivery: [
     'out-for-delivery',
     'with-delivery-courier',
     'out-for-delivery-attempt',
+    'ready-for-pickup',
   ],
   BobGoStatusGroup.inTransit: [
     'in-transit',
