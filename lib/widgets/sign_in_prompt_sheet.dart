@@ -12,6 +12,10 @@ Future<void> showSignInPromptSheet(
 }) {
   return showModalBottomSheet<void>(
     context: context,
+    // Above the tab bar, so its buttons are never covered.
+    useRootNavigator: true,
+    isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
