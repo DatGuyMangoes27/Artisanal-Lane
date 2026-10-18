@@ -137,7 +137,9 @@ Deno.serve(async (request) => {
     const couponCode = firstNonEmptyString(body.couponCode)?.toUpperCase() ?? null;
     const previewOnly = body.previewOnly === true;
 
-    let userId = requestUserId;
+    // Only a verified sign-in identifies the buyer; a userId in the body is
+    // logged for diagnostics but never trusted.
+    let userId: string | null = null;
     const authHeader = request.headers.get("Authorization");
     console.log(
       "[checkout-debug] create-checkout request",
@@ -188,12 +190,11 @@ Deno.serve(async (request) => {
         console.log(
           `[checkout-debug] auth header verification threw ${error instanceof Error ? error.message : String(error)}`,
         );
-        // Fall back to the app-provided user ID when JWT verification is disabled.
       }
     }
 
     if (userId == null) {
-      console.log("[checkout-debug] no userId available after auth fallback");
+      console.log("[checkout-debug] no verified user for this checkout");
       return jsonResponse({ error: "Unauthorized" }, { status: 401 });
     }
     console.log(`[checkout-debug] proceeding with userId=${userId}`);

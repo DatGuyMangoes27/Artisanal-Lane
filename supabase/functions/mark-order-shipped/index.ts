@@ -15,12 +15,8 @@ Deno.serve(async (request) => {
     const orderId = body.orderId as string;
     const trackingNumber = body.trackingNumber as string | null | undefined;
     const trackingUrl = body.trackingUrl as string | null | undefined;
-    const requestUserId =
-      typeof body.userId === "string" && body.userId.trim().length > 0
-        ? body.userId.trim()
-        : null;
-
-    let userId = requestUserId;
+    // Only a verified sign-in identifies the vendor; a body userId is ignored.
+    let userId: string | null = null;
     const authHeader = request.headers.get("Authorization");
 
     if (authHeader?.startsWith("Bearer ")) {
@@ -47,7 +43,7 @@ Deno.serve(async (request) => {
           userId = user.id;
         }
       } catch (_) {
-        // Fall back to the app-provided user ID when JWT verification is disabled.
+        // Unverifiable token: treated as signed out below.
       }
     }
 
