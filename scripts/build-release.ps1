@@ -11,7 +11,7 @@
 #
 # iOS (on a Mac):
 #   shorebird release ios --flutter-version=3.44.2 -- --dart-define-from-file=config/release.json
-#   shorebird patch ios -- --dart-define-from-file=config/release.json
+#   shorebird patch --platforms=ios --release-version=latest -- --dart-define-from-file=config/release.json
 param([switch]$Patch, [switch]$Apk)
 
 $ErrorActionPreference = "Stop"
@@ -31,7 +31,7 @@ if (-not (Test-Path $shorebird)) { $shorebird = "shorebird" }
 
 if ($Patch) {
   # A patch always builds with the Flutter version of the release it targets.
-  & $shorebird patch android --release-version=latest -- $defines
+  & $shorebird patch --platforms=android --release-version=latest -- $defines
   if ($LASTEXITCODE -ne 0) { throw "shorebird patch failed" }
 } else {
   & $shorebird release android "--flutter-version=$flutterVersion" -- $defines
