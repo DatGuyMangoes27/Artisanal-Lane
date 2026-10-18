@@ -121,11 +121,18 @@ Deno.serve(async (request) => {
       .eq("order_id", order.id);
 
     if (orderStatus === "paid" || orderStatus === "completed") {
-      // Idempotent: a duplicate callback finds the booking already claimed.
+      // Idempotent: a duplicate callback finds the booking already claimed,
+      // and only orders now 'paid' are claimed (never completed/cancelled).
       // Failures are recorded on the order and retried by bobgo-shipment /
       // bobgo-sync-tracking; they never fail the payment callback.
-      if (order.shipping_method === "bobgo_door_to_door") {
-        await bookBobGoShipmentForOrder(admin, order);
+      if (orderStatus === "paid" && order.shipping_method === "bobgo_door_to_door") {
+        try {
+          await bookBobGoShipmentForOrder(admin, order);
+        } catch (bookingError) {
+          console.error(
+            `[bobgo] order ${order.id} booking after payment threw: ${bookingError instanceof Error ? bookingError.message : bookingError}`,
+          );
+        }
       }
 
       await admin

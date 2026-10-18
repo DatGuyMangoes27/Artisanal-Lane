@@ -2,11 +2,12 @@
 //   { orderId, action: "waybill" }        -> { fileName, contentType, base64 }
 //   { orderId, action: "retry_booking" }  -> retries a failed courier booking
 // Requires a valid user JWT belonging to the shop's vendor or an admin.
-// Disabled unless BOBGO_SHIPPING_ENABLED=true.
+// Works whenever Bob Go credentials are configured (not only while new Bob Go
+// checkouts are switched on), so a rollback never strands a paid order.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-import { fetchBobGoWaybill, isBobGoEnabled } from "../_shared/bobgo.ts";
+import { fetchBobGoWaybill, isBobGoConfigured } from "../_shared/bobgo.ts";
 import { bookBobGoShipmentForOrder } from "../_shared/bobgo-booking.ts";
 import { getBearerToken, jsonResponse, optionsResponse } from "../_shared/http.ts";
 
@@ -26,7 +27,7 @@ function toBase64(bytes: Uint8Array) {
 Deno.serve(async (request) => {
   try {
     if (request.method === "OPTIONS") return optionsResponse();
-    if (!isBobGoEnabled()) {
+    if (!isBobGoConfigured()) {
       return jsonResponse({ error: "Bob Go delivery is not available right now." }, { status: 404 });
     }
 
@@ -90,6 +91,12 @@ Deno.serve(async (request) => {
 
     if (!["paid"].includes(order.status as string)) {
       return jsonResponse({ error: "Only paid orders can be booked." }, { status: 409 });
+    }
+    if (order.bobgo_booking_state === "booking") {
+      return jsonResponse(
+        { error: "A courier booking is already in progress. Please check again in a few minutes." },
+        { status: 409 },
+      );
     }
     const result = await bookBobGoShipmentForOrder(admin, order);
     if (result.outcome === "failed") {

@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse, optionsResponse } from "../_shared/http.ts";
 import { isBobGoEnabled } from "../_shared/bobgo.ts";
+import { isFulfillmentProfileComplete } from "../_shared/bobgo-tracking.mjs";
 import {
   createCheckoutLink,
   createTradeSafeTransaction,
@@ -74,7 +75,8 @@ function sameBobGoDeliveryAddress(
   const address = delivery as Record<string, unknown>;
   return [
     [address.street_address, shippingAddress["street"]],
-    [address.local_area, shippingAddress["local_area"] ?? shippingAddress["city"]],
+    // Quotes fall back to the city when no suburb was given.
+    [address.local_area, firstNonEmptyString(shippingAddress["local_area"], shippingAddress["city"])],
     [address.city, shippingAddress["city"]],
     [address.zone, shippingAddress["province"]],
     [address.code, shippingAddress["postal_code"]],
@@ -237,7 +239,7 @@ Deno.serve(async (request) => {
       quantity: item.quantity as number,
       isMadeToOrder: item.is_made_to_order === true,
       customNote: (item.custom_note as string | null) ?? null,
-      product: item.products as {
+      product: item.products as unknown as {
         id: string;
         title: string;
         price: number;
@@ -253,7 +255,7 @@ Deno.serve(async (request) => {
           combined_shipping_enabled: boolean;
         } | null;
       },
-      variant: item.product_variants as
+      variant: item.product_variants as unknown as
         | {
             id: string;
             color_name: string;
@@ -285,12 +287,6 @@ Deno.serve(async (request) => {
         { status: 400 },
       );
     }
-    if (shippingMethod === "courier_guy_door_to_door") {
-      return jsonResponse(
-        { error: "Courier Guy door-to-door delivery is no longer available. Please choose another delivery option." },
-        { status: 400 },
-      );
-    }
 
     let shippingCost: number;
     let bobGoSelection: {
@@ -318,6 +314,21 @@ Deno.serve(async (request) => {
       ) {
         return jsonResponse(
           { error: "Request and select a current Bob Go delivery rate." },
+          { status: 400 },
+        );
+      }
+
+      // The artisan may have switched Bob Go off since the quote.
+      const { data: fulfillment } = await admin
+        .from("shop_fulfillment_profiles")
+        .select(
+          "contact_full_name, contact_email, contact_phone, street_address, local_area, city, province, postal_code, bobgo_enabled",
+        )
+        .eq("shop_id", shopId)
+        .maybeSingle();
+      if (!isFulfillmentProfileComplete(fulfillment)) {
+        return jsonResponse(
+          { error: "This artisan no longer offers Bob Go delivery. Please choose another delivery option." },
           { status: 400 },
         );
       }
@@ -374,7 +385,7 @@ Deno.serve(async (request) => {
           rate.serviceLevelCode === serviceLevelCode
         ) as BobGoRate | undefined;
       const verifiedShippingCost = Number(selectedRate?.amount);
-      if (!selectedRate || !Number.isFinite(verifiedShippingCost) || verifiedShippingCost < 0) {
+      if (!selectedRate || !Number.isFinite(verifiedShippingCost) || verifiedShippingCost <= 0) {
         return jsonResponse(
           { error: "The selected Bob Go service is no longer available. Request a new rate." },
           { status: 400 },
@@ -426,7 +437,7 @@ Deno.serve(async (request) => {
       (sum, item) => sum + unitPriceFor(item) * item.quantity,
       0,
     );
-    let appliedCoupon: {
+    let appliedCoupon = null as {
       id: string;
       code: string;
       discount_type: "percentage" | "fixed";
@@ -436,7 +447,7 @@ Deno.serve(async (request) => {
       starts_at: string | null;
       ends_at: string | null;
       is_active: boolean;
-    } | null = null;
+    } | null;
     let discountAmount = 0;
 
     if (couponCode != null) {
@@ -516,7 +527,7 @@ Deno.serve(async (request) => {
         ? eligibleSubtotal * discountValue / 100
         : discountValue;
       discountAmount = roundCurrency(Math.min(eligibleSubtotal, rawDiscount));
-      appliedCoupon = coupon as typeof appliedCoupon;
+      appliedCoupon = coupon as unknown as NonNullable<typeof appliedCoupon>;
     }
 
     const discountedSubtotal = roundCurrency(subtotal - discountAmount);
@@ -590,6 +601,10 @@ Deno.serve(async (request) => {
     console.log(
       `[checkout-debug] buyerProfile emailPresent=${buyerProfile?.email != null} shopId=${shop?.id ?? "none"} vendorId=${shop?.vendor_id ?? "none"}`,
     );
+
+    if (!shop) {
+      return jsonResponse({ error: "This shop is not available." }, { status: 400 });
+    }
 
     if (!buyerProfile?.email) {
       return jsonResponse(

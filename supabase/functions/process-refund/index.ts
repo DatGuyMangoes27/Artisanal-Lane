@@ -80,7 +80,7 @@ Deno.serve(async (request) => {
     const { data: order } = await admin
       .from("orders")
       .select(
-        "id, tradesafe_transaction_id, shipping_method, bobgo_shipment_id, bobgo_booking_state, bobgo_status, bobgo_cancelled_at, bobgo_delivered_at",
+        "id, tradesafe_transaction_id, shipping_method",
       )
       .eq("id", orderId)
       .single();
@@ -96,35 +96,61 @@ Deno.serve(async (request) => {
       );
     }
 
-    // The buyer's money is refunded first (above). A booked courier is then
-    // cancelled best-effort: if Bob Go refuses (e.g. already collected) the
-    // refund still stands and the failure is recorded for an admin to follow up.
-    const bobGoUpdate: Record<string, unknown> = {};
-    let bobGoCancelError: string | null = null;
-    if (shouldCancelBobGoShipment(order)) {
-      try {
-        await cancelBobGoShipment(order.bobgo_shipment_id as string);
-        bobGoUpdate.bobgo_booking_state = "cancelled";
-        bobGoUpdate.bobgo_status = "cancelled";
-        bobGoUpdate.bobgo_cancelled_at = new Date().toISOString();
-        bobGoUpdate.bobgo_cancel_error = null;
-      } catch (cancelError) {
-        bobGoCancelError = cancelError instanceof Error
-          ? cancelError.message
-          : "Bob Go cancellation failed.";
-        console.error(`[bobgo] order ${orderId} shipment cancel failed: ${bobGoCancelError}`);
-        bobGoUpdate.bobgo_cancel_error = bobGoCancelError;
-      }
-    }
-
+    // The buyer's money is refunded first (above). The order is then marked
+    // cancelled, which stops any new courier booking (bookings only claim
+    // 'paid' orders, and one already in flight cancels itself when it sees the
+    // order cancelled - see _shared/bobgo-booking.ts).
     await admin
       .from("orders")
-      .update({
-        status: "cancelled",
-        payment_state: "refunded",
-        ...bobGoUpdate,
-      })
+      .update({ status: "cancelled", payment_state: "refunded" })
       .eq("id", orderId);
+
+    // Then a booked courier is cancelled best-effort, using a fresh read so a
+    // booking that completed during the refund is included. If Bob Go refuses
+    // (e.g. already collected) the refund still stands and the failure is
+    // recorded for an admin to follow up.
+    let bobGoCancelError: string | null = null;
+    if (order.shipping_method === "bobgo_door_to_door") {
+      // Never booked: close it so nothing books it later.
+      await admin
+        .from("orders")
+        .update({ bobgo_booking_state: "cancelled", bobgo_cancelled_at: new Date().toISOString() })
+        .eq("id", orderId)
+        .in("bobgo_booking_state", ["not_requested", "failed"])
+        .is("bobgo_shipment_id", null);
+
+      const { data: fresh } = await admin
+        .from("orders")
+        .select(
+          "id, shipping_method, tracking_number, bobgo_shipment_id, bobgo_booking_state, bobgo_status, bobgo_cancelled_at, bobgo_delivered_at",
+        )
+        .eq("id", orderId)
+        .single();
+
+      const bobGoUpdate: Record<string, unknown> = {};
+      if (fresh?.bobgo_booking_state === "booking") {
+        bobGoCancelError =
+          "A courier booking was in progress during the refund; it cancels itself when it completes. Check Bob Go if bobgo_booking_state stays 'booking'.";
+        bobGoUpdate.bobgo_cancel_error = bobGoCancelError;
+      } else if (shouldCancelBobGoShipment(fresh)) {
+        try {
+          await cancelBobGoShipment(fresh!.tracking_number as string);
+          bobGoUpdate.bobgo_booking_state = "cancelled";
+          bobGoUpdate.bobgo_status = "cancelled";
+          bobGoUpdate.bobgo_cancelled_at = new Date().toISOString();
+          bobGoUpdate.bobgo_cancel_error = null;
+        } catch (cancelError) {
+          bobGoCancelError = cancelError instanceof Error
+            ? cancelError.message
+            : "Bob Go cancellation failed.";
+          console.error(`[bobgo] order ${orderId} shipment cancel failed: ${bobGoCancelError}`);
+          bobGoUpdate.bobgo_cancel_error = bobGoCancelError.slice(0, 500);
+        }
+      }
+      if (Object.keys(bobGoUpdate).length > 0) {
+        await admin.from("orders").update(bobGoUpdate).eq("id", orderId);
+      }
+    }
 
     await admin
       .from("escrow_transactions")
@@ -135,15 +161,21 @@ Deno.serve(async (request) => {
       })
       .eq("order_id", orderId);
 
-    await sendInternalPushRequest({
-      supabaseUrl,
-      serviceRoleKey: supabaseServiceRoleKey,
-      body: {
-        type: "order_update",
-        orderId,
-        event: "cancelled",
-      },
-    });
+    try {
+      await sendInternalPushRequest({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceRoleKey,
+        body: {
+          type: "order_update",
+          orderId,
+          event: "cancelled",
+        },
+      });
+    } catch (pushError) {
+      // The refund already went through; a notification failure must not turn
+      // it into an error response (matches the live behaviour).
+      console.error("Unable to send refund notification", pushError);
+    }
 
     return jsonResponse({
       ok: true,

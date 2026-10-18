@@ -111,7 +111,8 @@ export function flattenBobGoDoorRates(payload: any): BobGoRate[] {
       const amount = Number(response.rate_amount);
       if (
         response.status !== "success" || service?.delivery_type !== "door" ||
-        !Number.isFinite(amount) || amount < 0
+        !Number.isFinite(amount) || amount <= 0 ||
+        !String(response.service_level_code ?? "").trim() || !String(provider.provider_slug ?? "").trim()
       ) {
         continue;
       }
@@ -138,18 +139,26 @@ export function flattenBobGoDoorRates(payload: any): BobGoRate[] {
 export async function requestBobGoRates(request: ReturnType<typeof buildBobGoRateRequest>) {
   const apiKey = Deno.env.get("BOBGO_SANDBOX_API_KEY");
   if (!apiKey) throw new Error("BOBGO_SANDBOX_API_KEY is not configured.");
-  const baseUrl = (Deno.env.get("BOBGO_SANDBOX_BASE_URL") ?? "https://api.sandbox.bobgo.co.za/v2")
+  const baseUrl = (Deno.env.get("BOBGO_SANDBOX_BASE_URL") || "https://api.sandbox.bobgo.co.za/v2")
     .replace(/\/+$/, "");
-  const response = await fetch(`${baseUrl}/rates`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/rates`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch (_) {
+    throw new Error("Bob Go did not respond in time. Please try again.");
+  }
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload) {
     throw new Error(`Bob Go rate request failed with status ${response.status}.`);
   }
   const requestId = Number(payload.id);
-  if (!Number.isFinite(requestId)) throw new Error("Bob Go did not return a rate request ID.");
+  if (payload.id == null || !Number.isFinite(requestId)) {
+    throw new Error("Bob Go did not return a rate request ID.");
+  }
   return { requestId, rates: flattenBobGoDoorRates(payload) };
 }

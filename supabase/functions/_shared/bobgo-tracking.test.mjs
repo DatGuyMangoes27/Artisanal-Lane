@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 
 import {
   bobGoStatusLabel,
+  canonicalBobGoStatus,
+  hasParcelMeasurements,
+  isFailedBobGoSubmission,
+  isFulfillmentProfileComplete,
+  verifyBobGoWebhookSignature,
   buildOrderTrackingUpdate,
   extractRateEta,
   groupBobGoStatus,
@@ -104,6 +109,7 @@ test("only booked, undelivered Bob Go shipments are cancelled on refund", () => 
     bobgo_shipment_id: "s1",
     bobgo_booking_state: "booked",
     bobgo_status: "in-transit",
+    tracking_number: "UAS1",
   };
   assert.equal(shouldCancelBobGoShipment(booked), true);
   assert.equal(shouldCancelBobGoShipment({ ...booked, bobgo_status: "delivered" }), false);
@@ -111,4 +117,119 @@ test("only booked, undelivered Bob Go shipments are cancelled on refund", () => 
   assert.equal(shouldCancelBobGoShipment({ ...booked, bobgo_booking_state: "failed" }), false);
   assert.equal(shouldCancelBobGoShipment({ ...booked, shipping_method: "pargo" }), false);
   assert.equal(shouldCancelBobGoShipment(null), false);
+  // Bob Go cancels by tracking reference, so one is required.
+  assert.equal(shouldCancelBobGoShipment({ ...booked, tracking_number: null }), false);
+});
+
+test("parses the documented tracking/updated webhook body", () => {
+  const snapshot = parseBobGoTrackingPayload({
+    id: 123,
+    shipment_tracking_reference: "UASDX44J",
+    status: "out-for-delivery",
+    status_friendly: "Out for delivery",
+    courier_slug: "sandbox",
+    checkpoints: [
+      { status: "collected", status_friendly: "Collected", time: "2026-10-01T08:00:00Z" },
+      { status: "out-for-delivery", message: "With driver", time: "2026-10-02T07:00:00Z" },
+    ],
+  });
+  assert.equal(snapshot.trackingReference, "UASDX44J");
+  assert.equal(snapshot.status, "out-for-delivery");
+  assert.equal(snapshot.statusGroup, "out_for_delivery");
+  assert.equal(snapshot.eventAt, "2026-10-02T07:00:00.000Z");
+  assert.equal(snapshot.events.length, 2);
+});
+
+test("parses a shipment-topic body (submission status and charged amount)", () => {
+  const snapshot = parseBobGoTrackingPayload({
+    id: 77,
+    tracking_reference: "UAS77",
+    custom_tracking_reference: "order-1",
+    status: "pending-collection",
+    submission_status: "failed-indefinitely",
+    failed_reason: "Courier rejected parcel size",
+    charged_amount: "132.25",
+    time_modified: "2026-10-03T10:00:00Z",
+  });
+  assert.equal(snapshot.shipmentId, "77");
+  assert.equal(snapshot.submissionStatus, "failed-indefinitely");
+  assert.equal(isFailedBobGoSubmission(snapshot.submissionStatus), true);
+  assert.equal(isFailedBobGoSubmission("failed-will-retry"), false);
+  assert.equal(snapshot.chargedAmount, 132.25);
+  assert.equal(snapshot.failedReason, "Courier rejected parcel size");
+});
+
+test("GET /tracking array responses use the requested reference", () => {
+  const snapshot = parseBobGoTrackingPayload(
+    [{ status: "in-transit", tracking_events: [{ status: "in-transit", date: "2026-10-01T09:00:00Z" }] }],
+    "UASREF",
+  );
+  assert.equal(snapshot.trackingReference, "UASREF");
+  assert.equal(snapshot.eventAt, "2026-10-01T09:00:00.000Z");
+  assert.equal(parseBobGoTrackingPayload([], "UASREF"), null);
+});
+
+test("official statuses unknown to released clients are stored as known aliases", () => {
+  assert.equal(canonicalBobGoStatus("Delivery_Exception"), "exception");
+  assert.equal(canonicalBobGoStatus("failed-collection"), "exception");
+  assert.equal(canonicalBobGoStatus("ready-for-pickup"), "out-for-delivery");
+  assert.equal(canonicalBobGoStatus("in-transit"), "in-transit");
+  assert.equal(canonicalBobGoStatus(""), null);
+  assert.equal(groupBobGoStatus("collection-exception"), "exception");
+});
+
+test("replayed events do not rewrite the order; charged amount updates", () => {
+  const order = { bobgo_status: "in-transit", bobgo_last_event_at: "2026-10-01T09:00:00.000Z" };
+  const replay = parseBobGoTrackingPayload({ tracking_reference: "T", status: "in-transit", updated_at: "2026-10-01T09:00:00Z" });
+  assert.equal(buildOrderTrackingUpdate(order, replay), null);
+  const charged = parseBobGoTrackingPayload({
+    tracking_reference: "T",
+    status: "in-transit",
+    charged_amount: 99,
+    updated_at: "2026-10-01T10:00:00Z",
+  });
+  assert.equal(buildOrderTrackingUpdate(order, charged).bobgo_charged_amount, 99);
+});
+
+test("webhook HMAC signature (base64 of the raw body)", async () => {
+  const body = JSON.stringify({ shipment_tracking_reference: "X", status: "collected" });
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode("s3cret"),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = Buffer.from(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body)));
+  const signature = digest.toString("base64");
+  assert.equal(await verifyBobGoWebhookSignature(body, signature, "s3cret"), true);
+  assert.equal(await verifyBobGoWebhookSignature(body, digest.toString("hex"), "s3cret"), true);
+  assert.equal(await verifyBobGoWebhookSignature(body + " ", signature, "s3cret"), false);
+  assert.equal(await verifyBobGoWebhookSignature(body, signature, "other"), false);
+  assert.equal(await verifyBobGoWebhookSignature(body, "", "s3cret"), false);
+  assert.equal(await verifyBobGoWebhookSignature(body, signature, ""), false);
+});
+
+test("Bob Go is only offered with complete collection details and parcels", () => {
+  const profile = {
+    bobgo_enabled: true,
+    contact_full_name: "Thandi",
+    contact_email: "thandi@example.com",
+    contact_phone: "082 123 4567",
+    street_address: "1 Clay Street",
+    local_area: "Woodstock",
+    city: "Cape Town",
+    province: "Western Cape",
+    postal_code: "7925",
+  };
+  assert.equal(isFulfillmentProfileComplete(profile), true);
+  assert.equal(isFulfillmentProfileComplete({ ...profile, bobgo_enabled: false }), false);
+  assert.equal(isFulfillmentProfileComplete({ ...profile, local_area: "  " }), false);
+  assert.equal(isFulfillmentProfileComplete({ ...profile, contact_email: "nope" }), false);
+  assert.equal(isFulfillmentProfileComplete({ ...profile, contact_phone: "123" }), false);
+  assert.equal(isFulfillmentProfileComplete(null), false);
+  const parcel = { shipping_weight_kg: 1.2, shipping_length_cm: 20, shipping_width_cm: 15, shipping_height_cm: "10" };
+  assert.equal(hasParcelMeasurements(parcel), true);
+  assert.equal(hasParcelMeasurements({ ...parcel, shipping_height_cm: null }), false);
+  assert.equal(hasParcelMeasurements({ ...parcel, shipping_weight_kg: 0 }), false);
 });

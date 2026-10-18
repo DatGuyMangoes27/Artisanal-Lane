@@ -417,6 +417,10 @@ export async function createTradeSafeTransaction(input: {
   platformTokenId?: string | null;
   platformShippingFee?: number;
 }) {
+  // Only Bob Go checkouts (with an AGENT shipping party) need the party ids;
+  // every other checkout sends exactly the mutation that is live today.
+  const hasPlatformParty = Number(input.platformShippingFee ?? 0) > 0;
+  const partiesSelection = hasPlatformParty ? "parties { id role }" : "";
   const mutation = `
     mutation CreateTransaction($input: CreateTransactionInput!) {
       transactionCreate(input: $input) {
@@ -428,10 +432,7 @@ export async function createTradeSafeTransaction(input: {
           value
           state
         }
-        parties {
-          id
-          role
-        }
+        ${partiesSelection}
       }
     }
   `;
@@ -441,14 +442,14 @@ export async function createTradeSafeTransaction(input: {
       id: string;
       state: string;
       allocations: Array<{ id: string; title: string; value: number; state: string }>;
-      parties: Array<{ id: string; role: string }>;
+      parties?: Array<{ id: string; role: string }>;
     };
   }>("transactionCreate", mutation, {
     input: buildTradeSafeTransactionInput(input),
   });
 
   const allocation = result.transactionCreate.allocations[0];
-  const shippingParty = result.transactionCreate.parties.find((party) => party.role === "AGENT");
+  const shippingParty = (result.transactionCreate.parties ?? []).find((party) => party.role === "AGENT");
 
   if (!allocation) {
     throw new Error("TradeSafe did not return an allocation for the order.");

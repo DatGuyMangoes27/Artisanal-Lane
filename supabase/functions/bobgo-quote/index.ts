@@ -16,6 +16,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { isBobGoEnabled } from "../_shared/bobgo.ts";
 import { buildBobGoRateRequest, requestBobGoRates } from "../_shared/bobgo-rates.ts";
 import { getBearerToken, jsonResponse, optionsResponse } from "../_shared/http.ts";
+import { isFulfillmentProfileComplete } from "../_shared/bobgo-tracking.mjs";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -34,7 +35,9 @@ function fail(message: string, status = 400) {
 Deno.serve(async (request) => {
   try {
     if (request.method === "OPTIONS") return optionsResponse();
-    const enabled = isBobGoEnabled();
+    // create-checkout also needs the Artisan Lane TradeSafe token for the AGENT
+    // shipping fee, so never offer Bob Go without it.
+    const enabled = isBobGoEnabled() && Boolean(Deno.env.get("TRADESAFE_ARTISAN_LANE_TOKEN_ID"));
 
     let user;
     try {
@@ -105,7 +108,9 @@ Deno.serve(async (request) => {
       )
       .eq("shop_id", shopId)
       .maybeSingle();
-    if (!fulfillment?.bobgo_enabled) {
+    // Only offered when the artisan opted in AND the collection details are
+    // complete, so the app never shows a Bob Go option that cannot quote.
+    if (!fulfillment || !isFulfillmentProfileComplete(fulfillment)) {
       return unavailable("This artisan has not enabled Bob Go door-to-door delivery.");
     }
 
@@ -191,7 +196,7 @@ Deno.serve(async (request) => {
       return availabilityOnly ? jsonResponse({ available: false, reason: message }) : fail(message, 422);
     }
   } catch (error) {
-    console.error("[bobgo-quote] unexpected failure", error);
+    console.error("[bobgo-quote] unexpected failure", error instanceof Error ? error.message : error);
     return fail("We could not get delivery rates right now. Please try again.", 500);
   }
 });
