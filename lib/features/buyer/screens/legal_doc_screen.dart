@@ -195,7 +195,7 @@ class LegalDocScreen extends StatelessWidget {
         {
           'heading': '6. Contact Us',
           'body':
-              'For any privacy-related concerns, please contact us at privacy@artisanallane.co.za.',
+              'For any privacy-related concerns, please contact us at nicky@artisanlanesa.com.',
         },
       ];
     }

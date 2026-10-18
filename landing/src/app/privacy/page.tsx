@@ -91,8 +91,8 @@ export default function PrivacyPage() {
           </ul>
           <p>
             To exercise any of these rights, please contact us at{" "}
-            <a href="mailto:privacy@artisanlane.co.za" className="text-[#7A0000] hover:underline">
-              privacy@artisanlane.co.za
+            <a href="mailto:nicky@artisanlanesa.com" className="text-[#7A0000] hover:underline">
+              nicky@artisanlanesa.com
             </a>.
           </p>
 
@@ -125,8 +125,8 @@ export default function PrivacyPage() {
           <h2>11. Contact Us</h2>
           <p>
             If you have any questions about this Privacy Policy, please contact us at:{" "}
-            <a href="mailto:privacy@artisanlane.co.za" className="text-[#7A0000] hover:underline">
-              privacy@artisanlane.co.za
+            <a href="mailto:nicky@artisanlanesa.com" className="text-[#7A0000] hover:underline">
+              nicky@artisanlanesa.com
             </a>
           </p>
         </div>

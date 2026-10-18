@@ -625,33 +625,40 @@ class _SignUpAgreement extends StatelessWidget {
       height: 1.5,
       color: AppTheme.textSecondary,
     );
-    Widget link(String label, String route) => GestureDetector(
-      onTap: () => context.push(route),
-      child: Text(
-        label,
-        style: base.copyWith(
-          color: AppTheme.terracotta,
-          fontWeight: FontWeight.w600,
-          decoration: TextDecoration.underline,
-          decorationColor: AppTheme.terracotta,
+    InlineSpan link(String label, String route) => WidgetSpan(
+      alignment: PlaceholderAlignment.baseline,
+      baseline: TextBaseline.alphabetic,
+      child: GestureDetector(
+        onTap: () => context.push(route),
+        child: Text(
+          label,
+          style: base.copyWith(
+            color: AppTheme.terracotta,
+            fontWeight: FontWeight.w600,
+            decoration: TextDecoration.underline,
+            decorationColor: AppTheme.terracotta,
+          ),
         ),
       ),
     );
-    return Wrap(
+    return Text.rich(
       key: const Key('signup-terms-agreement'),
-      alignment: WrapAlignment.center,
-      children: [
-        Text('By creating an account you agree to our ', style: base),
-        link('Terms', '/terms'),
-        Text(', ', style: base),
-        link('Privacy Policy', '/privacy'),
-        Text(' and ', style: base),
-        link('Community Guidelines', communityGuidelinesRoute),
-        Text(
-          '. There is no tolerance for objectionable content or abusive users.',
-          style: base,
-        ),
-      ],
+      textAlign: TextAlign.center,
+      TextSpan(
+        style: base,
+        children: [
+          const TextSpan(text: 'By creating an account you agree to our '),
+          link('Terms', '/terms'),
+          const TextSpan(text: ', '),
+          link('Privacy Policy', '/privacy'),
+          const TextSpan(text: ' and '),
+          link('Community Guidelines', communityGuidelinesRoute),
+          const TextSpan(
+            text:
+                '. We have zero tolerance for objectionable content or abusive users.',
+          ),
+        ],
+      ),
     );
   }
 }

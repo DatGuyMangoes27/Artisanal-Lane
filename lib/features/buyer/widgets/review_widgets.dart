@@ -71,24 +71,31 @@ class ReviewSummaryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
             ),
             alignment: Alignment.center,
-            child: Text(
-              summary.hasReviews
-                  ? summary.averageRating.toStringAsFixed(1)
-                  : '0.0',
-              style: GoogleFonts.playfairDisplay(
-                fontSize: 24,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
-              ),
-            ),
+            // No reviews isn't a zero rating: show a quiet star, not "0.0".
+            child: summary.hasReviews
+                ? Text(
+                    summary.averageRating.toStringAsFixed(1),
+                    style: GoogleFonts.playfairDisplay(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textPrimary,
+                    ),
+                  )
+                : const Icon(
+                    Icons.star_outline_rounded,
+                    size: 30,
+                    color: AppTheme.textHint,
+                  ),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StarRatingDisplay(rating: summary.averageRating, starSize: 18),
-                const SizedBox(height: 8),
+                if (summary.hasReviews) ...[
+                  StarRatingDisplay(rating: summary.averageRating, starSize: 18),
+                  const SizedBox(height: 8),
+                ],
                 Text(
                   summary.hasReviews ? summary.countLabel : emptyLabel,
                   style: GoogleFonts.poppins(

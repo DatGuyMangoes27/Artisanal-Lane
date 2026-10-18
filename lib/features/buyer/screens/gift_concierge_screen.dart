@@ -109,7 +109,7 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _GiftHeader(
-          eyebrow: 'Gift finder',
+          eyebrow: 'Handmade gifts',
           title: "Find a gift they'll love",
           subtitle:
               "Answer a few quick questions and we'll shortlist handmade "

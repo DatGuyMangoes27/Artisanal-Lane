@@ -10,8 +10,8 @@ export function ChatSafetyNotice() {
         may only be used to complete that order. Artisan Lane will never ask you to
         verify payment details, click a link to receive funds, or share banking information in
         chat. Report suspicious messages to{" "}
-        <a className="font-semibold underline" href="mailto:admin@artisanlanesa.co.za">
-          admin@artisanlanesa.co.za
+        <a className="font-semibold underline" href="mailto:nicky@artisanlanesa.com">
+          nicky@artisanlanesa.com
         </a>
         .
       </p>

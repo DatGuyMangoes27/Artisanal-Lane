@@ -10,12 +10,14 @@ import '../../../../app/theme.dart';
 import '../../../../models/shop_post.dart';
 import '../../../../models/product.dart';
 import '../../../../widgets/sign_in_prompt_sheet.dart';
-import '../../../auth/providers/auth_providers.dart';
 import '../../../vendor/providers/vendor_providers.dart';
 import '../../providers/creator_parity_providers.dart';
 import '../../providers/post_social_providers.dart';
 import '../../screens/post_comments_screen.dart';
 import '../../utils/shop_profile_actions.dart';
+import '../../../../core/constants/feature_flags.dart';
+import '../../providers/blocking_providers.dart';
+import '../../providers/buyer_providers.dart';
 
 /// Optimistically flips the like state for [post] and rolls back on failure.
 /// Shared by the social bar's heart button and the media double-tap gesture.
@@ -133,15 +135,54 @@ void showPostOptionsSheet(
                 );
               },
             ),
-          if (canReport && !isOwner)
+          if (creatorSafetyEnabled && !isOwner) ...[
             ListTile(
+              key: const Key('post-options-report'),
               leading: const Icon(Icons.flag_outlined),
               title: const Text('Report'),
               onTap: () {
                 Navigator.pop(sheetContext);
-                onReport();
+                if (canReport) {
+                  onReport();
+                } else {
+                  showSignInPromptSheet(
+                    context,
+                    title: 'Sign in to report',
+                    message:
+                        'Reports come from signed-in members so our team can follow up within 24 hours.',
+                  );
+                }
               },
             ),
+            ListTile(
+              key: const Key('post-options-block'),
+              leading: const Icon(Icons.block_outlined),
+              title: Text('Block $makerName'),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                try {
+                  final shop = await ref.read(
+                    shopDetailProvider(post.shopId).future,
+                  );
+                  if (!context.mounted) return;
+                  await confirmBlockUser(
+                    ref,
+                    context,
+                    userId: shop.vendorId,
+                    name: shop.name,
+                    shopId: shop.id,
+                  );
+                } catch (_) {
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not block right now. Please try again.'),
+                    ),
+                  );
+                }
+              },
+            ),
+          ],
           if (isOwner && post.hideLikeCount)
             const Padding(
               padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
