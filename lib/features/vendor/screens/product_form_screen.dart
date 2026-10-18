@@ -24,6 +24,7 @@ import '../utils/vendor_payout_setup.dart';
 import '../utils/vendor_subscription_setup.dart';
 import '../widgets/parcel_measurements_fields.dart';
 import '../widgets/shipping_rates_reference.dart';
+import '../widgets/studio/studio_photo_source.dart';
 import 'listing_assistant_screen.dart';
 
 class ProductFormScreen extends ConsumerStatefulWidget {
@@ -92,10 +93,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   List<String> get _imageUrls => _photos
       .where((p) => !p.isPending)
       .map((p) => p.url!)
-      .toList(growable: false);
-  List<File> get _pendingFiles => _photos
-      .where((p) => p.isPending)
-      .map((p) => p.file!)
       .toList(growable: false);
   final List<_VariantDraft> _variants = [];
   List<ShippingOption> _shippingOptions = ShippingOption.defaults();
@@ -758,89 +755,176 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     });
   }
 
-  Future<void> _openListingAssistant() async {
+  /// Opens Listing Studio (photo touch-up, price calculator and, when the
+  /// account has them, AI tools) and applies whatever it hands back.
+  Future<void> _openListingStudio({int photoIndex = 0}) async {
     final user = ref.read(currentUserIdProvider);
     try {
       final shop = await ref.read(vendorShopProvider.future);
       if (!mounted || shop == null || user != ref.read(currentUserIdProvider)) {
         return;
       }
-      final cats = ref.read(vendorCategoriesProvider).value ?? [];
-      final selectedCategory = cats
-          .where((c) => c.id == _selectedCategoryId)
-          .firstOrNull;
-      final results = await Navigator.of(context)
-          .push<List<ListingAssistantResult>>(
-            MaterialPageRoute(
-              builder: (_) => ListingAssistantScreen(
-                shopId: shop.id,
-                title: _titleController.text,
-                description: _descriptionController.text,
-                photo: _pendingFiles.isEmpty ? null : _pendingFiles.first,
-                category: selectedCategory?.name,
-                existingTags: _selectedTags.toList(),
-                candidateTags: selectedCategory?.availableFilterTags ?? [],
-              ),
-            ),
-          );
+      final sources = [
+        for (final photo in _photos)
+          photo.isPending
+              ? StudioPhotoSource.file('${photo.id}', photo.file!)
+              : StudioPhotoSource(
+                  id: '${photo.id}',
+                  thumbnail: CachedNetworkImageProvider(photo.url!),
+                  loadBytes: () => loadNetworkPhotoBytes(photo.url!),
+                ),
+      ];
+      final result = await Navigator.of(context).push<ListingAssistantResult>(
+        MaterialPageRoute(
+          builder: (_) => ListingAssistantScreen(
+            shopId: shop.id,
+            title: _titleController.text,
+            description: _descriptionController.text,
+            photos: sources,
+            initialPhotoIndex: photoIndex,
+          ),
+        ),
+      );
       if (!mounted ||
-          results == null ||
-          results.isEmpty ||
+          result == null ||
           user != ref.read(currentUserIdProvider)) {
         return;
       }
-      String? title, description;
-      double? price;
-      Uint8List? photo;
-      final tags = <String>{};
-      for (final result in results) {
-        if (result.title != null) title = result.title;
-        if (result.description != null) description = result.description;
-        if (result.price != null) price = result.price;
-        if (result.photo != null) photo = result.photo;
-        if (result.tags != null) tags.addAll(result.tags!);
-      }
-      File? generated;
-      if (photo != null) {
-        if (_photos.length >= 8) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Remove a photo first. A listing can have up to 8 photos.',
-              ),
-            ),
-          );
-          return;
-        }
+      File? edited;
+      final bytes = result.photo;
+      if (bytes != null) {
         final directory = await getTemporaryDirectory();
-        generated = File(
-          '${directory.path}/artisan-ai-${DateTime.now().microsecondsSinceEpoch}.png',
+        edited = File(
+          '${directory.path}/listing-studio-${DateTime.now().microsecondsSinceEpoch}.png',
         );
-        await generated.writeAsBytes(photo, flush: true);
+        await edited.writeAsBytes(bytes, flush: true);
       }
       if (!mounted || user != ref.read(currentUserIdProvider)) return;
+      final messenger = ScaffoldMessenger.of(context);
+      String? message;
       setState(() {
-        if (title != null) _titleController.text = title;
-        if (description != null) {
-          _descriptionController.text = description;
+        if (result.title != null) _titleController.text = result.title!;
+        if (result.description != null) {
+          _descriptionController.text = result.description!;
         }
-        if (price != null) {
-          _priceController.text = price.toStringAsFixed(2);
+        if (result.price != null) {
+          _priceController.text = result.price!.toStringAsFixed(2);
+          message = 'Price set to R${result.price!.toStringAsFixed(2)}.';
         }
-        if (tags.isNotEmpty) _selectedTags.addAll(tags);
-        if (generated != null) _photos.add(_ProductPhoto.pending(generated));
+        if (result.title != null || result.description != null) {
+          message = 'Wording added to your listing.';
+        }
+        if (edited != null) {
+          final placed = placeStudioPhoto<_ProductPhoto>(
+            _photos,
+            edited: _ProductPhoto.pending(edited),
+            isSource: (p) =>
+                result.replacesPhotoId != null &&
+                '${p.id}' == result.replacesPhotoId,
+          );
+          if (placed == null) {
+            message =
+                'Remove a photo first. A listing can have up to 8 photos.';
+          } else {
+            final replaced = placed.length == _photos.length;
+            _photos
+              ..clear()
+              ..addAll(placed);
+            message = replaced
+                ? 'Edited photo saved to your listing.'
+                : 'Photo added to your listing.';
+          }
+        }
+        _dirty = true;
       });
+      if (message != null) {
+        HapticFeedback.mediumImpact();
+        messenger.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            content: Text(message!),
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
+            behavior: SnackBarBehavior.floating,
             content: Text(
-              'Could not open listing assistance. Your draft is unchanged.',
+              'Could not open Listing Studio. Your listing is unchanged.',
             ),
           ),
         );
       }
     }
+  }
+
+  /// The one entry point to Listing Studio, shown under the photo strip.
+  Widget _buildStudioEntry({required bool enabled}) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Material(
+        color: AppTheme.cardBg,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          key: const Key('open-listing-studio'),
+          onTap: enabled ? _openListingStudio : null,
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppTheme.sand.withValues(alpha: 0.5)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.bone,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.tune_rounded,
+                    color: AppTheme.terracotta,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Listing Studio',
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        'Touch up your photos and work out a fair price.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppTheme.textHint,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showPhotoPreview({
@@ -2023,23 +2107,6 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ],
               if (creatorCommerceEnabled) ...[
                 _buildListingReadiness(),
-                Card(
-                  color: AppTheme.cardBg,
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.auto_awesome_outlined,
-                      color: Color(0xFF536451),
-                    ),
-                    title: const Text('Make it listing-ready'),
-                    subtitle: const Text(
-                      'Writing help, styled photos & a cost-based price',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: _isLoading || _isUploading
-                        ? null
-                        : _openListingAssistant,
-                  ),
-                ),
                 const SizedBox(height: 20),
               ],
 
@@ -2155,6 +2222,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   },
                 ),
               ),
+              _buildStudioEntry(enabled: !_isLoading && !_isUploading),
               if (_isUploading)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),

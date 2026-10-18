@@ -228,7 +228,10 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
       final next = await _fetchPosts(offset: _posts.length);
       if (mounted && generation == _requestGeneration) {
         setState(() {
-          _posts.addAll(next);
+          // A post published while paging shifts later pages by one; never
+          // show the same post twice.
+          final loaded = {for (final post in _posts) post.id};
+          _posts.addAll(next.where((post) => !loaded.contains(post.id)));
           _hasMore = next.length == _pageSize;
         });
       }
@@ -260,6 +263,7 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
         .select(ShopPost.select)
         .eq('is_published', true)
         .order('published_at', ascending: false)
+        .order('id', ascending: false)
         .range(offset, offset + _pageSize - 1);
     return (data as List)
         .map((row) => ShopPost.fromJson(row as Map<String, dynamic>))

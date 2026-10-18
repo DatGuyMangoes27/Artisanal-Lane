@@ -287,9 +287,9 @@ class Product {
   /// Made-to-order products stay buyable at zero stock, so listings must not
   /// hide them the way plain out-of-stock items are hidden.
   bool get isAvailableForPurchase => isInStock || supportsMadeToOrder;
-  String get primaryImage => images.isNotEmpty
-      ? images.first
-      : 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400&h=400&fit=crop';
+  /// The product's first photo, or empty when it has none. Never a stock
+  /// image: image widgets show their neutral fallback for an empty URL.
+  String get primaryImage => images.isNotEmpty ? images.first : '';
   double get discountPercent =>
       isOnSale ? ((compareAtPrice! - price) / compareAtPrice! * 100) : 0;
 }

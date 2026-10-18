@@ -1147,7 +1147,7 @@ class _FeedPostCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     CachedNetworkImage(
-                      imageUrl: post.primaryImage,
+                      imageUrl: post.coverImage,
                       fit: BoxFit.cover,
                       placeholder: (_, __) => Container(color: AppTheme.bone),
                       errorWidget: (_, __, ___) =>

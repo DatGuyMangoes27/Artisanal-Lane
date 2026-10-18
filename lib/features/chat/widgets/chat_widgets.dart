@@ -10,6 +10,7 @@ import '../../../core/ui/compact_count.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../../widgets/skeleton.dart';
+import '../../buyer/utils/help_support_contact.dart';
 
 class ChatInboxList extends StatelessWidget {
   final List<ChatThread> threads;
@@ -127,6 +128,10 @@ class ChatThreadScaffold extends StatelessWidget {
   /// Optional app bar actions (for example a ⋯ menu).
   final List<Widget>? actions;
 
+  /// Called when someone else's message is long-pressed (for example to
+  /// report it). Null disables the long-press menu.
+  final void Function(ChatMessage message)? onMessageLongPress;
+
   const ChatThreadScaffold({
     super.key,
     required this.messagesAsync,
@@ -138,6 +143,7 @@ class ChatThreadScaffold extends StatelessWidget {
     this.avatarUrl,
     this.senderLabelResolver,
     this.actions,
+    this.onMessageLongPress,
   });
 
   @override
@@ -200,7 +206,7 @@ class ChatThreadScaffold extends StatelessWidget {
       ),
       body: Column(
         children: [
-          const _ChatSafetyNotice(),
+          _ChatSafetyNotice(canReport: onMessageLongPress != null),
           Expanded(
             child: messagesAsync.when(
               data: (messages) {
@@ -227,17 +233,30 @@ class ChatThreadScaffold extends StatelessWidget {
                           messages[arrayIndex - 1].createdAt,
                           message.createdAt,
                         );
+                    Widget messageBubble = _MessageBubble(
+                      message: message,
+                      isMine: isMine,
+                      senderLabel: isMine
+                          ? null
+                          : senderLabelResolver?.call(message.senderId),
+                    );
+                    final onLongPress = onMessageLongPress;
+                    if (!isMine && onLongPress != null) {
+                      messageBubble = Semantics(
+                        onLongPressHint: 'Message options',
+                        child: GestureDetector(
+                          key: ValueKey('chat-message-${message.id}'),
+                          behavior: HitTestBehavior.opaque,
+                          onLongPress: () => onLongPress(message),
+                          child: messageBubble,
+                        ),
+                      );
+                    }
                     final bubble = Align(
                       alignment: isMine
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
-                      child: _MessageBubble(
-                        message: message,
-                        isMine: isMine,
-                        senderLabel: isMine
-                            ? null
-                            : senderLabelResolver?.call(message.senderId),
-                      ),
+                      child: messageBubble,
                     );
                     if (!isFirstOfDay) {
                       return Padding(
@@ -762,7 +781,10 @@ class _EmptyInbox extends StatelessWidget {
 }
 
 class _ChatSafetyNotice extends StatelessWidget {
-  const _ChatSafetyNotice();
+  const _ChatSafetyNotice({required this.canReport});
+
+  /// True when long-pressing a message opens the report menu.
+  final bool canReport;
 
   @override
   Widget build(BuildContext context) {
@@ -783,8 +805,9 @@ class _ChatSafetyNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'Safety tip: Artisan Lane will never ask you to verify payment '
-              'details or click a link to receive funds. Report suspicious '
-              'messages to admin@artisanlanesa.co.za.',
+              'details or click a link to receive funds. '
+              '${canReport ? 'Long-press a message to report it, or email' : 'Report suspicious messages to'} '
+              '$helpSupportEmail.',
               style: GoogleFonts.poppins(
                 fontSize: 11,
                 height: 1.4,

@@ -970,11 +970,6 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                   children: [
                     for (final entry in [
                       (
-                        Icons.card_giftcard_rounded,
-                        'Gift finder',
-                        '/home/gift-concierge',
-                      ),
-                      (
                         Icons.category_outlined,
                         'Categories',
                         '/home/categories',
@@ -985,9 +980,7 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                       Expanded(
                         child: TextButton.icon(
                           style: TextButton.styleFrom(
-                            foregroundColor: entry.$3 == '/home/gift-concierge'
-                                ? AppTheme.terracotta
-                                : shopQuietInk,
+                            foregroundColor: shopQuietInk,
                             padding: const EdgeInsets.symmetric(horizontal: 2),
                             minimumSize: const Size(0, 44),
                             textStyle: GoogleFonts.poppins(
@@ -1010,6 +1003,8 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                 ),
               ),
             ),
+          if (!isSearchMode)
+            const SliverToBoxAdapter(child: _GiftFinderBanner()),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
@@ -1611,6 +1606,77 @@ class _NearMePill extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Prominent entry to the gift finder on the Shop tab.
+class _GiftFinderBanner extends StatelessWidget {
+  const _GiftFinderBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+      child: Material(
+        color: AppTheme.terracotta.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          key: const Key('shop-gift-finder-banner'),
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => context.push('/home/gift-concierge'),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppTheme.terracotta,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Find a gift they'll love",
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Answer 3 quick questions for handmade ideas.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppTheme.terracotta,
+                ),
+              ],
+            ),
           ),
         ),
       ),

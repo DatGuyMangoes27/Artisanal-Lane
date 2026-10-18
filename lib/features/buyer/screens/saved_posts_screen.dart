@@ -14,7 +14,11 @@ import '../../vendor/services/creator_post_media.dart';
 
 /// Full [ShopPost] rows behind the signed-in buyer's saved posts, newest
 /// save first. Distinct from [savedPostIdsProvider] (just the ids).
-final savedPostsProvider = FutureProvider<List<ShopPost>>((ref) async {
+/// Auto-disposed so a post saved elsewhere shows up the next time this
+/// screen opens instead of serving a stale list.
+final savedPostsProvider = FutureProvider.autoDispose<List<ShopPost>>((
+  ref,
+) async {
   ref.watch(currentUserIdProvider);
   return ref.read(supabaseServiceProvider).getSavedPosts();
 });

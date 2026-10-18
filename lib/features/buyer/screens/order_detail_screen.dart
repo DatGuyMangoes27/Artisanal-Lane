@@ -21,6 +21,9 @@ import '../providers/buyer_providers.dart';
 import '../utils/receipt_reminders.dart';
 import '../utils/tracking_links.dart';
 import '../widgets/review_widgets.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
+import '../../safety/review_safety.dart';
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
@@ -155,10 +158,23 @@ class OrderDetailScreen extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
-    final draft = await showReviewComposerSheet(
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!context.mounted) return;
+    var rating = 5;
+    final draft = await composeCleanReview<ReviewDraft>(
       context,
-      title: 'Review this item',
-      subtitle: item.productTitle ?? 'Product',
+      initialText: '',
+      textOf: (draft) {
+        rating = draft.rating;
+        return draft.reviewText;
+      },
+      openComposer: (text) => showReviewComposerSheet(
+        context,
+        title: 'Review this item',
+        subtitle: item.productTitle ?? 'Product',
+        initialRating: rating,
+        initialReviewText: text,
+      ),
     );
     if (draft == null) {
       return;
@@ -194,7 +210,7 @@ class OrderDetailScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Could not save review: $error',
+            ugcErrorMessage(error) ?? 'Could not save review: $error',
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,

@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 ///
 /// Enable the creator-commerce preview on a private build with:
 /// `--dart-define=CREATOR_COMMERCE_PREVIEW=true`
-const bool creatorCommercePreviewEnabled = bool.fromEnvironment(
-  'CREATOR_COMMERCE_PREVIEW',
-  defaultValue: false,
-);
+/// Never available in release (store) builds, even if the define is passed.
+const bool creatorCommercePreviewEnabled =
+    !kReleaseMode &&
+    bool.fromEnvironment('CREATOR_COMMERCE_PREVIEW', defaultValue: false);
 
 /// Integrated marketplace journeys, distinct from the standalone showcase.
 const bool creatorCommerceEnabled = bool.fromEnvironment(

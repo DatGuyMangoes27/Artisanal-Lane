@@ -134,9 +134,16 @@ class ShopPost {
   bool get isScheduled =>
       scheduledFor != null && scheduledFor!.isAfter(DateTime.now());
 
-  String get primaryImage => mediaUrls.isNotEmpty
-      ? mediaUrls.first
-      : 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400&h=400&fit=crop';
+  /// The first media reference exactly as stored (may be a private video
+  /// marker), or empty when the post has no media. Never a stock image.
+  String get primaryImage => mediaUrls.isNotEmpty ? mediaUrls.first : '';
+
+  /// The first displayable photo URL (skipping private video markers), or
+  /// empty when the post has none.
+  String get coverImage => mediaUrls.firstWhere(
+    (url) => url.trim().startsWith('https://'),
+    orElse: () => '',
+  );
 
   /// Returns a human-friendly relative time string
   String get timeAgo {

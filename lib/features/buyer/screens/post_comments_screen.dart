@@ -13,6 +13,8 @@ import '../providers/blocking_providers.dart';
 import '../providers/post_social_providers.dart';
 import '../providers/creator_safety_providers.dart';
 import '../widgets/content_report_sheet.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
 
 /// Shows the comments for [postId] as a draggable sheet floating over the
 /// feed, preserving the feed's scroll position underneath.
@@ -223,6 +225,12 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
     }
     final user = ref.read(currentUserIdProvider);
     if (user == null) return;
+    if (containsBlockedTerms(trimmed)) {
+      setState(() => _saveError = blockedTermsFriendlyMessage);
+      return;
+    }
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted || _sending || ref.read(currentUserIdProvider) != user) return;
     final editing = _editingId;
     setState(() {
       _sending = true;
@@ -245,10 +253,12 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
         }
         _text.clear();
         _editingId = null;
-      } catch (_) {
+      } catch (error) {
         if (mounted && ref.read(currentUserIdProvider) == user) {
           setState(
-            () => _saveError = "Couldn't save your edit. Tap save to retry.",
+            () => _saveError =
+                ugcErrorMessage(error) ??
+                "Couldn't save your edit. Tap save to retry.",
           );
         }
       } finally {
@@ -320,7 +330,7 @@ class _PostCommentsScreenState extends ConsumerState<PostCommentsScreen> {
         setState(
           () => _saveError = isPermissionRejection(error)
               ? blockedCommentMessage
-              : "Couldn't post. Tap to retry.",
+              : ugcErrorMessage(error) ?? "Couldn't post. Tap to retry.",
         );
       }
     } finally {

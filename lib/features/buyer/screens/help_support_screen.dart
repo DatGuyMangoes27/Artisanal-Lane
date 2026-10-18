@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../utils/help_support_contact.dart';
+import '../../safety/community_guidelines_content.dart';
 
 class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
@@ -11,6 +12,11 @@ class HelpSupportScreen extends StatefulWidget {
   @override
   State<HelpSupportScreen> createState() => _HelpSupportScreenState();
 }
+
+/// Opens a pre-addressed "Report a problem" email to the support team.
+final Uri helpSupportReportProblemUri = Uri.parse(
+  'mailto:$helpSupportEmail?subject=${Uri.encodeComponent('Report a problem')}',
+);
 
 class _HelpSupportScreenState extends State<HelpSupportScreen> {
   int? _expandedIndex;
@@ -101,6 +107,41 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               ),
               const SizedBox(height: 20),
               ...List.generate(_faqs.length, (i) => _faqTile(i)),
+              const SizedBox(height: 40),
+              Text(
+                'Safety & Reporting',
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'To report a post, story, comment, review, message or maker, '
+                'use the Report option in its menu (long-press a chat '
+                'message). You can also block anyone from their profile or '
+                'conversation. Our team reviews every report within 24 hours.',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  height: 1.6,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _contactTile(
+                icon: Icons.flag_outlined,
+                title: 'Report a problem',
+                subtitle: 'Email our safety team at $helpSupportEmail',
+                onTap: () => launchUrl(helpSupportReportProblemUri),
+              ),
+              const SizedBox(height: 16),
+              _contactTile(
+                icon: Icons.groups_outlined,
+                title: 'Community Guidelines',
+                subtitle: "What is and isn't allowed on Artisan Lane",
+                onTap: () => context.push(communityGuidelinesRoute),
+              ),
               const SizedBox(height: 40),
               Text(
                 'Contact Us',

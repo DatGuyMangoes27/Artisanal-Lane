@@ -12,6 +12,8 @@ import '../../../models/shop.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../buyer/providers/story_providers.dart';
 import '../../buyer/widgets/story_media.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
 
 class StoryComposerScreen extends ConsumerStatefulWidget {
   const StoryComposerScreen({super.key, required this.shop});
@@ -121,6 +123,13 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
       );
       return;
     }
+    final textError = validateUgcText([_caption.text]);
+    if (textError != null) {
+      setState(() => _error = textError);
+      return;
+    }
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -141,10 +150,11 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
       _dirty = false;
       HapticFeedback.mediumImpact();
       Navigator.pop(context, true);
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(
           () => _error =
+              ugcErrorMessage(e) ??
               'We could not confirm publishing. Retry safely with the same photo and caption; this will not create a second story.',
         );
       }

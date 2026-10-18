@@ -36,8 +36,22 @@ String? composerPollError({
   if (filled.length < composerPollMinOptions) {
     return 'Add at least 2 options.';
   }
+  if (filled.map((o) => o.toLowerCase()).toSet().length != filled.length) {
+    return 'Each poll option needs to be different.';
+  }
   if (imageCount < 1) return 'Add a photo to go with your poll.';
   return null;
+}
+
+/// When a new poll should close: [duration] after the post goes live (its
+/// schedule, or [now] for an immediate post), or never when null.
+DateTime? composerPollClosesAt({
+  required Duration? duration,
+  DateTime? scheduledFor,
+  DateTime? now,
+}) {
+  if (duration == null) return null;
+  return (scheduledFor ?? now ?? DateTime.now()).add(duration);
 }
 
 /// Editable question, 2–4 options and an optional auto-close duration.

@@ -2,12 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../safety/community_guidelines_content.dart';
 
 class LegalDocScreen extends StatelessWidget {
   final String title;
+
+  /// 'terms', 'privacy' or 'community-guidelines'.
   final String type;
 
   const LegalDocScreen({super.key, required this.title, required this.type});
+
+  String get _lastUpdated => type == 'community-guidelines'
+      ? communityGuidelinesLastUpdated
+      : type == 'terms'
+      ? 'October 2026'
+      : 'February 2026';
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +64,7 @@ class LegalDocScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Last updated: February 2026',
+                  'Last updated: $_lastUpdated',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppTheme.textHint,
@@ -98,6 +107,7 @@ class LegalDocScreen extends StatelessWidget {
   }
 
   List<Map<String, String>> _getSections() {
+    if (type == 'community-guidelines') return communityGuidelinesSections;
     if (type == 'terms') {
       return [
         {
@@ -138,6 +148,16 @@ class LegalDocScreen extends StatelessWidget {
           'body':
               'Users agree to provide accurate information, use the platform for lawful purposes only, and treat all '
               'community members with respect. Artisan Lane reserves the right to suspend accounts that violate these terms.',
+        },
+        {
+          'heading': '7. User Content and Community Guidelines',
+          'body':
+              'You are responsible for everything you post or send on Artisan Lane, including shop details, posts, '
+              'stories, polls, comments, reviews, chat messages and your profile name. By using the platform you agree to '
+              'our Community Guidelines. There is no tolerance for objectionable content or abusive users: hate speech, '
+              'harassment, threats, sexual content, scams and intellectual-property theft are not allowed. Objectionable '
+              'language is filtered, any content or user can be reported or blocked, and our team reviews reports within '
+              '24 hours. We remove content that breaks these rules and suspend or remove the accounts responsible.',
         },
       ];
     } else {

@@ -10,7 +10,10 @@ import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../chat/utils/live_chat_messages.dart';
 import '../../chat/widgets/chat_block_bar.dart';
+import '../../chat/widgets/chat_message_actions.dart';
 import '../../chat/widgets/chat_widgets.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
 import '../../buyer/providers/blocking_providers.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../providers/vendor_providers.dart';
@@ -88,6 +91,13 @@ class _VendorChatThreadScreenState
   Future<void> _sendMessage(String userId, ChatThread thread) async {
     final text = _messageController.text.trim();
     if (text.isEmpty && _pendingAttachment == null) return;
+    if (_isSending) return;
+    if (containsBlockedTerms(text)) {
+      _showSnack(blockedTermsFriendlyMessage, isError: true);
+      return;
+    }
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
 
     setState(() => _isSending = true);
     try {
@@ -124,10 +134,11 @@ class _VendorChatThreadScreenState
         _showSnack(blockedChatMessage, isError: true);
       } else {
         _showSnack(
-          friendlyErrorMessage(
-            error,
-            fallback: "Couldn't send your message. Please try again.",
-          ),
+          ugcErrorMessage(error) ??
+              friendlyErrorMessage(
+                error,
+                fallback: "Couldn't send your message. Please try again.",
+              ),
           isError: true,
         );
       }
@@ -218,6 +229,13 @@ class _VendorChatThreadScreenState
                 ],
           messagesAsync: displayedMessagesAsync,
           currentUserId: userId ?? '',
+          onMessageLongPress:
+              canReportInChatThread(
+                currentUserId: userId,
+                isSupportThread: isAdminThread,
+              )
+              ? (message) => showChatMessageActions(context, message)
+              : null,
           title: title,
           subtitle: subtitle,
           avatarUrl: avatarUrl,

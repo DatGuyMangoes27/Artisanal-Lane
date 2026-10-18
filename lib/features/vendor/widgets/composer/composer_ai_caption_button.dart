@@ -4,10 +4,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../../app/theme.dart';
 import '../../services/artisan_ai_service.dart';
 
-/// "Polish with AI" action under the caption field. Availability is checked
-/// the same way the listing assistant does (capabilities().listing), and AI
-/// generation is never faked: when the account can't use it yet, the button
-/// is disabled with the same friendly copy used elsewhere in the app.
+/// "Polish with AI" action under the caption field.
+///
+/// Renders nothing at all unless [artisanAiCapabilitiesProvider] confirms AI
+/// listing text is enabled for this account — no disabled teaser, no
+/// "not available" note, and nothing while the check is still running.
 class ComposerAiCaptionButton extends ConsumerStatefulWidget {
   const ComposerAiCaptionButton({
     super.key,
@@ -25,36 +26,11 @@ class ComposerAiCaptionButton extends ConsumerStatefulWidget {
 
 class _ComposerAiCaptionButtonState
     extends ConsumerState<ComposerAiCaptionButton> {
-  bool _checking = true;
-  bool _available = false;
   bool _polishing = false;
   String? _error;
 
-  @override
-  void initState() {
-    super.initState();
-    _check();
-  }
-
-  Future<void> _check() async {
-    setState(() {
-      _checking = true;
-      _error = null;
-    });
-    try {
-      final caps = await ref.read(artisanAiServiceProvider).capabilities();
-      if (mounted) {
-        setState(() => _available = caps['listing'] == true);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _available = false);
-    } finally {
-      if (mounted) setState(() => _checking = false);
-    }
-  }
-
   Future<void> _polish() async {
-    if (!_available || _polishing) return;
+    if (_polishing) return;
     final facts = widget.captionController.text.trim();
     if (facts.isEmpty) {
       setState(
@@ -93,7 +69,9 @@ class _ComposerAiCaptionButtonState
 
   @override
   Widget build(BuildContext context) {
-    final disabled = _checking || !_available || _polishing;
+    if (!watchArtisanAiCapabilities(ref).listing) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -101,7 +79,7 @@ class _ComposerAiCaptionButtonState
           height: 44,
           child: OutlinedButton.icon(
             key: const Key('composer-polish-ai'),
-            onPressed: disabled ? null : _polish,
+            onPressed: _polishing ? null : _polish,
             icon: _polishing
                 ? const SizedBox(
                     width: 16,
@@ -112,35 +90,25 @@ class _ComposerAiCaptionButtonState
             label: Text(
               _polishing ? 'Polishing…' : 'Polish with AI',
               style: GoogleFonts.poppins(
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.terracotta,
-              side: BorderSide(
-                color: disabled ? AppTheme.sand : AppTheme.terracotta,
+              side: const BorderSide(color: AppTheme.terracotta),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(22),
               ),
             ),
           ),
         ),
-        if (!_checking && !_available)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              "AI suggestions aren't available on your account yet.",
-              style: GoogleFonts.poppins(
-                fontSize: 11,
-                color: AppTheme.textHint,
-              ),
-            ),
-          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               _error!,
-              style: GoogleFonts.poppins(fontSize: 11, color: AppTheme.error),
+              style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.error),
             ),
           ),
       ],

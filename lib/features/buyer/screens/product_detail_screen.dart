@@ -22,6 +22,10 @@ import '../utils/product_detail_actions.dart';
 import '../utils/product_image_zoom.dart';
 import '../utils/cart_stock_guard.dart';
 import '../widgets/review_widgets.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
+import '../../safety/review_safety.dart';
+import '../providers/blocking_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
 
@@ -399,14 +403,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
 
     if (!mounted) return;
-    final draft = await showReviewComposerSheet(
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
+    var rating = existingReview?.rating ?? 5;
+    final draft = await composeCleanReview<ReviewDraft>(
       context,
-      title: existingReview != null
-          ? 'Edit product review'
-          : 'Review this product',
-      subtitle: product.title,
-      initialRating: existingReview?.rating ?? 5,
-      initialReviewText: existingReview?.reviewText ?? '',
+      initialText: existingReview?.reviewText ?? '',
+      textOf: (draft) {
+        rating = draft.rating;
+        return draft.reviewText;
+      },
+      openComposer: (text) => showReviewComposerSheet(
+        context,
+        title: existingReview != null
+            ? 'Edit product review'
+            : 'Review this product',
+        subtitle: product.title,
+        initialRating: rating,
+        initialReviewText: text,
+      ),
     );
 
     if (draft == null) {
@@ -445,7 +460,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            friendlyErrorMessage(error, fallback: 'Could not save review.'),
+            ugcErrorMessage(error) ??
+                friendlyErrorMessage(error, fallback: 'Could not save review.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -1288,7 +1304,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ),
                               const SizedBox(height: 16),
                               productReviewsAsync.when(
-                                data: (reviews) {
+                                data: (allReviews) {
+                                  final reviews = withoutBlockedAuthors(
+                                    allReviews,
+                                    ref.watch(blockedUserIdsProvider).value ??
+                                        const <String>{},
+                                    (ProductReview review) => review.buyerId,
+                                  );
                                   if (reviews.isEmpty) {
                                     return const EmptyReviewsCard(
                                       title: 'No reviews yet',
@@ -1307,14 +1329,27 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                           padding: const EdgeInsets.only(
                                             bottom: 12,
                                           ),
-                                          child: BuyerReviewCard(
-                                            avatarUrl: review.buyerAvatarUrl,
-                                            authorName:
-                                                review.buyerDisplayName ??
-                                                'Verified buyer',
-                                            rating: review.rating,
-                                            reviewText: review.reviewText,
-                                            createdAt: review.createdAt,
+                                          child: Column(
+                                            children: [
+                                              BuyerReviewCard(
+                                                avatarUrl:
+                                                    review.buyerAvatarUrl,
+                                                authorName:
+                                                    review.buyerDisplayName ??
+                                                    'Verified buyer',
+                                                rating: review.rating,
+                                                reviewText: review.reviewText,
+                                                createdAt: review.createdAt,
+                                              ),
+                                              ReviewSafetyActions(
+                                                reviewId: review.id,
+                                                authorId: review.buyerId,
+                                                authorName:
+                                                    review.buyerDisplayName ??
+                                                    'this buyer',
+                                                isProductReview: true,
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),

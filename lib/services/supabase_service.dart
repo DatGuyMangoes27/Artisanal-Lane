@@ -1862,10 +1862,14 @@ class SupabaseService {
 
   // ── Shop Follows ─────────────────────────────────────────────
   Future<void> followShop(String userId, String shopId) async {
-    await _client.from('shop_follows').upsert({
-      'user_id': userId,
-      'shop_id': shopId,
-    });
+    // Following twice is a no-op rather than a unique-constraint error.
+    await _client
+        .from('shop_follows')
+        .upsert(
+          {'user_id': userId, 'shop_id': shopId},
+          onConflict: 'user_id,shop_id',
+          ignoreDuplicates: true,
+        );
   }
 
   Future<void> unfollowShop(String userId, String shopId) async {
@@ -1895,14 +1899,19 @@ class SupabaseService {
   }
 
   Future<int> getFollowerCount(String shopId) async {
-    final data = await _client
+    final response = await _client
         .from('shop_follows')
         .select('id')
-        .eq('shop_id', shopId);
-    return (data as List).length;
+        .eq('shop_id', shopId)
+        .limit(1)
+        .count(CountOption.exact);
+    return response.count;
   }
 
   // ── Shop Posts ──────────────────────────────────────────────
+  /// A shop's posts, newest go-live time first. Row-level security hides
+  /// scheduled and removed posts from everyone except the shop itself, so a
+  /// scheduled post appears here on its own once its time arrives.
   Future<List<ShopPost>> getShopPosts(
     String shopId, {
     int limit = 20,
@@ -1913,7 +1922,8 @@ class SupabaseService {
         .select(ShopPost.select)
         .eq('shop_id', shopId)
         .eq('is_published', true)
-        .order('created_at', ascending: false)
+        .order('published_at', ascending: false)
+        .order('id', ascending: false)
         .range(offset, offset + limit - 1);
     return (data as List).map((e) => ShopPost.fromJson(e)).toList();
   }
@@ -1932,7 +1942,9 @@ class SupabaseService {
         .select(ShopPost.select)
         .inFilter('shop_id', followedIds)
         .eq('is_published', true)
-        .order('created_at', ascending: false)
+        // Scheduled posts surface at their go-live time, not creation time.
+        .order('published_at', ascending: false)
+        .order('id', ascending: false)
         .range(offset, offset + limit - 1);
     return (data as List).map((e) => ShopPost.fromJson(e)).toList();
   }
@@ -2972,8 +2984,18 @@ class SupabaseService {
         .single();
   }
 
+  /// Deletes one of the signed-in maker's posts. Throws when nothing was
+  /// deleted (for example the post is gone or belongs to another shop), so
+  /// the caller never reports a delete that didn't happen.
   Future<void> deleteShopPost(String postId) async {
-    await _client.from('shop_posts').delete().eq('id', postId);
+    final rows = await _client
+        .from('shop_posts')
+        .delete()
+        .eq('id', postId)
+        .select('id');
+    if ((rows as List).isEmpty) {
+      throw StateError('This post could not be deleted.');
+    }
   }
 
   // ── Creator parity: saves, mutes, polls, insights, reactions ─────────

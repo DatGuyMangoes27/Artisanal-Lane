@@ -1,29 +1,42 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+
 import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
 import 'package:artisanal_lane/features/vendor/screens/listing_assistant_screen.dart';
 import 'package:artisanal_lane/features/vendor/services/artisan_ai_service.dart';
+import 'package:artisanal_lane/features/vendor/widgets/composer/composer_ai_caption_button.dart';
+import 'package:artisanal_lane/features/vendor/widgets/studio/studio_tip_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final pixel = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
 );
 
+/// Capability modes for [FakeAi].
+enum Caps { enabled, disabled, failing, pending }
+
 class FakeAi implements ArtisanAiService {
-  FakeAi({this.enabled = true, this.failFirst = false});
+  FakeAi(this.caps, {this.failFirst = false});
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-  final bool enabled, failFirst;
+  final Caps caps;
+  final bool failFirst;
   final requests = <Map<String, dynamic>>[];
+  final _never = Completer<Map<String, dynamic>>();
+
   @override
-  Future<Map<String, dynamic>> capabilities() async => {
-    'listing': enabled,
-    'image': enabled,
+  Future<Map<String, dynamic>> capabilities() async => switch (caps) {
+    Caps.enabled => {'listing': true, 'image': true},
+    Caps.disabled => {'listing': false, 'image': false},
+    Caps.failing => throw const ArtisanAiException('unavailable'),
+    Caps.pending => _never.future,
   };
+
   @override
   Future<Map<String, dynamic>> generate(Map<String, dynamic> request) async {
     requests.add(Map.of(request));
@@ -44,14 +57,18 @@ class FakeAi implements ArtisanAiService {
 
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   Future<void> open(
     WidgetTester tester,
     FakeAi service, {
-    File? photo,
-    ValueChanged<List<ListingAssistantResult>?>? result,
+    ValueChanged<ListingAssistantResult?>? result,
+    StudioTool initialTool = StudioTool.photo,
+    bool settle = true,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
+        retry: (_, __) => null,
         overrides: [
           currentUserIdProvider.overrideWithValue('user'),
           artisanAiServiceProvider.overrideWithValue(service),
@@ -61,29 +78,32 @@ void main() {
             builder: (context) => Scaffold(
               body: TextButton(
                 onPressed: () async {
-                  final value =
-                      await Navigator.push<List<ListingAssistantResult>>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ListingAssistantScreen(
-                            shopId: 'shop',
-                            title: 'Blue ceramic bowl',
-                            description: 'Made by hand.',
-                            photo: photo,
-                          ),
-                        ),
-                      );
+                  final value = await Navigator.push<ListingAssistantResult>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ListingAssistantScreen(
+                        shopId: 'shop',
+                        title: 'Blue ceramic bowl',
+                        description: 'Made by hand.',
+                        initialTool: initialTool,
+                      ),
+                    ),
+                  );
                   result?.call(value);
                 },
-                child: const Text('Open editor help'),
+                child: const Text('Open studio'),
               ),
             ),
           ),
         ),
       ),
     );
-    await tester.tap(find.text('Open editor help'));
-    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open studio'));
+    if (settle) {
+      await tester.pumpAndSettle();
+    } else {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
   }
 
   Future<void> tapVisible(WidgetTester tester, Finder finder) async {
@@ -93,177 +113,239 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('pricing is transparent gross margin and rejects invalid costs', () {
-    expect(
-      suggestedListingPrice(
-        materials: 60,
-        labour: 30,
-        overheads: 10,
-        margin: 50,
-      ),
-      200,
-    );
-    expect(
-      suggestedListingPrice(
-        materials: 60,
-        labour: 30,
-        overheads: 10,
-        margin: 0,
-      ),
-      100,
-    );
-    for (final margin in [-1.0, 100.0, double.nan, double.infinity]) {
+  void expectNoAiUi() {
+    expect(find.text('AI listing text'), findsNothing);
+    expect(find.text('AI styled photo'), findsNothing);
+    expect(find.textContaining('AI'), findsNothing);
+    expect(find.textContaining('OpenAI'), findsNothing);
+    expect(find.textContaining('available'), findsNothing);
+    expect(find.textContaining('coming soon'), findsNothing);
+  }
+
+  group('suggestedListingPrice', () {
+    test('is transparent gross margin and rejects invalid costs', () {
       expect(
         suggestedListingPrice(
           materials: 60,
           labour: 30,
           overheads: 10,
-          margin: margin,
+          margin: 50,
+        ),
+        200,
+      );
+      expect(
+        suggestedListingPrice(
+          materials: 60,
+          labour: 30,
+          overheads: 10,
+          margin: 0,
+        ),
+        100,
+      );
+      for (final margin in [-1.0, 100.0, double.nan, double.infinity]) {
+        expect(
+          suggestedListingPrice(
+            materials: 60,
+            labour: 30,
+            overheads: 10,
+            margin: margin,
+          ),
+          isNull,
+        );
+      }
+      expect(
+        suggestedListingPrice(
+          materials: -1,
+          labour: 30,
+          overheads: 10,
+          margin: 20,
         ),
         isNull,
       );
+    });
+  });
+
+  group('AI gating', () {
+    for (final caps in [Caps.disabled, Caps.failing]) {
+      testWidgets('capabilities ${caps.name}: studio shows only the photo and '
+          'price tools and no AI wording at all', (tester) async {
+        final ai = FakeAi(caps);
+        await open(tester, ai);
+        expect(find.text('Listing Studio'), findsOneWidget);
+        expect(find.text('Photo touch-up'), findsWidgets);
+        expect(find.text('Price calculator'), findsOneWidget);
+        expectNoAiUi();
+
+        await tapVisible(tester, find.text('Price calculator'));
+        expectNoAiUi();
+        expect(ai.requests, isEmpty);
+      });
     }
-    expect(
-      suggestedListingPrice(
-        materials: -1,
-        labour: 30,
-        overheads: 10,
-        margin: 20,
-      ),
-      isNull,
-    );
+
+    testWidgets('while capabilities are still loading no AI UI flashes', (
+      tester,
+    ) async {
+      await open(tester, FakeAi(Caps.pending));
+      expectNoAiUi();
+      await tester.pump(const Duration(seconds: 5));
+      expectNoAiUi();
+    });
+
+    testWidgets('enabled: AI tools appear and listing text applies only when '
+        'used', (tester) async {
+      final ai = FakeAi(Caps.enabled);
+      ListingAssistantResult? result;
+      await open(tester, ai, result: (r) => result = r);
+      expect(find.text('AI listing text'), findsOneWidget);
+      expect(find.text('AI styled photo'), findsOneWidget);
+
+      await tapVisible(tester, find.text('AI listing text'));
+      final write = find.byKey(const Key('studio-ai-write'));
+      expect(tester.widget<FilledButton>(write).onPressed, isNull);
+      await tapVisible(tester, find.byType(CheckboxListTile));
+      await tapVisible(tester, write);
+      expect(ai.requests, hasLength(1));
+      expect(result, isNull);
+
+      final title = find.widgetWithText(TextField, 'Suggested title');
+      await tester.ensureVisible(title);
+      await tester.enterText(title, 'My approved bowl');
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Use this wording'));
+      expect(result?.title, 'My approved bowl');
+      expect(result?.description, 'A blue ceramic bowl, made by hand.');
+    });
+
+    testWidgets('an uncertain AI request keeps the same id on re-check', (
+      tester,
+    ) async {
+      final ai = FakeAi(Caps.enabled, failFirst: true);
+      await open(tester, ai, initialTool: StudioTool.aiWriting);
+      await tapVisible(tester, find.byType(CheckboxListTile));
+      await tapVisible(tester, find.byKey(const Key('studio-ai-write')));
+      expect(find.text('Check for my result'), findsOneWidget);
+      await tapVisible(tester, find.byKey(const Key('studio-ai-write')));
+      expect(ai.requests, hasLength(2));
+      expect(ai.requests[0], ai.requests[1]);
+    });
   });
-  testWidgets('unconfigured AI does not pretend to generate', (tester) async {
-    final ai = FakeAi(enabled: false);
-    await open(tester, ai);
-    expect(
-      find.textContaining("aren't available on your account yet"),
-      findsOneWidget,
-    );
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Suggest title & description'),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(ai.requests, isEmpty);
-  });
-  testWidgets('wording needs consent, supports edits, and applies explicitly', (
-    tester,
-  ) async {
-    final ai = FakeAi();
-    List<ListingAssistantResult>? result;
-    await open(tester, ai, result: (r) => result = r);
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Suggest title & description'),
-          )
-          .onPressed,
-      isNull,
-    );
-    await tapVisible(tester, find.byType(CheckboxListTile).first);
-    await tapVisible(tester, find.text('Suggest title & description'));
-    expect(result, isNull);
-    expect(ai.requests.length, 1);
-    final title = find.widgetWithText(TextField, 'Suggested title');
-    await tester.ensureVisible(title);
-    await tester.enterText(title, 'My approved bowl');
-    await tapVisible(tester, find.text('Use this wording'));
-    expect(result, isNull);
-    await tapVisible(tester, find.text('Done (1)'));
-    expect(result, hasLength(1));
-    expect(result!.single.title, 'My approved bowl');
-  });
-  testWidgets('uncertain requests keep the same ID and facts on retry', (
-    tester,
-  ) async {
-    final ai = FakeAi(failFirst: true);
-    await open(tester, ai);
-    await tapVisible(tester, find.byType(CheckboxListTile).first);
-    await tapVisible(tester, find.text('Suggest title & description'));
-    expect(find.text('Check existing result'), findsOneWidget);
-    await tapVisible(tester, find.text('Check existing result'));
-    expect(ai.requests.length, 2);
-    expect(ai.requests[0], ai.requests[1]);
-  });
-  testWidgets(
-    'pricing works offline on a small phone and applies only on confirmation',
-    (tester) async {
+
+  group('price calculator', () {
+    testWidgets('works offline on a small phone and returns the price', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(320, 568);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      List<ListingAssistantResult>? result;
-      await open(tester, FakeAi(enabled: false), result: (r) => result = r);
-      await tester.tap(find.text('Pricing'));
-      await tester.pumpAndSettle();
+      ListingAssistantResult? result;
+      await open(
+        tester,
+        FakeAi(Caps.disabled),
+        result: (r) => result = r,
+        initialTool: StudioTool.price,
+      );
+      expect(find.byKey(const Key('studio-price-empty')), findsOneWidget);
+      expect(find.textContaining('cost-based guide'), findsOneWidget);
+
       for (final entry in {
-        'Materials per item (R)': '60',
-        'Labour per item (R)': '30',
-        'Packaging & other costs (R)': '10',
-        'Target gross margin (%)': '50',
+        'Materials': '60',
+        'Your time': '30',
+        'Packaging & other costs': '10',
       }.entries) {
         final field = find.widgetWithText(TextField, entry.key);
         await tester.ensureVisible(field);
         await tester.enterText(field, entry.value);
       }
+      // Done on the keyboard, then pick a margin preset.
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
-      expect(result, isNull);
+      await tapVisible(tester, find.text('50%'));
+      expect(find.byKey(const Key('studio-price-result')), findsOneWidget);
+      expect(find.text('R200.00'), findsOneWidget);
+      expect(find.text('Your margin (50%)'), findsOneWidget);
       expect(tester.takeException(), isNull);
-      await tapVisible(tester, find.text('Use this price'));
       expect(result, isNull);
-      await tapVisible(tester, find.text('Done (1)'));
-      expect(result!.single.price, 200);
-    },
-  );
-  testWidgets('original and generated photos enlarge and apply separately', (
-    tester,
-  ) async {
-    final directory = Directory.systemTemp.createTempSync('artisan-photo-test');
-    addTearDown(() async {
-      PaintingBinding.instance.imageCache.clear();
-      PaintingBinding.instance.imageCache.clearLiveImages();
-      await tester.runAsync(() async {
-        for (var attempt = 0; attempt < 5; attempt++) {
-          try {
-            await directory.delete(recursive: true);
-            return;
-          } on FileSystemException {
-            if (attempt == 4) rethrow;
-            await Future<void>.delayed(const Duration(milliseconds: 100));
-          }
-        }
+
+      await tapVisible(tester, find.text('Use R200.00 as my price'));
+      expect(result?.price, 200);
+      expect(result?.photo, isNull);
+    });
+
+    testWidgets('invalid margin keeps the action disabled', (tester) async {
+      await open(tester, FakeAi(Caps.disabled), initialTool: StudioTool.price);
+      await tester.enterText(find.widgetWithText(TextField, 'Materials'), '10');
+      await tester.enterText(find.widgetWithText(TextField, 'Your time'), '0');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Packaging & other costs'),
+        '0',
+      );
+      await tester.enterText(find.widgetWithText(TextField, 'Margin'), '100');
+      await tester.pumpAndSettle();
+      expect(find.text('Enter your costs'), findsOneWidget);
+    });
+  });
+
+  group('first-run tip', () {
+    testWidgets('shows once, and stays dismissed', (tester) async {
+      await open(tester, FakeAi(Caps.disabled));
+      expect(find.byKey(const Key('studio-tip')), findsOneWidget);
+      await tapVisible(tester, find.byTooltip('Got it'));
+      expect(find.byKey(const Key('studio-tip')), findsNothing);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool(listingStudioTipDismissedKey), isTrue);
+
+      await tapVisible(tester, find.byTooltip('Back to your listing'));
+      await tapVisible(tester, find.text('Open studio'));
+      expect(find.text('Listing Studio'), findsOneWidget);
+      expect(find.byKey(const Key('studio-tip')), findsNothing);
+    });
+  });
+
+  group('composer AI caption button', () {
+    Future<void> pumpButton(WidgetTester tester, FakeAi ai) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          retry: (_, __) => null,
+          overrides: [
+            currentUserIdProvider.overrideWithValue('user'),
+            artisanAiServiceProvider.overrideWithValue(ai),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ComposerAiCaptionButton(
+                shopId: 'shop',
+                captionController: TextEditingController(text: 'My bowl'),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    for (final caps in [Caps.disabled, Caps.failing, Caps.pending]) {
+      testWidgets('renders nothing when capabilities are ${caps.name}', (
+        tester,
+      ) async {
+        await pumpButton(tester, FakeAi(caps));
+        expect(find.byKey(const Key('composer-polish-ai')), findsNothing);
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.byKey(const Key('composer-polish-ai')), findsNothing);
+        expect(find.textContaining('AI'), findsNothing);
       });
-    });
-    final file = File('${directory.path}/original.png')
-      ..writeAsBytesSync(pixel);
-    final ai = FakeAi();
-    List<ListingAssistantResult>? result;
-    await open(tester, ai, photo: file, result: (r) => result = r);
-    await tester.tap(find.text('Photos'));
-    await tester.pumpAndSettle();
-    await tapVisible(tester, find.byType(CheckboxListTile).last);
-    await tester.ensureVisible(find.text('Create styled photo'));
-    await tester.runAsync(() async {
-      await tester.tap(find.text('Create styled photo'));
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-    });
-    await tester.pumpAndSettle();
-    expect(result, isNull);
-    expect(file.readAsBytesSync(), pixel);
-    await tapVisible(
+    }
+
+    testWidgets('renders and polishes when AI listing is enabled', (
       tester,
-      find.bySemanticsLabel('Enlarge AI-styled result · tap to inspect'),
-    );
-    expect(find.byType(InteractiveViewer), findsOneWidget);
-    await tester.tap(find.byTooltip('Close photo'));
-    await tester.pumpAndSettle();
-    await tapVisible(tester, find.text('Add result to listing'));
-    expect(result, isNull);
-    await tapVisible(tester, find.text('Done (1)'));
-    expect(result!.single.photo, pixel);
+    ) async {
+      final ai = FakeAi(Caps.enabled);
+      await pumpButton(tester, ai);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer-polish-ai')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('composer-polish-ai')));
+      await tester.pumpAndSettle();
+      expect(ai.requests, hasLength(1));
+    });
   });
 }

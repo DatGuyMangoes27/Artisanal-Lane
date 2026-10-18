@@ -97,7 +97,7 @@ class CuratedCollectionScreen extends ConsumerWidget {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
                   child: Text(
-                    'A weekly edit of standout pieces from across Artisan Lane.',
+                    'Standout pieces featured by the Artisan Lane team.',
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       height: 1.5,

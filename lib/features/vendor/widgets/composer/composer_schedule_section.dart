@@ -19,6 +19,26 @@ String? composerScheduleError(DateTime? scheduledFor, {DateTime? now}) {
   return null;
 }
 
+/// What an edit should write to `scheduled_for`.
+///
+/// * A post that is already live keeps its go-live time (it can't be
+///   un-published by scheduling it again).
+/// * A still-scheduled post can be moved to another time, or switched to
+///   "post now", which goes live at [now] so it lands at the top of feeds
+///   instead of at its original creation time.
+({bool change, DateTime? value}) composerEditedSchedule({
+  required DateTime? original,
+  required DateTime? edited,
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  if (original == null || !original.isAfter(reference)) {
+    return (change: false, value: original);
+  }
+  if (edited == original) return (change: false, value: original);
+  return (change: true, value: edited ?? reference);
+}
+
 String composerFormatScheduleLabel(DateTime dateTime) {
   const months = [
     'Jan',

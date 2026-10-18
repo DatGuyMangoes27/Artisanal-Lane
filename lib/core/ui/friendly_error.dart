@@ -3,12 +3,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app/theme.dart';
+import '../../features/safety/content_filter.dart';
 
 /// Plain-language message for an error. Never shows raw exception text.
 String friendlyErrorMessage(
   Object? error, {
   String fallback = 'Something went wrong. Please try again.',
 }) {
+  // The server's community-guidelines language filter rejected the text.
+  final ugcMessage = ugcErrorMessage(error);
+  if (ugcMessage != null) return ugcMessage;
   if (error is SocketException || error is TimeoutException) {
     return "You're offline or the connection is slow. Check your connection and try again.";
   }

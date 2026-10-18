@@ -7,15 +7,60 @@ final artisanAiServiceProvider = Provider<ArtisanAiService>(
   (ref) => ArtisanAiService(ref.read(supabaseClientProvider)),
 );
 
+/// What the artisan-ai edge function says this account can actually do.
+/// Anything other than an explicit `true` counts as unavailable.
+class ArtisanAiCapabilities {
+  const ArtisanAiCapabilities({this.listing = false, this.image = false});
+
+  /// Nothing enabled. Used while unknown, on any failure, and when signed out.
+  static const none = ArtisanAiCapabilities();
+
+  factory ArtisanAiCapabilities.fromJson(Map<String, dynamic> json) =>
+      ArtisanAiCapabilities(
+        listing: json['listing'] == true,
+        image: json['image'] == true,
+      );
+
+  /// AI listing text (title & description) and AI caption polish.
+  final bool listing;
+
+  /// AI-styled product photos.
+  final bool image;
+
+  bool get any => listing || image;
+}
+
+/// Single source of truth for whether AI UI may be shown. Fails closed: an
+/// error, a missing session or an unexpected response all mean "hide AI".
+/// Callers must treat loading as disabled too, so AI UI never flashes.
+final artisanAiCapabilitiesProvider =
+    FutureProvider.autoDispose<ArtisanAiCapabilities>((ref) async {
+      if (ref.watch(currentUserIdProvider) == null) {
+        return ArtisanAiCapabilities.none;
+      }
+      try {
+        final caps = await ref.read(artisanAiServiceProvider).capabilities();
+        return ArtisanAiCapabilities.fromJson(caps);
+      } catch (_) {
+        return ArtisanAiCapabilities.none;
+      }
+    });
+
+/// Synchronous view of [artisanAiCapabilitiesProvider]: [ArtisanAiCapabilities.none]
+/// until the check has finished.
+ArtisanAiCapabilities watchArtisanAiCapabilities(WidgetRef ref) =>
+    ref.watch(artisanAiCapabilitiesProvider).value ??
+    ArtisanAiCapabilities.none;
+
 class ArtisanAiException implements Exception {
   final String code;
   const ArtisanAiException(this.code);
   String get message => switch (code) {
     'ai_not_enabled' || 'not_configured' =>
-      'AI is not enabled for this account yet. You can still use the price calculator.',
+      'This tool isn''t available right now. Your listing is unchanged.',
     'daily_limit_reached' =>
-      'The AI pilot limit has been reached. Please try again tomorrow.',
-    'sign_in_required' => 'Please sign in again before using AI.',
+      'You''ve reached today''s limit. Please try again tomorrow.',
+    'sign_in_required' => 'Please sign in again and reopen Listing Studio.',
     'provide_product_facts' =>
       'Add a few confirmed details about your product first.',
     'image_too_large' ||
@@ -31,7 +76,7 @@ class ArtisanAiException implements Exception {
       'Generation did not finish successfully. Your listing is unchanged.',
     'pending' =>
       'This request is still processing. Check its result before starting another.',
-    'shop_not_owned' => 'AI is available only for your own shop.',
+    'shop_not_owned' => 'This works only for your own shop.',
     _ =>
       'We could not confirm the result. Check again to avoid generating twice.',
   };

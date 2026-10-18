@@ -45,6 +45,8 @@ import '../features/buyer/screens/payment_methods_screen.dart';
 import '../features/buyer/screens/help_support_screen.dart';
 import '../features/buyer/screens/about_screen.dart';
 import '../features/buyer/screens/legal_doc_screen.dart';
+import '../features/safety/community_guidelines_content.dart';
+import '../features/safety/community_guidelines_screen.dart';
 import '../features/buyer/screens/saved_posts_screen.dart';
 import '../features/buyer/screens/gift_concierge_screen.dart';
 
@@ -141,7 +143,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path == '/login' ||
           path == '/register' ||
           path == '/forgot-password';
-      final isPublicLegalRoute = path == '/terms' || path == '/privacy';
+      final isPublicLegalRoute =
+          path == '/terms' ||
+          path == '/privacy' ||
+          path == communityGuidelinesRoute;
       final isRecoveryRoute = isPasswordRecoveryRoute(path);
 
       // Guests can browse home, search, products, shops, categories
@@ -216,6 +221,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/privacy',
         builder: (context, state) =>
             const LegalDocScreen(title: 'Privacy Policy', type: 'privacy'),
+      ),
+      GoRoute(
+        path: communityGuidelinesRoute,
+        builder: (context, state) => const CommunityGuidelinesScreen(),
       ),
       GoRoute(
         path: '/internal/creator-commerce',

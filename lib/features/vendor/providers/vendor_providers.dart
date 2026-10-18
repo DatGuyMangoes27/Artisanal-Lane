@@ -216,7 +216,9 @@ final vendorPostsProvider = FutureProvider<List<ShopPost>>((ref) async {
   final shop = await ref.watch(vendorShopProvider.future);
   if (shop == null) return [];
   final service = ref.read(supabaseServiceProvider);
-  return service.getShopPosts(shop.id);
+  // The maker's own list includes their scheduled and removed posts (RLS
+  // shows those to the shop only), so load a full page.
+  return service.getShopPosts(shop.id, limit: 100);
 });
 
 final vendorStationeryRequestsProvider =

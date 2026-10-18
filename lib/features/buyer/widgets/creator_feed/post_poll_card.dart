@@ -40,13 +40,21 @@ class PollResultsController extends AsyncNotifier<PollResults> {
     }
     if (optionIndex < votes.length) votes[optionIndex]++;
     state = AsyncData(PollResults(votes: votes, myVote: optionIndex));
+    final service = ref.read(supabaseServiceProvider);
     try {
-      await ref.read(supabaseServiceProvider).votePoll(postId, optionIndex);
-      return true;
+      await service.votePoll(postId, optionIndex);
     } catch (_) {
-      state = AsyncData(current);
+      if (ref.mounted) state = AsyncData(current);
       return false;
     }
+    // Swap the optimistic tally for the server's live counts (other people
+    // may have voted since this poll loaded). A failed refresh keeps the
+    // optimistic numbers, which already include this vote.
+    try {
+      final fresh = await service.getPollResults(postId);
+      if (ref.mounted) state = AsyncData(fresh);
+    } catch (_) {}
+    return true;
   }
 }
 
@@ -71,7 +79,10 @@ class PostPollCard extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: LinearProgressIndicator(minHeight: 3),
       ),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (_, _) => _PollLoadError(
+        message: "This poll couldn't be loaded.",
+        onRetry: () => ref.invalidate(postPollProvider(post.id)),
+      ),
       data: (poll) => poll == null
           ? const SizedBox.shrink()
           : _PollBody(post: post, poll: poll),
@@ -100,8 +111,12 @@ class _PollBody extends ConsumerWidget {
         .vote(index);
     if (!ok && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Couldn't record your vote. Please try again."),
+        SnackBar(
+          content: Text(
+            poll.isClosed
+                ? 'This poll has closed.'
+                : "Couldn't record your vote. Please try again.",
+          ),
         ),
       );
     }
@@ -133,13 +148,15 @@ class _PollBody extends ConsumerWidget {
                   _PollOptionButton(label: option, onTap: null),
               ],
             ),
-            error: (_, _) => const Text(
-              'Poll results could not be loaded.',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            error: (_, _) => _PollLoadError(
+              message: "Poll results couldn't be loaded.",
+              onRetry: () => ref.invalidate(pollResultsProvider(post.id)),
             ),
             data: (results) {
               final voted = results.myVote != null;
               final showResults = voted || closed || isOwner;
+              // Makers see live results but don't vote in their own poll.
+              final canVote = !closed && !isOwner;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -155,9 +172,9 @@ class _PollBody extends ConsumerWidget {
                                   ? results.votes[i]
                                   : 0,
                               selected: results.myVote == i,
-                              onTap: closed
-                                  ? null
-                                  : () => _vote(ref, context, i),
+                              onTap: canVote
+                                  ? () => _vote(ref, context, i)
+                                  : null,
                             )
                           : _PollOptionButton(
                               key: Key('poll-option-${post.id}-$i'),
@@ -166,11 +183,11 @@ class _PollBody extends ConsumerWidget {
                             ),
                     ),
                   Text(
-                    closed
-                        ? 'Poll closed'
-                        : results.total == 0
-                        ? 'Be the first to vote'
-                        : '${results.total} vote${results.total == 1 ? '' : 's'}',
+                    pollStatusLabel(
+                      poll: poll,
+                      totalVotes: results.total,
+                      isOwner: isOwner,
+                    ),
                     style: const TextStyle(
                       fontSize: 11,
                       color: AppTheme.textSecondary,
@@ -184,6 +201,54 @@ class _PollBody extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// The line under a poll: vote count, plus when it closes (or closed).
+String pollStatusLabel({
+  required PostPoll poll,
+  required int totalVotes,
+  bool isOwner = false,
+  DateTime? now,
+}) {
+  final votes = '$totalVotes vote${totalVotes == 1 ? '' : 's'}';
+  final reference = now ?? DateTime.now();
+  final closesAt = poll.closesAt;
+  if (closesAt != null && !closesAt.isAfter(reference)) {
+    return 'Poll closed · $votes';
+  }
+  return [
+    if (totalVotes == 0 && !isOwner) 'Be the first to vote' else votes,
+    if (closesAt != null)
+      'Ends in ${_pollTimeLeft(closesAt.difference(reference))}',
+  ].join(' · ');
+}
+
+String _pollTimeLeft(Duration left) {
+  if (left.inDays >= 1) return '${left.inDays}d';
+  if (left.inHours >= 1) return '${left.inHours}h';
+  return '${left.inMinutes < 1 ? 1 : left.inMinutes}m';
+}
+
+class _PollLoadError extends StatelessWidget {
+  const _PollLoadError({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+          ),
+        ),
+        TextButton(onPressed: onRetry, child: const Text('Retry')),
+      ],
+    ),
+  );
 }
 
 class _PollOptionButton extends StatelessWidget {

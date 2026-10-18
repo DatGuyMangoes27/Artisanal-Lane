@@ -29,6 +29,8 @@ import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../buyer/widgets/removed_post_banner.dart';
 import '../providers/vendor_providers.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
 
 enum _MediaKind { image, pendingImage, pendingVideo }
 
@@ -94,6 +96,9 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
   bool _commentsEnabled = true;
   bool _hideLikeCount = false;
   DateTime? _scheduledFor;
+
+  /// Edit only: the schedule the post had when it was loaded.
+  DateTime? _originalScheduledFor;
   final _pollQuestionController = TextEditingController();
   final List<TextEditingController> _pollOptionControllers = [
     TextEditingController(),
@@ -257,8 +262,9 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
                 'removed_reason': row['removed_reason'],
               }).removedMessage;
         _scheduledFor = row['scheduled_for'] is String
-            ? DateTime.tryParse(row['scheduled_for'] as String)
+            ? DateTime.tryParse(row['scheduled_for'] as String)?.toLocal()
             : null;
+        _originalScheduledFor = _scheduledFor;
         _format = parsePostFormat(row['format']);
         for (var i = 0; i < _media.length; i++) {
           _stepCaptionFor(_media[i]).text = i < stepCaptions.length
@@ -534,6 +540,13 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
     }
   }
 
+  /// New posts must be scheduled 10 minutes–60 days ahead. When editing, an
+  /// unchanged schedule is always fine (it may now be close or past).
+  String? get _scheduleError =>
+      _isEditing && _scheduledFor == _originalScheduledFor
+      ? null
+      : composerScheduleError(_scheduledFor);
+
   String _requireEditorAccount() {
     if (!mounted ||
         _accountChanged ||
@@ -593,16 +606,17 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
     return PollDraft(
       question: _pollQuestionController.text.trim(),
       options: options,
-      closesAt: _pollDuration.duration == null
-          ? null
-          : DateTime.now().add(_pollDuration.duration!),
+      closesAt: composerPollClosesAt(
+        duration: _pollDuration.duration,
+        scheduledFor: _scheduledFor,
+      ),
     );
   }
 
   Future<void> _save() async {
     if (_isLoading || _removedMessage != null) return;
     final formatError = _formatValidationError();
-    final scheduleError = composerScheduleError(_scheduledFor);
+    final scheduleError = _scheduleError;
     final error = formatError ?? scheduleError;
     if (error != null) {
       setState(() => _validationError = error);
@@ -615,6 +629,26 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
       return;
     }
     setState(() => _validationError = null);
+
+    // Community rules: filter text up front, and make sure the maker has
+    // agreed to the guidelines before anything is published.
+    final textError = validateUgcText([
+      _captionController.text,
+      _pollQuestionController.text,
+      for (final option in _pollOptionControllers) option.text,
+    ]);
+    if (textError != null) {
+      setState(() => _validationError = textError);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(textError, style: GoogleFonts.poppins()),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
+    }
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
 
     setState(() => _isLoading = true);
     try {
@@ -669,13 +703,18 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
       setState(() => _isPublishing = true);
       if (_isEditing) {
         _requireEditorAccount();
+        final schedule = composerEditedSchedule(
+          original: _originalScheduledFor,
+          edited: _scheduledFor,
+        );
         await service.updateShopPost(widget.postId!, {
           'caption': _captionController.text.trim(),
           'media_urls': mediaUrls,
           if (creatorCommerceEnabled) 'product_ids': _productIds,
           'comments_enabled': _commentsEnabled,
           'hide_like_count': _hideLikeCount,
-          'scheduled_for': _scheduledFor?.toUtc().toIso8601String(),
+          if (schedule.change)
+            'scheduled_for': schedule.value?.toUtc().toIso8601String(),
           'format': _format.name,
           'step_captions': _stepCaptionsInOrder,
         });
@@ -729,9 +768,10 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _submissionStarted
-                  ? "Couldn't finish posting. Your post is saved — tap Post to try again."
-                  : friendlyErrorMessage(e),
+              ugcErrorMessage(e) ??
+                  (_submissionStarted
+                      ? "Couldn't finish posting. Your post is saved — tap Post to try again."
+                      : friendlyErrorMessage(e)),
             ),
             backgroundColor: AppTheme.error,
           ),
@@ -791,7 +831,10 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
           media: _media
               .map(
                 (item) => item.file != null
-                    ? ComposerPreviewMedia.file(item.file!)
+                    ? ComposerPreviewMedia.file(
+                        item.file!,
+                        isVideo: item.isVideo,
+                      )
                     : ComposerPreviewMedia.url(item.url),
               )
               .toList(),
@@ -1180,7 +1223,9 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Uploading photos...',
+                                  _media.any((m) => m.isVideo)
+                                      ? 'Uploading media...'
+                                      : 'Uploading photos...',
                                   style: GoogleFonts.poppins(
                                     fontSize: 12,
                                     color: AppTheme.baobab,
@@ -1325,7 +1370,7 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
                         if (scheduleForEditableInEdit)
                           ComposerScheduleSection(
                             scheduledFor: _scheduledFor,
-                            errorText: composerScheduleError(_scheduledFor),
+                            errorText: _scheduleError,
                             onChanged: (value) => setState(() {
                               _scheduledFor = value;
                               _dirty = true;

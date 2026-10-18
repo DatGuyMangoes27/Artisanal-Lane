@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../services/supabase_service.dart';
 import '../../../widgets/african_patterns.dart';
+import '../../safety/community_guidelines_content.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -343,6 +344,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: AppTheme.textHint,
                     ),
                     onTap: () => context.push('/profile/settings/blocked'),
+                  ),
+                  _Divider(),
+                  _SettingsTile(
+                    icon: Icons.groups_outlined,
+                    title: 'Community guidelines',
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppTheme.textHint,
+                    ),
+                    onTap: () => context.push(communityGuidelinesRoute),
+                  ),
+                  _Divider(),
+                  _SettingsTile(
+                    icon: Icons.flag_outlined,
+                    title: 'Report a problem',
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppTheme.textHint,
+                    ),
+                    onTap: () => context.push('/profile/help'),
                   ),
                 ],
               ),

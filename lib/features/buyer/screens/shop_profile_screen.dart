@@ -22,6 +22,9 @@ import '../providers/buyer_providers.dart';
 import '../providers/creator_parity_providers.dart';
 import '../utils/shop_profile_actions.dart';
 import '../widgets/content_report_sheet.dart';
+import '../../safety/community_guidelines_gate.dart';
+import '../../safety/content_filter.dart';
+import '../../safety/review_safety.dart';
 import '../../vendor/services/creator_post_media.dart';
 import '../../../services/content_view_session.dart';
 
@@ -367,7 +370,13 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         ),
                       ),
                       reviewsAsync.when(
-                        data: (reviews) {
+                        data: (allReviews) {
+                          final reviews = withoutBlockedAuthors(
+                            allReviews,
+                            ref.watch(blockedUserIdsProvider).value ??
+                                const <String>{},
+                            (ShopReview review) => review.buyerId,
+                          );
                           if (reviews.isEmpty) {
                             return const SliverToBoxAdapter(
                               child: Padding(
@@ -387,14 +396,27 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                               delegate: SliverChildBuilderDelegate(
                                 (context, index) => Padding(
                                   padding: const EdgeInsets.only(bottom: 14),
-                                  child: BuyerReviewCard(
-                                    avatarUrl: reviews[index].buyerAvatarUrl,
-                                    authorName:
-                                        reviews[index].buyerDisplayName ??
-                                        'Verified buyer',
-                                    rating: reviews[index].rating,
-                                    reviewText: reviews[index].reviewText,
-                                    createdAt: reviews[index].createdAt,
+                                  child: Column(
+                                    children: [
+                                      BuyerReviewCard(
+                                        avatarUrl:
+                                            reviews[index].buyerAvatarUrl,
+                                        authorName:
+                                            reviews[index].buyerDisplayName ??
+                                            'Verified buyer',
+                                        rating: reviews[index].rating,
+                                        reviewText: reviews[index].reviewText,
+                                        createdAt: reviews[index].createdAt,
+                                      ),
+                                      ReviewSafetyActions(
+                                        reviewId: reviews[index].id,
+                                        authorId: reviews[index].buyerId,
+                                        authorName:
+                                            reviews[index].buyerDisplayName ??
+                                            'this buyer',
+                                        isProductReview: false,
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 childCount: reviews.length,
@@ -622,12 +644,23 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
     }
 
     if (!mounted) return;
-    final draft = await showReviewComposerSheet(
+    if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
+    var rating = existingReview?.rating ?? 5;
+    final draft = await composeCleanReview<ReviewDraft>(
       context,
-      title: existingReview != null ? 'Edit shop review' : 'Review this shop',
-      subtitle: shop.name,
-      initialRating: existingReview?.rating ?? 5,
-      initialReviewText: existingReview?.reviewText ?? '',
+      initialText: existingReview?.reviewText ?? '',
+      textOf: (draft) {
+        rating = draft.rating;
+        return draft.reviewText;
+      },
+      openComposer: (text) => showReviewComposerSheet(
+        context,
+        title: existingReview != null ? 'Edit shop review' : 'Review this shop',
+        subtitle: shop.name,
+        initialRating: rating,
+        initialReviewText: text,
+      ),
     );
 
     if (draft == null) {
@@ -666,7 +699,8 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            friendlyErrorMessage(error, fallback: 'Could not save review.'),
+            ugcErrorMessage(error) ??
+                friendlyErrorMessage(error, fallback: 'Could not save review.'),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,

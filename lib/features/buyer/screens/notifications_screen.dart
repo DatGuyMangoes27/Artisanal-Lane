@@ -70,9 +70,13 @@ class _NotificationsList extends ConsumerWidget {
     Widget tileFor(AppNotification notification) => _NotificationTile(
       notification: notification,
       onTap: () async {
-        await ref
-            .read(supabaseServiceProvider)
-            .markNotificationRead(notification.id);
+        // Marking read is best effort: a failed write must not stop the
+        // notification from opening what it points to.
+        try {
+          await ref
+              .read(supabaseServiceProvider)
+              .markNotificationRead(notification.id);
+        } catch (_) {}
         final route = routeForPushNotification(notification.data);
         if (route != null && context.mounted) {
           context.push(route);

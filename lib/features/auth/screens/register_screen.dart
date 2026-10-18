@@ -12,6 +12,7 @@ import '../../../services/meta_app_events_service.dart';
 import '../providers/auth_providers.dart';
 import '../utils/social_auth_error_messages.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../safety/community_guidelines_content.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -383,6 +384,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   isLoading: _isLoading,
                   onPressed: _isLoading ? null : _signUp,
                 ),
+                const SizedBox(height: 14),
+                const _SignUpAgreement(),
                 const SizedBox(height: 24),
                 _buildDivider(),
                 const SizedBox(height: 24),
@@ -607,6 +610,48 @@ class _ErrorBanner extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Terms acceptance shown with sign-up (covers email, Google and Apple sign-up).
+class _SignUpAgreement extends StatelessWidget {
+  const _SignUpAgreement();
+
+  @override
+  Widget build(BuildContext context) {
+    final base = GoogleFonts.poppins(
+      fontSize: 12,
+      height: 1.5,
+      color: AppTheme.textSecondary,
+    );
+    Widget link(String label, String route) => GestureDetector(
+      onTap: () => context.push(route),
+      child: Text(
+        label,
+        style: base.copyWith(
+          color: AppTheme.terracotta,
+          fontWeight: FontWeight.w600,
+          decoration: TextDecoration.underline,
+          decorationColor: AppTheme.terracotta,
+        ),
+      ),
+    );
+    return Wrap(
+      key: const Key('signup-terms-agreement'),
+      alignment: WrapAlignment.center,
+      children: [
+        Text('By creating an account you agree to our ', style: base),
+        link('Terms', '/terms'),
+        Text(', ', style: base),
+        link('Privacy Policy', '/privacy'),
+        Text(' and ', style: base),
+        link('Community Guidelines', communityGuidelinesRoute),
+        Text(
+          '. There is no tolerance for objectionable content or abusive users.',
+          style: base,
+        ),
+      ],
     );
   }
 }

@@ -40,7 +40,8 @@ class _BeforeAfterCompareState extends State<BeforeAfterCompare> {
   Widget build(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
-      child: SizedBox(
+      child: Container(
+        color: AppTheme.bone,
         height: widget.height,
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -125,7 +126,7 @@ class _BeforeAfterCompareState extends State<BeforeAfterCompare> {
       text,
       style: const TextStyle(
         color: Colors.white,
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: FontWeight.w600,
       ),
     ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../widgets/gradient_fab.dart';
 import '../../../models/models.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -71,7 +72,11 @@ class VendorPostsScreen extends ConsumerWidget {
             strokeWidth: 2,
           ),
         ),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => ErrorRetryView(
+          error: e,
+          title: "Couldn't load your posts",
+          onRetry: () => ref.invalidate(vendorPostsProvider),
+        ),
       ),
     );
   }
@@ -279,8 +284,26 @@ class VendorPostsScreen extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx);
+              final messenger = ScaffoldMessenger.maybeOf(context);
               final service = ref.read(supabaseServiceProvider);
-              await service.deleteShopPost(postId);
+              try {
+                await service.deleteShopPost(postId);
+                messenger?.showSnackBar(
+                  const SnackBar(content: Text('Post deleted')),
+                );
+              } catch (error) {
+                messenger?.showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      friendlyErrorMessage(
+                        error,
+                        fallback: "Couldn't delete this post. Please try again.",
+                      ),
+                    ),
+                    backgroundColor: AppTheme.error,
+                  ),
+                );
+              }
               ref.invalidate(vendorPostsProvider);
             },
             child: Text(

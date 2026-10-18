@@ -184,6 +184,12 @@ void main() {
       expect(find.text('Shop the lane'), findsOneWidget);
       expect(find.text('Categories'), findsOneWidget);
       expect(find.text('Artisans'), findsOneWidget);
+      expect(find.byKey(const Key('shop-gift-finder-banner')), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('Handmade bowl with a long title'),
+        120,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Handmade bowl with a long title'), findsOneWidget);
       expect(find.text('Handmade vase with a long title'), findsNothing);
       expect(tester.takeException(), isNull);

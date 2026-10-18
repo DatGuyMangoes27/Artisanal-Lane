@@ -9,10 +9,15 @@ import 'composer_schedule_section.dart';
 /// A single preview media item: either a local file still being uploaded or
 /// an already-hosted url.
 class ComposerPreviewMedia {
-  const ComposerPreviewMedia.file(this.file) : url = null;
-  const ComposerPreviewMedia.url(this.url) : file = null;
+  const ComposerPreviewMedia.file(this.file, {this.isVideo = false})
+    : url = null;
+  const ComposerPreviewMedia.url(this.url) : file = null, isVideo = false;
   final File? file;
   final String? url;
+
+  /// A local video file, shown as a video tile rather than decoded as a
+  /// photo.
+  final bool isVideo;
 }
 
 class ComposerPreviewPoll {
@@ -330,18 +335,18 @@ class _PreviewMedia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.file != null) {
+    if (item.file != null && !item.isVideo) {
       return Image.file(item.file!, fit: BoxFit.cover);
     }
     final url = item.url;
-    if (url == null || url.trim().isEmpty) {
+    if (!item.isVideo && (url == null || url.trim().isEmpty)) {
       return Container(
         color: AppTheme.bone,
         alignment: Alignment.center,
         child: const Icon(Icons.photo_outlined, color: AppTheme.textHint),
       );
     }
-    if (!url.startsWith('http')) {
+    if (item.isVideo || !url!.startsWith('http')) {
       // A private video marker or other non-displayable reference.
       return Container(
         color: AppTheme.indigo,

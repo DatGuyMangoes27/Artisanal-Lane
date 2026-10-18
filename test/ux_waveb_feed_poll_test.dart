@@ -151,7 +151,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Poll closed'), findsOneWidget);
+    expect(find.text('Poll closed · 10 votes'), findsOneWidget);
     expect(find.textContaining('40%'), findsOneWidget);
     await tester.tap(find.text('Matte'));
     await tester.pumpAndSettle();

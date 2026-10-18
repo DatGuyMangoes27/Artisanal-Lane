@@ -26,6 +26,19 @@ class FakeSupabaseService implements SupabaseService {
   Future<void> votePoll(String postId, int optionIndex) async {
     if (voteFails) throw StateError('network');
     voteCalls.add((postId, optionIndex));
+    // Behave like get_poll_results after the write: one vote per person,
+    // changing a vote moves it.
+    final current = pollResultsByPostId[postId];
+    if (current == null) return;
+    final votes = List<int>.from(current.votes);
+    if (current.myVote != null && current.myVote! < votes.length) {
+      votes[current.myVote!]--;
+    }
+    if (optionIndex < votes.length) votes[optionIndex]++;
+    pollResultsByPostId[postId] = PollResults(
+      votes: votes,
+      myVote: optionIndex,
+    );
   }
 
   @override

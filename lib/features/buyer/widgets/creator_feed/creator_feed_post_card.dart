@@ -774,6 +774,15 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
   void initState() {
     super.initState();
     _resolvedUrl = _isPrivate ? null : widget.raw;
+    // A card rebuilt while its post is already the active one (e.g. scrolled
+    // back into view) gets no change notification, so start it here instead
+    // of leaving it on a spinner.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted &&
+          ref.read(activeFeedVideoPostIdProvider) == widget.postId) {
+        _activate();
+      }
+    });
   }
 
   @override

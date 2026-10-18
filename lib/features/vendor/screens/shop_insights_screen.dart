@@ -10,6 +10,7 @@ import '../../../core/ui/friendly_error.dart';
 import '../../../models/creator_parity.dart';
 import '../../../models/shop_post.dart';
 import '../../../widgets/skeleton.dart';
+import '../../auth/providers/auth_providers.dart' show currentUserIdProvider;
 import '../../buyer/providers/buyer_providers.dart'
     show supabaseServiceProvider;
 import '../widgets/workspace/workspace_header.dart';
@@ -17,17 +18,17 @@ import '../widgets/workspace/workspace_header.dart';
 const _insightsPeriods = [7, 30, 90];
 
 /// The signed-in maker's own performance summary, for the chosen period.
-final shopInsightsProvider = FutureProvider.family<ShopInsights?, int>((
-  ref,
-  days,
-) {
-  return ref.read(supabaseServiceProvider).getShopInsights(days: days);
-});
+final shopInsightsProvider = FutureProvider.autoDispose
+    .family<ShopInsights?, int>((ref, days) {
+      // Reload for whoever is signed in; never show another account's shop.
+      ref.watch(currentUserIdProvider);
+      return ref.read(supabaseServiceProvider).getShopInsights(days: days);
+    });
 
 /// Fetches the shop_posts rows behind a maker's "Top posts" list, in the
 /// same order as [ShopInsights.topPosts].
-final _topPostsProvider =
-    FutureProvider.family<List<ShopPost>, List<({String postId, int views})>>((
+final _topPostsProvider = FutureProvider.autoDispose
+    .family<List<ShopPost>, List<({String postId, int views})>>((
       ref,
       topPosts,
     ) async {
@@ -69,7 +70,12 @@ class _ShopInsightsScreenState extends ConsumerState<ShopInsightsScreen> {
         child: RefreshIndicator(
           color: AppTheme.terracotta,
           onRefresh: () async {
-            ref.invalidate(shopInsightsProvider(_days));
+            try {
+              ref.invalidate(shopInsightsProvider(_days));
+              await ref.read(shopInsightsProvider(_days).future);
+            } catch (_) {
+              // The error state below explains the failure and offers retry.
+            }
           },
           child: ListView(
             padding: EdgeInsets.zero,
@@ -282,7 +288,28 @@ class _InsightsBody extends ConsumerWidget {
                   padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Center(child: CircularProgressIndicator()),
                 ),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (_, __) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "Your top posts couldn't be loaded.",
+                          style: GoogleFonts.poppins(
+                            fontSize: 13,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => ref.invalidate(
+                          _topPostsProvider(insights.topPosts),
+                        ),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),
