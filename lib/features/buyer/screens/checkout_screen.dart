@@ -937,472 +937,478 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         ),
         centerTitle: true,
       ),
-      body: cartAsync.when(
-        data: (items) {
-          if (items.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: AppTheme.bone.withValues(alpha: 0.6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.shopping_bag_outlined,
-                        size: 30,
-                        color: AppTheme.textHint,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Your basket is empty',
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add something handmade before you check out.',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    OutlinedButton(
-                      onPressed: () => context.go('/home'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.terracotta,
-                        side: const BorderSide(color: AppTheme.terracotta),
-                        minimumSize: const Size(0, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(26),
+      body: _KeyboardDoneArea(
+        child: cartAsync.when(
+          data: (items) {
+            if (items.isEmpty) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: AppTheme.bone.withValues(alpha: 0.6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.shopping_bag_outlined,
+                          size: 30,
+                          color: AppTheme.textHint,
                         ),
                       ),
-                      child: Text(
-                        'Start shopping',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
+                      const SizedBox(height: 20),
+                      Text(
+                        'Your basket is empty',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 20,
                           fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        'Add something handmade before you check out.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      OutlinedButton(
+                        onPressed: () => context.go('/home'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.terracotta,
+                          side: const BorderSide(color: AppTheme.terracotta),
+                          minimumSize: const Size(0, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(26),
+                          ),
+                        ),
+                        child: Text(
+                          'Start shopping',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              );
+            }
+
+            final groups = _groups;
+            final optionsByShop = <String, List<ShippingOption>>{};
+            final shippingByShop = <String, double>{};
+            for (final group in groups) {
+              final shopId = group.shopId;
+              // Combined shipping is a per-shop setting.
+              final combinedShippingEnabled = shopId.isEmpty
+                  ? true
+                  : ref
+                            .watch(shopDetailProvider(shopId))
+                            .asData
+                            ?.value
+                            .combinedShippingEnabled ??
+                        true;
+              final bobGoAvailable =
+                  shopId.isNotEmpty &&
+                  (ref
+                          .watch(bobGoShopAvailabilityProvider(shopId))
+                          .asData
+                          ?.value ??
+                      false);
+              final bobGoRate = _bobGoByShop[shopId]?.selectedRate;
+              final bobGoReady = _bobGoStatus(shopId) == BobGoQuoteStatus.ready;
+              optionsByShop[shopId] = [
+                ...group.availableShippingOptions,
+                if (bobGoAvailable)
+                  ShippingOption(
+                    key: bobGoShippingKey,
+                    enabled: true,
+                    price: bobGoRate?.amount ?? 0,
+                  ),
+              ];
+              shippingByShop[shopId] = shopShippingCost(
+                group: group,
+                methodKey: _methodFor(shopId),
+                combinedShippingEnabled: combinedShippingEnabled,
+                bobGoAmount: bobGoReady ? bobGoRate!.amount : 0,
+              );
+            }
+            _initSelections(optionsByShop);
+
+            final totals = calculateShopTotals(
+              groups: groups,
+              shippingByShop: shippingByShop,
+              isGift: isGift,
+              discountByShop: _discountByShop,
+            );
+
+            _stickyPayBar = _buildStickyPayBar(
+              total: totals.total,
+              onPressed: () => _submitCheckout(
+                items: items,
+                totals: totals,
+                shippingByShop: shippingByShop,
+                optionsByShop: optionsByShop,
               ),
             );
-          }
 
-          final groups = _groups;
-          final optionsByShop = <String, List<ShippingOption>>{};
-          final shippingByShop = <String, double>{};
-          for (final group in groups) {
-            final shopId = group.shopId;
-            // Combined shipping is a per-shop setting.
-            final combinedShippingEnabled = shopId.isEmpty
-                ? true
-                : ref
-                          .watch(shopDetailProvider(shopId))
-                          .asData
-                          ?.value
-                          .combinedShippingEnabled ??
-                      true;
-            final bobGoAvailable =
-                shopId.isNotEmpty &&
-                (ref
-                        .watch(bobGoShopAvailabilityProvider(shopId))
-                        .asData
-                        ?.value ??
-                    false);
-            final bobGoRate = _bobGoByShop[shopId]?.selectedRate;
-            final bobGoReady = _bobGoStatus(shopId) == BobGoQuoteStatus.ready;
-            optionsByShop[shopId] = [
-              ...group.availableShippingOptions,
-              if (bobGoAvailable)
-                ShippingOption(
-                  key: bobGoShippingKey,
-                  enabled: true,
-                  price: bobGoRate?.amount ?? 0,
-                ),
-            ];
-            shippingByShop[shopId] = shopShippingCost(
-              group: group,
-              methodKey: _methodFor(shopId),
-              combinedShippingEnabled: combinedShippingEnabled,
-              bobGoAmount: bobGoReady ? bobGoRate!.amount : 0,
-            );
-          }
-          _initSelections(optionsByShop);
+            return SafeArea(
+              bottom: false,
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: _submitAttempted
+                      ? AutovalidateMode.onUserInteraction
+                      : AutovalidateMode.disabled,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle(addressTitle),
+                      const SizedBox(height: 12),
+                      if (requiresShippingAddress) ...[
+                        _buildInfoNote(
+                          'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
+                        ),
+                        const SizedBox(height: 24),
+                      ] else ...[
+                        _buildInfoNote(
+                          'We only need your name and phone number for this collection method. No delivery address is required.',
+                        ),
+                        const SizedBox(height: 24),
+                      ],
 
-          final totals = calculateShopTotals(
-            groups: groups,
-            shippingByShop: shippingByShop,
-            isGift: isGift,
-            discountByShop: _discountByShop,
-          );
-
-          _stickyPayBar = _buildStickyPayBar(
-            total: totals.total,
-            onPressed: () => _submitCheckout(
-              items: items,
-              totals: totals,
-              shippingByShop: shippingByShop,
-              optionsByShop: optionsByShop,
-            ),
-          );
-
-          return SafeArea(
-            bottom: false,
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Form(
-                key: _formKey,
-                autovalidateMode: _submitAttempted
-                    ? AutovalidateMode.onUserInteraction
-                    : AutovalidateMode.disabled,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildSectionTitle(addressTitle),
-                    const SizedBox(height: 12),
-                    if (requiresShippingAddress) ...[
-                      _buildInfoNote(
-                        'Orders can be placed from abroad, but delivery addresses must be within South Africa.',
-                      ),
-                      const SizedBox(height: 24),
-                    ] else ...[
-                      _buildInfoNote(
-                        'We only need your name and phone number for this collection method. No delivery address is required.',
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    _buildTextField(
-                      key: _fullNameFieldKey,
-                      label: nameLabel,
-                      controller: _nameController,
-                      focusNode: _nameFocusNode,
-                    ),
-                    if (requiresShippingAddress) ...[
-                      const SizedBox(height: 16),
                       _buildTextField(
-                        key: _streetFieldKey,
-                        label: 'Street Address',
-                        controller: _streetController,
-                        focusNode: _streetFocusNode,
+                        key: _fullNameFieldKey,
+                        label: nameLabel,
+                        controller: _nameController,
+                        focusNode: _nameFocusNode,
                       ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildTextField(
-                              key: _cityFieldKey,
-                              label: 'City',
-                              controller: _cityController,
-                              focusNode: _cityFocusNode,
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: _buildTextField(
-                              key: _postalFieldKey,
-                              label: 'Postal Code',
-                              controller: _postalController,
-                              keyboardType: TextInputType.number,
-                              focusNode: _postalFocusNode,
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_usesBobGo) ...[
+                      if (requiresShippingAddress) ...[
                         const SizedBox(height: 16),
                         _buildTextField(
-                          key: _suburbFieldKey,
-                          label: 'Suburb',
-                          controller: _suburbController,
-                          focusNode: _suburbFocusNode,
-                          onChanged: (_) => setState(() {}),
+                          key: _streetFieldKey,
+                          label: 'Street Address',
+                          controller: _streetController,
+                          focusNode: _streetFocusNode,
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildTextField(
+                                key: _cityFieldKey,
+                                label: 'City',
+                                controller: _cityController,
+                                focusNode: _cityFocusNode,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildTextField(
+                                key: _postalFieldKey,
+                                label: 'Postal Code',
+                                controller: _postalController,
+                                keyboardType: TextInputType.number,
+                                focusNode: _postalFocusNode,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_usesBobGo) ...[
+                          const SizedBox(height: 16),
+                          _buildTextField(
+                            key: _suburbFieldKey,
+                            label: 'Suburb',
+                            controller: _suburbController,
+                            focusNode: _suburbFocusNode,
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        _buildDropdownField(
+                          key: _provinceFieldKey,
+                          label: 'Province',
+                          value: _selectedProvince,
+                          items: _saProvinces,
+                          onChanged: (value) =>
+                              setState(() => _selectedProvince = value),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildStaticField(
+                          label: 'Country',
+                          value: 'South Africa',
                         ),
                       ],
                       const SizedBox(height: 16),
-                      _buildDropdownField(
-                        key: _provinceFieldKey,
-                        label: 'Province',
-                        value: _selectedProvince,
-                        items: _saProvinces,
-                        onChanged: (value) =>
-                            setState(() => _selectedProvince = value),
+                      _buildTextField(
+                        key: _phoneFieldKey,
+                        label: phoneLabel,
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        prefixIcon: Icons.phone_outlined,
+                        hintText: 'Include country code if needed',
+                        focusNode: _phoneFocusNode,
                       ),
-                      const SizedBox(height: 16),
-                      _buildStaticField(
-                        label: 'Country',
-                        value: 'South Africa',
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    _buildTextField(
-                      key: _phoneFieldKey,
-                      label: phoneLabel,
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      prefixIcon: Icons.phone_outlined,
-                      hintText: 'Include country code if needed',
-                      focusNode: _phoneFocusNode,
-                    ),
 
-                    const SizedBox(height: 32),
-                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                    const SizedBox(height: 32),
+                      const SizedBox(height: 32),
+                      const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      const SizedBox(height: 32),
 
-                    Container(
-                      key: _shippingSectionKey,
-                      child: _buildSectionTitle(
-                        _isMultiShop ? 'Delivery' : 'Shipping Method',
+                      Container(
+                        key: _shippingSectionKey,
+                        child: _buildSectionTitle(
+                          _isMultiShop ? 'Delivery' : 'Shipping Method',
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_isMultiShop) ...[
                       const SizedBox(height: 8),
-                      _buildInfoNote(
-                        'Your basket has items from ${groups.length} shops. '
-                        'Each shop sends its own parcel, so choose delivery '
-                        'for each one. You still pay once for everything.',
-                      ),
+                      if (_isMultiShop) ...[
+                        const SizedBox(height: 8),
+                        _buildInfoNote(
+                          'Your basket has items from ${groups.length} shops. '
+                          'Each shop sends its own parcel, so choose delivery '
+                          'for each one. You still pay once for everything.',
+                        ),
+                        const SizedBox(height: 24),
+                        for (var index = 0; index < groups.length; index++) ...[
+                          if (index > 0) ...[
+                            Divider(
+                              height: 1,
+                              color: AppTheme.sand.withValues(alpha: 0.4),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                          _buildShopDeliverySection(
+                            groups[index],
+                            optionsByShop[groups[index].shopId] ?? const [],
+                          ),
+                        ],
+                      ] else
+                        ..._buildShopShippingOptions(
+                          groups.first,
+                          optionsByShop[groups.first.shopId] ?? const [],
+                        ),
+
+                      const SizedBox(height: 32),
+                      const Divider(height: 1, color: Color(0xFFEEEEEE)),
+                      const SizedBox(height: 32),
+
+                      _buildSectionTitle('Order Summary'),
                       const SizedBox(height: 24),
-                      for (var index = 0; index < groups.length; index++) ...[
-                        if (index > 0) ...[
-                          Divider(
-                            height: 1,
-                            color: AppTheme.sand.withValues(alpha: 0.4),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: AppTheme.sand.withValues(alpha: 0.3),
                           ),
-                          const SizedBox(height: 24),
-                        ],
-                        _buildShopDeliverySection(
-                          groups[index],
-                          optionsByShop[groups[index].shopId] ?? const [],
                         ),
-                      ],
-                    ] else
-                      ..._buildShopShippingOptions(
-                        groups.first,
-                        optionsByShop[groups.first.shopId] ?? const [],
-                      ),
-
-                    const SizedBox(height: 32),
-                    const Divider(height: 1, color: Color(0xFFEEEEEE)),
-                    const SizedBox(height: 32),
-
-                    _buildSectionTitle('Order Summary'),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                        border: Border.all(
-                          color: AppTheme.sand.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: TextFormField(
-                                  controller: _couponController,
-                                  textCapitalization:
-                                      TextCapitalization.characters,
-                                  maxLength: 32,
-                                  onChanged: (value) {
-                                    final normalized = value
-                                        .trim()
-                                        .toUpperCase();
-                                    if (_appliedCouponCode != null &&
-                                        normalized != _appliedCouponCode) {
-                                      setState(_clearAppliedCoupon);
-                                    } else if (_couponError != null) {
-                                      setState(() => _couponError = null);
-                                    }
-                                  },
-                                  decoration: InputDecoration(
-                                    labelText: 'Discount code (optional)',
-                                    hintText: 'Enter shop code',
-                                    counterText: '',
-                                    prefixIcon: const Icon(Icons.sell_outlined),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  style: GoogleFonts.poppins(fontSize: 14),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              SizedBox(
-                                height: 56,
-                                child: FilledButton(
-                                  onPressed: _isApplyingCoupon
-                                      ? null
-                                      : () => _applyCoupon(
-                                          shippingByShop: shippingByShop,
-                                          isGift: isGift,
-                                        ),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: AppTheme.terracotta,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: _isApplyingCoupon
-                                      ? const SizedBox(
-                                          width: 18,
-                                          height: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        )
-                                      : const Text('Apply'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          if (_couponError != null)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                _couponError!,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: AppTheme.error,
-                                ),
-                              ),
-                            )
-                          else if (_appliedCouponCode != null)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEAF7EE),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.check_circle_outline,
-                                    size: 18,
-                                    color: Color(0xFF247A3D),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '$_appliedCouponCode applied — you save R${_discountAmount.toStringAsFixed(2)}',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF247A3D),
+                        child: Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _couponController,
+                                    textCapitalization:
+                                        TextCapitalization.characters,
+                                    maxLength: 32,
+                                    onChanged: (value) {
+                                      final normalized = value
+                                          .trim()
+                                          .toUpperCase();
+                                      if (_appliedCouponCode != null &&
+                                          normalized != _appliedCouponCode) {
+                                        setState(_clearAppliedCoupon);
+                                      } else if (_couponError != null) {
+                                        setState(() => _couponError = null);
+                                      }
+                                    },
+                                    decoration: InputDecoration(
+                                      labelText: 'Discount code (optional)',
+                                      hintText: 'Enter shop code',
+                                      counterText: '',
+                                      prefixIcon: const Icon(
+                                        Icons.sell_outlined,
+                                      ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
                                       ),
                                     ),
+                                    style: GoogleFonts.poppins(fontSize: 14),
                                   ),
-                                ],
-                              ),
-                            )
-                          else
-                            Text(
-                              'Apply the code to confirm the saving before payment.',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                color: AppTheme.textHint,
-                              ),
+                                ),
+                                const SizedBox(width: 10),
+                                SizedBox(
+                                  height: 56,
+                                  child: FilledButton(
+                                    onPressed: _isApplyingCoupon
+                                        ? null
+                                        : () => _applyCoupon(
+                                            shippingByShop: shippingByShop,
+                                            isGift: isGift,
+                                          ),
+                                    style: FilledButton.styleFrom(
+                                      backgroundColor: AppTheme.terracotta,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: _isApplyingCoupon
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.white,
+                                            ),
+                                          )
+                                        : const Text('Apply'),
+                                  ),
+                                ),
+                              ],
                             ),
-                          const SizedBox(height: 20),
-                          if (_isMultiShop)
-                            ..._buildMultiShopSummary(totals, isGift: isGift)
-                          else ...[
-                            _summaryRow(
-                              'Subtotal (${items.length} items)',
-                              'R${totals.subtotal.toStringAsFixed(0)}',
-                            ),
-                            if (totals.discountAmount > 0) ...[
+                            const SizedBox(height: 8),
+                            if (_couponError != null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  _couponError!,
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: AppTheme.error,
+                                  ),
+                                ),
+                              )
+                            else if (_appliedCouponCode != null)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEAF7EE),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.check_circle_outline,
+                                      size: 18,
+                                      color: Color(0xFF247A3D),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '$_appliedCouponCode applied — you save R${_discountAmount.toStringAsFixed(2)}',
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFF247A3D),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Text(
+                                'Apply the code to confirm the saving before payment.',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: AppTheme.textHint,
+                                ),
+                              ),
+                            const SizedBox(height: 20),
+                            if (_isMultiShop)
+                              ..._buildMultiShopSummary(totals, isGift: isGift)
+                            else ...[
+                              _summaryRow(
+                                'Subtotal (${items.length} items)',
+                                'R${totals.subtotal.toStringAsFixed(0)}',
+                              ),
+                              if (totals.discountAmount > 0) ...[
+                                const SizedBox(height: 12),
+                                _summaryRow(
+                                  'Discount ($_appliedCouponCode)',
+                                  '-R${totals.discountAmount.toStringAsFixed(2)}',
+                                ),
+                              ],
+                              if (totals.giftFee > 0) ...[
+                                const SizedBox(height: 12),
+                                _summaryRow(
+                                  giftServiceLabel,
+                                  'R${totals.giftFee.toStringAsFixed(0)}',
+                                ),
+                              ],
                               const SizedBox(height: 12),
                               _summaryRow(
-                                'Discount ($_appliedCouponCode)',
-                                '-R${totals.discountAmount.toStringAsFixed(2)}',
+                                'Shipping',
+                                _shippingDisplay(
+                                  groups.first.shopId,
+                                  totals.shippingCost,
+                                ),
                               ),
                             ],
-                            if (totals.giftFee > 0) ...[
-                              const SizedBox(height: 12),
-                              _summaryRow(
-                                giftServiceLabel,
-                                'R${totals.giftFee.toStringAsFixed(0)}',
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              child: Divider(
+                                color: AppTheme.sand.withValues(alpha: 0.3),
+                                height: 1,
                               ),
-                            ],
-                            const SizedBox(height: 12),
+                            ),
                             _summaryRow(
-                              'Shipping',
-                              _shippingDisplay(
-                                groups.first.shopId,
-                                totals.shippingCost,
+                              'Total',
+                              'R${totals.total.toStringAsFixed(0)}',
+                              isTotal: true,
+                            ),
+                            if (_isMultiShop) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'One payment covers every shop. $wholeRandPaymentNote',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 11,
+                                  color: AppTheme.textHint,
+                                  height: 1.45,
+                                ),
                               ),
-                            ),
+                            ],
                           ],
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            child: Divider(
-                              color: AppTheme.sand.withValues(alpha: 0.3),
-                              height: 1,
-                            ),
-                          ),
-                          _summaryRow(
-                            'Total',
-                            'R${totals.total.toStringAsFixed(0)}',
-                            isTotal: true,
-                          ),
-                          if (_isMultiShop) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              'One payment covers every shop. $wholeRandPaymentNote',
-                              style: GoogleFonts.poppins(
-                                fontSize: 11,
-                                color: AppTheme.textHint,
-                                height: 1.45,
-                              ),
-                            ),
-                          ],
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-        loading: () => _buildLoadingSkeleton(),
-        error: (error, _) => ErrorRetryView(
-          error: error,
-          title: "Couldn't load checkout",
-          onRetry: () => ref.invalidate(cartItemsProvider),
+            );
+          },
+          loading: () => _buildLoadingSkeleton(),
+          error: (error, _) => ErrorRetryView(
+            error: error,
+            title: "Couldn't load checkout",
+            onRetry: () => ref.invalidate(cartItemsProvider),
+          ),
         ),
       ),
       bottomNavigationBar: _stickyPayBar,
@@ -2484,6 +2490,53 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Closes the keyboard when the buyer taps outside a field, and shows a Done
+/// bar above it. The iPhone number pad (phone, postal code) has no return
+/// key, so without this it stayed open over the Pay Now button.
+class _KeyboardDoneArea extends StatelessWidget {
+  const _KeyboardDoneArea({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    return Column(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+            child: child,
+          ),
+        ),
+        if (keyboardOpen)
+          Material(
+            color: AppTheme.scaffoldBg,
+            elevation: 4,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: TextButton(
+                  onPressed: () =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
+                  child: Text(
+                    'Done',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.terracotta,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
