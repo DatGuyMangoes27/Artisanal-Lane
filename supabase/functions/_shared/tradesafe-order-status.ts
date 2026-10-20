@@ -7,6 +7,7 @@ export function mapTradeSafeOrderStatus(state: string) {
     case "FUNDS_RELEASED":
       return "completed";
     case "CANCELLED":
+    case "CANCELED":
     case "FAILED":
     case "EXPIRED":
     case "REFUNDED":
@@ -27,6 +28,7 @@ export function mapTradeSafeEscrowStatus(state: string) {
     case "REFUNDED":
       return "refunded";
     case "CANCELLED":
+    case "CANCELED":
     case "FAILED":
     case "EXPIRED":
     case "DECLINED":
@@ -63,6 +65,7 @@ export function shouldIgnoreTradeSafeCallback({
   return currentOrderStatus === "cancelled" &&
     currentPaymentState === "STALE_CHECKOUT_CANCELLED" &&
     incomingTradeSafeState !== "CANCELLED" &&
+    incomingTradeSafeState !== "CANCELED" &&
     incomingTradeSafeState !== "FAILED" &&
     incomingTradeSafeState !== "EXPIRED";
 }

@@ -63,13 +63,18 @@ class _FakeGateway implements BobGoGateway {
   final BobGoQuote? quote;
   final BobGoQuoteException? error;
   final requests = <BobGoDeliveryDetails>[];
+  final quotedShopIds = <String?>[];
 
   @override
-  Future<bool> isAvailable() async => available;
+  Future<bool> isAvailable({String? shopId}) async => available;
 
   @override
-  Future<BobGoQuote> requestQuote(BobGoDeliveryDetails delivery) async {
+  Future<BobGoQuote> requestQuote(
+    BobGoDeliveryDetails delivery, {
+    String? shopId,
+  }) async {
     requests.add(delivery);
+    quotedShopIds.add(shopId);
     if (error != null) throw error!;
     return quote!;
   }
@@ -137,7 +142,9 @@ void main() {
       expect(find.text('Estimated 2-4 business days'), findsWidgets);
       expect(find.textContaining('Quote valid for'), findsOneWidget);
 
-      await tester.tap(find.byKey(ValueKey('bobgo-rate-${quote.rates[1].key}')));
+      await tester.tap(
+        find.byKey(ValueKey('bobgo-rate-${quote.rates[1].key}')),
+      );
       expect(picked?.serviceLevelCode, 'EXP');
     });
 
@@ -157,7 +164,9 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        picker(error: 'This artisan has not enabled Bob Go door-to-door delivery.'),
+        picker(
+          error: 'This artisan has not enabled Bob Go door-to-door delivery.',
+        ),
       );
       expect(find.textContaining('has not enabled Bob Go'), findsOneWidget);
     });
@@ -190,7 +199,10 @@ void main() {
       expect(find.text('Out for delivery'), findsOneWidget);
       expect(find.text('TRK99'), findsOneWidget);
       expect(find.byKey(const ValueKey('bobgo-open-tracking')), findsOneWidget);
-      expect(find.byKey(const ValueKey('bobgo-download-waybill')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('bobgo-download-waybill')),
+        findsNothing,
+      );
       expect(find.byKey(const ValueKey('bobgo-retry-booking')), findsNothing);
     });
 
@@ -211,7 +223,10 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('bobgo-download-waybill')));
       expect(downloads, 1);
-      expect(find.textContaining('waiting for courier collection'), findsOneWidget);
+      expect(
+        find.textContaining('waiting for courier collection'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('vendor can retry a failed booking on a paid order', (
@@ -234,7 +249,9 @@ void main() {
 
     testWidgets('buyers never get a retry button', (tester) async {
       await tester.pumpWidget(
-        _host(BobGoCourierCard(order: _order({'bobgo_booking_state': 'failed'}))),
+        _host(
+          BobGoCourierCard(order: _order({'bobgo_booking_state': 'failed'})),
+        ),
       );
       expect(find.byKey(const ValueKey('bobgo-retry-booking')), findsNothing);
       expect(find.textContaining('arranging your courier'), findsOneWidget);
@@ -263,14 +280,21 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('bobgo-enabled-switch')));
       await tester.pump();
-      await tester.ensureVisible(find.byKey(const ValueKey('bobgo-collection-save')));
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('bobgo-collection-save')),
+      );
       await tester.tap(find.byKey(const ValueKey('bobgo-collection-save')));
       await tester.pump();
-      expect(find.byKey(const ValueKey('bobgo-collection-error')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('bobgo-collection-error')),
+        findsOneWidget,
+      );
       expect(saved, isEmpty);
     });
 
-    testWidgets('saves a complete profile with the enable flag', (tester) async {
+    testWidgets('saves a complete profile with the enable flag', (
+      tester,
+    ) async {
       final saved = <ShopFulfillmentProfile>[];
       await tester.binding.setSurfaceSize(const Size(420, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -379,10 +403,7 @@ void main() {
       ],
     );
 
-    Future<void> pumpCheckout(
-      WidgetTester tester,
-      _FakeGateway gateway,
-    ) async {
+    Future<void> pumpCheckout(WidgetTester tester, _FakeGateway gateway) async {
       await tester.binding.setSurfaceSize(const Size(430, 3200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(
@@ -413,10 +434,7 @@ void main() {
 
     Future<void> fillAddress(WidgetTester tester) async {
       Future<void> enter(String label, String text) async {
-        await tester.enterText(
-          find.widgetWithText(TextFormField, label),
-          text,
-        );
+        await tester.enterText(find.widgetWithText(TextFormField, label), text);
       }
 
       await enter('Full Name', 'Alicia Buyer');

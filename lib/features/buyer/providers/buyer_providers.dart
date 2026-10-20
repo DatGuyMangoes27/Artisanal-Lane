@@ -468,6 +468,14 @@ final orderDetailStreamProvider = StreamProvider.family<Order, String>((
   return service.watchOrder(orderId);
 });
 
+/// Where a several-shop payment stands. Reading it also prompts the server
+/// to pay each shop once the buyer's money has arrived.
+final checkoutGroupStatusProvider = FutureProvider.autoDispose
+    .family<CheckoutGroupStatus, String>((ref, checkoutGroupId) {
+      final service = ref.read(supabaseServiceProvider);
+      return service.checkoutGroupStatus(checkoutGroupId);
+    });
+
 // ── Shop Follows ────────────────────────────────────────────────
 final followedShopIdsProvider = FutureProvider<List<String>>((ref) async {
   final userId = ref.watch(currentUserIdProvider);

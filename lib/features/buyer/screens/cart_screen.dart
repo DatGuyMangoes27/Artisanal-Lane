@@ -10,6 +10,7 @@ import '../../../core/ui/friendly_error.dart';
 import '../../../models/cart_item.dart';
 import '../providers/buyer_providers.dart';
 import '../utils/cart_stock_guard.dart';
+import '../utils/multi_shop_checkout.dart';
 import '../../../widgets/skeleton.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
@@ -389,8 +390,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     bool canPop = false,
   }) {
     final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
-    final giftFee = giftFeeForSelection(isGift: _isGift);
+    final groups = groupCartItemsByShop(items);
+    // Gift wrap is charged per shop: each shop wraps its own parcel.
+    final giftFee = giftFeeForSelection(isGift: _isGift) * groups.length;
     final expiringSoonCount = items.where((i) => i.isExpiringSoon).length;
+    final rows = <Widget Function()>[
+      () => _buildHeader(canPop: canPop),
+      for (final group in groups) ...[
+        () => _buildShopHeader(group, shopCount: groups.length),
+        for (final item in group.items) () => _buildCartItem(item),
+      ],
+      _buildGiftCard,
+    ];
 
     return SafeArea(
       bottom: false,
@@ -407,17 +418,58 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   parent: BouncingScrollPhysics(),
                 ),
                 padding: const EdgeInsets.only(bottom: 24),
-                itemCount: items.length + 2, // +1 header, +1 gift card
+                itemCount: rows.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  if (index == 0) return _buildHeader(canPop: canPop);
-                  if (index == items.length + 1) return _buildGiftCard();
-                  return _buildCartItem(items[index - 1]);
-                },
+                itemBuilder: (context, index) => rows[index](),
               ),
             ),
           ),
-          _buildSummaryBar(context, subtotal, giftFee),
+          _buildSummaryBar(
+            context,
+            subtotal,
+            giftFee,
+            shopCount: groups.length,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Shop Header ─────────────────────────────────────────────────
+  Widget _buildShopHeader(CartShopGroup group, {required int shopCount}) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.storefront_outlined,
+            size: 18,
+            color: AppTheme.terracotta,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              group.shopName,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            shopCount > 1
+                ? 'Subtotal R${group.subtotal.toStringAsFixed(0)}'
+                : '${group.itemCount} item${group.itemCount == 1 ? '' : 's'}',
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -546,13 +598,6 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                           ),
                         ),
                       ],
-                    ),
-                    Text(
-                      product?.shopName ?? '',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textHint,
-                      ),
                     ),
                     if (item.variantName != null) ...[
                       const SizedBox(height: 4),
@@ -873,8 +918,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   Widget _buildSummaryBar(
     BuildContext context,
     double subtotal,
-    double giftFee,
-  ) {
+    double giftFee, {
+    int shopCount = 1,
+  }) {
     final total = subtotal + giftFee;
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -922,7 +968,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    giftServiceLabel,
+                    shopCount > 1
+                        ? '$giftServiceLabel ($shopCount shops)'
+                        : giftServiceLabel,
                     style: GoogleFonts.poppins(
                       fontSize: 14,
                       color: AppTheme.textSecondary,
@@ -981,6 +1029,18 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     ),
                   ),
                 ],
+              ),
+            ],
+            if (shopCount > 1) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Items from $shopCount shops. Each shop sends its own parcel, '
+                'and you pay once for everything.',
+                style: GoogleFonts.poppins(
+                  fontSize: 11.5,
+                  color: AppTheme.textHint,
+                  height: 1.45,
+                ),
               ),
             ],
             const SizedBox(height: 20),

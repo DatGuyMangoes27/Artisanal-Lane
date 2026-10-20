@@ -483,6 +483,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 final extra = state.extra as Map<String, dynamic>?;
                 return OrderConfirmationScreen(
                   orderId: extra?['orderId'] as String?,
+                  orderIds:
+                      (extra?['orderIds'] as List?)
+                          ?.whereType<String>()
+                          .toList() ??
+                      const [],
+                  checkoutGroupId: extra?['checkoutGroupId'] as String?,
                 );
               },
             ),
@@ -611,6 +617,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                     final extra = state.extra as Map<String, dynamic>?;
                     return OrderConfirmationScreen(
                       orderId: extra?['orderId'] as String?,
+                      orderIds:
+                          (extra?['orderIds'] as List?)
+                              ?.whereType<String>()
+                              .toList() ??
+                          const [],
+                      checkoutGroupId: extra?['checkoutGroupId'] as String?,
                     );
                   },
                 ),

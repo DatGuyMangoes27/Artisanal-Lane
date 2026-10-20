@@ -7,14 +7,19 @@ import { useEffect, useMemo, useState } from "react";
 import { useGuestCart } from "@/components/marketplace/guest-cart-provider";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { buildCartLines, getCartSubtotal, getCheckoutBlocker } from "@/lib/marketplace/checkout";
+import {
+  buildCartLines,
+  getCartSubtotal,
+  getCheckoutBlocker,
+  groupCartLinesByShop,
+} from "@/lib/marketplace/checkout";
 import {
   getGuestCartReservationToken,
   releaseGuestCartItem,
   reserveGuestCartItem,
 } from "@/lib/marketplace/cart-reservations";
 import { formatPrice } from "@/lib/marketplace/format";
-import { useBobGoAvailability } from "@/lib/marketplace/use-bobgo-availability";
+import { useBobGoAvailabilityByShop } from "@/lib/marketplace/use-bobgo-availability";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
 
 export function CartReview() {
@@ -49,12 +54,13 @@ export function CartReview() {
   }, [items]);
 
   const lines = useMemo(() => buildCartLines(items, products), [items, products]);
+  const shops = useMemo(() => groupCartLinesByShop(lines), [lines]);
   const subtotal = getCartSubtotal(lines);
   const bobGoFlagEnabled =
     process.env.NEXT_PUBLIC_BOBGO_SHIPPING_ENABLED === "true" || process.env.NODE_ENV === "development";
-  // Only skip the "no shared shipping option" blocker when Bob Go can really quote this cart.
-  const bobGoSandboxEnabled = useBobGoAvailability(lines, bobGoFlagEnabled);
-  const blocker = getCheckoutBlocker(lines, { allowDynamicShipping: bobGoSandboxEnabled });
+  // Only skip a shop's "no shared shipping option" blocker when Bob Go can really quote its items.
+  const bobGoShopIds = useBobGoAvailabilityByShop(lines, bobGoFlagEnabled);
+  const blocker = getCheckoutBlocker(lines, { allowDynamicShipping: (shopId) => bobGoShopIds.has(shopId) });
 
   async function updateReservedQuantity(line: (typeof lines)[number], nextQuantity: number) {
     setReservationError(null);
@@ -115,94 +121,107 @@ export function CartReview() {
               <CardContent className="p-6 text-muted-foreground">Loading your cart...</CardContent>
             </Card>
           ) : null}
-          {lines.map((line) => (
-            <Card key={line.key} className="border-artisan-clay bg-card">
-              <CardContent className="grid gap-4 p-4 sm:grid-cols-[120px_1fr]">
-                <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary">
-                  <Image src={line.image} alt={line.title} fill sizes="120px" className="object-cover" />
+          {shops.map((shop) => (
+            <div key={shop.shopId} className="space-y-4">
+              {shops.length > 1 ? (
+                <div className="flex items-baseline justify-between gap-4 border-b border-artisan-clay pb-2 pt-2">
+                  <h2 className="font-serif text-xl font-bold text-foreground">{shop.shopName}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {shop.quantity} {shop.quantity === 1 ? "item" : "items"} ·{" "}
+                    <span className="font-semibold text-foreground">{formatPrice(shop.subtotal)}</span>
+                  </p>
                 </div>
-                <div className="flex flex-col justify-between gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{line.shopName}</p>
-                    <h2 className="mt-1 text-lg font-semibold text-foreground">{line.title}</h2>
-                    {line.variantName ? (
-                      <p className="mt-1 text-sm text-muted-foreground">{line.variantName}</p>
-                    ) : null}
-                    {line.isMadeToOrder ? (
-                      <p className="mt-1 text-sm font-medium text-artisan-terracotta">
-                        Made to order
-                        {line.leadMinDays != null || line.leadMaxDays != null
-                          ? ` · ships in ${
-                              line.leadMinDays != null && line.leadMaxDays != null
-                                ? line.leadMinDays === line.leadMaxDays
-                                  ? `${line.leadMinDays} days`
-                                  : `${line.leadMinDays}–${line.leadMaxDays} days`
-                                : `${line.leadMinDays ?? line.leadMaxDays} days`
-                            }`
-                          : ""}
-                      </p>
-                    ) : null}
-                    {line.isMadeToOrder && line.customNote ? (
-                      <p className="mt-1 text-sm italic text-muted-foreground">
-                        “{line.customNote}”
-                      </p>
-                    ) : null}
-                    {!line.isAvailable ? (
-                      <p className="mt-2 text-sm font-medium text-red-700">
-                        Only {line.stockQty} available. Please lower the quantity.
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Decrease ${line.title} quantity`}
-                        onClick={() => updateReservedQuantity(line, line.quantity - 1)}
-                      >
-                        -
-                      </Button>
-                      <span className="min-w-8 text-center text-sm font-semibold">{line.quantity}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon-sm"
-                        aria-label={`Increase ${line.title} quantity`}
-                        onClick={() => updateReservedQuantity(line, line.quantity + 1)}
-                      >
-                        +
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={async () => {
-                          setReservationError(null);
-                          try {
-                            if (!line.isMadeToOrder) {
-                              await releaseGuestCartItem({
-                                productId: line.productId,
-                                variantId: line.variantId,
-                              });
-                            }
-                            removeItem(line.key);
-                          } catch (error) {
-                            setReservationError(
-                              error instanceof Error ? error.message : "Could not release reserved stock.",
-                            );
-                          }
-                        }}
-                      >
-                        Remove
-                      </Button>
+              ) : null}
+              {shop.lines.map((line) => (
+                <Card key={line.key} className="border-artisan-clay bg-card">
+                  <CardContent className="grid gap-4 p-4 sm:grid-cols-[120px_1fr]">
+                    <div className="relative aspect-square overflow-hidden rounded-2xl bg-secondary">
+                      <Image src={line.image} alt={line.title} fill sizes="120px" className="object-cover" />
                     </div>
-                    <p className="font-semibold text-foreground">{formatPrice(line.lineTotal)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    <div className="flex flex-col justify-between gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">{line.shopName}</p>
+                        <h2 className="mt-1 text-lg font-semibold text-foreground">{line.title}</h2>
+                        {line.variantName ? (
+                          <p className="mt-1 text-sm text-muted-foreground">{line.variantName}</p>
+                        ) : null}
+                        {line.isMadeToOrder ? (
+                          <p className="mt-1 text-sm font-medium text-artisan-terracotta">
+                            Made to order
+                            {line.leadMinDays != null || line.leadMaxDays != null
+                              ? ` · ships in ${
+                                  line.leadMinDays != null && line.leadMaxDays != null
+                                    ? line.leadMinDays === line.leadMaxDays
+                                      ? `${line.leadMinDays} days`
+                                      : `${line.leadMinDays}–${line.leadMaxDays} days`
+                                    : `${line.leadMinDays ?? line.leadMaxDays} days`
+                                }`
+                              : ""}
+                          </p>
+                        ) : null}
+                        {line.isMadeToOrder && line.customNote ? (
+                          <p className="mt-1 text-sm italic text-muted-foreground">
+                            “{line.customNote}”
+                          </p>
+                        ) : null}
+                        {!line.isAvailable ? (
+                          <p className="mt-2 text-sm font-medium text-red-700">
+                            Only {line.stockQty} available. Please lower the quantity.
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label={`Decrease ${line.title} quantity`}
+                            onClick={() => updateReservedQuantity(line, line.quantity - 1)}
+                          >
+                            -
+                          </Button>
+                          <span className="min-w-8 text-center text-sm font-semibold">{line.quantity}</span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon-sm"
+                            aria-label={`Increase ${line.title} quantity`}
+                            onClick={() => updateReservedQuantity(line, line.quantity + 1)}
+                          >
+                            +
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-muted-foreground"
+                            onClick={async () => {
+                              setReservationError(null);
+                              try {
+                                if (!line.isMadeToOrder) {
+                                  await releaseGuestCartItem({
+                                    productId: line.productId,
+                                    variantId: line.variantId,
+                                  });
+                                }
+                                removeItem(line.key);
+                              } catch (error) {
+                                setReservationError(
+                                  error instanceof Error ? error.message : "Could not release reserved stock.",
+                                );
+                              }
+                            }}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                        <p className="font-semibold text-foreground">{formatPrice(line.lineTotal)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ))}
         </div>
       </div>
@@ -214,11 +233,25 @@ export function CartReview() {
             <span className="text-muted-foreground">Items</span>
             <span className="font-medium text-foreground">{quantity}</span>
           </div>
+          {shops.length > 1
+            ? shops.map((shop) => (
+                <div key={shop.shopId} className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">{shop.shopName}</span>
+                  <span className="font-medium text-foreground">{formatPrice(shop.subtotal)}</span>
+                </div>
+              ))
+            : null}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-semibold text-foreground">{formatPrice(subtotal)}</span>
           </div>
         </div>
+        {shops.length > 1 ? (
+          <p className="mt-4 text-xs leading-5 text-muted-foreground">
+            You&apos;re buying from {shops.length} shops. You pay once at checkout, and each artisan
+            sends their own parcel, so delivery is chosen per shop.
+          </p>
+        ) : null}
         {blocker ? (
           <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             {blocker}

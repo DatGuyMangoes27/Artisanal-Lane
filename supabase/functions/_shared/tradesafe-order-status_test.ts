@@ -11,6 +11,8 @@ Deno.test("TradeSafe status mapping treats failed checkout states as cancelled",
   assertEquals(mapTradeSafeOrderStatus("FUNDS_RECEIVED"), "paid");
   assertEquals(mapTradeSafeOrderStatus("FUNDS_RELEASED"), "completed");
   assertEquals(mapTradeSafeOrderStatus("CANCELLED"), "cancelled");
+  // TradeSafe itself reports the American spelling.
+  assertEquals(mapTradeSafeOrderStatus("CANCELED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("FAILED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("EXPIRED"), "cancelled");
   assertEquals(mapTradeSafeOrderStatus("REFUNDED"), "cancelled");

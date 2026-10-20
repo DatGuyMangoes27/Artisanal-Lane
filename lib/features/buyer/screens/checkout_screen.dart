@@ -10,6 +10,7 @@ import '../../../core/pricing/pricing.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/bobgo.dart';
 import '../../../models/cart_item.dart';
+import '../../../models/checkout_shop_selection.dart';
 import '../../../models/courier_guy_locker.dart';
 import '../../../models/pargo_pickup_point.dart';
 import '../../../models/shipping_option.dart';
@@ -21,8 +22,74 @@ import '../providers/buyer_providers.dart';
 import '../utils/bobgo_checkout.dart';
 import '../utils/checkout_validation.dart';
 import '../utils/checkout_shipping_layout.dart';
-import '../utils/product_shipping_checkout.dart';
+import '../utils/multi_shop_checkout.dart';
 import '../widgets/bobgo_rate_picker.dart';
+
+/// Bob Go door-to-door for one shop: the quote is saved server-side; we only
+/// keep its id and the rate the buyer picked.
+class _ShopBobGoState {
+  BobGoQuote? quote;
+  BobGoRate? selectedRate;
+  String? quotedFingerprint;
+  String? error;
+  bool isLoading = false;
+  Timer? expiryTimer;
+
+  void clear({bool keepError = false}) {
+    expiryTimer?.cancel();
+    expiryTimer = null;
+    quote = null;
+    selectedRate = null;
+    quotedFingerprint = null;
+    if (!keepError) error = null;
+  }
+}
+
+/// Pickup point search and choice for one shop's parcel.
+class _ShopPickupState {
+  final fieldKey = GlobalKey();
+  final focusNode = FocusNode();
+  final pickupPointController = TextEditingController(text: '');
+  final courierGuySearchController = TextEditingController(text: '');
+  final pargoSearchController = TextEditingController(text: '');
+  String? courierGuyLockerProvince;
+  bool isLoadingCourierGuyLockers = false;
+  String? courierGuyLockerError;
+  CourierGuyLocker? selectedCourierGuyLocker;
+  List<CourierGuyLocker> courierGuyLockers = const [];
+  Timer? courierGuySearchDebounce;
+  String? pargoPointProvince;
+  bool isLoadingPargoPoints = false;
+  String? pargoPointError;
+  PargoPickupPoint? selectedPargoPoint;
+  List<PargoPickupPoint> pargoPickupPoints = const [];
+  Timer? pargoSearchDebounce;
+
+  void resetCourierGuy() {
+    selectedCourierGuyLocker = null;
+    courierGuyLockers = const [];
+    courierGuyLockerError = null;
+    courierGuySearchController.clear();
+    courierGuyLockerProvince = null;
+  }
+
+  void resetPargo() {
+    selectedPargoPoint = null;
+    pargoPickupPoints = const [];
+    pargoPointError = null;
+    pargoSearchController.clear();
+    pargoPointProvince = null;
+  }
+
+  void dispose() {
+    courierGuySearchDebounce?.cancel();
+    pargoSearchDebounce?.cancel();
+    focusNode.dispose();
+    pickupPointController.dispose();
+    courierGuySearchController.dispose();
+    pargoSearchController.dispose();
+  }
+}
 
 class CheckoutScreen extends ConsumerStatefulWidget {
   const CheckoutScreen({super.key});
@@ -44,7 +111,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     'Western Cape',
   ];
 
-  String? _selectedShipping;
+  /// Delivery method per shop id. Each shop sends its own parcel.
+  final Map<String, String?> _selectedShippingByShop = {};
+
+  /// Basket shops as last built, in the order they were added.
+  List<CartShopGroup> _groups = const [];
   String? _selectedProvince;
   final _formKey = GlobalKey<FormState>();
   final _scrollController = ScrollController();
@@ -56,14 +127,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _phoneFieldKey = GlobalKey();
   final _suburbFieldKey = GlobalKey();
   final _shippingSectionKey = GlobalKey();
-  final _pickupPointFieldKey = GlobalKey();
   final _nameFocusNode = FocusNode();
   final _streetFocusNode = FocusNode();
   final _cityFocusNode = FocusNode();
   final _postalFocusNode = FocusNode();
   final _phoneFocusNode = FocusNode();
   final _suburbFocusNode = FocusNode();
-  final _pickupPointFocusNode = FocusNode();
 
   final _nameController = TextEditingController(text: '');
   final _streetController = TextEditingController(text: '');
@@ -72,41 +141,103 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _phoneController = TextEditingController(text: '');
   final _suburbController = TextEditingController(text: '');
   final _couponController = TextEditingController(text: '');
-  final _pickupPointController = TextEditingController(text: '');
-  final _courierGuySearchController = TextEditingController(text: '');
-  final _pargoSearchController = TextEditingController(text: '');
   bool _submitAttempted = false;
   bool _isSubmittingPayment = false;
   bool _isApplyingCoupon = false;
   String? _appliedCouponCode;
   double _discountAmount = 0;
-  String? _couponError;
-  String? _courierGuyLockerProvince;
-  bool _isLoadingCourierGuyLockers = false;
-  String? _courierGuyLockerError;
-  CourierGuyLocker? _selectedCourierGuyLocker;
-  List<CourierGuyLocker> _courierGuyLockers = const [];
-  Timer? _courierGuySearchDebounce;
-  String? _pargoPointProvince;
-  bool _isLoadingPargoPoints = false;
-  String? _pargoPointError;
-  PargoPickupPoint? _selectedPargoPoint;
-  List<PargoPickupPoint> _pargoPickupPoints = const [];
-  Timer? _pargoSearchDebounce;
 
-  // Bob Go door-to-door: the quote is saved server-side; we only keep its id
-  // and the rate the buyer picked.
-  BobGoQuote? _bobGoQuote;
-  BobGoRate? _selectedBobGoRate;
-  String? _bobGoQuotedFingerprint;
-  String? _bobGoError;
-  bool _isLoadingBobGoRates = false;
-  Timer? _bobGoExpiryTimer;
+  /// The applied code's saving, under the shop that owns the code.
+  Map<String, double> _discountByShop = const {};
+  String? _couponError;
+
+  // Bob Go door-to-door, per shop.
+  final Map<String, _ShopBobGoState> _bobGoByShop = {};
 
   void _clearAppliedCoupon() {
     _appliedCouponCode = null;
     _discountAmount = 0;
+    _discountByShop = const {};
     _couponError = null;
+  }
+
+  bool get _isMultiShop => _groups.length > 1;
+
+  String? _methodFor(String shopId) => _selectedShippingByShop[shopId];
+
+  /// Selected method of every basket shop (null where none is chosen yet).
+  List<String?> get _currentMethods => _groups
+      .map((group) => _selectedShippingByShop[group.shopId])
+      .toList(growable: false);
+
+  bool get _usesBobGo => _currentMethods.contains(bobGoShippingKey);
+
+  bool get _needsShippingAddress =>
+      _currentMethods.any(_requiresShippingAddress);
+
+  bool get _needsPickupPoint => _currentMethods.any(_requiresPickupPoint);
+
+  // Pickup point (locker / Pargo point / typed entry), per shop: each shop
+  // can send its parcel to a different pickup point.
+  final Map<String, _ShopPickupState> _pickupByShop = {};
+
+  _ShopPickupState _pickup(String shopId) =>
+      _pickupByShop.putIfAbsent(shopId, _ShopPickupState.new);
+
+  /// First shop whose pickup method still needs a pickup point.
+  CartShopGroup? get _shopMissingPickupPoint {
+    for (final group in _groups) {
+      if (!_requiresPickupPoint(_methodFor(group.shopId))) continue;
+      if (_pickup(group.shopId).pickupPointController.text.trim().isEmpty) {
+        return group;
+      }
+    }
+    return null;
+  }
+
+  /// The `pickup_point` sent for one shop, in the same shape as always.
+  Object? _pickupPointFor(String shopId, List<ShippingOption> options) {
+    final method = _methodFor(shopId);
+    final p = _pickup(shopId);
+    return pickupPointForMethod(
+      method: method,
+      courierGuyLocker: p.selectedCourierGuyLocker?.toOrderJson(),
+      pargoPoint: p.selectedPargoPoint?.toOrderJson(),
+      marketOption: options
+          .where((option) => option.key == 'market_pickup')
+          .firstOrNull,
+      typedPickupPoint: p.pickupPointController.text,
+    );
+  }
+
+  _ShopBobGoState _bobGo(String shopId) =>
+      _bobGoByShop.putIfAbsent(shopId, _ShopBobGoState.new);
+
+  bool get _allBobGoReady => _groups
+      .where((group) => _methodFor(group.shopId) == bobGoShippingKey)
+      .every((group) => _bobGoStatus(group.shopId) == BobGoQuoteStatus.ready);
+
+  /// Delivery choice per shop for create-checkout, or null while a shop has
+  /// no method chosen.
+  List<CheckoutShopSelection>? _shopSelections(
+    Map<String, double> shippingByShop,
+  ) {
+    final selections = <CheckoutShopSelection>[];
+    for (final group in _groups) {
+      final method = _methodFor(group.shopId);
+      if (method == null) return null;
+      selections.add(
+        CheckoutShopSelection(
+          shopId: group.shopId,
+          shippingMethod: method,
+          shippingCost: shippingByShop[group.shopId] ?? 0,
+          bobgo: method == bobGoShippingKey
+              ? _bobGoSelection(group.shopId)
+              : null,
+        ),
+      );
+    }
+    return selections;
   }
 
   String _couponFailureMessage(Object error) {
@@ -123,8 +254,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _applyCoupon({
-    required String? shippingMethod,
-    required double shippingCost,
+    required Map<String, double> shippingByShop,
     required bool isGift,
   }) async {
     if (_isApplyingCoupon) return;
@@ -136,14 +266,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       });
       return;
     }
-    if (shippingMethod == null) {
-      setState(() => _couponError = 'Select a shipping method first.');
+    final selections = _shopSelections(shippingByShop);
+    if (selections == null) {
+      setState(
+        () => _couponError = _isMultiShop
+            ? 'Choose a delivery option for every shop first.'
+            : 'Select a shipping method first.',
+      );
       return;
     }
-    if (shippingMethod == bobGoShippingKey &&
-        _bobGoStatus() != BobGoQuoteStatus.ready) {
+    if (_usesBobGo && !_allBobGoReady) {
       setState(
-        () => _couponError = 'Choose a delivery service before applying a code.',
+        () =>
+            _couponError = 'Choose a delivery service before applying a code.',
       );
       return;
     }
@@ -158,19 +293,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       final quote = await ref
           .read(supabaseServiceProvider)
           .previewCheckout(
-            shippingMethod: shippingMethod,
-            shippingCost: shippingCost,
+            shops: selections,
             isGift: isGift,
             couponCode: code,
-            shippingAddress: shippingMethod == bobGoShippingKey
-                ? _bobGoAddressMap()
-                : null,
-            bobgo: shippingMethod == bobGoShippingKey ? _bobGoSelection() : null,
+            shippingAddress: _usesBobGo ? _bobGoAddressMap() : null,
           );
       if (!mounted) return;
       setState(() {
         _appliedCouponCode = quote.couponCode ?? code;
         _discountAmount = quote.discountAmount;
+        _discountByShop = quote.shops.isNotEmpty
+            ? quote.discountByShop
+            : {
+                if (_groups.isNotEmpty && quote.discountAmount > 0)
+                  _groups.first.shopId: quote.discountAmount,
+              };
       });
     } catch (error) {
       if (!mounted) return;
@@ -192,10 +329,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _postalFocusNode.dispose();
     _phoneFocusNode.dispose();
     _suburbFocusNode.dispose();
-    _pickupPointFocusNode.dispose();
-    _bobGoExpiryTimer?.cancel();
-    _courierGuySearchDebounce?.cancel();
-    _pargoSearchDebounce?.cancel();
+    for (final state in _bobGoByShop.values) {
+      state.expiryTimer?.cancel();
+    }
+    for (final state in _pickupByShop.values) {
+      state.dispose();
+    }
     _nameController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -203,44 +342,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phoneController.dispose();
     _suburbController.dispose();
     _couponController.dispose();
-    _pickupPointController.dispose();
-    _courierGuySearchController.dispose();
-    _pargoSearchController.dispose();
     super.dispose();
   }
 
-  double _selectedShippingCost({
-    required List<CartItem> items,
-    required List<List<ShippingOption>> productShippingOptions,
-    required bool combinedShippingEnabled,
-  }) {
-    if (_selectedShipping == null) return 0;
-    if (_selectedShipping == bobGoShippingKey) {
-      return _bobGoStatus() == BobGoQuoteStatus.ready
-          ? _selectedBobGoRate!.amount
-          : 0;
-    }
-    return calculateProductShippingTotal(
-      methodKey: _selectedShipping!,
-      itemQuantities: items
-          .map((item) => item.quantity)
-          .toList(growable: false),
-      productShippingOptions: productShippingOptions,
-      combinedShippingEnabled: combinedShippingEnabled,
-    );
-  }
-
-  void _initSelection(List<ShippingOption> options) {
-    final validSelection =
-        _selectedShipping != null &&
-        options.any((option) => option.key == _selectedShipping);
-    if (validSelection) return;
+  /// Picks the first available option for any shop without a valid choice.
+  void _initSelections(Map<String, List<ShippingOption>> optionsByShop) {
+    final updates = <String, String?>{};
+    optionsByShop.forEach((shopId, options) {
+      final current = _selectedShippingByShop[shopId];
+      final valid =
+          current != null && options.any((option) => option.key == current);
+      if (valid) return;
+      final next = options.isNotEmpty ? options.first.key : null;
+      if (next != current || !_selectedShippingByShop.containsKey(shopId)) {
+        updates[shopId] = next;
+      }
+    });
+    if (updates.isEmpty) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      setState(
-        () => _selectedShipping = options.isNotEmpty ? options.first.key : null,
-      );
+      setState(() => _selectedShippingByShop.addAll(updates));
     });
   }
 
@@ -270,10 +392,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     postalCode: _postalController.text,
   );
 
-  BobGoSelection? _bobGoSelection() =>
-      _bobGoStatus() == BobGoQuoteStatus.ready
-      ? BobGoSelection(quoteId: _bobGoQuote!.quoteId, rate: _selectedBobGoRate!)
-      : null;
+  BobGoSelection? _bobGoSelection(String shopId) {
+    final state = _bobGoByShop[shopId];
+    return state != null && _bobGoStatus(shopId) == BobGoQuoteStatus.ready
+        ? BobGoSelection(
+            quoteId: state.quote!.quoteId,
+            rate: state.selectedRate!,
+          )
+        : null;
+  }
 
   /// Address sent to create-checkout. `local_area` must match the quoted
   /// suburb exactly or the server rejects the saved quote.
@@ -288,13 +415,16 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     'province': _selectedProvince,
   };
 
-  BobGoQuoteStatus _bobGoStatus() => bobGoQuoteStatus(
-    quote: _bobGoQuote,
-    selectedRate: _selectedBobGoRate,
-    quotedFingerprint: _bobGoQuotedFingerprint,
-    currentFingerprint: _bobGoDetails().fingerprint,
-    now: DateTime.now(),
-  );
+  BobGoQuoteStatus _bobGoStatus(String shopId) {
+    final state = _bobGoByShop[shopId];
+    return bobGoQuoteStatus(
+      quote: state?.quote,
+      selectedRate: state?.selectedRate,
+      quotedFingerprint: state?.quotedFingerprint,
+      currentFingerprint: _bobGoDetails().fingerprint,
+      now: DateTime.now(),
+    );
+  }
 
   bool get _bobGoAddressComplete =>
       _streetController.text.trim().isNotEmpty &&
@@ -305,52 +435,46 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _nameController.text.trim().isNotEmpty &&
       _phoneController.text.trim().isNotEmpty;
 
-  void _clearBobGoQuote({bool keepError = false}) {
-    _bobGoExpiryTimer?.cancel();
-    _bobGoQuote = null;
-    _selectedBobGoRate = null;
-    _bobGoQuotedFingerprint = null;
-    if (!keepError) _bobGoError = null;
-  }
-
-  Future<void> _requestBobGoRates() async {
-    if (_isLoadingBobGoRates) return;
+  /// Quotes Bob Go for one shop's items only (each shop sends its own parcel).
+  Future<void> _requestBobGoRates(String shopId) async {
+    final state = _bobGo(shopId);
+    if (state.isLoading) return;
     FocusScope.of(context).unfocus();
     setState(() {
-      _isLoadingBobGoRates = true;
-      _clearBobGoQuote();
+      state.clear();
+      state.isLoading = true;
       _clearAppliedCoupon();
     });
     final details = _bobGoDetails();
     try {
-      final quote = await ref.read(bobGoGatewayProvider).requestQuote(details);
+      final quote = await ref
+          .read(bobGoGatewayProvider)
+          .requestQuote(details, shopId: shopId.isEmpty ? null : shopId);
       if (!mounted) return;
       setState(() {
-        _bobGoQuote = quote;
-        _bobGoQuotedFingerprint = details.fingerprint;
-        _selectedBobGoRate = quote.rates.length == 1
-            ? quote.rates.first
-            : null;
+        state.quote = quote;
+        state.quotedFingerprint = details.fingerprint;
+        state.selectedRate = quote.rates.length == 1 ? quote.rates.first : null;
       });
-      _scheduleBobGoExpiry(quote);
+      _scheduleBobGoExpiry(state, quote);
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _bobGoError = error is BobGoQuoteException
+        state.error = error is BobGoQuoteException
             ? error.message
             : 'We could not get delivery rates right now. Please try again.';
       });
     } finally {
-      if (mounted) setState(() => _isLoadingBobGoRates = false);
+      if (mounted) setState(() => state.isLoading = false);
     }
   }
 
-  void _scheduleBobGoExpiry(BobGoQuote quote) {
-    _bobGoExpiryTimer?.cancel();
+  void _scheduleBobGoExpiry(_ShopBobGoState state, BobGoQuote quote) {
+    state.expiryTimer?.cancel();
     final expiry = quote.expiresAt;
     if (expiry == null) return;
     final wait = expiry.difference(DateTime.now());
-    _bobGoExpiryTimer = Timer(wait.isNegative ? Duration.zero : wait, () {
+    state.expiryTimer = Timer(wait.isNegative ? Duration.zero : wait, () {
       // Rebuild so the picker and Pay button reflect the expired quote.
       if (mounted) setState(_clearAppliedCoupon);
     });
@@ -402,32 +526,32 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' • ');
   }
 
-  void _clearCourierGuyLockerSelection() {
-    _selectedCourierGuyLocker = null;
-    _pickupPointController.clear();
+  void _clearCourierGuyLockerSelection(_ShopPickupState p) {
+    p.selectedCourierGuyLocker = null;
+    p.pickupPointController.clear();
   }
 
-  void _clearPargoPointSelection() {
-    _selectedPargoPoint = null;
-    _pickupPointController.clear();
+  void _clearPargoPointSelection(_ShopPickupState p) {
+    p.selectedPargoPoint = null;
+    p.pickupPointController.clear();
   }
 
-  Future<void> _searchCourierGuyLockers() async {
-    final search = _courierGuySearchController.text.trim();
-    final province = _courierGuyLockerProvince?.trim();
+  Future<void> _searchCourierGuyLockers(_ShopPickupState p) async {
+    final search = p.courierGuySearchController.text.trim();
+    final province = p.courierGuyLockerProvince?.trim();
     if (search.length < 2 && (province == null || province.isEmpty)) {
       if (!mounted) return;
       setState(() {
-        _courierGuyLockers = const [];
-        _courierGuyLockerError = null;
-        _isLoadingCourierGuyLockers = false;
+        p.courierGuyLockers = const [];
+        p.courierGuyLockerError = null;
+        p.isLoadingCourierGuyLockers = false;
       });
       return;
     }
 
     setState(() {
-      _isLoadingCourierGuyLockers = true;
-      _courierGuyLockerError = null;
+      p.isLoadingCourierGuyLockers = true;
+      p.courierGuyLockerError = null;
     });
 
     try {
@@ -436,8 +560,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           .searchCourierGuyLockers(query: search, province: province);
       if (!mounted) return;
       setState(() {
-        _courierGuyLockers = lockers;
-        _isLoadingCourierGuyLockers = false;
+        p.courierGuyLockers = lockers;
+        p.isLoadingCourierGuyLockers = false;
       });
     } catch (error, stackTrace) {
       debugPrint(
@@ -445,47 +569,47 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _courierGuyLockers = const [];
-        _courierGuyLockerError =
+        p.courierGuyLockers = const [];
+        p.courierGuyLockerError =
             'Could not load Courier Guy lockers right now. Try again in a moment.';
-        _isLoadingCourierGuyLockers = false;
+        p.isLoadingCourierGuyLockers = false;
       });
     }
   }
 
-  void _scheduleCourierGuyLockerSearch() {
-    _courierGuySearchDebounce?.cancel();
-    _courierGuySearchDebounce = Timer(
+  void _scheduleCourierGuyLockerSearch(_ShopPickupState p) {
+    p.courierGuySearchDebounce?.cancel();
+    p.courierGuySearchDebounce = Timer(
       const Duration(milliseconds: 300),
-      _searchCourierGuyLockers,
+      () => _searchCourierGuyLockers(p),
     );
   }
 
-  void _selectCourierGuyLocker(CourierGuyLocker locker) {
+  void _selectCourierGuyLocker(_ShopPickupState p, CourierGuyLocker locker) {
     setState(() {
-      _selectedCourierGuyLocker = locker;
-      _pickupPointController.text = _courierGuyLockerSummary(locker);
-      _courierGuyLockers = const [];
-      _courierGuyLockerError = null;
+      p.selectedCourierGuyLocker = locker;
+      p.pickupPointController.text = _courierGuyLockerSummary(locker);
+      p.courierGuyLockers = const [];
+      p.courierGuyLockerError = null;
     });
   }
 
-  Future<void> _searchPargoPickupPoints() async {
-    final search = _pargoSearchController.text.trim();
-    final province = _pargoPointProvince?.trim();
+  Future<void> _searchPargoPickupPoints(_ShopPickupState p) async {
+    final search = p.pargoSearchController.text.trim();
+    final province = p.pargoPointProvince?.trim();
     if (search.length < 2 && (province == null || province.isEmpty)) {
       if (!mounted) return;
       setState(() {
-        _pargoPickupPoints = const [];
-        _pargoPointError = null;
-        _isLoadingPargoPoints = false;
+        p.pargoPickupPoints = const [];
+        p.pargoPointError = null;
+        p.isLoadingPargoPoints = false;
       });
       return;
     }
 
     setState(() {
-      _isLoadingPargoPoints = true;
-      _pargoPointError = null;
+      p.isLoadingPargoPoints = true;
+      p.pargoPointError = null;
     });
 
     try {
@@ -494,38 +618,41 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           .searchPargoPickupPoints(query: search, province: province);
       if (!mounted) return;
       setState(() {
-        _pargoPickupPoints = points;
-        _isLoadingPargoPoints = false;
+        p.pargoPickupPoints = points;
+        p.isLoadingPargoPoints = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _pargoPickupPoints = const [];
-        _pargoPointError =
+        p.pargoPickupPoints = const [];
+        p.pargoPointError =
             'Could not load Pargo pickup points right now. Try again in a moment.';
-        _isLoadingPargoPoints = false;
+        p.isLoadingPargoPoints = false;
       });
     }
   }
 
-  void _schedulePargoPickupPointSearch() {
-    _pargoSearchDebounce?.cancel();
-    _pargoSearchDebounce = Timer(
+  void _schedulePargoPickupPointSearch(_ShopPickupState p) {
+    p.pargoSearchDebounce?.cancel();
+    p.pargoSearchDebounce = Timer(
       const Duration(milliseconds: 300),
-      _searchPargoPickupPoints,
+      () => _searchPargoPickupPoints(p),
     );
   }
 
-  void _selectPargoPickupPoint(PargoPickupPoint point) {
+  void _selectPargoPickupPoint(_ShopPickupState p, PargoPickupPoint point) {
     setState(() {
-      _selectedPargoPoint = point;
-      _pickupPointController.text = _pargoPointSummary(point);
-      _pargoPickupPoints = const [];
-      _pargoPointError = null;
+      p.selectedPargoPoint = point;
+      p.pickupPointController.text = _pargoPointSummary(point);
+      p.pargoPickupPoints = const [];
+      p.pargoPointError = null;
     });
   }
 
-  CheckoutFormSnapshot _checkoutSnapshot(List<ShippingOption> enabledOptions) {
+  CheckoutFormSnapshot _checkoutSnapshot(
+    Map<String, List<ShippingOption>> optionsByShop,
+  ) {
+    final methods = _currentMethods;
     return CheckoutFormSnapshot(
       fullName: _nameController.text,
       streetAddress: _streetController.text,
@@ -533,19 +660,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       postalCode: _postalController.text,
       province: _selectedProvince,
       phoneNumber: _phoneController.text,
-      selectedShippingMethod: _selectedShipping,
-      hasAvailableShippingMethods: enabledOptions.isNotEmpty,
-      requiresShippingAddress: _requiresShippingAddress(_selectedShipping),
-      requiresPickupPoint: _requiresPickupPoint(_selectedShipping),
-      pickupPoint: _pickupPointController.text,
-      requiresSuburb: _selectedShipping == bobGoShippingKey,
+      // Every shop needs a method; report "none" while any shop lacks one.
+      selectedShippingMethod: methods.isEmpty || methods.contains(null)
+          ? null
+          : methods.first,
+      hasAvailableShippingMethods: _groups.every(
+        (group) => (optionsByShop[group.shopId] ?? const []).isNotEmpty,
+      ),
+      requiresShippingAddress: _needsShippingAddress,
+      requiresPickupPoint: _needsPickupPoint,
+      // Every shop using a pickup method needs its own pickup point.
+      pickupPoint: _shopMissingPickupPoint == null ? 'chosen' : '',
+      requiresSuburb: _usesBobGo,
       suburb: _suburbController.text,
-      requiresBobGoRate: _selectedShipping == bobGoShippingKey,
-      hasUsableBobGoRate: _bobGoStatus() == BobGoQuoteStatus.ready,
+      requiresBobGoRate: _usesBobGo,
+      hasUsableBobGoRate: _allBobGoReady,
     );
   }
 
   Future<void> _ensureFieldVisible(CheckoutField field) async {
+    final missingPickupShop = _shopMissingPickupPoint;
+    final p = _pickup(
+      missingPickupShop?.shopId ?? _groups.firstOrNull?.shopId ?? '',
+    );
     final context = switch (field) {
       CheckoutField.fullName => _fullNameFieldKey.currentContext,
       CheckoutField.streetAddress => _streetFieldKey.currentContext,
@@ -554,7 +691,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       CheckoutField.province => _provinceFieldKey.currentContext,
       CheckoutField.phoneNumber => _phoneFieldKey.currentContext,
       CheckoutField.shippingMethod => _shippingSectionKey.currentContext,
-      CheckoutField.pickupPoint => _pickupPointFieldKey.currentContext,
+      CheckoutField.pickupPoint => p.fieldKey.currentContext,
       CheckoutField.suburb => _suburbFieldKey.currentContext,
       CheckoutField.bobGoRate => _shippingSectionKey.currentContext,
     };
@@ -593,7 +730,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         _phoneFocusNode.requestFocus();
         break;
       case CheckoutField.pickupPoint:
-        _pickupPointFocusNode.requestFocus();
+        p.focusNode.requestFocus();
         break;
       case CheckoutField.suburb:
         _suburbFocusNode.requestFocus();
@@ -606,13 +743,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
+  String _blockingMessage(CheckoutField field) {
+    if (_isMultiShop) {
+      if (field == CheckoutField.shippingMethod) {
+        return 'A shop in your basket has no delivery option for these products yet. Remove its items to continue.';
+      }
+      if (field == CheckoutField.bobGoRate) {
+        return 'Get delivery rates and choose a courier service for each shop using Bob Go.';
+      }
+    }
+    return checkoutBlockingMessage(field);
+  }
+
   Future<void> _showBlockingFeedback(CheckoutField field) async {
     if (mounted) {
       setState(() => _submitAttempted = true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            checkoutBlockingMessage(field),
+            _blockingMessage(field),
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.error,
@@ -624,12 +773,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   Future<void> _submitCheckout({
-    required List<dynamic> items,
-    required double subtotal,
-    required double giftFee,
-    required double shippingCost,
-    required double total,
-    required List<ShippingOption> enabledOptions,
+    required List<CartItem> items,
+    required CheckoutTotals totals,
+    required Map<String, double> shippingByShop,
+    required Map<String, List<ShippingOption>> optionsByShop,
   }) async {
     if (_isSubmittingPayment) return;
 
@@ -640,7 +787,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
 
     final incompleteField = firstIncompleteCheckoutField(
-      _checkoutSnapshot(enabledOptions),
+      _checkoutSnapshot(optionsByShop),
     );
     if (incompleteField != null) {
       await _showBlockingFeedback(incompleteField);
@@ -652,63 +799,78 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    var selections = _shopSelections(shippingByShop);
+    if (selections == null) {
+      await _showBlockingFeedback(CheckoutField.shippingMethod);
+      return;
+    }
+
     setState(() {
       _submitAttempted = true;
       _isSubmittingPayment = true;
     });
 
-    final requiresShippingAddress = _requiresShippingAddress(_selectedShipping);
-    final selectedOption = enabledOptions
-        .where((option) => option.key == _selectedShipping)
-        .firstOrNull;
-    final isBobGo = _selectedShipping == bobGoShippingKey;
     final address = <String, dynamic>{
       'name': _nameController.text,
       'country': 'South Africa',
       'phone': _phoneController.text,
-      if (requiresShippingAddress) ...{
+      if (_needsShippingAddress) ...{
         'street': _streetController.text,
         'city': _cityController.text,
         'postal_code': _postalController.text,
         'province': _selectedProvince,
-        if (isBobGo) 'local_area': _suburbController.text,
+        if (_usesBobGo) 'local_area': _suburbController.text,
       },
-      if (_selectedShipping == 'courier_guy' &&
-          _selectedCourierGuyLocker != null)
-        'pickup_point': _selectedCourierGuyLocker!.toOrderJson()
-      else if (_selectedShipping == 'pargo' && _selectedPargoPoint != null)
-        'pickup_point': _selectedPargoPoint!.toOrderJson()
-      else if (_selectedShipping == 'market_pickup' && selectedOption != null)
-        'pickup_point': {
-          'carrier': 'market_pickup',
-          'point_type': 'market',
-          'name': selectedOption.marketName,
-          'address': selectedOption.marketLocation,
-          'province': selectedOption.marketProvince,
-        }
-      else if (_pickupPointController.text.trim().isNotEmpty)
-        'pickup_point': _pickupPointController.text.trim(),
     };
+    if (selections.length == 1) {
+      // One shop: exactly as before, the pickup point sits in the address.
+      final pickupPoint = _pickupPointFor(
+        _groups.first.shopId,
+        optionsByShop[_groups.first.shopId] ?? const [],
+      );
+      if (pickupPoint != null) address['pickup_point'] = pickupPoint;
+    } else {
+      // Several shops: each shop's pickup point goes with that shop only.
+      selections = [
+        for (final selection in selections)
+          () {
+            final pickupPoint = _pickupPointFor(
+              selection.shopId,
+              optionsByShop[selection.shopId] ?? const [],
+            );
+            return pickupPoint == null
+                ? selection
+                : selection.copyWith(
+                    shippingAddress: {'pickup_point': pickupPoint},
+                  );
+          }(),
+      ];
+    }
 
+    final single = selections.length == 1 ? selections.single : null;
     final checkoutData = {
       'items': items,
-      'subtotal': subtotal,
-      'giftFee': giftFee,
-      'shippingCost': shippingCost,
-      'shippingMethod': _selectedShipping,
-      'total': total,
+      'subtotal': totals.subtotal,
+      'giftFee': totals.giftFee,
+      'shippingCost': totals.shippingCost,
+      'shippingMethod': single?.shippingMethod,
+      'total': totals.total,
       'couponCode': _appliedCouponCode,
       'address': address,
-      if (isBobGo) 'bobgo': _bobGoSelection(),
+      if (single?.bobgo != null) 'bobgo': single!.bobgo,
+      'shops': selections,
+      'shopTotals': totals.shops,
     };
 
     try {
       await ref
           .read(metaAppEventsServiceProvider)
           .logInitiatedCheckout(
-            items: items.whereType<CartItem>().toList(growable: false),
-            totalPrice: total,
-            shippingMethod: _selectedShipping,
+            items: items,
+            totalPrice: totals.total,
+            shippingMethod:
+                single?.shippingMethod ??
+                selections.map((shop) => shop.shippingMethod).join(','),
           );
       if (!mounted) return;
       await context.push('/cart/payment', extra: checkoutData);
@@ -724,11 +886,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final cartAsync = ref.watch(cartItemsProvider);
-    final bobGoAvailable =
-        ref.watch(bobGoAvailabilityProvider).asData?.value ?? false;
+    _groups = groupCartItemsByShop(cartAsync.asData?.value ?? const []);
     final giftOptions = ref.watch(giftOptionsProvider);
     final isGift = giftOptions.isGift;
-    final requiresShippingAddress = _requiresShippingAddress(_selectedShipping);
+    final requiresShippingAddress = _needsShippingAddress;
     final addressTitle = requiresShippingAddress
         ? (isGift ? 'Recipient Delivery Details' : 'Shipping Address')
         : 'Contact Details';
@@ -823,58 +984,61 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             );
           }
 
-          final productShippingOptions = items
-              .map(
-                (item) =>
-                    item.product?.shippingOptions ?? const <ShippingOption>[],
-              )
-              .toList(growable: false);
-          final shopId = items.first.product?.shopId;
-          final combinedShippingEnabled = shopId == null
-              ? true
-              : ref
-                        .watch(shopDetailProvider(shopId))
+          final groups = _groups;
+          final optionsByShop = <String, List<ShippingOption>>{};
+          final shippingByShop = <String, double>{};
+          for (final group in groups) {
+            final shopId = group.shopId;
+            // Combined shipping is a per-shop setting.
+            final combinedShippingEnabled = shopId.isEmpty
+                ? true
+                : ref
+                          .watch(shopDetailProvider(shopId))
+                          .asData
+                          ?.value
+                          .combinedShippingEnabled ??
+                      true;
+            final bobGoAvailable =
+                shopId.isNotEmpty &&
+                (ref
+                        .watch(bobGoShopAvailabilityProvider(shopId))
                         .asData
-                        ?.value
-                        .combinedShippingEnabled ??
-                    true;
-          final enabledOptions = [
-            ...availableShippingOptionsForProducts(productShippingOptions),
-            if (bobGoAvailable)
-              ShippingOption(
-                key: bobGoShippingKey,
-                enabled: true,
-                price: _selectedBobGoRate?.amount ?? 0,
-              ),
-          ];
-          _initSelection(enabledOptions);
+                        ?.value ??
+                    false);
+            final bobGoRate = _bobGoByShop[shopId]?.selectedRate;
+            final bobGoReady = _bobGoStatus(shopId) == BobGoQuoteStatus.ready;
+            optionsByShop[shopId] = [
+              ...group.availableShippingOptions,
+              if (bobGoAvailable)
+                ShippingOption(
+                  key: bobGoShippingKey,
+                  enabled: true,
+                  price: bobGoRate?.amount ?? 0,
+                ),
+            ];
+            shippingByShop[shopId] = shopShippingCost(
+              group: group,
+              methodKey: _methodFor(shopId),
+              combinedShippingEnabled: combinedShippingEnabled,
+              bobGoAmount: bobGoReady ? bobGoRate!.amount : 0,
+            );
+          }
+          _initSelections(optionsByShop);
 
-          final subtotal = items.fold<double>(
-            0,
-            (sum, item) => sum + item.lineTotal,
-          );
-          final giftFee = giftFeeForSelection(isGift: isGift);
-          final shippingCost = _selectedShippingCost(
-            items: items,
-            productShippingOptions: productShippingOptions,
-            combinedShippingEnabled: combinedShippingEnabled,
-          );
-          final total = calculateCheckoutTotal(
-            subtotal: subtotal,
-            shippingCost: shippingCost,
+          final totals = calculateShopTotals(
+            groups: groups,
+            shippingByShop: shippingByShop,
             isGift: isGift,
-            discountAmount: _discountAmount,
+            discountByShop: _discountByShop,
           );
 
           _stickyPayBar = _buildStickyPayBar(
-            total: total,
+            total: totals.total,
             onPressed: () => _submitCheckout(
               items: items,
-              subtotal: subtotal,
-              giftFee: giftFee,
-              shippingCost: shippingCost,
-              total: total,
-              enabledOptions: enabledOptions,
+              totals: totals,
+              shippingByShop: shippingByShop,
+              optionsByShop: optionsByShop,
             ),
           );
 
@@ -942,7 +1106,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                         ],
                       ),
-                      if (_selectedShipping == bobGoShippingKey) ...[
+                      if (_usesBobGo) ...[
                         const SizedBox(height: 16),
                         _buildTextField(
                           key: _suburbFieldKey,
@@ -984,24 +1148,37 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
                     Container(
                       key: _shippingSectionKey,
-                      child: _buildSectionTitle('Shipping Method'),
+                      child: _buildSectionTitle(
+                        _isMultiShop ? 'Delivery' : 'Shipping Method',
+                      ),
                     ),
                     const SizedBox(height: 8),
-                    if (enabledOptions.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Text(
-                          _shippingUnavailableMessage(items.length),
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            color: AppTheme.textHint,
+                    if (_isMultiShop) ...[
+                      const SizedBox(height: 8),
+                      _buildInfoNote(
+                        'Your basket has items from ${groups.length} shops. '
+                        'Each shop sends its own parcel, so choose delivery '
+                        'for each one. You still pay once for everything.',
+                      ),
+                      const SizedBox(height: 24),
+                      for (var index = 0; index < groups.length; index++) ...[
+                        if (index > 0) ...[
+                          Divider(
+                            height: 1,
+                            color: AppTheme.sand.withValues(alpha: 0.4),
                           ),
+                          const SizedBox(height: 24),
+                        ],
+                        _buildShopDeliverySection(
+                          groups[index],
+                          optionsByShop[groups[index].shopId] ?? const [],
                         ),
-                      )
-                    else ...[
-                      const SizedBox(height: 16),
-                      ...enabledOptions.map((opt) => _buildShippingTile(opt)),
-                    ],
+                      ],
+                    ] else
+                      ..._buildShopShippingOptions(
+                        groups.first,
+                        optionsByShop[groups.first.shopId] ?? const [],
+                      ),
 
                     const SizedBox(height: 32),
                     const Divider(height: 1, color: Color(0xFFEEEEEE)),
@@ -1066,8 +1243,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                                   onPressed: _isApplyingCoupon
                                       ? null
                                       : () => _applyCoupon(
-                                          shippingMethod: _selectedShipping,
-                                          shippingCost: shippingCost,
+                                          shippingByShop: shippingByShop,
                                           isGift: isGift,
                                         ),
                                   style: FilledButton.styleFrom(
@@ -1141,35 +1317,36 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               ),
                             ),
                           const SizedBox(height: 20),
-                          _summaryRow(
-                            'Subtotal (${items.length} items)',
-                            'R${subtotal.toStringAsFixed(0)}',
-                          ),
-                          if (_discountAmount > 0) ...[
+                          if (_isMultiShop)
+                            ..._buildMultiShopSummary(totals, isGift: isGift)
+                          else ...[
+                            _summaryRow(
+                              'Subtotal (${items.length} items)',
+                              'R${totals.subtotal.toStringAsFixed(0)}',
+                            ),
+                            if (totals.discountAmount > 0) ...[
+                              const SizedBox(height: 12),
+                              _summaryRow(
+                                'Discount ($_appliedCouponCode)',
+                                '-R${totals.discountAmount.toStringAsFixed(2)}',
+                              ),
+                            ],
+                            if (totals.giftFee > 0) ...[
+                              const SizedBox(height: 12),
+                              _summaryRow(
+                                giftServiceLabel,
+                                'R${totals.giftFee.toStringAsFixed(0)}',
+                              ),
+                            ],
                             const SizedBox(height: 12),
                             _summaryRow(
-                              'Discount ($_appliedCouponCode)',
-                              '-R${_discountAmount.toStringAsFixed(2)}',
+                              'Shipping',
+                              _shippingDisplay(
+                                groups.first.shopId,
+                                totals.shippingCost,
+                              ),
                             ),
                           ],
-                          if (giftFee > 0) ...[
-                            const SizedBox(height: 12),
-                            _summaryRow(
-                              giftServiceLabel,
-                              'R${giftFee.toStringAsFixed(0)}',
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          _summaryRow(
-                            'Shipping',
-                            _selectedShipping == bobGoShippingKey
-                                ? (_bobGoStatus() == BobGoQuoteStatus.ready
-                                      ? '${formatBobGoPrice(shippingCost)} incl. VAT'
-                                      : 'Get rates')
-                                : shippingCost == 0
-                                ? 'FREE'
-                                : 'R${shippingCost.toStringAsFixed(0)}',
-                          ),
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             child: Divider(
@@ -1179,9 +1356,20 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           _summaryRow(
                             'Total',
-                            'R${total.toStringAsFixed(0)}',
+                            'R${totals.total.toStringAsFixed(0)}',
                             isTotal: true,
                           ),
+                          if (_isMultiShop) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              'One payment covers every shop. $wholeRandPaymentNote',
+                              style: GoogleFonts.poppins(
+                                fontSize: 11,
+                                color: AppTheme.textHint,
+                                height: 1.45,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1491,8 +1679,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildSelectedCourierGuyLockerCard() {
-    final locker = _selectedCourierGuyLocker!;
+  Widget _buildSelectedCourierGuyLockerCard(_ShopPickupState p) {
+    final locker = p.selectedCourierGuyLocker!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1544,7 +1732,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             alignment: Alignment.centerLeft,
             child: TextButton(
               onPressed: () =>
-                  setState(() => _clearCourierGuyLockerSelection()),
+                  setState(() => _clearCourierGuyLockerSelection(p)),
               child: Text(
                 'Change locker',
                 style: GoogleFonts.poppins(
@@ -1560,7 +1748,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildCourierGuyLockerResults() {
+  Widget _buildCourierGuyLockerResults(_ShopPickupState p) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1570,13 +1758,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          for (int index = 0; index < _courierGuyLockers.length; index++) ...[
+          for (int index = 0; index < p.courierGuyLockers.length; index++) ...[
             InkWell(
-              onTap: () => _selectCourierGuyLocker(_courierGuyLockers[index]),
+              onTap: () =>
+                  _selectCourierGuyLocker(p, p.courierGuyLockers[index]),
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(index == 0 ? 12 : 0),
                 bottom: Radius.circular(
-                  index == _courierGuyLockers.length - 1 ? 12 : 0,
+                  index == p.courierGuyLockers.length - 1 ? 12 : 0,
                 ),
               ),
               child: Padding(
@@ -1595,7 +1784,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _courierGuyLockers[index].title,
+                            p.courierGuyLockers[index].title,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1604,7 +1793,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _courierGuyLockers[index].subtitle,
+                            p.courierGuyLockers[index].subtitle,
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppTheme.textSecondary,
@@ -1618,7 +1807,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
               ),
             ),
-            if (index != _courierGuyLockers.length - 1)
+            if (index != p.courierGuyLockers.length - 1)
               Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.3)),
           ],
         ],
@@ -1626,8 +1815,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildSelectedPargoPointCard() {
-    final point = _selectedPargoPoint!;
+  Widget _buildSelectedPargoPointCard(_ShopPickupState p) {
+    final point = p.selectedPargoPoint!;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -1678,7 +1867,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
-              onPressed: () => setState(() => _clearPargoPointSelection()),
+              onPressed: () => setState(() => _clearPargoPointSelection(p)),
               child: Text(
                 'Change pickup point',
                 style: GoogleFonts.poppins(
@@ -1694,7 +1883,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildPargoPickupPointResults() {
+  Widget _buildPargoPickupPointResults(_ShopPickupState p) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1704,13 +1893,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
       child: Column(
         children: [
-          for (int index = 0; index < _pargoPickupPoints.length; index++) ...[
+          for (int index = 0; index < p.pargoPickupPoints.length; index++) ...[
             InkWell(
-              onTap: () => _selectPargoPickupPoint(_pargoPickupPoints[index]),
+              onTap: () =>
+                  _selectPargoPickupPoint(p, p.pargoPickupPoints[index]),
               borderRadius: BorderRadius.vertical(
                 top: Radius.circular(index == 0 ? 12 : 0),
                 bottom: Radius.circular(
-                  index == _pargoPickupPoints.length - 1 ? 12 : 0,
+                  index == p.pargoPickupPoints.length - 1 ? 12 : 0,
                 ),
               ),
               child: Padding(
@@ -1729,7 +1919,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _pargoPickupPoints[index].title,
+                            p.pargoPickupPoints[index].title,
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -1738,7 +1928,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _pargoPickupPoints[index].subtitle,
+                            p.pargoPickupPoints[index].subtitle,
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppTheme.textSecondary,
@@ -1752,7 +1942,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
               ),
             ),
-            if (index != _pargoPickupPoints.length - 1)
+            if (index != p.pargoPickupPoints.length - 1)
               Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.3)),
           ],
         ],
@@ -1760,37 +1950,226 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildShippingTile(ShippingOption option) {
-    final isSelected = _selectedShipping == option.key;
+  /// "R65", "FREE", "R95.00 incl. VAT" or a prompt, for one shop's shipping.
+  String _shippingDisplay(String shopId, double cost) {
+    final method = _methodFor(shopId);
+    if (method == null) return 'Choose delivery';
+    if (method == bobGoShippingKey) {
+      return _bobGoStatus(shopId) == BobGoQuoteStatus.ready
+          ? '${formatBobGoPrice(cost)} incl. VAT'
+          : 'Get rates';
+    }
+    return cost == 0 ? 'FREE' : 'R${cost.toStringAsFixed(0)}';
+  }
+
+  /// The option tiles for one shop (or a note when it has none).
+  List<Widget> _buildShopShippingOptions(
+    CartShopGroup group,
+    List<ShippingOption> options,
+  ) {
+    if (options.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(
+            _shippingUnavailableMessage(group.items.length),
+            style: GoogleFonts.poppins(fontSize: 13, color: AppTheme.textHint),
+          ),
+        ),
+      ];
+    }
+    return [
+      const SizedBox(height: 16),
+      ...options.map((option) => _buildShippingTile(group.shopId, option)),
+    ];
+  }
+
+  /// One shop's items and delivery choice in a several-shop basket.
+  Widget _buildShopDeliverySection(
+    CartShopGroup group,
+    List<ShippingOption> options,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppTheme.terracotta.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.storefront_outlined,
+                size: 18,
+                color: AppTheme.terracotta,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                group.shopName,
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            Text(
+              'R${group.subtotal.toStringAsFixed(0)}',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        for (final item in group.items)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    [
+                      item.product?.title ?? 'Product',
+                      if (item.variantName != null) item.variantName!,
+                    ].join(' · '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '× ${item.quantity}',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          'Delivery from ${group.shopName}',
+          style: GoogleFonts.poppins(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textPrimary,
+          ),
+        ),
+        ..._buildShopShippingOptions(group, options),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  /// Per-shop totals for a several-shop basket (the grand total follows).
+  List<Widget> _buildMultiShopSummary(
+    CheckoutTotals totals, {
+    required bool isGift,
+  }) {
+    final widgets = <Widget>[];
+    for (var index = 0; index < totals.shops.length; index++) {
+      final shop = totals.shops[index];
+      final group = _groups.where((g) => g.shopId == shop.shopId).firstOrNull;
+      final pieces = group?.itemCount ?? 0;
+      if (index > 0) widgets.add(const SizedBox(height: 20));
+      widgets.addAll([
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            shop.shopName,
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _summaryRow('Items ($pieces)', 'R${shop.subtotal.toStringAsFixed(0)}'),
+        if (shop.discountAmount > 0) ...[
+          const SizedBox(height: 8),
+          _summaryRow(
+            'Discount ($_appliedCouponCode)',
+            '-R${shop.discountAmount.toStringAsFixed(2)}',
+          ),
+        ],
+        const SizedBox(height: 8),
+        _summaryRow(
+          'Shipping',
+          _shippingDisplay(shop.shopId, shop.shippingCost),
+        ),
+        if (shop.giftFee > 0) ...[
+          const SizedBox(height: 8),
+          _summaryRow(giftServiceLabel, 'R${shop.giftFee.toStringAsFixed(0)}'),
+        ],
+        const SizedBox(height: 8),
+        _summaryRow('Shop total', 'R${shop.total.toStringAsFixed(0)}'),
+      ]);
+    }
+    if (isGift) {
+      widgets.addAll([
+        const SizedBox(height: 16),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            '$giftServiceLabel is R${giftServiceFee.toStringAsFixed(0)} per '
+            'shop, because each shop wraps its own parcel.',
+            style: GoogleFonts.poppins(
+              fontSize: 11,
+              color: AppTheme.textHint,
+              height: 1.45,
+            ),
+          ),
+        ),
+      ]);
+    }
+    return widgets;
+  }
+
+  void _selectShipping(String shopId, String methodKey) {
+    setState(() {
+      if (_methodFor(shopId) != methodKey) {
+        _clearAppliedCoupon();
+      }
+      _selectedShippingByShop[shopId] = methodKey;
+      // Each shop keeps its own pickup point.
+      final p = _pickup(shopId);
+      if (methodKey != 'courier_guy') {
+        _clearCourierGuyLockerSelection(p);
+        p.resetCourierGuy();
+      }
+      if (methodKey != 'pargo') {
+        _clearPargoPointSelection(p);
+        p.resetPargo();
+      }
+      if (!_requiresPickupPoint(methodKey)) {
+        p.pickupPointController.clear();
+      }
+      if (methodKey != bobGoShippingKey) {
+        _bobGoByShop[shopId]?.clear();
+      }
+    });
+  }
+
+  Widget _buildShippingTile(String shopId, ShippingOption option) {
+    final isSelected = _methodFor(shopId) == option.key;
     final isFree = option.price == 0;
 
     return GestureDetector(
-      onTap: () => setState(() {
-        if (_selectedShipping != option.key) {
-          _clearAppliedCoupon();
-        }
-        _selectedShipping = option.key;
-        if (option.key != 'courier_guy') {
-          _clearCourierGuyLockerSelection();
-          _courierGuyLockers = const [];
-          _courierGuyLockerError = null;
-          _courierGuySearchController.clear();
-          _courierGuyLockerProvince = null;
-        }
-        if (option.key != 'pargo') {
-          _clearPargoPointSelection();
-          _pargoPickupPoints = const [];
-          _pargoPointError = null;
-          _pargoSearchController.clear();
-          _pargoPointProvince = null;
-        }
-        if (!_requiresPickupPoint(option.key)) {
-          _pickupPointController.clear();
-        }
-        if (option.key != bobGoShippingKey) {
-          _clearBobGoQuote();
-        }
-      }),
+      onTap: () => _selectShipping(shopId, option.key),
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
@@ -1857,7 +2236,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 ),
                 Text(
                   option.key == bobGoShippingKey
-                      ? (_selectedBobGoRate == null
+                      ? (_bobGoByShop[shopId]?.selectedRate == null
                             ? 'Get rates'
                             : formatBobGoPrice(option.price))
                       : isFree
@@ -1875,7 +2254,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
             if (isSelected) ...[
               const SizedBox(height: 16),
-              _buildSelectedShippingInlineDetails(option),
+              _buildSelectedShippingInlineDetails(shopId, option),
             ],
           ],
         ),
@@ -1883,9 +2262,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  Widget _buildSelectedShippingInlineDetails(ShippingOption option) {
+  Widget _buildSelectedShippingInlineDetails(
+    String shopId,
+    ShippingOption option,
+  ) {
     final shippingMethod = option.key;
-    switch (inlineDetailsForShippingMethod(shippingMethod)) {
+    final details = inlineDetailsForShippingMethod(shippingMethod);
+    final p = _pickup(shopId);
+    switch (details) {
       case CheckoutShippingInlineDetails.courierGuyLockerSearch:
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1896,39 +2280,39 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: 16),
             _buildDropdownField(
               label: 'Locker Province',
-              value: _courierGuyLockerProvince,
+              value: p.courierGuyLockerProvince,
               items: _saProvinces,
               onChanged: (value) {
                 setState(() {
-                  _courierGuyLockerProvince = value;
-                  _selectedCourierGuyLocker = null;
-                  _pickupPointController.clear();
+                  p.courierGuyLockerProvince = value;
+                  p.selectedCourierGuyLocker = null;
+                  p.pickupPointController.clear();
                 });
-                _searchCourierGuyLockers();
+                _searchCourierGuyLockers(p);
               },
             ),
             const SizedBox(height: 16),
             _buildTextField(
-              key: _pickupPointFieldKey,
+              key: p.fieldKey,
               label: 'Search Courier Guy locker',
-              controller: _courierGuySearchController,
-              focusNode: _pickupPointFocusNode,
+              controller: p.courierGuySearchController,
+              focusNode: p.focusNode,
               prefixIcon: Icons.search_rounded,
               hintText: 'Type a mall, suburb, town, or locker code',
               validator: (_) => null,
               onChanged: (_) {
-                setState(() => _clearCourierGuyLockerSelection());
-                _scheduleCourierGuyLockerSearch();
+                setState(() => _clearCourierGuyLockerSelection(p));
+                _scheduleCourierGuyLockerSearch(p);
               },
             ),
             const SizedBox(height: 12),
-            if (_selectedCourierGuyLocker != null)
-              _buildSelectedCourierGuyLockerCard(),
-            if (_courierGuyLockerError != null) ...[
+            if (p.selectedCourierGuyLocker != null)
+              _buildSelectedCourierGuyLockerCard(p),
+            if (p.courierGuyLockerError != null) ...[
               const SizedBox(height: 12),
-              _buildInlineErrorCard(_courierGuyLockerError!),
+              _buildInlineErrorCard(p.courierGuyLockerError!),
             ],
-            if (_isLoadingCourierGuyLockers) ...[
+            if (p.isLoadingCourierGuyLockers) ...[
               const SizedBox(height: 12),
               const Center(
                 child: Padding(
@@ -1939,9 +2323,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                 ),
               ),
-            ] else if (_courierGuyLockers.isNotEmpty) ...[
+            ] else if (p.courierGuyLockers.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildCourierGuyLockerResults(),
+              _buildCourierGuyLockerResults(p),
             ],
           ],
         );
@@ -1955,38 +2339,38 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: 16),
             _buildDropdownField(
               label: 'Pickup Point Province',
-              value: _pargoPointProvince,
+              value: p.pargoPointProvince,
               items: _saProvinces,
               onChanged: (value) {
                 setState(() {
-                  _pargoPointProvince = value;
-                  _selectedPargoPoint = null;
-                  _pickupPointController.clear();
+                  p.pargoPointProvince = value;
+                  p.selectedPargoPoint = null;
+                  p.pickupPointController.clear();
                 });
-                _searchPargoPickupPoints();
+                _searchPargoPickupPoints(p);
               },
             ),
             const SizedBox(height: 16),
             _buildTextField(
-              key: _pickupPointFieldKey,
+              key: p.fieldKey,
               label: 'Search Pargo pickup point',
-              controller: _pargoSearchController,
-              focusNode: _pickupPointFocusNode,
+              controller: p.pargoSearchController,
+              focusNode: p.focusNode,
               prefixIcon: Icons.search_rounded,
               hintText: 'Type a store, suburb, town, or point code',
               validator: (_) => null,
               onChanged: (_) {
-                setState(() => _clearPargoPointSelection());
-                _schedulePargoPickupPointSearch();
+                setState(() => _clearPargoPointSelection(p));
+                _schedulePargoPickupPointSearch(p);
               },
             ),
             const SizedBox(height: 12),
-            if (_selectedPargoPoint != null) _buildSelectedPargoPointCard(),
-            if (_pargoPointError != null) ...[
+            if (p.selectedPargoPoint != null) _buildSelectedPargoPointCard(p),
+            if (p.pargoPointError != null) ...[
               const SizedBox(height: 12),
-              _buildInlineErrorCard(_pargoPointError!),
+              _buildInlineErrorCard(p.pargoPointError!),
             ],
-            if (_isLoadingPargoPoints) ...[
+            if (p.isLoadingPargoPoints) ...[
               const SizedBox(height: 12),
               const Center(
                 child: Padding(
@@ -1997,9 +2381,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                   ),
                 ),
               ),
-            ] else if (_pargoPickupPoints.isNotEmpty) ...[
+            ] else if (p.pargoPickupPoints.isNotEmpty) ...[
               const SizedBox(height: 12),
-              _buildPargoPickupPointResults(),
+              _buildPargoPickupPointResults(p),
             ],
           ],
         );
@@ -2012,10 +2396,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
             const SizedBox(height: 16),
             _buildTextField(
-              key: _pickupPointFieldKey,
+              key: p.fieldKey,
               label: _pickupPointLabel(shippingMethod),
-              controller: _pickupPointController,
-              focusNode: _pickupPointFocusNode,
+              controller: p.pickupPointController,
+              focusNode: p.focusNode,
               prefixIcon: Icons.pin_drop_outlined,
               hintText: _pickupPointHint(shippingMethod),
             ),
@@ -2029,18 +2413,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               : 'Market pickup: $marketSummary. Please only choose this if you can collect from this market.',
         );
       case CheckoutShippingInlineDetails.bobGoRates:
+        final state = _bobGo(shopId);
         return BobGoRatePicker(
-          status: _bobGoStatus(),
-          quote: _bobGoQuote,
-          selectedRate: _selectedBobGoRate,
-          isLoading: _isLoadingBobGoRates,
-          errorMessage: _bobGoError,
+          status: _bobGoStatus(shopId),
+          quote: state.quote,
+          selectedRate: state.selectedRate,
+          isLoading: state.isLoading,
+          errorMessage: state.error,
           canRequest: _bobGoAddressComplete,
           now: DateTime.now(),
-          onRequest: _requestBobGoRates,
+          onRequest: () => _requestBobGoRates(shopId),
           onSelect: (rate) => setState(() {
-            _selectedBobGoRate = rate;
-            _bobGoError = null;
+            state.selectedRate = rate;
+            state.error = null;
             _clearAppliedCoupon();
           }),
         );
@@ -2066,19 +2451,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         const SizedBox(width: 12),
         Flexible(
           child: Text(
-          value,
-          textAlign: TextAlign.end,
-          style: isTotal
-              ? GoogleFonts.playfairDisplay(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.sienna,
-                )
-              : GoogleFonts.poppins(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textPrimary,
-                ),
+            value,
+            textAlign: TextAlign.end,
+            style: isTotal
+                ? GoogleFonts.playfairDisplay(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.sienna,
+                  )
+                : GoogleFonts.poppins(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppTheme.textPrimary,
+                  ),
           ),
         ),
       ],

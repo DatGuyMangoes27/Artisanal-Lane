@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildCartLines,
+  buildCheckoutRequestBody,
+  calculateCheckoutTotals,
   calculateShippingTotal,
   checkoutBlockingMessage,
   firstIncompleteCheckoutField,
@@ -9,6 +11,8 @@ import {
   getCartSubtotal,
   getCheckoutBlocker,
   getSavedAddressCheckoutFields,
+  groupCartLinesByShop,
+  parseCheckoutResponse,
   requiresPickupPoint,
   requiresShippingAddress,
 } from "./checkout";
@@ -137,11 +141,12 @@ describe("marketplace checkout helpers", () => {
     expect(getCheckoutBlocker(lines)).toBeNull();
   });
 
-  it("blocks checkout when cart items span more than one shop", () => {
-    const lines = buildCartLines(
+  function twoShopLines() {
+    return buildCartLines(
       [
-        { key: "product-1", productId: "product-1", variantId: null, quantity: 1 },
+        { key: "product-1", productId: "product-1", variantId: null, quantity: 2 },
         { key: "product-2", productId: "product-2", variantId: null, quantity: 1 },
+        { key: "product-3", productId: "product-3", variantId: null, quantity: 1 },
       ],
       [
         product(),
@@ -149,6 +154,11 @@ describe("marketplace checkout helpers", () => {
           id: "product-2",
           shopId: "shop-2",
           title: "Ceramic bowl",
+          price: 200,
+          shippingOptions: [
+            { key: "pargo", enabled: true, price: 65, marketName: null, marketLocation: null, marketProvince: null },
+            { key: "courier_guy", enabled: true, price: 80, marketName: null, marketLocation: null, marketProvince: null },
+          ],
           shop: {
             id: "shop-2",
             name: "Clay House",
@@ -158,12 +168,251 @@ describe("marketplace checkout helpers", () => {
             isOffline: false,
           },
         }),
+        product({ id: "product-3", title: "Beeswax candle", price: 90 }),
+      ],
+    );
+  }
+
+  it("allows checkout when cart items span more than one shop", () => {
+    expect(getCheckoutBlocker(twoShopLines())).toBeNull();
+  });
+
+  it("groups cart lines by shop in first-added order with per-shop subtotals", () => {
+    const shops = groupCartLinesByShop(twoShopLines());
+
+    expect(shops.map((shop) => [shop.shopId, shop.shopName, shop.quantity, shop.subtotal])).toEqual([
+      ["shop-1", "StellieScent", 3, 330],
+      ["shop-2", "Clay House", 1, 200],
+    ]);
+    expect(shops[0].lines.map((line) => line.productId)).toEqual(["product-1", "product-3"]);
+  });
+
+  it("works out delivery options and costs for each shop on its own", () => {
+    const [stellie, clay] = groupCartLinesByShop(twoShopLines());
+
+    // The second shop's options do not narrow the first shop's.
+    expect(getAvailableShippingOptionsForCart(stellie.lines).map((option) => option.key)).toEqual([
+      "courier_guy",
+      "courier_guy_door_to_door",
+      "market_pickup",
+    ]);
+    expect(getAvailableShippingOptionsForCart(clay.lines).map((option) => option.key)).toEqual([
+      "pargo",
+      "courier_guy",
+    ]);
+    expect(calculateShippingTotal(stellie.lines, "courier_guy")).toBe(69);
+    expect(calculateShippingTotal(clay.lines, "pargo")).toBe(65);
+  });
+
+  it("names the shop whose products share no delivery option", () => {
+    const clayHouse = {
+      id: "shop-2",
+      name: "Clay House",
+      slug: "clay-house",
+      logoUrl: null,
+      location: null,
+      isOffline: false,
+    };
+    const lines = buildCartLines(
+      [
+        { key: "product-1", productId: "product-1", variantId: null, quantity: 1 },
+        { key: "product-2", productId: "product-2", variantId: null, quantity: 1 },
+        { key: "product-3", productId: "product-3", variantId: null, quantity: 1 },
+      ],
+      [
+        product(),
+        product({
+          id: "product-2",
+          shopId: "shop-2",
+          shippingOptions: [
+            { key: "pargo", enabled: true, price: 65, marketName: null, marketLocation: null, marketProvince: null },
+          ],
+          shop: clayHouse,
+        }),
+        product({
+          id: "product-3",
+          shopId: "shop-2",
+          shippingOptions: [
+            { key: "courier_guy", enabled: true, price: 69, marketName: null, marketLocation: null, marketProvince: null },
+          ],
+          shop: clayHouse,
+        }),
       ],
     );
 
     expect(getCheckoutBlocker(lines)).toBe(
-      "Checkout currently supports one artisan shop per order. Please complete each shop separately.",
+      "Clay House: the products from this shop do not share a delivery option yet. Remove one of them to continue.",
     );
+    // Bob Go can still quote that shop, so checkout may go ahead.
+    expect(getCheckoutBlocker(lines, { allowDynamicShipping: (shopId) => shopId === "shop-2" })).toBeNull();
+    expect(getCheckoutBlocker(lines, { allowDynamicShipping: (shopId) => shopId === "shop-1" })).not.toBeNull();
+  });
+
+  it("adds per-shop totals and charges the gift fee once per shop", () => {
+    const shops = [
+      { shopId: "shop-1", shopName: "StellieScent", subtotal: 330, shippingCost: 69 },
+      { shopId: "shop-2", shopName: "Clay House", subtotal: 200, shippingCost: 65 },
+    ];
+
+    expect(calculateCheckoutTotals(shops, false)).toMatchObject({
+      subtotal: 530,
+      shippingCost: 134,
+      giftFee: 0,
+      total: 664,
+    });
+    const gift = calculateCheckoutTotals(shops, true);
+    expect(gift.giftFee).toBe(60);
+    expect(gift.total).toBe(724);
+    expect(gift.shops.map((shop) => [shop.shopId, shop.giftFee, shop.total])).toEqual([
+      ["shop-1", 30, 429],
+      ["shop-2", 30, 295],
+    ]);
+  });
+
+  it("builds a create-checkout body with one entry and its own pickup point per shop", () => {
+    const shippingAddress = { name: "Buyer", phone: "0710000000", country: "South Africa" };
+    const lockerPoint = { carrier: "courier_guy", point_type: "locker", code: "CG1", name: "Mall locker" };
+    const marketPoint = { carrier: "market_pickup", point_type: "market", name: "Neighbourgoods" };
+    const body = buildCheckoutRequestBody({
+      userId: "buyer-1",
+      reservationToken: "token-1",
+      shippingAddress,
+      isGift: true,
+      giftRecipient: "  Gran ",
+      giftMessage: "",
+      couponCode: " clay10 ",
+      shops: [
+        {
+          shopId: "shop-1",
+          shippingMethod: "courier_guy",
+          shippingCost: 69,
+          shippingAddress: { pickup_point: lockerPoint },
+        },
+        {
+          shopId: "shop-2",
+          shippingMethod: "bobgo_door_to_door",
+          shippingCost: 120,
+          shippingAddress: null,
+          bobgo: { quoteId: "quote-2", rateResponseId: 7, providerSlug: "tcg", serviceLevelCode: "ECO" },
+        },
+        {
+          shopId: "shop-3",
+          shippingMethod: "market_pickup",
+          shippingCost: 0,
+          shippingAddress: { pickup_point: marketPoint },
+        },
+      ],
+    });
+
+    expect(body).toEqual({
+      userId: "buyer-1",
+      reservationToken: "token-1",
+      shippingAddress,
+      shops: [
+        {
+          shopId: "shop-1",
+          shippingMethod: "courier_guy",
+          shippingCost: 69,
+          bobgoQuoteId: null,
+          bobgoRateResponseId: null,
+          bobgoProviderSlug: null,
+          bobgoServiceLevelCode: null,
+          shippingAddress: { pickup_point: lockerPoint },
+        },
+        {
+          // Door delivery uses the top-level address only.
+          shopId: "shop-2",
+          shippingMethod: "bobgo_door_to_door",
+          shippingCost: 120,
+          bobgoQuoteId: "quote-2",
+          bobgoRateResponseId: 7,
+          bobgoProviderSlug: "tcg",
+          bobgoServiceLevelCode: "ECO",
+        },
+        {
+          shopId: "shop-3",
+          shippingMethod: "market_pickup",
+          shippingCost: 0,
+          bobgoQuoteId: null,
+          bobgoRateResponseId: null,
+          bobgoProviderSlug: null,
+          bobgoServiceLevelCode: null,
+          shippingAddress: { pickup_point: marketPoint },
+        },
+      ],
+      isGift: true,
+      giftRecipient: "Gran",
+      giftMessage: null,
+      couponCode: "CLAY10",
+    });
+  });
+
+  it("keeps the original top-level delivery fields for a one-shop basket", () => {
+    const body = buildCheckoutRequestBody({
+      userId: "buyer-1",
+      reservationToken: null,
+      shippingAddress: {},
+      isGift: false,
+      giftRecipient: "Gran",
+      giftMessage: "Enjoy",
+      couponCode: "",
+      shops: [
+        {
+          shopId: "shop-1",
+          shippingMethod: "bobgo_door_to_door",
+          shippingCost: 99,
+          bobgo: { quoteId: "quote-1", rateResponseId: 3, providerSlug: "tcg", serviceLevelCode: "ECO" },
+        },
+      ],
+    });
+
+    expect(body).toMatchObject({
+      shippingMethod: "bobgo_door_to_door",
+      shippingCost: 99,
+      bobgoQuoteId: "quote-1",
+      bobgoRateResponseId: 3,
+      bobgoProviderSlug: "tcg",
+      bobgoServiceLevelCode: "ECO",
+      giftRecipient: null,
+      giftMessage: null,
+      couponCode: null,
+    });
+    expect(body.shops).toHaveLength(1);
+  });
+
+  it("reads both create-checkout response shapes", () => {
+    expect(
+      parseCheckoutResponse({ orderId: "order-1", checkoutUrl: "https://pay.example/1", transactionId: "t-1" }),
+    ).toEqual({ kind: "single", orderId: "order-1", checkoutUrl: "https://pay.example/1" });
+
+    expect(
+      parseCheckoutResponse({
+        checkoutGroupId: "group-1",
+        status: "awaiting_payment",
+        orderId: "order-1",
+        orderIds: ["order-1", "order-2"],
+        checkoutUrl: "https://pay.example/basket",
+        total: 724.5,
+      }),
+    ).toEqual({
+      kind: "group",
+      checkoutGroupId: "group-1",
+      status: "awaiting_payment",
+      orderIds: ["order-1", "order-2"],
+      checkoutUrl: "https://pay.example/basket",
+      total: 724.5,
+    });
+
+    // The buyer's TradeSafe wallet already covered the basket.
+    expect(
+      parseCheckoutResponse({ checkoutGroupId: "group-2", status: "funded", orderIds: ["order-3"], checkoutUrl: null }),
+    ).toMatchObject({ kind: "group", status: "funded", checkoutUrl: null });
+
+    expect(parseCheckoutResponse({ error: "Clay House: Please select a shipping method." })).toEqual({
+      kind: "error",
+      message: "Clay House: Please select a shipping method.",
+    });
+    expect(parseCheckoutResponse(null)).toEqual({ kind: "error", message: "Checkout failed." });
   });
 
   it("charges a shared shipping method once per shop", () => {

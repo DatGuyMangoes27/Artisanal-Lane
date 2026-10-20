@@ -49,8 +49,16 @@ export type CheckoutFormSnapshot = {
   pickupPoint: string;
 };
 
-export const multiShopCheckoutMessage =
-  "Checkout currently supports one artisan shop per order. Please complete each shop separately.";
+/** Gift wrapping is charged per shop: each artisan wraps their own parcel. */
+export const GIFT_SERVICE_FEE_PER_SHOP = 30;
+
+export type ShopCartGroup = {
+  shopId: string;
+  shopName: string;
+  lines: CartLine[];
+  quantity: number;
+  subtotal: number;
+};
 
 function findVariant(product: MarketplaceProduct, variantId: string | null): MarketplaceVariant | null {
   if (!variantId) {
@@ -113,9 +121,31 @@ export function getCartSubtotal(lines: CartLine[]) {
   return lines.reduce((total, line) => total + line.lineTotal, 0);
 }
 
+/** Splits cart lines by shop, keeping shops (and lines) in first-added order. */
+export function groupCartLinesByShop(lines: CartLine[]): ShopCartGroup[] {
+  const groups = new Map<string, ShopCartGroup>();
+  for (const line of lines) {
+    const group = groups.get(line.shopId) ?? {
+      shopId: line.shopId,
+      shopName: line.shopName,
+      lines: [],
+      quantity: 0,
+      subtotal: 0,
+    };
+    group.lines.push(line);
+    group.quantity += line.quantity;
+    group.subtotal += line.lineTotal;
+    groups.set(line.shopId, group);
+  }
+  return [...groups.values()];
+}
+
 export function getCheckoutBlocker(
   lines: CartLine[],
-  options: { allowDynamicShipping?: boolean } = {},
+  options: {
+    /** True (for every shop, or per shop) when Bob Go can quote that shop's items. */
+    allowDynamicShipping?: boolean | ((shopId: string) => boolean);
+  } = {},
 ) {
   if (lines.length === 0) {
     return "Your cart is empty.";
@@ -125,13 +155,19 @@ export function getCheckoutBlocker(
     return "One or more cart items no longer has enough stock. Please update your cart before checkout.";
   }
 
-  const shopIds = new Set(lines.map((line) => line.shopId));
-  if (shopIds.size > 1) {
-    return multiShopCheckoutMessage;
-  }
-
-  if (!options.allowDynamicShipping && getAvailableShippingOptionsForCart(lines).length === 0) {
-    return "The products in this cart do not share an available shipping option yet.";
+  const shops = groupCartLinesByShop(lines);
+  const allowsDynamicShipping = (shopId: string) =>
+    typeof options.allowDynamicShipping === "function"
+      ? options.allowDynamicShipping(shopId)
+      : options.allowDynamicShipping === true;
+  const stuckShop = shops.find(
+    (shop) =>
+      !allowsDynamicShipping(shop.shopId) && getAvailableShippingOptionsForCart(shop.lines).length === 0,
+  );
+  if (stuckShop) {
+    return shops.length === 1
+      ? "The products in this cart do not share an available shipping option yet."
+      : `${stuckShop.shopName}: the products from this shop do not share a delivery option yet. Remove one of them to continue.`;
   }
 
   return null;
@@ -223,4 +259,161 @@ export function checkoutBlockingMessage(field: CheckoutField | null) {
   }
 
   return "Please complete your checkout details before continuing to TradeSafe.";
+}
+
+export function getGiftFeeTotal(isGift: boolean, shopCount: number) {
+  return isGift ? GIFT_SERVICE_FEE_PER_SHOP * shopCount : 0;
+}
+
+export type ShopCheckoutTotals = {
+  shopId: string;
+  shopName: string;
+  subtotal: number;
+  shippingCost: number;
+  giftFee: number;
+  total: number;
+};
+
+/** Per-shop and basket totals before any discount code (the server applies those). */
+export function calculateCheckoutTotals(
+  shops: Array<{ shopId: string; shopName: string; subtotal: number; shippingCost: number }>,
+  isGift: boolean,
+) {
+  const perShop: ShopCheckoutTotals[] = shops.map((shop) => {
+    const giftFee = getGiftFeeTotal(isGift, 1);
+    return { ...shop, giftFee, total: shop.subtotal + shop.shippingCost + giftFee };
+  });
+  const sum = (pick: (shop: ShopCheckoutTotals) => number) =>
+    perShop.reduce((total, shop) => total + pick(shop), 0);
+
+  return {
+    shops: perShop,
+    subtotal: sum((shop) => shop.subtotal),
+    shippingCost: sum((shop) => shop.shippingCost),
+    giftFee: sum((shop) => shop.giftFee),
+    total: sum((shop) => shop.total),
+  };
+}
+
+export type ShopDeliverySelection = {
+  shopId: string;
+  shippingMethod: string;
+  shippingCost: number;
+  /** Merged over the top-level address for this shop's order (e.g. its own pickup point). */
+  shippingAddress?: Record<string, unknown> | null;
+  bobgo?: {
+    quoteId: string | null;
+    rateResponseId: number | null;
+    providerSlug: string | null;
+    serviceLevelCode: string | null;
+  } | null;
+};
+
+export type CheckoutRequestInput = {
+  userId: string;
+  reservationToken: string | null;
+  shippingAddress: Record<string, unknown>;
+  shops: ShopDeliverySelection[];
+  isGift: boolean;
+  giftRecipient: string;
+  giftMessage: string;
+  couponCode: string;
+};
+
+/**
+ * The create-checkout request body. Always sends one `shops` entry per shop;
+ * a one-shop basket also keeps the original top-level delivery fields.
+ */
+export function buildCheckoutRequestBody(input: CheckoutRequestInput) {
+  const shops = input.shops.map((shop) => {
+    const isBobGo = shop.shippingMethod === "bobgo_door_to_door";
+    return {
+      shopId: shop.shopId,
+      shippingMethod: shop.shippingMethod,
+      shippingCost: shop.shippingCost,
+      bobgoQuoteId: isBobGo ? shop.bobgo?.quoteId ?? null : null,
+      bobgoRateResponseId: isBobGo ? shop.bobgo?.rateResponseId ?? null : null,
+      bobgoProviderSlug: isBobGo ? shop.bobgo?.providerSlug ?? null : null,
+      bobgoServiceLevelCode: isBobGo ? shop.bobgo?.serviceLevelCode ?? null : null,
+      ...(shop.shippingAddress ? { shippingAddress: shop.shippingAddress } : {}),
+    };
+  });
+  const singleShop = shops.length === 1 ? shops[0] : null;
+
+  return {
+    userId: input.userId,
+    reservationToken: input.reservationToken,
+    shippingAddress: input.shippingAddress,
+    ...(singleShop
+      ? {
+          shippingMethod: singleShop.shippingMethod,
+          shippingCost: singleShop.shippingCost,
+          bobgoQuoteId: singleShop.bobgoQuoteId,
+          bobgoRateResponseId: singleShop.bobgoRateResponseId,
+          bobgoProviderSlug: singleShop.bobgoProviderSlug,
+          bobgoServiceLevelCode: singleShop.bobgoServiceLevelCode,
+        }
+      : {}),
+    shops,
+    isGift: input.isGift,
+    giftRecipient: input.isGift ? input.giftRecipient.trim() || null : null,
+    giftMessage: input.isGift ? input.giftMessage.trim() || null : null,
+    couponCode: input.couponCode.trim().toUpperCase() || null,
+  };
+}
+
+export type CheckoutGroupStatus = "awaiting_payment" | "funded" | "cancelled" | "needs_attention";
+
+export type CheckoutResult =
+  | { kind: "single"; orderId: string | null; checkoutUrl: string }
+  | {
+      kind: "group";
+      checkoutGroupId: string;
+      status: CheckoutGroupStatus;
+      orderIds: string[];
+      checkoutUrl: string | null;
+      total: number | null;
+    }
+  | { kind: "error"; message: string };
+
+function nonEmptyString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+export function parseCheckoutGroupStatus(value: unknown): CheckoutGroupStatus | null {
+  return value === "awaiting_payment" || value === "funded" || value === "cancelled" || value === "needs_attention"
+    ? value
+    : null;
+}
+
+/** Reads either create-checkout response: one shop, or a several-shop checkout group. */
+export function parseCheckoutResponse(data: unknown): CheckoutResult {
+  const record = (typeof data === "object" && data != null ? data : {}) as Record<string, unknown>;
+  const error = nonEmptyString(record.error);
+  if (error) {
+    return { kind: "error", message: error };
+  }
+
+  const checkoutGroupId = nonEmptyString(record.checkoutGroupId);
+  if (checkoutGroupId) {
+    const orderIds = Array.isArray(record.orderIds)
+      ? record.orderIds.map(nonEmptyString).filter((id): id is string => id != null)
+      : [];
+    const firstOrderId = nonEmptyString(record.orderId);
+    return {
+      kind: "group",
+      checkoutGroupId,
+      status: parseCheckoutGroupStatus(record.status) ?? "awaiting_payment",
+      orderIds: orderIds.length > 0 ? orderIds : firstOrderId ? [firstOrderId] : [],
+      checkoutUrl: nonEmptyString(record.checkoutUrl),
+      total: typeof record.total === "number" && Number.isFinite(record.total) ? record.total : null,
+    };
+  }
+
+  const checkoutUrl = nonEmptyString(record.checkoutUrl);
+  if (!checkoutUrl) {
+    return { kind: "error", message: "Checkout failed." };
+  }
+
+  return { kind: "single", orderId: nonEmptyString(record.orderId), checkoutUrl };
 }

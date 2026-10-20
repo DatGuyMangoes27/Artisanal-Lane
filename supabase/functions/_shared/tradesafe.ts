@@ -540,6 +540,73 @@ export async function createCheckoutLink(transactionId: string) {
   return result.checkoutLink;
 }
 
+/** What the buyer must pay into a transaction, including their share of fees. */
+export async function getTradeSafeBuyerDeposit(transactionId: string) {
+  const result = await tradeSafeRequest<{
+    transaction: {
+      calculation: { parties: Array<{ role: string; deposit: number | null }> } | null;
+    } | null;
+  }>(
+    "transactionBuyerDeposit",
+    `query TransactionBuyerDeposit($id: ID!) {
+      transaction(id: $id) { calculation { parties { role deposit } } }
+    }`,
+    { id: transactionId },
+  );
+  const deposit = Number(
+    result.transaction?.calculation?.parties.find((party) => party.role === "BUYER")?.deposit,
+  );
+  if (!Number.isFinite(deposit) || deposit <= 0) {
+    throw new Error("TradeSafe did not return the buyer deposit for the order.");
+  }
+  return deposit;
+}
+
+export async function getTradeSafeTokenBalance(tokenId: string) {
+  const result = await tradeSafeRequest<{ token: { balance: number | null } | null }>(
+    "tokenBalance",
+    `query TokenBalance($id: ID!) { token(id: $id) { balance } }`,
+    { id: tokenId },
+  );
+  return Number(result.token?.balance ?? 0) || 0;
+}
+
+/**
+ * A TradeSafe payment link that tops up the buyer's own TradeSafe wallet. Used
+ * for multi-shop checkout: one payment, which then funds each shop's escrow.
+ * TradeSafe takes whole rands here.
+ */
+export async function createTradeSafeWalletDeposit(input: {
+  tokenId: string;
+  amount: number;
+  minutes: number;
+}) {
+  const result = await tradeSafeRequest<{
+    tokenDeposit: { id: string; url: string; expiresAt: string | null };
+  }>(
+    "tokenDeposit",
+    `mutation TokenDeposit($id: ID!, $value: Int!, $minutes: Int) {
+      tokenDeposit(id: $id, value: $value, minutes: $minutes) { id url expiresAt }
+    }`,
+    { id: input.tokenId, value: input.amount, minutes: input.minutes },
+  );
+  return result.tokenDeposit;
+}
+
+/** Pays a transaction from the buyer's TradeSafe wallet. */
+export async function fundTradeSafeTransactionFromWallet(transactionId: string) {
+  const result = await tradeSafeRequest<{
+    transactionDepositWallet: { id: string; state: string };
+  }>(
+    "transactionDepositWallet",
+    `mutation DepositWallet($id: ID!) {
+      transactionDepositWallet(id: $id) { id state }
+    }`,
+    { id: transactionId },
+  );
+  return result.transactionDepositWallet;
+}
+
 export async function getTradeSafeTransactionState(transactionId: string) {
   const query = `
     query Transaction($id: ID!) {

@@ -5,7 +5,8 @@
 // to buyer + shop + basket + delivery address. The app then passes the returned
 // quoteId/rate identifiers to create-checkout, exactly like the website.
 //
-// Body: { action?: "quote" | "availability" | "status", delivery: {...} }
+// Body: { action?: "quote" | "availability" | "status", delivery: {...}, shopId? }
+//   shopId       -> quote only that shop's items (multi-shop baskets quote per shop)
 //   status       -> { enabled: boolean } (server flag only; used by vendor settings)
 //   availability -> { available: boolean, reason?: string } without calling Bob Go,
 //                   so the app only offers Bob Go when it can actually quote.
@@ -53,7 +54,7 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json().catch(() => null) as
-      | { action?: string; delivery?: Record<string, unknown> }
+      | { action?: string; delivery?: Record<string, unknown>; shopId?: unknown }
       | null;
     const delivery = body?.delivery ?? {};
     if (body?.action === "status") return jsonResponse({ enabled });
@@ -83,12 +84,20 @@ Deno.serve(async (request) => {
 
     if (!cartItems || cartItems.length === 0) return unavailable("Your basket is empty.");
 
-    const lines = cartItems.map((item) => ({
+    // In a multi-shop basket each shop is quoted separately (shopId given).
+    const requestedShopId = typeof body?.shopId === "string" && body.shopId.trim()
+      ? body.shopId.trim()
+      : null;
+    const allLines = cartItems.map((item) => ({
       productId: item.product_id as string,
       quantity: Math.max(0, Math.trunc(Number(item.quantity))),
       product: item.products as unknown as Record<string, unknown> | null,
       variantPrice: (item.product_variants as unknown as { price?: number } | null)?.price,
     }));
+    const lines = requestedShopId
+      ? allLines.filter((line) => String(line.product?.shop_id) === requestedShopId)
+      : allLines;
+    if (lines.length === 0) return unavailable("Your basket is empty.");
 
     if (lines.some((line) => !line.product || line.quantity <= 0 || line.product.is_published !== true || line.product.archived_at != null)) {
       return unavailable("One or more products are unavailable.");

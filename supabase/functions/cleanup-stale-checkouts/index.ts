@@ -11,6 +11,7 @@ import {
   mapTradeSafeOrderStatus,
 } from "../_shared/tradesafe-order-status.ts";
 import { sendInternalPushRequest } from "../_shared/push.ts";
+import { fundOpenCheckoutGroups } from "../_shared/checkout-groups.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -154,6 +155,19 @@ Deno.serve(async (request) => {
       },
     });
 
+    // Multi-shop baskets whose single payment has landed are funded first, so
+    // their shop orders are paid before stale ones are cancelled below.
+    let fundedGroups: string[] = [];
+    let groupFundingError: string | null = null;
+    try {
+      fundedGroups = await fundOpenCheckoutGroups(admin, {
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceRoleKey,
+      });
+    } catch (error) {
+      groupFundingError = error instanceof Error ? error.message : String(error);
+    }
+
     const reconciliation = await reconcilePaidTradeSafeTransactions(
       admin,
       staleMinutes,
@@ -202,6 +216,8 @@ Deno.serve(async (request) => {
       expiredReservationQuantity: expiredReservationQuantity ?? 0,
       upstreamCancelled,
       upstreamFailed,
+      fundedCheckoutGroups: fundedGroups,
+      groupFundingError,
       reconciledPaidCount: reconciliation.reconciled.length,
       reconciliationFailedCount: reconciliation.failed.length,
       reconciledPaidOrders: reconciliation.reconciled,

@@ -2200,13 +2200,13 @@ class SupabaseService {
   }
 
   // ── Order Creation ─────────────────────────────────────────────
+  /// Prices the basket (one entry in [shops] per basket shop) without
+  /// creating anything, to confirm a discount code.
   Future<CheckoutQuote> previewCheckout({
-    required String shippingMethod,
-    required double shippingCost,
+    required List<CheckoutShopSelection> shops,
     required bool isGift,
     required String couponCode,
     Map<String, dynamic>? shippingAddress,
-    BobGoSelection? bobgo,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) {
@@ -2219,16 +2219,14 @@ class SupabaseService {
     final response = await _client.functions.invoke(
       'create-checkout',
       headers: headers,
-      body: {
-        'userId': userId,
-        'shippingMethod': shippingMethod,
-        'shippingCost': shippingCost,
-        'isGift': isGift,
-        'couponCode': couponCode.trim().toUpperCase(),
-        'previewOnly': true,
-        if (shippingAddress != null) 'shippingAddress': shippingAddress,
-        if (bobgo != null) ...bobgo.toCheckoutJson(),
-      },
+      body: buildCheckoutRequestBody(
+        userId: userId,
+        shops: shops,
+        isGift: isGift,
+        couponCode: couponCode,
+        shippingAddress: shippingAddress,
+        previewOnly: true,
+      ),
     );
 
     return CheckoutQuote.fromJson(
@@ -2236,15 +2234,15 @@ class SupabaseService {
     );
   }
 
+  /// Creates the order(s) and the TradeSafe payment. With several shops the
+  /// result carries a [CheckoutSession.checkoutGroupId] and one order per shop.
   Future<CheckoutSession> createCheckout({
     required Map<String, dynamic> shippingAddress,
-    required String shippingMethod,
-    required double shippingCost,
+    required List<CheckoutShopSelection> shops,
     bool isGift = false,
     String? giftRecipient,
     String? giftMessage,
     String? couponCode,
-    BobGoSelection? bobgo,
   }) async {
     final userId = _client.auth.currentUser?.id;
     if (userId == null || userId.isEmpty) {
@@ -2258,20 +2256,34 @@ class SupabaseService {
     final response = await _client.functions.invoke(
       'create-checkout',
       headers: headers,
-      body: {
-        'userId': userId,
-        'shippingAddress': shippingAddress,
-        'shippingMethod': shippingMethod,
-        'shippingCost': shippingCost,
-        'isGift': isGift,
-        'giftRecipient': giftRecipient,
-        'giftMessage': giftMessage,
-        'couponCode': couponCode?.trim().toUpperCase(),
-        if (bobgo != null) ...bobgo.toCheckoutJson(),
-      },
+      body: buildCheckoutRequestBody(
+        userId: userId,
+        shops: shops,
+        isGift: isGift,
+        giftRecipient: giftRecipient,
+        giftMessage: giftMessage,
+        couponCode: couponCode,
+        shippingAddress: shippingAddress,
+      ),
     );
 
     return CheckoutSession.fromJson(
+      Map<String, dynamic>.from(response.data as Map),
+    );
+  }
+
+  /// Where a several-shop payment stands. Asking also prompts the server to
+  /// fund each shop once the buyer's payment has arrived.
+  Future<CheckoutGroupStatus> checkoutGroupStatus(
+    String checkoutGroupId,
+  ) async {
+    final headers = await _authorizedFunctionHeaders();
+    final response = await _client.functions.invoke(
+      'checkout-group-status',
+      headers: headers,
+      body: {'checkoutGroupId': checkoutGroupId},
+    );
+    return CheckoutGroupStatus.fromJson(
       Map<String, dynamic>.from(response.data as Map),
     );
   }
@@ -2299,13 +2311,14 @@ class SupabaseService {
   // ── Bob Go door-to-door ──────────────────────────────────────
   /// Whether Bob Go can quote this basket (server flag on, artisan enabled,
   /// parcel measurements present). Never throws: any failure means "not offered".
-  Future<bool> isBobGoAvailable() async {
+  /// Pass [shopId] to ask about one shop's items in a several-shop basket.
+  Future<bool> isBobGoAvailable({String? shopId}) async {
     try {
       final headers = await _authorizedFunctionHeaders();
       final response = await _client.functions.invoke(
         'bobgo-quote',
         headers: headers,
-        body: {'action': 'availability'},
+        body: {'action': 'availability', if (shopId != null) 'shopId': shopId},
       );
       final data = response.data;
       return data is Map && data['available'] == true;
@@ -2332,13 +2345,22 @@ class SupabaseService {
   /// Requests VAT-inclusive door-to-door rates. The quote is saved server-side
   /// for ~20 minutes; pass the returned [BobGoQuote.quoteId] and a rate to
   /// [createCheckout] via [BobGoSelection].
-  Future<BobGoQuote> requestBobGoQuote(BobGoDeliveryDetails delivery) async {
+  ///
+  /// Pass [shopId] to quote only that shop's items in a several-shop basket.
+  Future<BobGoQuote> requestBobGoQuote(
+    BobGoDeliveryDetails delivery, {
+    String? shopId,
+  }) async {
     try {
       final headers = await _authorizedFunctionHeaders();
       final response = await _client.functions.invoke(
         'bobgo-quote',
         headers: headers,
-        body: {'action': 'quote', 'delivery': delivery.toJson()},
+        body: {
+          'action': 'quote',
+          'delivery': delivery.toJson(),
+          if (shopId != null) 'shopId': shopId,
+        },
       );
       return BobGoQuote.fromJson(
         Map<String, dynamic>.from(response.data as Map),

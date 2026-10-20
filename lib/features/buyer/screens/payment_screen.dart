@@ -5,8 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../app/theme.dart';
 import '../../../models/bobgo.dart';
+import '../../../models/checkout_shop_selection.dart';
 import '../../../widgets/gradient_button.dart';
 import '../providers/buyer_providers.dart';
+import '../utils/multi_shop_checkout.dart';
 import 'tradesafe_checkout_screen.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
@@ -23,6 +25,32 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   double get _total => (widget.checkoutData?['total'] as num?)?.toDouble() ?? 0;
 
+  /// Per-shop totals when the basket has several shops.
+  List<CheckoutShopTotals> get _shopTotals =>
+      (widget.checkoutData?['shopTotals'] as List?)
+          ?.whereType<CheckoutShopTotals>()
+          .toList(growable: false) ??
+      const [];
+
+  bool get _isMultiShop => _shopTotals.length > 1;
+
+  /// Delivery choice per shop. Falls back to the one-shop fields so an
+  /// older checkout map still works (the server matches it by position).
+  List<CheckoutShopSelection> _shopSelections(Map<String, dynamic> data) {
+    final shops = (data['shops'] as List?)
+        ?.whereType<CheckoutShopSelection>()
+        .toList(growable: false);
+    if (shops != null && shops.isNotEmpty) return shops;
+    return [
+      CheckoutShopSelection(
+        shopId: '',
+        shippingMethod: data['shippingMethod'] as String,
+        shippingCost: (data['shippingCost'] as num).toDouble(),
+        bobgo: data['bobgo'] as BobGoSelection?,
+      ),
+    ];
+  }
+
   Future<void> _processPayment() async {
     setState(() => _processing = true);
 
@@ -30,33 +58,54 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final service = ref.read(supabaseServiceProvider);
       final data = widget.checkoutData!;
       final gift = ref.read(giftOptionsProvider);
+      final shops = _shopSelections(data);
       debugPrint(
-        '[checkout-debug] PaymentScreen._processPayment total=$_total shippingMethod=${data['shippingMethod']} shippingCost=${data['shippingCost']} addressKeys=${(data['address'] as Map<String, dynamic>).keys.toList()} isGift=${gift.isGift}',
+        '[checkout-debug] PaymentScreen._processPayment total=$_total shops=${shops.length} shippingMethods=${shops.map((shop) => shop.shippingMethod).join(',')} shippingCost=${data['shippingCost']} addressKeys=${(data['address'] as Map<String, dynamic>).keys.toList()} isGift=${gift.isGift}',
       );
 
       final checkoutSession = await service.createCheckout(
         shippingAddress: data['address'] as Map<String, dynamic>,
-        shippingMethod: data['shippingMethod'] as String,
-        shippingCost: (data['shippingCost'] as num).toDouble(),
+        shops: shops,
         isGift: gift.isGift,
         giftRecipient: gift.recipient,
         giftMessage: gift.message,
         couponCode: data['couponCode'] as String?,
-        bobgo: data['bobgo'] as BobGoSelection?,
       );
 
       // Reset gift state after order is placed
       ref.read(giftOptionsProvider.notifier).reset();
 
       ref.invalidate(ordersProvider);
+      debugPrint(
+        '[checkout-debug] checkout created orderIds=${checkoutSession.orderIds.join(',')} group=${checkoutSession.checkoutGroupId} status=${checkoutSession.status}',
+      );
 
-      final checkoutUri = Uri.tryParse(checkoutSession.checkoutUrl);
+      // Several shops already covered by the buyer's TradeSafe wallet: there
+      // is nothing left to pay.
+      if (checkoutSession.isMultiShop &&
+          (checkoutSession.isFunded || checkoutSession.checkoutUrl == null)) {
+        ref.invalidate(cartItemsProvider);
+        ref.invalidate(ordersStreamProvider);
+        if (mounted) {
+          context.go(
+            '/cart/confirmation',
+            extra: {
+              'orderId': checkoutSession.orderId,
+              'orderIds': checkoutSession.orderIds,
+              'checkoutGroupId': checkoutSession.checkoutGroupId,
+            },
+          );
+        }
+        return;
+      }
+
+      final checkoutUrl = checkoutSession.checkoutUrl;
+      final checkoutUri = checkoutUrl == null
+          ? null
+          : Uri.tryParse(checkoutUrl);
       if (checkoutUri == null) {
         throw Exception('TradeSafe returned an invalid checkout URL.');
       }
-      debugPrint(
-        '[checkout-debug] checkout created orderId=${checkoutSession.orderId} checkoutUrl=${checkoutSession.checkoutUrl}',
-      );
 
       if (mounted) {
         await Navigator.of(context).pushReplacement(
@@ -64,6 +113,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             builder: (_) => TradeSafeCheckoutScreen(
               checkoutUri: checkoutUri,
               orderId: checkoutSession.orderId,
+              orderIds: checkoutSession.orderIds,
+              checkoutGroupId: checkoutSession.checkoutGroupId,
             ),
           ),
         );
@@ -190,6 +241,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 _buildTradeSafeCard(),
                 const SizedBox(height: 24),
                 _buildAmountCard(totalStr),
+                if (_isMultiShop) ...[
+                  const SizedBox(height: 16),
+                  _buildShopBreakdown(),
+                ],
                 const SizedBox(height: 32),
                 Center(child: _buildSecurityNote()),
               ],
@@ -341,6 +396,69 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               fontSize: 28,
               fontWeight: FontWeight.w700,
               color: AppTheme.sienna,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// What each shop receives from the one payment.
+  Widget _buildShopBreakdown() {
+    final shops = _shopTotals;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'One payment for ${shops.length} shops',
+            style: GoogleFonts.poppins(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final shop in shops)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      shop.shopName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'R${shop.total.toStringAsFixed(2)}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
+          Text(
+            'Each shop gets its own order. TradeSafe holds each shop\'s share '
+            'until you confirm that parcel arrived. $wholeRandPaymentNote',
+            style: GoogleFonts.poppins(
+              fontSize: 11.5,
+              color: AppTheme.textHint,
+              height: 1.5,
             ),
           ),
         ],
