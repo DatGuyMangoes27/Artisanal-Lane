@@ -8,7 +8,13 @@ final vendorShopProvider = FutureProvider<Shop?>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) throw Exception('Not authenticated');
   final service = ref.read(supabaseServiceProvider);
-  return service.getVendorShop(userId);
+  final shop = await service.getVendorShop(userId);
+  if (shop != null) return shop;
+  // Approved artisans whose shop was never created get it now, so seller
+  // screens don't fail with "No shop found".
+  final profile = await ref.watch(currentProfileProvider.future);
+  if (profile?.role != 'vendor') return null;
+  return service.ensureVendorShop(userId);
 });
 
 final vendorMarketEventsProvider = FutureProvider<List<ShopMarketEvent>>((

@@ -1560,7 +1560,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
-      if (shop == null) throw Exception('No shop found');
+      if (shop == null) throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
 
       final List<Map<String, dynamic>> variantPayloads;
       final List<Map<String, dynamic>> optionGroups;

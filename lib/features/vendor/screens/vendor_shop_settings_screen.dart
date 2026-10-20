@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../app/theme.dart';
+import '../../../core/ui/friendly_error.dart';
 import '../../../models/shop_market_event.dart';
 import '../../../models/shipping_option.dart';
 import '../widgets/bobgo_collection_section.dart';
@@ -249,7 +250,7 @@ class _VendorShopSettingsScreenState
     try {
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
-      if (shop == null) throw Exception('No shop found');
+      if (shop == null) throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
       final userId = ref.read(currentUserIdProvider);
 
       if (userId != null) {
@@ -326,7 +327,15 @@ class _VendorShopSettingsScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text(
+              friendlyErrorMessage(
+                e,
+                fallback: "Couldn't save your shop settings. Please try again.",
+              ),
+            ),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
     } finally {
@@ -340,7 +349,7 @@ class _VendorShopSettingsScreenState
     final service = ref.read(supabaseServiceProvider);
     final shop = await ref.read(vendorShopProvider.future);
     if (shop == null) {
-      throw Exception('No shop found');
+      throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
     }
 
     await service.replaceShopMarketEvents(shop.id, _marketEvents);

@@ -2564,6 +2564,18 @@ class SupabaseService {
     return Shop.fromJson(data);
   }
 
+  /// Creates the shop for an approved artisan whose shop was never set up
+  /// (older approvals could skip it), named from their approved application,
+  /// and returns it. Returns null for anyone who isn't an approved artisan.
+  Future<Shop?> ensureVendorShop(String vendorId) async {
+    try {
+      await _client.rpc('ensure_vendor_shop');
+    } catch (_) {
+      return null;
+    }
+    return getVendorShop(vendorId);
+  }
+
   Future<void> updateShop(String shopId, Map<String, dynamic> updates) async {
     await _client.from('shops').update(updates).eq('id', shopId);
   }

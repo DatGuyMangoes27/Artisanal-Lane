@@ -656,7 +656,7 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
       _requireEditorAccount();
-      if (shop == null) throw Exception('No shop found');
+      if (shop == null) throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
       if (_submission != null && _submission!.shopId != shop.id) {
         throw StateError(
           'This pending post belongs to a different shop. Contact support before continuing.',

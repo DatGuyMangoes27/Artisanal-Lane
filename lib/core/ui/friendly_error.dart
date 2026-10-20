@@ -23,6 +23,9 @@ String friendlyErrorMessage(
       text.contains('network')) {
     return "You're offline or the connection is slow. Check your connection and try again.";
   }
+  if (text.contains("shop isn't set up")) {
+    return "Your shop isn't set up yet. Please contact Artisan Lane support.";
+  }
   if (text.contains('jwt') || text.contains('not authenticated')) {
     return 'Your session has expired. Please sign in again.';
   }

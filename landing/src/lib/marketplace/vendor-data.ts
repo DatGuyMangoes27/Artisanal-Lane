@@ -434,8 +434,7 @@ export async function requireVendorSession(redirectTo = "/vendor") {
   };
 }
 
-export async function getVendorShop(vendorId: string): Promise<VendorShop | null> {
-  const admin = createAdminClient();
+async function findVendorShop(admin: ReturnType<typeof createAdminClient>, vendorId: string) {
   const { data, error } = await admin
     .from("shops")
     .select(
@@ -449,6 +448,24 @@ export async function getVendorShop(vendorId: string): Promise<VendorShop | null
   }
 
   return data ? mapVendorShop(data as JsonRecord) : null;
+}
+
+/**
+ * The signed-in artisan's shop. Older approvals could leave an approved
+ * artisan without one, which broke every seller page, so a missing shop is
+ * created from their approved application. Returns null for non-artisans.
+ */
+export async function getVendorShop(vendorId: string): Promise<VendorShop | null> {
+  const admin = createAdminClient();
+  const shop = await findVendorShop(admin, vendorId);
+  if (shop) return shop;
+
+  // Refuses anyone who isn't an approved artisan; never creates a second shop.
+  const { error } = await admin.rpc("create_vendor_shop_from_application", {
+    target_vendor: vendorId,
+  });
+  if (error) return null;
+  return findVendorShop(admin, vendorId);
 }
 
 export async function getVendorFulfillmentProfile(
