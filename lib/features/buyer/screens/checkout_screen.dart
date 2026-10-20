@@ -780,9 +780,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }) async {
     if (_isSubmittingPayment) return;
 
+    // A code typed but not applied: try it now rather than blocking payment.
+    // Either way stop once, so the buyer sees the new total, or knows the code
+    // was dropped, before paying.
     final enteredCoupon = _couponController.text.trim().toUpperCase();
     if (enteredCoupon.isNotEmpty && enteredCoupon != _appliedCouponCode) {
-      setState(() => _couponError = 'Tap Apply before continuing to payment.');
+      await _applyCoupon(
+        shippingByShop: shippingByShop,
+        isGift: totals.giftFee > 0,
+      );
+      if (!mounted) return;
+      // Applied: the summary now shows the discount; the next tap pays.
+      if (_appliedCouponCode != enteredCoupon) {
+        final reason = _couponError;
+        _couponController.clear();
+        setState(() {
+          _clearAppliedCoupon();
+          _couponError = reason == null
+              ? 'The discount code was removed. Tap Pay Now to pay without one.'
+              : '$reason We\'ve removed it. Tap Pay Now to pay without a code.';
+        });
+      }
       return;
     }
 
