@@ -10,14 +10,143 @@ import '../../../services/push_notifications_service.dart';
 import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 
-class NotificationsScreen extends ConsumerWidget {
+enum NotificationsFilter { all, unread }
+
+class NotificationsScreen extends ConsumerStatefulWidget {
   final String? emptyMessage;
 
   const NotificationsScreen({super.key, this.emptyMessage});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsScreen> createState() =>
+      _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+  NotificationsFilter _filter = NotificationsFilter.all;
+
+  // Optimistic local state so the list reacts instantly; the stream is
+  // refreshed after each write so every unread badge catches up too.
+  final Set<String> _dismissedIds = {};
+  final Set<String> _readIds = {};
+
+  // Bumped when a failed clear puts a notification back, so it gets a fresh
+  // Dismissible instead of the one that was already swiped away.
+  int _restoreGeneration = 0;
+
+  List<AppNotification> _visible(List<AppNotification> items) {
+    final now = DateTime.now();
+    return [
+      for (final item in items)
+        if (!item.isDismissed && !_dismissedIds.contains(item.id))
+          _readIds.contains(item.id) && item.isUnread
+              ? item.copyWith(readAt: now)
+              : item,
+    ];
+  }
+
+  void _refreshStream() => ref.invalidate(notificationsStreamProvider);
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _open(AppNotification notification) async {
+    // Marking read is best effort: a failed write must not stop the
+    // notification from opening what it points to.
+    if (notification.isUnread) {
+      setState(() => _readIds.add(notification.id));
+      try {
+        await ref
+            .read(supabaseServiceProvider)
+            .markNotificationRead(notification.id);
+        _refreshStream();
+      } catch (_) {}
+    }
+    final route = routeForPushNotification(notification.data);
+    if (route != null && mounted) {
+      context.push(route);
+    }
+  }
+
+  Future<void> _markAllRead(List<AppNotification> visible) async {
+    final userId = ref.read(currentUserIdProvider);
+    final unreadIds = [
+      for (final item in visible)
+        if (item.isUnread) item.id,
+    ];
+    if (userId == null || unreadIds.isEmpty) return;
+    setState(() => _readIds.addAll(unreadIds));
+    try {
+      await ref.read(supabaseServiceProvider).markAllNotificationsRead(userId);
+      _refreshStream();
+    } catch (_) {
+      if (mounted) setState(() => _readIds.removeAll(unreadIds));
+      _showError("Couldn't mark your notifications as read. Please try again.");
+    }
+  }
+
+  Future<void> _clearAll(List<AppNotification> visible) async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null || visible.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear all notifications?'),
+        content: const Text(
+          'They will be removed from your notifications. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            child: const Text('Clear all'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final ids = [for (final item in visible) item.id];
+    setState(() => _dismissedIds.addAll(ids));
+    try {
+      await ref.read(supabaseServiceProvider).dismissAllNotifications(userId);
+      _refreshStream();
+    } catch (_) {
+      if (mounted) setState(() => _dismissedIds.removeAll(ids));
+      _showError("Couldn't clear your notifications. Please try again.");
+    }
+  }
+
+  Future<void> _dismissOne(AppNotification notification) async {
+    setState(() => _dismissedIds.add(notification.id));
+    try {
+      await ref
+          .read(supabaseServiceProvider)
+          .dismissNotification(notification.id);
+      _refreshStream();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _dismissedIds.remove(notification.id);
+          _restoreGeneration++;
+        });
+      }
+      _showError("Couldn't clear that notification. Please try again.");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final notifications = ref.watch(notificationsStreamProvider);
+    final visible = _visible(notifications.value ?? const []);
+    final unreadCount = visible.where((item) => item.isUnread).length;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -40,17 +169,55 @@ class NotificationsScreen extends ConsumerWidget {
           ),
         ),
         centerTitle: true,
+        actions: [
+          if (visible.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear all',
+              icon: const Icon(
+                Icons.delete_sweep_outlined,
+                color: AppTheme.textPrimary,
+              ),
+              onPressed: () => _clearAll(visible),
+            ),
+        ],
       ),
       body: SafeArea(
         child: notifications.when(
-          data: (items) => items.isEmpty
-              ? _EmptyNotifications(message: emptyMessage)
-              : _NotificationsList(items: items),
+          data: (_) {
+            if (visible.isEmpty) {
+              return _EmptyNotifications(message: widget.emptyMessage);
+            }
+            final shown = _filter == NotificationsFilter.unread
+                ? visible.where((item) => item.isUnread).toList()
+                : visible;
+            return Column(
+              children: [
+                _NotificationsToolbar(
+                  filter: _filter,
+                  unreadCount: unreadCount,
+                  onFilterChanged: (filter) => setState(() => _filter = filter),
+                  onMarkAllRead: unreadCount == 0
+                      ? null
+                      : () => _markAllRead(visible),
+                ),
+                Expanded(
+                  child: shown.isEmpty
+                      ? const _AllCaughtUp()
+                      : _NotificationsList(
+                          items: shown,
+                          onOpen: _open,
+                          onDismiss: _dismissOne,
+                          keySuffix: _restoreGeneration,
+                        ),
+                ),
+              ],
+            );
+          },
           loading: () => const _NotificationsSkeleton(),
           error: (error, _) => ErrorRetryView(
             error: error,
             title: "Couldn't load notifications",
-            onRetry: () => ref.invalidate(notificationsStreamProvider),
+            onRetry: _refreshStream,
           ),
         ),
       ),
@@ -58,34 +225,160 @@ class NotificationsScreen extends ConsumerWidget {
   }
 }
 
-class _NotificationsList extends ConsumerWidget {
-  final List<AppNotification> items;
+class _NotificationsToolbar extends StatelessWidget {
+  final NotificationsFilter filter;
+  final int unreadCount;
+  final ValueChanged<NotificationsFilter> onFilterChanged;
+  final VoidCallback? onMarkAllRead;
 
-  const _NotificationsList({required this.items});
+  const _NotificationsToolbar({
+    required this.filter,
+    required this.unreadCount,
+    required this.onFilterChanged,
+    required this.onMarkAllRead,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
+      child: Row(
+        children: [
+          _FilterPill(
+            key: const ValueKey('notifications-filter-all'),
+            label: 'All',
+            selected: filter == NotificationsFilter.all,
+            onTap: () => onFilterChanged(NotificationsFilter.all),
+          ),
+          const SizedBox(width: 8),
+          _FilterPill(
+            key: const ValueKey('notifications-filter-unread'),
+            label: unreadCount > 0 ? 'Unread ($unreadCount)' : 'Unread',
+            selected: filter == NotificationsFilter.unread,
+            onTap: () => onFilterChanged(NotificationsFilter.unread),
+          ),
+          const Spacer(),
+          Flexible(
+            child: TextButton(
+              onPressed: onMarkAllRead,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.terracotta,
+                textStyle: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text(
+                'Mark all as read',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterPill({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? AppTheme.terracotta : Colors.white,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected
+                ? AppTheme.terracotta
+                : AppTheme.sand.withValues(alpha: 0.6),
+          ),
+        ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            child: Text(
+              label,
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: selected ? Colors.white : AppTheme.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsList extends StatelessWidget {
+  final List<AppNotification> items;
+  final ValueChanged<AppNotification> onOpen;
+  final ValueChanged<AppNotification> onDismiss;
+  final int keySuffix;
+
+  const _NotificationsList({
+    required this.items,
+    required this.onOpen,
+    required this.onDismiss,
+    this.keySuffix = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final groups = _groupByRecency(items);
 
-    Widget tileFor(AppNotification notification) => _NotificationTile(
-      notification: notification,
-      onTap: () async {
-        // Marking read is best effort: a failed write must not stop the
-        // notification from opening what it points to.
-        try {
-          await ref
-              .read(supabaseServiceProvider)
-              .markNotificationRead(notification.id);
-        } catch (_) {}
-        final route = routeForPushNotification(notification.data);
-        if (route != null && context.mounted) {
-          context.push(route);
-        }
-      },
+    Widget tileFor(AppNotification notification) => Dismissible(
+      key: ValueKey('notification-${notification.id}-$keySuffix'),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onDismiss(notification),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        decoration: BoxDecoration(
+          color: AppTheme.error,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Clear',
+              style: GoogleFonts.poppins(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.delete_outline_rounded, color: Colors.white),
+          ],
+        ),
+      ),
+      child: _NotificationTile(
+        notification: notification,
+        onTap: () => onOpen(notification),
+      ),
     );
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
       children: [
         for (final group in groups) ...[
           Padding(
@@ -107,6 +400,28 @@ class _NotificationsList extends ConsumerWidget {
           const SizedBox(height: 16),
         ],
       ],
+    );
+  }
+}
+
+class _AllCaughtUp extends StatelessWidget {
+  const _AllCaughtUp();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Text(
+          "You're all caught up. No unread notifications.",
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+            fontSize: 14,
+            color: AppTheme.textSecondary,
+            height: 1.6,
+          ),
+        ),
+      ),
     );
   }
 }

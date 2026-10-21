@@ -1,5 +1,7 @@
 import 'package:artisanal_lane/features/buyer/providers/buyer_providers.dart';
+import 'package:artisanal_lane/features/buyer/providers/discover_feed_provider.dart';
 import 'package:artisanal_lane/features/buyer/screens/discover_screen.dart';
+import 'package:artisanal_lane/models/category.dart';
 import 'package:artisanal_lane/models/product.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,24 +13,33 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final now = DateTime(2026, 9, 22);
-  Product product(String id, String title) => Product(
+  Product product(
+    String id,
+    String title, {
+    String categoryId = 'home',
+    double price = 500,
+    DateTime? createdAt,
+  }) => Product(
     id: id,
     shopId: 'maker',
-    categoryId: 'home',
+    categoryId: categoryId,
     title: title,
-    price: 500,
+    price: price,
     stockQty: 1,
     images: const [''],
     tags: const ['woven'],
     shopName: 'Test maker',
-    createdAt: now,
+    createdAt: createdAt ?? now,
     updatedAt: now,
   );
 
   Future<void> pumpDiscover(
     WidgetTester tester, {
     required List<Product> products,
+    List<Category> categories = const [],
     Size size = const Size(412, 915),
+    double textScale = 1,
+    void Function()? onFetch,
   }) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.devicePixelRatio = 1;
@@ -52,12 +63,35 @@ void main() {
       ProviderScope(
         overrides: [
           currentUserIdProvider.overrideWithValue(null),
-          discoverProductsProvider.overrideWith((ref) async => products),
-          categoriesProvider.overrideWith((ref) async => const []),
+          discoverPageFetcherProvider.overrideWithValue(({
+            required int offset,
+            required int limit,
+          }) async {
+            onFetch?.call();
+            return products.skip(offset).take(limit).toList();
+          }),
+          categoriesProvider.overrideWith((ref) async => categories),
         ],
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          routerConfig: router,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+        ),
       ),
     );
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> swipeRight(WidgetTester tester) async {
+    await tester.drag(
+      find.byKey(const Key('discover-swipe-card')),
+      const Offset(240, 8),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
     await tester.pumpAndSettle();
   }
 
@@ -73,12 +107,7 @@ void main() {
     );
 
     expect(find.text('First real piece'), findsOneWidget);
-    await tester.drag(
-      find.byKey(const Key('discover-swipe-card')),
-      const Offset(240, 8),
-    );
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.pumpAndSettle();
+    await swipeRight(tester);
 
     expect(find.text('Next real piece'), findsOneWidget);
   });
@@ -104,5 +133,124 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('reaching the end keeps going with real pieces instead of '
+      'stopping at "all caught up"', (tester) async {
+    await pumpDiscover(
+      tester,
+      products: [
+        product('one', 'First real piece'),
+        product('two', 'Second real piece'),
+      ],
+    );
+
+    await swipeRight(tester);
+    await swipeRight(tester);
+
+    expect(find.text("You're all caught up"), findsNothing);
+    expect(find.byKey(const Key('discover-swipe-card')), findsOneWidget);
+    expect(find.textContaining('another look'), findsOneWidget);
+
+    // And it keeps going round, past the end of the recycled pass too.
+    for (var i = 0; i < 3; i++) {
+      await swipeRight(tester);
+      expect(find.byKey(const Key('discover-swipe-card')), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saving preferences immediately refreshes the Discover deck', (
+    tester,
+  ) async {
+    var fetches = 0;
+    await pumpDiscover(
+      tester,
+      categories: [
+        Category(id: 'home', name: 'Home', slug: 'home', createdAt: now),
+        Category(
+          id: 'jewellery',
+          name: 'Jewellery',
+          slug: 'jewellery',
+          createdAt: now,
+        ),
+      ],
+      products: [
+        product(
+          'vase',
+          'Newest vase',
+          createdAt: now.add(const Duration(days: 1)),
+        ),
+        product('ring', 'Silver ring', categoryId: 'jewellery'),
+      ],
+      onFetch: () => fetches++,
+    );
+    expect(find.text('Newest vase'), findsOneWidget);
+    final fetchesBeforeSave = fetches;
+
+    await tester.tap(find.text('Tune my preferences'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Jewellery'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('discover-save-preferences')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tune Discover'), findsNothing);
+    expect(find.text('Silver ring'), findsOneWidget);
+    expect(find.text('Newest vase'), findsNothing);
+    expect(fetches, greaterThan(fetchesBeforeSave));
+  });
+
+  testWidgets('saving preferences after reaching the end changes the deck', (
+    tester,
+  ) async {
+    await pumpDiscover(
+      tester,
+      categories: [
+        Category(
+          id: 'jewellery',
+          name: 'Jewellery',
+          slug: 'jewellery',
+          createdAt: now,
+        ),
+      ],
+      products: [
+        product('a', 'Woven basket'),
+        product('b', 'Clay bowl'),
+        product('ring', 'Silver ring', categoryId: 'jewellery'),
+      ],
+    );
+    for (var i = 0; i < 3; i++) {
+      await swipeRight(tester);
+    }
+    expect(find.textContaining('another look'), findsOneWidget);
+
+    await tester.tap(find.text('Tune my preferences'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Jewellery'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('discover-save-preferences')));
+    await tester.pumpAndSettle();
+
+    // Recycling now leads with the newly preferred category.
+    expect(find.text('Silver ring'), findsOneWidget);
+  });
+
+  testWidgets('"all caught up" only shows with no products, and its buttons '
+      'do not clip at large text sizes', (tester) async {
+    await pumpDiscover(tester, products: const [], textScale: 1.15);
+
+    expect(find.text("You're all caught up"), findsOneWidget);
+    expect(find.text('Show me everything'), findsOneWidget);
+    expect(find.text('Adjust preferences'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    final button = tester.getSize(
+      find.ancestor(
+        of: find.text('Adjust preferences'),
+        matching: find.byType(OutlinedButton),
+      ),
+    );
+    final label = tester.getSize(find.text('Adjust preferences'));
+    expect(button.height, greaterThan(label.height));
   });
 }

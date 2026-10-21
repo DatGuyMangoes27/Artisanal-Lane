@@ -40,6 +40,11 @@ class BuyerMessagesScreen extends ConsumerWidget {
             ref.invalidate(buyerThreadsProvider);
             ref.invalidate(buyerThreadsStreamProvider);
           },
+          onDelete: (thread) async {
+            await ref.read(supabaseServiceProvider).hideChatThread(thread.id);
+            ref.invalidate(buyerThreadsProvider);
+            ref.invalidate(buyerThreadsStreamProvider);
+          },
           onTap: (thread) => context.push('/profile/messages/${thread.id}'),
         ),
         loading: () => const _InboxSkeleton(),

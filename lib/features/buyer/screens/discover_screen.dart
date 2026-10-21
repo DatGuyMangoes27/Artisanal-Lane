@@ -14,15 +14,16 @@ import '../../../models/models.dart';
 import '../../../widgets/cart_nav_icon.dart';
 import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
+import '../providers/discover_feed_provider.dart';
 import '../providers/favourite_actions.dart';
+import '../utils/discover_deck.dart';
 import '../utils/discovery_preferences.dart';
 import '../utils/discovery_remote_store.dart';
 import '../widgets/creator_commerce_header.dart';
 
-final discoverProductsProvider = FutureProvider<List<Product>>((ref) async {
-  final service = ref.read(supabaseServiceProvider);
-  return service.getProducts(limit: 100);
-});
+/// Start fetching the next page when this few fresh cards remain, so the
+/// buyer rarely waits at the end of a page.
+const _prefetchThreshold = 5;
 
 class DiscoverScreen extends ConsumerStatefulWidget {
   const DiscoverScreen({super.key});
@@ -40,6 +41,10 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   Product? _lastSwipedProduct;
   String? _restoreToFrontId;
 
+  /// Cards swiped while the deck is recycling already-reviewed pieces; see
+  /// [buildDiscoverDeck].
+  int _recycleCursor = 0;
+
   @override
   void initState() {
     super.initState();
@@ -49,11 +54,37 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
         setState(() {
           _dragOffset = Offset.zero;
           _isDragging = false;
-          _lastSwipedProduct = null;
-          _restoreToFrontId = null;
+          _resetDeckState();
         });
       }
     });
+  }
+
+  /// Clears per-session deck position so a new set of preferences (or a new
+  /// buyer) starts from the top of a freshly built deck.
+  void _resetDeckState() {
+    _lastSwipedProduct = null;
+    _restoreToFrontId = null;
+    _recycleCursor = 0;
+  }
+
+  /// Called after preferences are saved: start over with the new choices and
+  /// reload the product pool so the deck reflects them immediately.
+  void _onPreferencesSaved() {
+    if (!mounted) return;
+    setState(_resetDeckState);
+    ref.invalidate(discoverFeedProvider);
+  }
+
+  Future<void> _showEverything() async {
+    try {
+      await ref
+          .read(discoveryPreferencesProvider.notifier)
+          .updateChoices(categoryIds: const <String>{}, maxBudget: null);
+      _onPreferencesSaved();
+    } catch (_) {
+      if (mounted) _message('Could not update preferences. Please try again.');
+    }
   }
 
   @override
@@ -79,7 +110,11 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     });
   }
 
-  Future<void> _finishDrag(DragEndDetails details, Product product) async {
+  Future<void> _finishDrag(
+    DragEndDetails details,
+    Product product, {
+    required bool recycled,
+  }) async {
     if (_isDismissing) return;
     final velocity = details.velocity.pixelsPerSecond.dx;
     final passedDistance = _dragOffset.dx.abs() > 110;
@@ -92,10 +127,14 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
       return;
     }
     final direction = _dragOffset.dx == 0 ? velocity.sign : _dragOffset.dx.sign;
-    await _dismiss(product, direction);
+    await _dismiss(product, direction, recycled: recycled);
   }
 
-  Future<void> _dismiss(Product product, double direction) async {
+  Future<void> _dismiss(
+    Product product,
+    double direction, {
+    required bool recycled,
+  }) async {
     if (_isDismissing) return;
     final liked = direction > 0;
     final decisionUserId = ref.read(currentUserIdProvider);
@@ -133,7 +172,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
         setState(() {
           _dragOffset = Offset.zero;
           _isDismissing = false;
-          if (savedProduct != null) _lastSwipedProduct = savedProduct;
+          if (savedProduct != null) {
+            _lastSwipedProduct = savedProduct;
+            // Recycled cards are already decided, so the decision alone
+            // doesn't move the deck on; advance the recycle position.
+            if (recycled) _recycleCursor++;
+          }
         });
         // A loved item should be easy to find again: save it to favourites
         // too, best-effort, when the buyer is signed in. Guests aren't
@@ -174,17 +218,24 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   );
 
   Future<void> _refresh() async {
-    ref.invalidate(discoverProductsProvider);
+    setState(() => _recycleCursor = 0);
+    ref.invalidate(discoverFeedProvider);
     ref.invalidate(discoveryPreferencesProvider);
     await Future.wait([
-      ref.read(discoverProductsProvider.future),
+      ref.read(discoverFeedProvider.future),
       ref.read(discoveryPreferencesProvider.future),
     ]);
   }
 
+  void _loadMoreSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(discoverFeedProvider.notifier).loadMore();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final products = ref.watch(discoverProductsProvider);
+    final products = ref.watch(discoverFeedProvider);
     final categories = ref.watch(categoriesProvider);
     final preferences = ref.watch(discoveryPreferencesProvider);
     return Scaffold(
@@ -209,9 +260,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
         error: (error, __) => ErrorRetryView(
           error: error,
           title: 'Discover is unavailable',
-          onRetry: () => ref.invalidate(discoverProductsProvider),
+          onRetry: () => ref.invalidate(discoverFeedProvider),
         ),
-        data: (allProducts) => preferences.when(
+        data: (feed) => preferences.when(
           loading: () => const _DiscoverSkeleton(),
           error: (error, __) => ErrorRetryView(
             error: error,
@@ -219,7 +270,26 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
             onRetry: () => ref.invalidate(discoveryPreferencesProvider),
           ),
           data: (prefs) {
-            var ranked = rankDiscoverProducts(allProducts, prefs);
+            final deck = buildDiscoverDeck(
+              feed.products,
+              prefs,
+              canLoadMore: feed.hasMore,
+              recycleCursor: _recycleCursor,
+            );
+            final recycled = deck.mode == DiscoverDeckMode.recycled;
+            // Keep the pool topped up: fetch the next page as the fresh
+            // deck runs low, rather than declaring the buyer "caught up".
+            if (feed.hasMore &&
+                !feed.isLoadingMore &&
+                deck.mode == DiscoverDeckMode.fresh &&
+                deck.items.length < _prefetchThreshold) {
+              _loadMoreSoon();
+            }
+            if (deck.mode == DiscoverDeckMode.fresh && deck.isEmpty) {
+              // Waiting on the next page.
+              return const _DiscoverSkeleton();
+            }
+            var ranked = [...deck.items];
             // Undo just brought a card back: show it next rather than
             // wherever it happens to rank.
             if (_restoreToFrontId != null) {
@@ -233,24 +303,24 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                 _restoreToFrontId = null;
               }
             }
-            final deckTotal = allProducts
-                .where(
-                  (product) =>
-                      prefs.maxBudget == null ||
-                      product.price <= prefs.maxBudget!,
-                )
-                .length;
             if (ranked.isEmpty) {
               return _DiscoverEmpty(
+                onShowEverything: _showEverything,
                 onTune: () =>
                     _showPreferences(categories.value ?? const [], prefs),
                 onBrowseShop: () => context.push('/home/shop-all'),
               );
             }
-            final reviewedCount = (deckTotal - ranked.length).clamp(
-              0,
-              deckTotal,
-            );
+            final deckTotal = deck.total;
+            final reviewedCount = deck.reviewed.clamp(0, deckTotal);
+            final intro = switch (deck.mode) {
+              DiscoverDeckMode.beyondBudget =>
+                "You've seen everything within your budget, so here are more pieces just above it.",
+              DiscoverDeckMode.recycled =>
+                "You're all caught up on new pieces. Here's another look at ones you've seen, in a fresh order.",
+              _ =>
+                'Choose what fits. Your category, budget and swipe choices shape this order.',
+            };
             final product = ranked.first;
             final nextProduct = ranked.length > 1 ? ranked[1] : null;
             final compact = MediaQuery.sizeOf(context).height < 640;
@@ -265,7 +335,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                       children: [
                         Expanded(
                           child: Text(
-                            'Choose what fits. Your category, budget and swipe choices shape this order.',
+                            intro,
+                            key: const Key('discover-intro'),
                             style: GoogleFonts.poppins(
                               fontSize: 12,
                               color: AppTheme.textSecondary,
@@ -292,7 +363,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                           color: AppTheme.textSecondary,
                         ),
                         Text(
-                          '${reviewedCount + 1} of $deckTotal',
+                          '${(reviewedCount + 1).clamp(1, deckTotal)} of $deckTotal',
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -306,7 +377,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                     child: LinearProgressIndicator(
                       value: deckTotal == 0
                           ? 0
-                          : (reviewedCount + 1) / deckTotal,
+                          : ((reviewedCount + 1) / deckTotal).clamp(0.0, 1.0),
                       minHeight: 5,
                       borderRadius: BorderRadius.circular(4),
                       backgroundColor: AppTheme.clay,
@@ -324,7 +395,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                       isFavourite: isFavourite,
                       onTap: () => context.push('/home/product/${product.id}'),
                       onDragUpdate: _updateDrag,
-                      onDragEnd: (details) => _finishDrag(details, product),
+                      onDragEnd: (details) =>
+                          _finishDrag(details, product, recycled: recycled),
                     ),
                   ),
                   Padding(
@@ -342,7 +414,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                           label: 'Not for me',
                           color: AppTheme.textSecondary,
                           compact: compact,
-                          onTap: () => _dismiss(product, -1),
+                          onTap: () =>
+                              _dismiss(product, -1, recycled: recycled),
                         ),
                         _DiscoverAction(
                           icon: isFavourite
@@ -360,7 +433,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                           color: AppTheme.terracotta,
                           large: true,
                           compact: compact,
-                          onTap: () => _dismiss(product, 1),
+                          onTap: () => _dismiss(product, 1, recycled: recycled),
                         ),
                       ],
                     ),
@@ -493,8 +566,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                   const SizedBox(height: 22),
                   SizedBox(
                     width: double.infinity,
-                    height: 48,
                     child: ElevatedButton(
+                      key: const Key('discover-save-preferences'),
+                      style: _flexibleButtonStyle,
                       onPressed: () async {
                         try {
                           await ref
@@ -503,6 +577,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                                 categoryIds: chosen,
                                 maxBudget: budget,
                               );
+                          _onPreferencesSaved();
                           if (sheetContext.mounted) {
                             Navigator.pop(sheetContext);
                           }
@@ -916,13 +991,28 @@ class _DiscoverSkeleton extends StatelessWidget {
   );
 }
 
+/// Buttons grow with the text instead of clipping it at large text sizes:
+/// a minimum tap height plus vertical padding, never a fixed height.
+final ButtonStyle _flexibleButtonStyle = ButtonStyle(
+  minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+  padding: const WidgetStatePropertyAll(
+    EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+  ),
+);
+
+/// Shown only when there are genuinely no products to show at all.
 class _DiscoverEmpty extends StatelessWidget {
-  const _DiscoverEmpty({required this.onTune, required this.onBrowseShop});
+  const _DiscoverEmpty({
+    required this.onShowEverything,
+    required this.onTune,
+    required this.onBrowseShop,
+  });
+  final VoidCallback onShowEverything;
   final VoidCallback onTune;
   final VoidCallback onBrowseShop;
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
+    child: SingleChildScrollView(
       padding: const EdgeInsets.all(40),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -952,7 +1042,7 @@ class _DiscoverEmpty extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Try a higher budget, different categories, or check back after new pieces arrive.',
+            "There's nothing to show right now. Want to see more? Show everything, adjust your preferences, or check back after new pieces arrive.",
             style: GoogleFonts.poppins(
               fontSize: 13,
               color: AppTheme.textSecondary,
@@ -963,20 +1053,32 @@ class _DiscoverEmpty extends StatelessWidget {
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
-            height: 48,
             child: ElevatedButton(
-              onPressed: onTune,
-              child: const Text('Adjust preferences'),
+              style: _flexibleButtonStyle,
+              onPressed: onShowEverything,
+              child: const Text(
+                'Show me everything',
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
-            height: 48,
             child: OutlinedButton(
-              onPressed: onBrowseShop,
-              child: const Text('Browse the shop'),
+              style: _flexibleButtonStyle,
+              onPressed: onTune,
+              child: const Text(
+                'Adjust preferences',
+                textAlign: TextAlign.center,
+              ),
             ),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            style: _flexibleButtonStyle,
+            onPressed: onBrowseShop,
+            child: const Text('Browse the shop', textAlign: TextAlign.center),
           ),
         ],
       ),

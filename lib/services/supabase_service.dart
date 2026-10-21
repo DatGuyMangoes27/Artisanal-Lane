@@ -295,14 +295,28 @@ class SupabaseService {
     required String column,
     required String userId,
   }) async {
-    final rows = await _client
-        .from('chat_threads')
-        .select(_chatThreadSelect)
-        .eq(column, userId)
-        .order('last_message_at', ascending: false)
-        .order('created_at', ascending: false);
+    List<dynamic> rows;
+    try {
+      // `hidden_for_me` is a computed field: conversations this person
+      // deleted stay out of their inbox until a newer message arrives.
+      rows = await _client
+          .from('chat_threads')
+          .select(_chatThreadSelect)
+          .eq(column, userId)
+          .eq('hidden_for_me', false)
+          .order('last_message_at', ascending: false)
+          .order('created_at', ascending: false);
+    } on PostgrestException {
+      // Databases without the hide migration yet: show every conversation.
+      rows = await _client
+          .from('chat_threads')
+          .select(_chatThreadSelect)
+          .eq(column, userId)
+          .order('last_message_at', ascending: false)
+          .order('created_at', ascending: false);
+    }
 
-    return _mapChatThreads(rows as List, userId);
+    return _mapChatThreads(rows, userId);
   }
 
   Future<String> uploadProductImage(String userId, File imageFile) async {
@@ -474,6 +488,13 @@ class SupabaseService {
         .eq('vendor_id', vendorId)
         .order('last_message_at', ascending: false)
         .asyncMap((_) => getVendorThreads(vendorId));
+  }
+
+  /// Removes a conversation from the caller's own inbox. The other person
+  /// keeps it, no messages are deleted, and it reappears when someone sends
+  /// a new message.
+  Future<void> hideChatThread(String threadId) async {
+    await _client.rpc('hide_chat_thread', params: {'thread_uuid': threadId});
   }
 
   Future<ChatThread> getThread(String threadId, String currentUserId) async {
@@ -851,6 +872,9 @@ class SupabaseService {
                 (row) =>
                     AppNotification.fromJson(Map<String, dynamic>.from(row)),
               )
+              // Realtime streams take a single filter, so cleared
+              // notifications are dropped here.
+              .where((notification) => !notification.isDismissed)
               .toList(),
         );
   }
@@ -858,8 +882,33 @@ class SupabaseService {
   Future<void> markNotificationRead(String notificationId) async {
     await _client
         .from('notifications')
-        .update({'read_at': DateTime.now().toIso8601String()})
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
         .eq('id', notificationId);
+  }
+
+  Future<void> markAllNotificationsRead(String userId) async {
+    await _client
+        .from('notifications')
+        .update({'read_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('user_id', userId)
+        .isFilter('read_at', null);
+  }
+
+  /// Clears one notification from the list. Rows are soft-dismissed (not
+  /// deleted) so the server's event_key de-duplication keeps working.
+  Future<void> dismissNotification(String notificationId) async {
+    await _client
+        .from('notifications')
+        .update({'dismissed_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('id', notificationId);
+  }
+
+  Future<void> dismissAllNotifications(String userId) async {
+    await _client
+        .from('notifications')
+        .update({'dismissed_at': DateTime.now().toUtc().toIso8601String()})
+        .eq('user_id', userId)
+        .isFilter('dismissed_at', null);
   }
 
   Future<void> _sendChatPushNotification(String messageId) async {

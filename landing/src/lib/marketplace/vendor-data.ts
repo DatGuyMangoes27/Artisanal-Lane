@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
+import { isChatThreadHiddenFor } from "./messages";
 import {
   getVendorSetupStatus,
   isVendorPayoutReady,
@@ -873,21 +874,31 @@ export async function getVendorShopPost(
 
 export async function listVendorChatThreads(vendorId: string): Promise<VendorChatThread[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("chat_threads")
-    .select(
-      "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name), chat_thread_reads(participant_id, last_read_at)",
-    )
-    .eq("vendor_id", vendorId)
-    .in("kind", ["buyer_vendor", "admin_vendor"])
-    .order("last_message_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const threadSelect =
+    "id, buyer_id, kind, last_message_preview, last_message_sender_id, last_message_at, created_at, buyer:profiles!chat_threads_buyer_id_fkey(display_name), chat_thread_reads(participant_id, last_read_at)";
+  const query = (select: string) =>
+    admin
+      .from("chat_threads")
+      .select(select)
+      .eq("vendor_id", vendorId)
+      .in("kind", ["buyer_vendor", "admin_vendor"])
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+  // Conversations the artisan deleted stay hidden until a newer message
+  // arrives. Fall back to the plain list where the hide table isn't live yet.
+  let { data, error } = await query(`${threadSelect}, chat_thread_hidden(user_id, hidden_at)`);
+  if (error) {
+    ({ data, error } = await query(threadSelect));
+  }
 
   if (error) {
     throw new Error("Failed to load messages.", { cause: error });
   }
 
-  return ((data ?? []) as JsonRecord[]).map((row) => mapVendorChatThread(row, vendorId));
+  return ((data ?? []) as unknown as JsonRecord[])
+    .filter((row) => !isChatThreadHiddenFor(row, vendorId))
+    .map((row) => mapVendorChatThread(row, vendorId));
 }
 
 export async function getVendorChatThread(

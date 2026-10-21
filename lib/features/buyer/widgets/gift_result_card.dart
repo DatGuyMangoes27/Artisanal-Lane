@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../app/theme.dart';
 import '../../../core/pricing/price_format.dart';
 import '../providers/gift_finder_providers.dart';
+import '../utils/shop_discovery_gift.dart';
 
 /// A gift idea card: square photo, maker, title, price and a short
 /// "why it fits" line. Grows with text scale instead of clipping.
@@ -18,10 +19,13 @@ class GiftResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final product = recommendation.product;
     final maker = product.shopName?.trim();
+    // Same price the finder filtered the budget on, so they always agree.
+    final price = giftPrice(product);
+    final compareAt = giftCompareAtPrice(product);
     return Semantics(
       button: true,
       label:
-          '${product.title}, ${formatBrowsePrice(product.price)}. '
+          '${product.title}, ${formatBrowsePrice(price)}. '
           '${recommendation.reason}',
       excludeSemantics: true,
       child: Material(
@@ -56,7 +60,7 @@ class GiftResultCard extends StatelessWidget {
                         fit: StackFit.expand,
                         children: [
                           _photo(product.images),
-                          if (product.isOnSale)
+                          if (compareAt != null)
                             Positioned(
                               left: 8,
                               top: 8,
@@ -100,16 +104,16 @@ class GiftResultCard extends StatelessWidget {
                           crossAxisAlignment: WrapCrossAlignment.end,
                           children: [
                             Text(
-                              formatBrowsePrice(product.price),
+                              formatBrowsePrice(price),
                               style: GoogleFonts.playfairDisplay(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 color: AppTheme.terracotta,
                               ),
                             ),
-                            if (product.isOnSale)
+                            if (compareAt != null)
                               Text(
-                                formatBrowsePrice(product.compareAtPrice!),
+                                formatBrowsePrice(compareAt),
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   color: AppTheme.textHint,

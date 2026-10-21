@@ -42,6 +42,48 @@ extension GiftBudgetLabel on GiftBudget {
     GiftBudget.between500And1000 => price > 500 && price <= 1000,
     GiftBudget.any => true,
   };
+
+  /// Whether [price] is cheaper than this band (rather than dearer).
+  bool isBelow(double price) => switch (this) {
+    GiftBudget.under250 => false,
+    GiftBudget.between250And500 => price < 250,
+    GiftBudget.between500And1000 => price <= 500,
+    GiftBudget.any => false,
+  };
+
+  /// How far (in rands) [price] sits outside this band; 0 when it fits.
+  /// Used only to order "close matches" that miss the budget.
+  double distanceFrom(double price) {
+    if (matches(price)) return 0;
+    return switch (this) {
+      GiftBudget.under250 => price - 250 + 0.01,
+      GiftBudget.between250And500 => price < 250 ? 250 - price : price - 500,
+      GiftBudget.between500And1000 =>
+        price <= 500 ? 500 - price + 0.01 : price - 1000,
+      GiftBudget.any => 0,
+    };
+  }
+}
+
+/// The price a buyer actually sees and pays for [product] right now, using
+/// the same rules as the product page: the made-to-order price when the
+/// piece is currently sold made to order, otherwise the default variant's
+/// price, otherwise the base price. The gift finder filters and displays
+/// with this so the budget check and the card price can never disagree.
+double giftPrice(Product product) {
+  if (product.isMadeToOrderAvailable) return product.effectiveMtoPrice;
+  return product.defaultVariant?.price ?? product.price;
+}
+
+/// "Was" price to strike through next to [giftPrice], or null when the piece
+/// is not on sale at that price.
+double? giftCompareAtPrice(Product product) {
+  if (product.isMadeToOrderAvailable) return null;
+  final variant = product.defaultVariant;
+  final compareAt = variant != null
+      ? variant.compareAtPrice
+      : product.compareAtPrice;
+  return compareAt != null && compareAt > giftPrice(product) ? compareAt : null;
 }
 
 /// Small keyword map used to score how well a product fits a recipient.
@@ -134,7 +176,7 @@ int giftAffinityScore({
 }
 
 /// A deliberately transparent, local ranking for the Gift Concierge results:
-/// budget filters by price, keyword affinity ranks recipient/occasion fit,
+/// budget is a hard filter on [giftPrice], keyword affinity ranks recipient/occasion fit,
 /// in-stock pieces come first, and verified makers are boosted as a
 /// tie-breaker.
 List<Product> rankGiftConciergeProducts({
@@ -144,7 +186,9 @@ List<Product> rankGiftConciergeProducts({
   required GiftBudget budget,
 }) {
   final candidates = products
-      .where((product) => product.isPublished && budget.matches(product.price))
+      .where(
+        (product) => product.isPublished && budget.matches(giftPrice(product)),
+      )
       .toList(growable: false);
 
   final scored = candidates.map((product) {

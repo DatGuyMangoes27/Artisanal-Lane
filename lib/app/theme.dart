@@ -14,9 +14,11 @@ class AppTheme {
   // ── Brand Palette (from logo) ─────────────────────────────────
   static const Color terracotta = Color(0xFF7A0000);    // primary – Burgundy
   static const Color ochre = Color(0xFFD4A020);         // warm gold from pot zigzag band
-  static const Color indigo = Color(0xFF3E2215);        // deep mahogany (pot neck/dark)
+  // Brand is burgundy + green on cream (client direction, Oct 2026): the
+  // former browns are now deep burgundy and forest green.
+  static const Color indigo = Color(0xFF3D0A0A);        // deep burgundy (was mahogany)
   static const Color baobab = Color(0xFF559826);        // forest green (logo hand)
-  static const Color sienna = Color(0xFF8B4513);        // pot body brown
+  static const Color sienna = Color(0xFF3F7A1C);        // deep forest green (was pot brown)
   static const Color bone = Color(0xFFF7E4CC);          // warm cream (logo background)
   static const Color clay = Color(0xFFEDD5BE);          // light clay
   static const Color sand = Color(0xFFDFC4AD);          // warm sand
@@ -36,9 +38,9 @@ class AppTheme {
   static const Color scaffoldBg = Color(0xFFFDF5EC);   // warm cream parchment
   static const Color cardBg = Color(0xFFFFFBF5);        // warm white
   static const Color surfaceColor = bone; // very light grey for contrast if needed
-  static const Color textPrimary = Color(0xFF3A1F10);   // dark mahogany
-  static const Color textSecondary = Color(0xFF6B5040); // warm brown-grey
-  static const Color textHint = Color(0xFF9C8670);      // faded earth
+  static const Color textPrimary = Color(0xFF3A0D0D);   // very dark burgundy
+  static const Color textSecondary = Color(0xFF6A4848); // muted burgundy-grey
+  static const Color textHint = Color(0xFF9C8282);      // faded rose-grey
   static const Color dividerColor = clay;
   static const Color borderColor = sand;
 
@@ -234,12 +236,29 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: bone,
         selectedColor: terracotta.withValues(alpha: 0.15),
-        labelStyle: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.w500),
+        // An explicit colour: without one the label had no colour at all and
+        // iOS drew it white on the light chip.
+        labelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: textPrimary,
+        ),
+        secondaryLabelStyle: GoogleFonts.poppins(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: terracotta,
+        ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: sand, width: 0.5),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      ),
+      // Pop-up messages in brand burgundy (they used to default to brown).
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: primaryDark,
+        actionTextColor: bone,
+        contentTextStyle: GoogleFonts.poppins(fontSize: 14, color: Colors.white),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
         backgroundColor: cardBg,

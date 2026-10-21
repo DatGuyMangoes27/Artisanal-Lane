@@ -211,6 +211,13 @@ class _ArtisanalLaneAppState extends ConsumerState<ArtisanalLaneApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       routerConfig: router,
+      // Follow the phone's text size, but only up to a point: larger iOS
+      // text sizes cut off button labels (e.g. "Proceed to Checkout") whose
+      // heights are fixed.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.15,
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

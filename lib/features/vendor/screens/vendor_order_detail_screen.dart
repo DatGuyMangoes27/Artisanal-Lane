@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/ui/share_origin.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/bobgo_courier_card.dart';
@@ -55,6 +56,7 @@ class _VendorOrderDetailScreenState
 
   Future<void> _downloadWaybill() async {
     if (_isBobGoBusy) return;
+    final shareOrigin = shareOriginFor(context);
     setState(() => _isBobGoBusy = true);
     try {
       final waybill = await ref
@@ -63,9 +65,11 @@ class _VendorOrderDetailScreenState
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${waybill.fileName}');
       await file.writeAsBytes(waybill.bytes, flush: true);
-      await Share.shareXFiles([
-        XFile(file.path, mimeType: 'application/pdf'),
-      ], subject: 'Order waybill');
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/pdf')],
+        subject: 'Order waybill',
+        sharePositionOrigin: shareOrigin,
+      );
     } catch (_) {
       _showMessage(
         'We could not load the waybill right now. Please try again shortly.',
@@ -96,7 +100,8 @@ class _VendorOrderDetailScreenState
 
   Future<void> _openTracking(String url) async {
     final uri = normalizeTrackingUri(url);
-    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       _showMessage('Could not open the tracking link', error: true);
     }
   }

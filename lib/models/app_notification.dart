@@ -6,6 +6,7 @@ class AppNotification {
   final String notificationType;
   final Map<String, dynamic> data;
   final DateTime? readAt;
+  final DateTime? dismissedAt;
   final DateTime createdAt;
 
   const AppNotification({
@@ -16,6 +17,7 @@ class AppNotification {
     required this.notificationType,
     this.data = const {},
     this.readAt,
+    this.dismissedAt,
     required this.createdAt,
   });
 
@@ -32,9 +34,29 @@ class AppNotification {
       readAt: json['read_at'] != null
           ? DateTime.parse(json['read_at'] as String)
           : null,
+      dismissedAt: json['dismissed_at'] != null
+          ? DateTime.parse(json['dismissed_at'] as String)
+          : null,
       createdAt: DateTime.parse(json['created_at'] as String),
     );
   }
 
   bool get isUnread => readAt == null;
+
+  /// Cleared by the user; hidden from the list and the unread badge.
+  bool get isDismissed => dismissedAt != null;
+
+  AppNotification copyWith({DateTime? readAt, DateTime? dismissedAt}) {
+    return AppNotification(
+      id: id,
+      userId: userId,
+      title: title,
+      body: body,
+      notificationType: notificationType,
+      data: data,
+      readAt: readAt ?? this.readAt,
+      dismissedAt: dismissedAt ?? this.dismissedAt,
+      createdAt: createdAt,
+    );
+  }
 }

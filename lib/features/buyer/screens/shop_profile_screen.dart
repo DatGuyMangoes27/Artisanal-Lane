@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/ui/share_origin.dart';
 import 'package:flutter/services.dart';
 import '../../../app/theme.dart';
 import '../../../core/constants/feature_flags.dart';
@@ -109,16 +110,16 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                     parent: AlwaysScrollableScrollPhysics(),
                   ),
                   slivers: [
-                    // Hero
+                    // Hero: the cover photo shown in full, with the maker's
+                    // card underneath it rather than over it (the card is
+                    // taller than the photo and used to hide it).
                     SliverToBoxAdapter(
-                      child: Stack(
-                        clipBehavior: Clip.none,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           _ShopHero(shop: shop),
-                          Positioned(
-                            left: 20,
-                            right: 20,
-                            bottom: -60,
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                             child: _MakerIdentityCard(
                               shop: shop,
                               followerCount: followerCount,
@@ -142,7 +143,7 @@ class _ShopProfileScreenState extends ConsumerState<ShopProfileScreen> {
                         ],
                       ),
                     ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 84)),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
                     // Offline banner
                     if (shop.isOffline)
@@ -899,6 +900,7 @@ class _ShopMoreMenuButton extends ConsumerWidget {
           case _ShopMoreMenuAction.share:
             await Share.share(
               buildShopShareText(shopId: shop.id, shopName: shop.name),
+              sharePositionOrigin: shareOriginFor(context),
             );
             break;
           case _ShopMoreMenuAction.mute:

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../../core/ui/share_origin.dart';
 import '../../../../core/pricing/price_format.dart';
 import '../../../../core/ui/compact_count.dart';
 import '../../../../app/theme.dart';
@@ -63,6 +64,7 @@ Future<void> sharePost(BuildContext context, ShopPost post) async {
         shopName: post.shopName,
         caption: post.caption,
       ),
+      sharePositionOrigin: shareOriginFor(context),
     );
   } catch (_) {
     messenger?.showSnackBar(

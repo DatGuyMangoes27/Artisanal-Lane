@@ -62,7 +62,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         ..showSnackBar(
           SnackBar(
             content: Text(
-              'Removed · Undo',
+              'Removed',
               style: GoogleFonts.poppins(color: Colors.white),
             ),
             backgroundColor: AppTheme.textPrimary,
@@ -1058,13 +1058,19 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                     borderRadius: BorderRadius.circular(26),
                   ),
                 ),
-                child: Text(
-                  'Proceed to Checkout · R${total.toStringAsFixed(0)}',
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                    letterSpacing: 0.3,
+                // One line, shrunk to fit: wrapping hid the price below the
+                // pill's fixed height.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Proceed to Checkout · R${total.toStringAsFixed(0)}',
+                    maxLines: 1,
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
               ),

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getMessagePreview,
   getUnreadMessageCount,
+  isChatThreadHiddenFor,
   isThreadUnread,
   mapBuyerChatMessage,
   mapBuyerChatThread,
@@ -107,5 +108,28 @@ describe("buyer message helpers", () => {
     ];
 
     expect(getUnreadMessageCount(thread, messages, "buyer-1")).toBe(1);
+  });
+});
+
+describe("isChatThreadHiddenFor", () => {
+  const hiddenBy = (userId: string, hiddenAt: string) => ({
+    ...threadRow,
+    chat_thread_hidden: [{ user_id: userId, hidden_at: hiddenAt }],
+  });
+
+  it("hides a thread the person deleted after its last message", () => {
+    expect(isChatThreadHiddenFor(hiddenBy("buyer-1", "2026-05-13T11:00:00.000Z"), "buyer-1")).toBe(true);
+  });
+
+  it("shows it again once a newer message arrives", () => {
+    expect(isChatThreadHiddenFor(hiddenBy("buyer-1", "2026-05-13T09:59:00.000Z"), "buyer-1")).toBe(false);
+  });
+
+  it("only hides it for the person who deleted it", () => {
+    expect(isChatThreadHiddenFor(hiddenBy("buyer-1", "2026-05-13T11:00:00.000Z"), "vendor-1")).toBe(false);
+  });
+
+  it("never hides rows without hide data", () => {
+    expect(isChatThreadHiddenFor(threadRow, "buyer-1")).toBe(false);
   });
 });

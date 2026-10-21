@@ -134,8 +134,9 @@ void main() {
     await tester.pump();
 
     expect(find.text('Gift ideas'), findsOneWidget);
-    expect(find.text('2 ideas'), findsOneWidget);
-    // Out of budget and sold-out pieces never appear.
+    expect(find.text('1 idea'), findsOneWidget);
+    // Out of budget, off-interest and sold-out pieces never appear.
+    expect(find.text('Beaded necklace'), findsNothing);
     expect(find.text('Large woven basket'), findsNothing);
     expect(find.text('Clay bowl'), findsNothing);
     final cards = tester
@@ -143,7 +144,7 @@ void main() {
         .toList();
     expect(cards.first.recommendation.product.id, 'mug');
     expect(find.text('Matches kitchen & table'), findsOneWidget);
-    expect(find.text('Clay & Co'), findsNWidgets(2));
+    expect(find.text('Clay & Co'), findsOneWidget);
     expect(find.text('R120'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
@@ -199,7 +200,7 @@ void main() {
           _product(
             'p$i',
             price: 150,
-            title: 'A long handmade product title number $i for testing',
+            title: 'A long handmade beaded necklace number $i for testing',
             shopName: 'A maker with a rather long shop name',
           ),
       ],
@@ -224,7 +225,8 @@ void main() {
     await pumpFinder(
       tester,
       () async => [
-        for (var i = 0; i < 7; i++) _product('p$i', price: 150, title: 'Bowl $i'),
+        for (var i = 0; i < 7; i++)
+          _product('p$i', price: 150, title: 'Bowl $i'),
       ],
       size: const Size(430, 932),
     );
@@ -236,21 +238,22 @@ void main() {
   });
 
   group('recommendGifts', () {
-    test('ranks chosen interests first and keeps base order otherwise', () {
+    test('chosen interests are a hard filter; more matches rank first', () {
       final results = recommendGifts(
         products: [
           _product('a', price: 100, title: 'Plain item'),
           _product('b', price: 100, title: 'Leather wallet'),
           _product('c', price: 100, title: 'Other item'),
+          _product('d', price: 100, title: 'Leather bracelet'),
         ],
         recipient: GiftRecipient.anyone,
         occasion: GiftOccasion.justBecause,
         budget: GiftBudget.any,
-        interests: {GiftInterest.leather},
+        interests: {GiftInterest.leather, GiftInterest.jewellery},
       );
-      expect(results.first.product.id, 'b');
-      expect(results.first.reason, 'Matches leather goods');
-      expect(results.map((r) => r.product.id).skip(1), ['a', 'c']);
+      expect(results.map((r) => r.product.id), ['d', 'b']);
+      expect(results.first.reason, 'Matches jewellery');
+      expect(results.last.reason, 'Matches leather goods');
     });
 
     test('drops products that cannot be bought and respects the limit', () {

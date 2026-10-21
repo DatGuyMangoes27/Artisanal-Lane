@@ -12,7 +12,32 @@ import '../../../models/models.dart';
 import '../../../widgets/skeleton.dart';
 import '../../buyer/utils/help_support_contact.dart';
 
-class ChatInboxList extends StatelessWidget {
+/// Asks before removing a conversation from the person's own inbox.
+Future<bool> confirmDeleteConversation(BuildContext context) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Delete this conversation?'),
+      content: const Text(
+        "It's removed from your messages. If they message you again, it will reappear.",
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+          child: const Text('Delete'),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
+}
+
+class ChatInboxList extends StatefulWidget {
   final List<ChatThread> threads;
   final bool showBuyerIdentity;
   final VoidCallback? onRefresh;
@@ -24,6 +49,10 @@ class ChatInboxList extends StatelessWidget {
   /// customer conversations instead of mixing the two together.
   final bool groupAdminThreads;
 
+  /// Hides a conversation for the current person only (swipe left or
+  /// long-press). Null turns deleting off.
+  final Future<void> Function(ChatThread thread)? onDelete;
+
   const ChatInboxList({
     super.key,
     required this.threads,
@@ -33,42 +62,159 @@ class ChatInboxList extends StatelessWidget {
     required this.emptySubtitle,
     this.onRefresh,
     this.groupAdminThreads = false,
+    this.onDelete,
   });
 
   @override
+  State<ChatInboxList> createState() => _ChatInboxListState();
+}
+
+class _ChatInboxListState extends State<ChatInboxList> {
+  /// Thread id -> the last activity time it was deleted at. Kept locally so
+  /// the tile disappears immediately; a newer message changes the activity
+  /// time, so the thread shows again even before the server list refreshes.
+  final Map<String, DateTime> _deleted = {};
+
+  /// Bumped when a failed delete puts a thread back, so it gets a fresh
+  /// Dismissible instead of the one that was already swiped away.
+  final Map<String, int> _restored = {};
+
+  static DateTime _activityOf(ChatThread thread) =>
+      thread.lastMessageAt ?? thread.createdAt;
+
+  bool _isLocallyDeleted(ChatThread thread) =>
+      _deleted[thread.id] == _activityOf(thread);
+
+  Future<bool> _confirm(ChatThread thread) async {
+    if (widget.onDelete == null) return false;
+    return confirmDeleteConversation(context);
+  }
+
+  Future<void> _delete(ChatThread thread) async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    setState(() => _deleted[thread.id] = _activityOf(thread));
+    try {
+      await onDelete(thread);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _deleted.remove(thread.id);
+        _restored.update(thread.id, (n) => n + 1, ifAbsent: () => 1);
+      });
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Couldn't delete the conversation. Please try again.",
+            ),
+          ),
+        );
+    }
+  }
+
+  Future<void> _showOptions(ChatThread thread) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListTile(
+          leading: const Icon(
+            Icons.delete_outline_rounded,
+            color: AppTheme.error,
+          ),
+          title: Text(
+            'Delete conversation',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w600,
+              color: AppTheme.error,
+            ),
+          ),
+          onTap: () => Navigator.of(context).pop('delete'),
+        ),
+      ),
+    );
+    if (action != 'delete' || !mounted) return;
+    if (await _confirm(thread)) await _delete(thread);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final threads = widget.threads
+        .where((thread) => !_isLocallyDeleted(thread))
+        .toList();
+
     if (threads.isEmpty) {
       return RefreshIndicator(
         color: AppTheme.terracotta,
-        onRefresh: () async => onRefresh?.call(),
+        onRefresh: () async => widget.onRefresh?.call(),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
           children: [
             const SizedBox(height: 80),
-            _EmptyInbox(title: emptyTitle, subtitle: emptySubtitle),
+            _EmptyInbox(
+              title: widget.emptyTitle,
+              subtitle: widget.emptySubtitle,
+            ),
           ],
         ),
       );
     }
 
-    final adminThreads = groupAdminThreads
+    final adminThreads = widget.groupAdminThreads
         ? threads.where((thread) => thread.kind.isAdminVendor).toList()
         : const <ChatThread>[];
-    final customerThreads = groupAdminThreads
+    final customerThreads = widget.groupAdminThreads
         ? threads.where((thread) => !thread.kind.isAdminVendor).toList()
         : threads;
     final showSections = adminThreads.isNotEmpty;
+    final canDelete = widget.onDelete != null;
 
-    Widget tileFor(ChatThread thread) => _InboxTile(
-      thread: thread,
-      showBuyerIdentity: showBuyerIdentity,
-      onTap: () => onTap(thread),
-    );
+    Widget tileFor(ChatThread thread) {
+      final tile = _InboxTile(
+        thread: thread,
+        showBuyerIdentity: widget.showBuyerIdentity,
+        onTap: () => widget.onTap(thread),
+        onLongPress: canDelete ? () => _showOptions(thread) : null,
+      );
+      if (!canDelete) return tile;
+      return Dismissible(
+        key: ValueKey('chat-thread-${thread.id}-${_restored[thread.id] ?? 0}'),
+        direction: DismissDirection.endToStart,
+        confirmDismiss: (_) => _confirm(thread),
+        onDismissed: (_) => _delete(thread),
+        background: Container(
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          decoration: BoxDecoration(
+            color: AppTheme.error,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Delete',
+                style: GoogleFonts.poppins(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.delete_outline_rounded, color: Colors.white),
+            ],
+          ),
+        ),
+        child: tile,
+      );
+    }
 
     return RefreshIndicator(
       color: AppTheme.terracotta,
-      onRefresh: () async => onRefresh?.call(),
+      onRefresh: () async => widget.onRefresh?.call(),
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -359,11 +505,13 @@ class _InboxTile extends StatelessWidget {
   final ChatThread thread;
   final bool showBuyerIdentity;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _InboxTile({
     required this.thread,
     required this.showBuyerIdentity,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -390,6 +538,7 @@ class _InboxTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(18),
         child: Container(
           padding: const EdgeInsets.all(16),

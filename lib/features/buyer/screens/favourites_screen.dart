@@ -78,7 +78,7 @@ class _FavouritesScreenState extends ConsumerState<FavouritesScreen> {
       ..showSnackBar(
         SnackBar(
           content: Text(
-            'Removed · Undo',
+            'Removed',
             style: GoogleFonts.poppins(color: Colors.white),
           ),
           backgroundColor: AppTheme.textPrimary,

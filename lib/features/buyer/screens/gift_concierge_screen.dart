@@ -16,7 +16,8 @@ import '../widgets/gift_result_card.dart';
 ///
 /// Buyers answer who the gift is for, the occasion, a budget and (optionally)
 /// what the person is into, then get a shortlist of real, buyable products
-/// ranked on-device by [recommendGifts].
+/// built on-device by [findGiftIdeas]: only pieces inside the budget (and the
+/// chosen interests) count as ideas; near misses get their own section.
 class GiftConciergeScreen extends ConsumerStatefulWidget {
   const GiftConciergeScreen({super.key});
 
@@ -253,7 +254,7 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
             ),
           ),
           data: (products) {
-            final results = recommendGifts(
+            final results = findGiftIdeas(
               products: products,
               recipient: _recipient!,
               occasion: _occasion!,
@@ -261,41 +262,53 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
               interests: _interests,
             );
             if (results.isEmpty) return _buildEmpty();
+            final matches = results.matches;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Gift ideas',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
+                if (matches.isEmpty)
+                  _buildEmpty()
+                else ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Gift ideas',
+                          style: GoogleFonts.playfairDisplay(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary,
+                          ),
                         ),
                       ),
-                    ),
-                    Text(
-                      '${results.length} ${results.length == 1 ? 'idea' : 'ideas'}',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textSecondary,
+                      Text(
+                        '${matches.length} ${matches.length == 1 ? 'idea' : 'ideas'}',
+                        key: const Key('gift-finder-match-count'),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Picked from pieces you can buy today, best matches first.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    color: AppTheme.textSecondary,
+                    ],
                   ),
-                ),
-                const SizedBox(height: 14),
-                _ResultsGrid(results: results),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Every piece fits your answers and budget, best matches '
+                    'first.',
+                    style: GoogleFonts.poppins(
+                      fontSize: 13,
+                      color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  _ResultsGrid(
+                    key: const Key('gift-finder-matches'),
+                    results: matches,
+                  ),
+                ],
+                if (results.closeMatches.isNotEmpty)
+                  _CloseMatchesSection(results: results.closeMatches),
               ],
             );
           },
@@ -338,6 +351,8 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
           Text(
             canWiden
                 ? 'No matches — try widening your budget.'
+                : _interests.isNotEmpty
+                ? 'No matches — try different interests.'
                 : 'No matches — try a different occasion or who it\'s for.',
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
@@ -704,7 +719,7 @@ int _columnsFor(double width) => width >= 900
 /// Rows of equal-width cards. Each row sizes to its tallest card, so large
 /// text never clips the way a fixed-extent grid would.
 class _ResultsGrid extends StatelessWidget {
-  const _ResultsGrid({required this.results});
+  const _ResultsGrid({super.key, required this.results});
   final List<GiftRecommendation> results;
 
   @override
@@ -741,6 +756,46 @@ class _ResultsGrid extends StatelessWidget {
         }
         return Column(children: rows);
       },
+    );
+  }
+}
+
+/// Pieces that miss the budget, kept visibly apart from the real matches
+/// and never counted in the "N ideas" header.
+class _CloseMatchesSection extends StatelessWidget {
+  const _CloseMatchesSection({required this.results});
+  final List<GiftRecommendation> results;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('gift-finder-close-matches'),
+      padding: const EdgeInsets.only(top: 28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Divider(color: AppTheme.sand.withValues(alpha: .6), height: 1),
+          const SizedBox(height: 20),
+          Text(
+            'Close matches outside your budget',
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 19,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "These don't fit your budget, so they aren't counted as matches.",
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _ResultsGrid(results: results),
+        ],
+      ),
     );
   }
 }

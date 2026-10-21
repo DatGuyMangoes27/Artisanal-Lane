@@ -63,6 +63,20 @@ function toNumberOrNull(value: unknown) {
   return null;
 }
 
+/**
+ * True when `userId` deleted this conversation from their own inbox and
+ * nothing newer has been said since. Expects the row to embed
+ * `chat_thread_hidden(user_id, hidden_at)`; rows without it are never hidden.
+ */
+export function isChatThreadHiddenFor(row: JsonRecord, userId: string): boolean {
+  const hiddenRows = Array.isArray(row.chat_thread_hidden) ? row.chat_thread_hidden : [];
+  const mine = hiddenRows.map(toRecord).find((hidden) => hidden?.user_id === userId);
+  const hiddenAt = Date.parse(String(mine?.hidden_at ?? ""));
+  if (!Number.isFinite(hiddenAt)) return false;
+  const activityAt = Date.parse(String(row.last_message_at ?? row.created_at ?? ""));
+  return !Number.isFinite(activityAt) || hiddenAt >= activityAt;
+}
+
 export function mapBuyerChatThread(row: JsonRecord, currentUserId: string): BuyerChatThread {
   const shop = toRecord(row.shops);
   const buyer = toRecord(row.buyer);

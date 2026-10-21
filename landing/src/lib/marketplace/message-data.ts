@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 import {
+  isChatThreadHiddenFor,
   mapBuyerChatMessage,
   mapBuyerChatThread,
   type BuyerChatMessage,
@@ -58,21 +59,29 @@ export async function requireBuyerMessageSession(redirectTo: string) {
 
 export async function listBuyerChatThreads(userId: string): Promise<BuyerChatThread[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("chat_threads")
-    .select(chatThreadSelect)
-    .eq("buyer_id", userId)
-    .in("kind", ["buyer_vendor", "admin_applicant"])
-    .order("last_message_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  const query = (select: string) =>
+    supabase
+      .from("chat_threads")
+      .select(select)
+      .eq("buyer_id", userId)
+      .in("kind", ["buyer_vendor", "admin_applicant"])
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+  // Conversations the buyer deleted stay hidden until a newer message
+  // arrives. Fall back to the plain list where the hide table isn't live yet.
+  let { data, error } = await query(`${chatThreadSelect}, chat_thread_hidden(user_id, hidden_at)`);
+  if (error) {
+    ({ data, error } = await query(chatThreadSelect));
+  }
 
   if (error) {
     throw new Error("Failed to load buyer messages", { cause: error });
   }
 
-  return ((data ?? []) as Array<Record<string, unknown>>).map((row) =>
-    mapBuyerChatThread(row, userId),
-  );
+  return ((data ?? []) as unknown as Array<Record<string, unknown>>)
+    .filter((row) => !isChatThreadHiddenFor(row, userId))
+    .map((row) => mapBuyerChatThread(row, userId));
 }
 
 export async function getBuyerChatThread(

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/ui/share_origin.dart';
 import '../../../core/pricing/price_format.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../app/theme.dart';
@@ -302,6 +303,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           price: sharePrice,
         ),
         subject: 'Artisan Lane product share',
+        sharePositionOrigin: shareOriginFor(context),
       );
     } catch (error) {
       if (!mounted) return;

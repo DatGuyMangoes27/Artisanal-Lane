@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../app/theme.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../../chat/widgets/chat_widgets.dart';
 import '../providers/vendor_providers.dart';
 
@@ -36,6 +37,11 @@ class VendorMessagesScreen extends ConsumerWidget {
           emptySubtitle:
               'When a buyer or the Artisan Lane team contacts you, the conversation will show up here.',
           onRefresh: () {
+            ref.invalidate(vendorThreadsProvider);
+            ref.invalidate(vendorThreadsStreamProvider);
+          },
+          onDelete: (thread) async {
+            await ref.read(supabaseServiceProvider).hideChatThread(thread.id);
             ref.invalidate(vendorThreadsProvider);
             ref.invalidate(vendorThreadsStreamProvider);
           },
