@@ -174,7 +174,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             IconButton(
               tooltip: 'Clear all',
               icon: const Icon(
-                Icons.delete_sweep_outlined,
+                Icons.delete_outline_rounded,
                 color: AppTheme.textPrimary,
               ),
               onPressed: () => _clearAll(visible),
