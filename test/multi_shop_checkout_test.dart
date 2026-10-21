@@ -529,7 +529,7 @@ void main() {
       expect(find.text('Delivery from Weave Co'), findsOneWidget);
       // Each shop offers its own option; nothing blocks the mixed basket.
       expect(find.text('Pargo'), findsOneWidget);
-      expect(find.text('Courier Guy Locker'), findsOneWidget);
+      expect(find.text('Pudo Locker (Courier Guy)'), findsOneWidget);
       expect(find.text('Shop total'), findsNWidgets(2));
       // 200 + 65 and 300 + 70.
       expect(find.text('R265'), findsOneWidget);

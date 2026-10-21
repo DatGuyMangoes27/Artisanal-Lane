@@ -17,8 +17,8 @@ type ShippingMethodMeta = {
 
 const shippingMethodCatalogue: Record<ShippingMethodKey, ShippingMethodMeta> = {
   courier_guy: {
-    name: "Courier Guy Locker",
-    description: "Collect at a Courier Guy locker near you",
+    name: "Pudo Locker (Courier Guy)",
+    description: "Collect at a Pudo locker near you",
     defaultPrice: 69,
   },
   pargo: {

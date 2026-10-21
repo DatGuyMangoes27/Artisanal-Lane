@@ -483,7 +483,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   String _pickupPointLabel(String? shippingMethod) {
     switch (shippingMethod) {
       case 'courier_guy':
-        return 'Courier Guy locker / branch / drop-off point';
+        return 'Pudo locker / branch / drop-off point';
       case 'pargo':
         return 'Pargo pickup point';
       default:
@@ -571,7 +571,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       setState(() {
         p.courierGuyLockers = const [];
         p.courierGuyLockerError =
-            'Could not load Courier Guy lockers right now. Try again in a moment.';
+            'Could not load Pudo lockers right now. Try again in a moment.';
         p.isLoadingCourierGuyLockers = false;
       });
     }
@@ -2299,7 +2299,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildInfoNote(
-              'Search and select the Courier Guy locker where you want to collect your parcel.',
+              'Search and select the Pudo locker where you want to collect your parcel.',
             ),
             const SizedBox(height: 16),
             _buildDropdownField(
@@ -2318,7 +2318,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             const SizedBox(height: 16),
             _buildTextField(
               key: p.fieldKey,
-              label: 'Search Courier Guy locker',
+              label: 'Search Pudo locker',
               controller: p.courierGuySearchController,
               focusNode: p.focusNode,
               prefixIcon: Icons.search_rounded,

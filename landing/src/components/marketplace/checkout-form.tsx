@@ -265,7 +265,7 @@ function pickupPointForOrder(option: ShippingOption | null, selection: ShopPicku
   return selection.text.trim() || null;
 }
 
-/** Finds a Courier Guy locker or Pargo point for one shop's parcel. */
+/** Finds a Pudo locker or Pargo point for one shop's parcel. */
 function PickupPointPicker({
   method,
   inputName,
@@ -312,13 +312,13 @@ function PickupPointPicker({
 
         if (!response.ok || payload?.error) {
           setCourierGuyLockers([]);
-          setCourierGuyLockerError(payload?.error ?? "Could not load Courier Guy lockers.");
+          setCourierGuyLockerError(payload?.error ?? "Could not load Pudo lockers.");
         } else {
           setCourierGuyLockers(payload?.lockers ?? []);
         }
       } catch {
         setCourierGuyLockers([]);
-        setCourierGuyLockerError("Could not load Courier Guy lockers right now. Try again in a moment.");
+        setCourierGuyLockerError("Could not load Pudo lockers right now. Try again in a moment.");
       }
 
       setIsLoadingCourierGuyLockers(false);
@@ -401,7 +401,7 @@ function PickupPointPicker({
       {method === "courier_guy" ? (
         <>
           <p className="text-sm text-muted-foreground">
-            Search and select the Courier Guy locker where you want to collect your parcel.
+            Search and select the Pudo locker where you want to collect your parcel.
           </p>
           <div className="grid gap-3 sm:grid-cols-[180px_1fr_auto]">
             <select
@@ -454,7 +454,7 @@ function PickupPointPicker({
             </p>
           ) : null}
           {isLoadingCourierGuyLockers ? (
-            <p className="text-sm text-muted-foreground">Loading Courier Guy lockers...</p>
+            <p className="text-sm text-muted-foreground">Loading Pudo lockers...</p>
           ) : courierGuyLockers.length > 0 ? (
             <div className="divide-y overflow-hidden rounded-2xl border border-artisan-clay bg-background">
               {courierGuyLockers.map((locker) => (

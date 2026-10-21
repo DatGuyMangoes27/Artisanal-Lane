@@ -94,7 +94,7 @@ export function formatOrderStatus(status: string | null) {
 export function formatShippingMethod(method: string | null) {
   switch (method) {
     case "courier_guy":
-      return "Courier Guy Locker";
+      return "Pudo Locker (Courier Guy)";
     case "courier_guy_door_to_door":
       return "Courier Guy Door to Door";
     case "pargo":

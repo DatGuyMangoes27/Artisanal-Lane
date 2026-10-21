@@ -66,8 +66,8 @@ class ShippingOption {
   // ── Static catalogue of all supported methods ──────────────────
   static const _catalogue = {
     'courier_guy': _MethodMeta(
-      name: 'Courier Guy Locker',
-      description: 'Collect at a Courier Guy locker near you',
+      name: 'Pudo Locker (Courier Guy)',
+      description: 'Collect at a Pudo locker near you',
       icon: Icons.lock_outline_rounded,
     ),
     'courier_guy_door_to_door': _MethodMeta(
