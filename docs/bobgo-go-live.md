@@ -288,3 +288,12 @@ already holds a quote cannot pay with it once the flag is off.
 - **Courier refused after booking** (`shipment_submission_status/updated` with
   `failed-indefinitely`/`no-rates`): the order is released to `failed` for a
   fresh booking if not yet shipped.
+
+## Production status (22 Oct 2026)
+
+- Live key set (`BOBGO_SANDBOX_BASE_URL=https://api.bobgo.co.za/v2`); live rates verified (11 door rates CPT-JHB).
+- `TRADESAFE_ARTISAN_LANE_TOKEN_ID` = the TradeSafe API profile token (`{ apiProfile { token } }`), organisation "Artisan Lane" with bank account.
+- Webhooks registered (3 topics) to `bobgo-webhook?secret=...`; `BOBGO_WEBHOOK_REQUIRE_SIGNATURE=false` until a signed delivery is seen in the logs.
+- `bobgo-sync-tracking-every-15-minutes` cron scheduled; vault `bobgo_sync_secret` set.
+- Server flag `BOBGO_SHIPPING_ENABLED=true` (app live). Website flags follow once `landing/.env.local` holds the working key (the website is built from that file, not Netlify's UI).
+- Live rates carry no delivery dates; `service_level_days` is read when present.
