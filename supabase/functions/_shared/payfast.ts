@@ -422,7 +422,9 @@ export function buildPayFastUpdateBody(input: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.runDate)) {
       throw new Error("Next charge date must be YYYY-MM-DD.");
     }
-    body.run_date = input.runDate;
+    // PayFast's update endpoint calls the next charge date "next_run" (its
+    // validation rejects "run_date", which only appears in fetch responses).
+    body.next_run = input.runDate;
   }
   if (Object.keys(body).length === 0) {
     throw new Error("Nothing to update.");
