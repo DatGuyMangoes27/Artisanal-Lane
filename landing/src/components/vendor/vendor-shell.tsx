@@ -81,6 +81,23 @@ export function VendorSetupRequired({
   );
 }
 
+// Shown on the post composer when the artisan has no active subscription:
+// publishing to the feed (and appearing in the marketplace) needs one.
+export function VendorSubscribeToPost() {
+  return (
+    <div className="mb-6">
+      <VendorPanel
+        title="Subscribe to post to the feed"
+        description="Feed posts are part of your Artisan Lane subscription. Subscribe to share posts with buyers and to show your shop and products in the marketplace. You can still save a post as a draft (untick Publish)."
+      >
+        <Button asChild className="rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90">
+          <Link href="/vendor/profile/subscription">Open subscription</Link>
+        </Button>
+      </VendorPanel>
+    </div>
+  );
+}
+
 export function VendorPageHeader({
   eyebrow,
   title,

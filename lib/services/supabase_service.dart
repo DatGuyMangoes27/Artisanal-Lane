@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_constants.dart';
 import '../features/buyer/utils/cart_stock_guard.dart';
 import '../features/buyer/utils/favourite_products.dart';
+import '../features/buyer/utils/feed_pagination.dart';
+import '../features/buyer/utils/product_search.dart';
 import '../features/buyer/utils/profile_avatar_upload.dart';
 import '../features/buyer/utils/search_trends.dart';
 import '../features/vendor/utils/vendor_earnings.dart';
@@ -1266,7 +1268,7 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
-        .eq('shops.is_active', true)
+        .eq('shops.is_publicly_listed', true)
         .or(_availableProductFilter);
 
     if (categoryId != null) {
@@ -1299,66 +1301,117 @@ class SupabaseService {
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
 
-  /// Server-side product search across title, description and shop name,
-  /// applying the same buyer-visibility rules as [getProducts] (published,
-  /// active shop, not deleted/unavailable). Supports the same optional
-  /// category/on-sale/featured narrowing and sort as [getProducts].
+  /// Set once the `search_buyer_products` RPC turns out not to be deployed,
+  /// so later searches go straight to the PostgREST fallback.
+  static bool _searchRpcUnavailable = false;
+
+  /// Relevance-ranked buyer product search (see `product_search.dart` for
+  /// the matching rules), applying the same buyer-visibility rules as
+  /// [getProducts] (published, active shop, available).
+  ///
+  /// Uses the `search_buyer_products` RPC when it is deployed; otherwise
+  /// gathers a candidate pool with PostgREST and ranks it on the device.
+  /// Either way the final filter + order comes from [rankProductSearch], so
+  /// a word that only appears inside another word ("rings" in "earrings")
+  /// never matches.
   Future<List<Product>> searchProducts(
     String query, {
-    int limit = 24,
-    int offset = 0,
+    int limit = 60,
     String? categoryId,
     bool? onSale,
     bool? featured,
-    String sortBy = 'created_at',
-    bool ascending = false,
   }) async {
-    // Strip characters with meaning in PostgREST filters or ilike patterns so
-    // free text can't break or widen the query.
-    final term = query
-        .replaceAll(RegExp(r'[%*,()"\\:]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-    if (term.isEmpty) return const [];
+    final words = searchQueryWords(query);
+    if (words.isEmpty) return const [];
+    const candidatePool = 300;
 
-    // A top-level or() can't reference the embedded shop, so match shop
-    // names first and include those shops' products by id.
-    final shopRows = await _client
-        .from('shops')
-        .select('id')
-        .eq('is_active', true)
-        .ilike('name', '%$term%')
-        .limit(50);
-    final shopIds = (shopRows as List).map((row) => row['id'] as String);
+    PostgrestFilterBuilder<T> narrow<T>(PostgrestFilterBuilder<T> q) {
+      var filtered = q
+          .eq('is_published', true)
+          .eq('shops.is_publicly_listed', true)
+          .or(_availableProductFilter);
+      if (categoryId != null) filtered = filtered.eq('category_id', categoryId);
+      if (onSale == true) {
+        filtered = filtered.not('compare_at_price', 'is', null);
+      }
+      if (featured == true) filtered = filtered.eq('is_featured', true);
+      return filtered;
+    }
+
+    List<Product>? candidates;
+    if (!_searchRpcUnavailable) {
+      try {
+        // The RPC only matches + orders by relevance; visibility filters
+        // and the product embed are applied on top exactly as for tables.
+        final data = await narrow(
+          _client.rpc<PostgrestList>(
+            'search_buyer_products',
+            params: {'p_query': words.join(' '), 'p_limit': candidatePool},
+          ),
+        ).select(_productSelect).limit(candidatePool);
+        candidates = (data as List).map((e) => Product.fromJson(e)).toList();
+      } on PostgrestException catch (error) {
+        // PGRST202: function not in the schema cache (migration not
+        // deployed yet). Anything else is a real failure.
+        if (error.code != 'PGRST202' && error.code != '42883') rethrow;
+        _searchRpcUnavailable = true;
+      }
+    }
+
+    candidates ??= await _searchCandidatesFallback(
+      words,
+      narrow: (q) => narrow(q).limit(candidatePool),
+    );
+    return rankProductSearch(candidates, query).take(limit).toList();
+  }
+
+  /// Broad PostgREST candidate pool for [searchProducts] when the RPC is not
+  /// deployed: any product whose title/description contains a query word's
+  /// stem, whose tags include the word, or whose shop/category/subcategory
+  /// name contains it. Over-matching here is fine; the ranker trims it.
+  Future<List<Product>> _searchCandidatesFallback(
+    List<String> words, {
+    required PostgrestTransformBuilder<PostgrestList> Function(
+      PostgrestFilterBuilder<PostgrestList>,
+    )
+    narrow,
+  }) async {
+    // Query words are letters/digits only (see searchWords), so they are
+    // safe inside PostgREST filter strings and ilike patterns.
+    final stems = {for (final word in words) singularSearchWord(word)};
+    final tagValues = {...words, ...stems};
+    final nameFilter = stems.map((stem) => 'name.ilike.%$stem%').join(',');
+
+    final lookups = await Future.wait([
+      _client
+          .from('shops')
+          .select('id')
+          .eq('is_publicly_listed', true)
+          .or(nameFilter),
+      _client.from('categories').select('id').or(nameFilter),
+      _client.from('subcategories').select('id').or(nameFilter),
+    ]);
+    List<String> ids(int i) =>
+        (lookups[i] as List).map((row) => row['id'] as String).toList();
+    final shopIds = ids(0);
+    final categoryIds = ids(1);
+    final subcategoryIds = ids(2);
+
     final textFilters = [
-      'title.ilike."%$term%"',
-      'description.ilike."%$term%"',
+      for (final stem in stems) ...[
+        'title.ilike.%$stem%',
+        'description.ilike.%$stem%',
+      ],
+      'tags.ov.{${tagValues.join(',')}}',
       if (shopIds.isNotEmpty) 'shop_id.in.(${shopIds.join(',')})',
+      if (categoryIds.isNotEmpty) 'category_id.in.(${categoryIds.join(',')})',
+      if (subcategoryIds.isNotEmpty)
+        'subcategory_id.in.(${subcategoryIds.join(',')})',
     ].join(',');
 
-    var q = _client
-        .from('products')
-        .select(_productSelect)
-        .eq('is_published', true)
-        .eq('shops.is_active', true)
-        .or(_availableProductFilter)
-        .or(textFilters);
-
-    if (categoryId != null) {
-      q = q.eq('category_id', categoryId);
-    }
-    if (onSale == true) {
-      q = q.not('compare_at_price', 'is', null);
-    }
-    if (featured == true) {
-      q = q.eq('is_featured', true);
-    }
-
-    final data = await q
-        .order(sortBy, ascending: ascending)
-        .order('id', ascending: true)
-        .range(offset, offset + limit - 1);
-
+    final data = await narrow(
+      _client.from('products').select(_productSelect).or(textFilters),
+    ).order('created_at', ascending: false).order('id', ascending: true);
     return (data as List).map((e) => Product.fromJson(e)).toList();
   }
 
@@ -1410,7 +1463,7 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
-        .eq('shops.is_active', true)
+        .eq('shops.is_publicly_listed', true)
         .or(_availableProductFilter)
         .eq('is_featured', true)
         .order('featured_at', ascending: false)
@@ -1423,7 +1476,7 @@ class SupabaseService {
         .from('products')
         .select(_productSelect)
         .eq('is_published', true)
-        .eq('shops.is_active', true)
+        .eq('shops.is_publicly_listed', true)
         .or(_availableProductFilter)
         .not('compare_at_price', 'is', null)
         .order('created_at', ascending: false)
@@ -1440,7 +1493,10 @@ class SupabaseService {
         .eq('shops.is_active', true)
         .eq('id', id);
     if (buyerVisibleOnly) {
-      query = query.eq('is_published', true).or(_availableProductFilter);
+      query = query
+          .eq('is_published', true)
+          .eq('shops.is_publicly_listed', true)
+          .or(_availableProductFilter);
     }
 
     final data = await query.single();
@@ -1448,11 +1504,16 @@ class SupabaseService {
   }
 
   // ── Shops ─────────────────────────────────────────────────────
+  // Public shop/product queries filter on shops.is_publicly_listed (active
+  // shop + active Artisan Lane subscription, kept by the database). RLS
+  // already hides unlisted shops from the public; the filter also keeps a
+  // shop out of lists for a buyer who can read it only through an old order
+  // or chat.
   Future<List<Shop>> getShops() async {
     final data = await _client
         .from('shops')
         .select()
-        .eq('is_active', true)
+        .eq('is_publicly_listed', true)
         .order('name', ascending: true);
     return (data as List).map((e) => Shop.fromJson(e)).toList();
   }
@@ -1461,7 +1522,7 @@ class SupabaseService {
     final data = await _client
         .from('shops')
         .select()
-        .eq('is_active', true)
+        .eq('is_publicly_listed', true)
         .eq('is_spotlight', true)
         .order('spotlighted_at', ascending: false)
         .order('created_at', ascending: false)
@@ -1477,7 +1538,7 @@ class SupabaseService {
           '*, vendor:profiles!shops_vendor_id_fkey(display_name, avatar_url)',
         )
         .eq('id', id)
-        .eq('is_active', true)
+        .eq('is_publicly_listed', true)
         .single();
     return Shop.fromJson(data);
   }
@@ -1981,20 +2042,27 @@ class SupabaseService {
     String userId, {
     int limit = 20,
     int offset = 0,
+    // Keyset cursor; when set, [offset] is ignored and the page holds posts
+    // strictly older than it (stable while new posts are published).
+    FeedCursor? before,
   }) async {
     // First get followed shop IDs
     final followedIds = await getFollowedShopIds(userId);
     if (followedIds.isEmpty) return [];
 
-    final data = await _client
+    var query = _client
         .from('shop_posts')
         .select(ShopPost.select)
         .inFilter('shop_id', followedIds)
-        .eq('is_published', true)
+        .eq('is_published', true);
+    if (before != null) query = query.or(before.olderThanFilter);
+    final ordered = query
         // Scheduled posts surface at their go-live time, not creation time.
         .order('published_at', ascending: false)
-        .order('id', ascending: false)
-        .range(offset, offset + limit - 1);
+        .order('id', ascending: false);
+    final data = before != null
+        ? await ordered.limit(limit)
+        : await ordered.range(offset, offset + limit - 1);
     return (data as List).map((e) => ShopPost.fromJson(e)).toList();
   }
 

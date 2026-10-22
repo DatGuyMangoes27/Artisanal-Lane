@@ -17,6 +17,7 @@ import '../../../widgets/skeleton.dart';
 import '../providers/buyer_providers.dart';
 import '../widgets/creator_commerce_header.dart';
 import '../utils/discovery_preferences.dart';
+import '../utils/product_search.dart';
 import '../utils/shop_discovery_location.dart';
 import '../utils/shop_discovery_reasons.dart';
 import '../widgets/shop_product_tile.dart';
@@ -33,15 +34,13 @@ List<Product> filterCreatorShopProducts({
   required CreatorShopFilter filter,
   DiscoveryPreferences? preferences,
 }) {
-  final normalized = query.trim().toLowerCase();
+  final hasQuery = searchQueryWords(query).isNotEmpty;
   final filtered = products
       .where(
         (product) =>
             (filter != CreatorShopFilter.featured || product.isFeatured) &&
             (filter != CreatorShopFilter.underR500 || product.price < 500) &&
-            (normalized.isEmpty ||
-                product.title.toLowerCase().contains(normalized) ||
-                (product.shopName ?? '').toLowerCase().contains(normalized)),
+            (!hasQuery || productSearchScore(product, query) > 0),
       )
       .toList(growable: false);
   if (filter == CreatorShopFilter.newDrops) {
@@ -112,6 +111,10 @@ List<Product> applyShopSortAndFilters(
 class CreatorShopScreen extends ConsumerStatefulWidget {
   const CreatorShopScreen({super.key});
 
+  /// Wait this long after the last keystroke before searching, so typing
+  /// "necklace" runs one search instead of eight.
+  static const searchDebounce = Duration(milliseconds: 350);
+
   @override
   ConsumerState<CreatorShopScreen> createState() => _CreatorShopScreenState();
 }
@@ -119,6 +122,8 @@ class CreatorShopScreen extends ConsumerStatefulWidget {
 class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
     with AutomaticKeepAliveClientMixin {
   static const _pageSize = 24;
+
+  static const _searchResultLimit = 60;
 
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -140,6 +145,10 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
 
   int _visibleCount = _pageSize;
   int _lastTotal = 0;
+
+  /// Last completed server search, shown while the next one loads so the
+  /// results never blank out (or replace the search field) mid-typing.
+  List<Product>? _lastSearchResults;
 
   @override
   bool get wantKeepAlive => true;
@@ -324,7 +333,7 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
       _resetPaging();
     });
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(CreatorShopScreen.searchDebounce, () {
       if (!mounted) return;
       setState(() => _debouncedQuery = value.trim());
     });
@@ -349,6 +358,7 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
     setState(() {
       _query = '';
       _debouncedQuery = '';
+      _lastSearchResults = null;
       _resetPaging();
     });
   }
@@ -373,146 +383,127 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
       _scrollToTop();
     });
 
-    final isSearching = _debouncedQuery.isNotEmpty;
+    // One scroll view for every state (catalogue, searching, loading, error)
+    // so the search field keeps its element, focus and keyboard while
+    // results change underneath it, and the scroll position doesn't jump.
+    const catalogueFilter = CategoryProductFilter(categoryId: '');
+    final catalogue = ref.watch(categoryProductsProvider(catalogueFilter));
+    final catalogueProducts = catalogue.value;
+    final isSearchMode = _debouncedQuery.isNotEmpty;
+
+    List<Product>? baseProducts;
+    var isUpdating = false;
+    Object? error;
+    String errorTitle = "Couldn't load the shop";
+    VoidCallback? onRetry;
+    Future<void> Function() onRefresh;
+
+    if (isSearchMode) {
+      final provider = shopSearchProductsProvider(_debouncedQuery);
+      final search = ref.watch(provider);
+      onRefresh = () => ref.refresh(provider.future);
+      if (search.hasValue) {
+        baseProducts = _lastSearchResults = search.requireValue;
+        isUpdating = search.isLoading;
+      } else if (search.hasError && !search.isLoading) {
+        error = search.error;
+        errorTitle = "Couldn't search right now";
+        onRetry = () => ref.invalidate(provider);
+      } else {
+        // While the server search runs, rank the already-loaded catalogue
+        // with the same rules (or keep the previous results) instead of
+        // blanking the screen.
+        isUpdating = true;
+        baseProducts = catalogueProducts != null
+            ? rankProductSearch(
+                catalogueProducts,
+                _debouncedQuery,
+              ).take(_searchResultLimit).toList()
+            : _lastSearchResults;
+      }
+    } else {
+      onRefresh = () =>
+          ref.refresh(categoryProductsProvider(catalogueFilter).future);
+      if (catalogueProducts != null) {
+        baseProducts = filterCreatorShopProducts(
+          products: catalogueProducts,
+          query: _debouncedQuery,
+          filter: _filter,
+          preferences: preferences,
+        );
+      } else if (catalogue.hasError && !catalogue.isLoading) {
+        error = catalogue.error;
+        onRetry = () =>
+            ref.invalidate(categoryProductsProvider(catalogueFilter));
+      }
+    }
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       body: SafeArea(
-        child: isSearching
-            ? ref
-                  .watch(shopSearchProductsProvider(_debouncedQuery))
-                  .when(
-                    loading: () => _buildSkeleton(context, cartItems),
-                    error: (error, _) => Column(
-                      children: [
-                        _buildSearchBar(context),
-                        Expanded(
-                          child: ErrorRetryView(
-                            error: error,
-                            title: "Couldn't search right now",
-                            onRetry: () => ref.invalidate(
-                              shopSearchProductsProvider(_debouncedQuery),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    data: (results) => _buildScaffoldBody(
-                      context,
-                      baseProducts: results,
-                      cartItems: cartItems,
-                      categories: categories,
-                      isSearchMode: true,
-                      onRefresh: () => ref.refresh(
-                        shopSearchProductsProvider(_debouncedQuery).future,
-                      ),
-                    ),
-                  )
-            : ref
-                  .watch(
-                    categoryProductsProvider(
-                      const CategoryProductFilter(categoryId: ''),
-                    ),
-                  )
-                  .when(
-                    loading: () => _buildSkeleton(context, cartItems),
-                    error: (error, _) => Column(
-                      children: [
-                        _buildSearchBar(context),
-                        Expanded(
-                          child: ErrorRetryView(
-                            error: error,
-                            title: "Couldn't load the shop",
-                            onRetry: () => ref.invalidate(
-                              categoryProductsProvider(
-                                const CategoryProductFilter(categoryId: ''),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    data: (catalogueProducts) => _buildScaffoldBody(
-                      context,
-                      baseProducts: filterCreatorShopProducts(
-                        products: catalogueProducts,
-                        query: _query,
-                        filter: _filter,
-                        preferences: preferences,
-                      ),
-                      cartItems: cartItems,
-                      categories: categories,
-                      isSearchMode: false,
-                      referenceProducts: [
-                        ...catalogueProducts.where(
-                          (product) =>
-                              preferences?.likedProductIds.contains(
-                                product.id,
-                              ) ??
-                              false,
-                        ),
-                        ...favouriteProducts,
-                      ],
-                      likedCategoryIds: preferences?.categoryIds ?? const {},
-                      onRefresh: () => ref.refresh(
-                        categoryProductsProvider(
-                          const CategoryProductFilter(categoryId: ''),
-                        ).future,
-                      ),
-                    ),
+        child: _buildScaffoldBody(
+          context,
+          baseProducts: baseProducts,
+          isUpdating: isUpdating,
+          error: error,
+          errorTitle: errorTitle,
+          onRetry: onRetry,
+          cartItems: cartItems,
+          categories: categories,
+          isSearchMode: isSearchMode,
+          referenceProducts: isSearchMode || catalogueProducts == null
+              ? const []
+              : [
+                  ...catalogueProducts.where(
+                    (product) =>
+                        preferences?.likedProductIds.contains(product.id) ??
+                        false,
                   ),
+                  ...favouriteProducts,
+                ],
+          likedCategoryIds: preferences?.categoryIds ?? const {},
+          onRefresh: onRefresh,
+        ),
       ),
     );
   }
 
-  // ── Skeleton loading state ────────────────────────────────────────
-  Widget _buildSkeleton(BuildContext context, List<CartItem> cartItems) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: CreatorCommerceHeader(
-            eyebrow: 'Curated for you',
-            title: 'Shop the lane',
-            subtitle: 'Handmade pieces from local makers.',
-            cartCount: cartBadgeCount(cartItems),
-          ),
+  // ── Skeleton grid shown in place of results on first load ────────
+  Widget _buildSkeletonGrid() {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 18,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.62,
         ),
-        SliverToBoxAdapter(child: _buildSearchBar(context)),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-          sliver: SliverGrid(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 18,
-              crossAxisSpacing: 14,
-              childAspectRatio: 0.62,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, index) => Skeleton(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: const [
-                    Expanded(child: SkeletonBox(radius: 14)),
-                    SizedBox(height: 10),
-                    SkeletonBox(height: 10, width: 80),
-                    SizedBox(height: 6),
-                    SkeletonBox(height: 14),
-                  ],
-                ),
-              ),
-              childCount: 6,
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => Skeleton(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: const [
+                Expanded(child: SkeletonBox(radius: 14)),
+                SizedBox(height: 10),
+                SkeletonBox(height: 10, width: 80),
+                SizedBox(height: 6),
+                SkeletonBox(height: 14),
+              ],
             ),
           ),
+          childCount: 6,
         ),
-      ],
+      ),
     );
   }
 
-  // ── Search bar (also used standalone above error/loading states) ──
+  // ── Search bar ────────────────────────────────────────────────────
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
       child: TextField(
+        key: const Key('shop-search-field'),
         controller: _searchController,
         focusNode: _searchFocusNode,
         onChanged: _onSearchChanged,
@@ -840,16 +831,23 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
   // ── Main scaffold body (shared by catalogue & search modes) ───────
   Widget _buildScaffoldBody(
     BuildContext context, {
-    required List<Product> baseProducts,
+
+    /// Null while the first load is still running (skeleton grid shown).
+    required List<Product>? baseProducts,
     required List<CartItem> cartItems,
     required List<Category> categories,
     required bool isSearchMode,
     required Future<void> Function() onRefresh,
+    bool isUpdating = false,
+    Object? error,
+    String errorTitle = "Couldn't load the shop",
+    VoidCallback? onRetry,
     List<Product> referenceProducts = const [],
     Set<String> likedCategoryIds = const {},
   }) {
+    final isInitialLoad = baseProducts == null && error == null;
     var products = applyShopSortAndFilters(
-      baseProducts,
+      baseProducts ?? const [],
       sort: _sort,
       priceRange: _priceRange,
       categoryIds: _categoryIds,
@@ -865,8 +863,7 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
     _lastTotal = products.length;
     final visibleProducts = products.take(_visibleCount).toList();
     final hasMore = _visibleCount < products.length;
-    final showReasons =
-        !isSearchMode && _query.isEmpty && _filter == CreatorShopFilter.forYou;
+    final showReasons = !isSearchMode && _filter == CreatorShopFilter.forYou;
     String? reasonFor(Product product) => showReasons
         ? shopForYouReason(
             product: product,
@@ -893,19 +890,41 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
             ),
           ),
           SliverToBoxAdapter(child: _buildSearchBar(context)),
+          // Fixed-height slot so the "searching…" hint never shifts layout.
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(32, 0, 32, 4),
+              child: SizedBox(
+                height: 2,
+                child: isUpdating
+                    ? const LinearProgressIndicator(
+                        key: Key('shop-search-updating'),
+                        minHeight: 2,
+                        color: AppTheme.terracotta,
+                        backgroundColor: Colors.transparent,
+                      )
+                    : null,
+              ),
+            ),
+          ),
           SliverToBoxAdapter(child: _buildSearchSuggestions(context)),
           if (!isSearchMode &&
-              _query.isEmpty &&
               _filter == CreatorShopFilter.forYou &&
               products.length > 1)
             SliverToBoxAdapter(child: _ShopEditorial(product: products.first)),
           if (!isSearchMode)
             SliverToBoxAdapter(
-              child: SizedBox(
-                height: 40,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+              // Sizes to its tallest chip (text scale safe) and scrolls
+              // sideways with edge padding so no chip is cut off.
+              child: SingleChildScrollView(
+                key: const Key('shop-filter-chips'),
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 2,
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     _FilterPill(
                       label: 'For you',
@@ -965,8 +984,14 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
           if (!isSearchMode)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: Row(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                // Each link sizes to its full label; on a narrow phone or
+                // larger text they wrap to a second line instead of
+                // truncating ("Categori…").
+                child: Wrap(
+                  key: const Key('shop-quick-links'),
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 4,
                   children: [
                     for (final entry in [
                       (
@@ -977,27 +1002,21 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                       (Icons.storefront_outlined, 'Artisans', '/home/shops'),
                       (Icons.tune_rounded, 'Your taste', '/discover'),
                     ])
-                      Expanded(
-                        child: TextButton.icon(
-                          style: TextButton.styleFrom(
-                            foregroundColor: shopQuietInk,
-                            padding: const EdgeInsets.symmetric(horizontal: 2),
-                            minimumSize: const Size(0, 44),
-                            textStyle: GoogleFonts.poppins(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: shopQuietInk,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(0, 44),
+                          textStyle: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
-                          icon: Icon(entry.$1, size: 14),
-                          label: Text(
-                            entry.$2,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          onPressed: () => entry.$3 == '/discover'
-                              ? context.go(entry.$3)
-                              : context.push(entry.$3),
                         ),
+                        icon: Icon(entry.$1, size: 14),
+                        label: Text(entry.$2, softWrap: false),
+                        onPressed: () => entry.$3 == '/discover'
+                            ? context.go(entry.$3)
+                            : context.push(entry.$3),
                       ),
                   ],
                 ),
@@ -1015,8 +1034,6 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                     child: Text(
                       isSearchMode
                           ? 'Results for "$_debouncedQuery"'
-                          : _query.isNotEmpty
-                          ? 'Your search results'
                           : switch (_filter) {
                               CreatorShopFilter.forYou =>
                                 'Finds for your everyday',
@@ -1038,7 +1055,11 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '${products.length} pieces',
+                    error != null || isInitialLoad
+                        ? ''
+                        : products.length == 1
+                        ? '1 piece'
+                        : '${products.length} pieces',
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       color: AppTheme.textSecondary,
@@ -1164,7 +1185,18 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
               ),
             ),
           ),
-          if (products.isEmpty)
+          if (error != null)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ErrorRetryView(
+                error: error,
+                title: errorTitle,
+                onRetry: onRetry,
+              ),
+            )
+          else if (isInitialLoad)
+            _buildSkeletonGrid()
+          else if (products.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: Center(

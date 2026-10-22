@@ -29,6 +29,7 @@ import '../../../widgets/gradient_button.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../buyer/widgets/removed_post_banner.dart';
 import '../providers/vendor_providers.dart';
+import '../utils/vendor_subscription_setup.dart';
 import '../../safety/community_guidelines_gate.dart';
 import '../../safety/content_filter.dart';
 
@@ -613,6 +614,46 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
     );
   }
 
+  /// Whether the signed-in artisan may publish to the feed. If the status
+  /// can't be loaded, the post is attempted and the server decides.
+  Future<bool> _hasSubscriptionToPost() async {
+    try {
+      final subscription = await ref.refresh(vendorSubscriptionProvider.future);
+      return isVendorSubscriptionActive(subscription);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  void _showSubscribeToPostDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          subscribeToPostTitle,
+          style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          subscribeToPostMessage,
+          style: GoogleFonts.poppins(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Later'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              context.push('/vendor/profile/subscription');
+            },
+            child: const Text('Open subscription'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (_isLoading || _removedMessage != null) return;
     final formatError = _formatValidationError();
@@ -648,6 +689,14 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
       return;
     }
     if (!await ensureCommunityGuidelinesAccepted(context, ref)) return;
+    if (!mounted) return;
+    // New posts go straight to the feed, which needs an active subscription.
+    // (Edits are checked by the server, which still allows settings-only
+    // changes to old posts.)
+    if (!_isEditing && !await _hasSubscriptionToPost()) {
+      if (mounted) _showSubscribeToPostDialog();
+      return;
+    }
     if (!mounted) return;
 
     setState(() => _isLoading = true);
@@ -763,7 +812,9 @@ class _PostFormScreenState extends ConsumerState<PostFormScreen> {
         );
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && isSubscriptionRequiredToPostError(e)) {
+        _showSubscribeToPostDialog();
+      } else if (mounted) {
         if (_submission == null) setState(() => _submissionStarted = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

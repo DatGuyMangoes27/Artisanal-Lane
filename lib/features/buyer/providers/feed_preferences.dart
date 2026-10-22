@@ -71,10 +71,12 @@ class FeedPreferencesNotifier extends AsyncNotifier<FeedPreferences> {
   }
 
   Future<void> _save(FeedPreferences next, String key) async {
+    // Update first so switches and chips flip the moment they're tapped;
+    // the on-device write follows.
+    if (key == _key) state = AsyncData(next);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList('$key:boosted', next.boostedCategoryIds.toList());
     await prefs.setStringList('$key:muted', next.mutedShopIds.toList());
-    if (key == _key) state = AsyncData(next);
   }
 }
 

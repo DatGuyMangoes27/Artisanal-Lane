@@ -132,9 +132,19 @@ describe("shop profile page", () => {
         shopId: "shop-1",
         caption: "Fresh pieces just came out of the kiln.",
         mediaUrls: ["https://example.com/post.jpg"],
+        productIds: ["product-1", "product-from-another-shop"],
         createdAt: "2026-05-12T00:00:00.000Z",
       },
     ]);
+  });
+
+  it("shows a Shop this piece link for products linked to a studio post", async () => {
+    const page = await ShopPage({ params: Promise.resolve({ shopId: "copper-clay" }) });
+    const text = flattenText(page);
+
+    expect(text).toContain("Shop this piece");
+    // Only this shop's own products resolve; unknown ids are ignored.
+    expect(text).not.toContain("Shop this post");
   });
 
   it("loads the requested shop and renders its profile with products", async () => {

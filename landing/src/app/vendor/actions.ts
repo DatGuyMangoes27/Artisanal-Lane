@@ -783,8 +783,27 @@ export async function sendVendorMessage(formData: FormData) {
   revalidatePath(`/vendor/messages/${threadId}`);
 }
 
+// Feed posts are part of the subscription. The database also refuses to
+// publish without one (guard_unsubscribed_post_publishing, which applies to
+// this service-role client too); checking first gives a friendly message.
+async function requireSubscriptionToPublishPost(
+  vendorId: string,
+  formData: FormData,
+  returnTo: string,
+) {
+  if (!isTruthy(formData.get("isPublished"))) {
+    return;
+  }
+
+  const subscription = await getVendorSubscription(vendorId);
+  if (!isVendorSubscriptionActive(subscription)) {
+    redirect(`${returnTo}?needsSubscription=1`);
+  }
+}
+
 export async function createVendorPost(formData: FormData) {
   const { shop, user } = await requireVendorShop("/vendor/profile/posts/new");
+  await requireSubscriptionToPublishPost(user.id, formData, "/vendor/profile/posts/new");
   const uploaded = await getUploadedUrls(formData, "mediaFiles", "shop-assets", user.id);
   const mediaUrls = [...parseImageUrls(formData, "mediaUrls"), ...uploaded];
   const admin = createAdminClient();
@@ -814,6 +833,7 @@ export async function updateVendorPost(formData: FormData) {
   if (!post) {
     notFound();
   }
+  await requireSubscriptionToPublishPost(user.id, formData, `/vendor/profile/posts/${postId}`);
 
   const uploaded = await getUploadedUrls(formData, "mediaFiles", "shop-assets", user.id);
   const mediaUrls = [...parseImageUrls(formData, "mediaUrls"), ...uploaded];

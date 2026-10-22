@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../../app/theme.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../vendor/providers/vendor_providers.dart';
-import '../../vendor/utils/vendor_payout_setup.dart';
-import '../../vendor/utils/vendor_subscription_setup.dart';
 
-/// Instagram-style "create" entry point. Available to every signed-in user:
-/// sellers get Product/Post/Story, non-sellers get a single "Start selling"
-/// item that routes into the vendor application flow instead.
+/// The Feed header's create entry point, shown as a labelled pill next to
+/// For you / Following:
+/// - makers with a shop see "New post", which opens the post composer
+///   directly;
+/// - everyone else signed in sees "Sell", which explains selling on
+///   Artisan Lane and leads into the shop application.
+/// Hidden for guests, and while we don't yet know whether the account has a
+/// shop (so the label never flips from "Sell" to "New post" under a thumb).
 class CreatorComposeButton extends ConsumerWidget {
   const CreatorComposeButton({super.key, required this.onFinished});
   final Future<void> Function() onFinished;
@@ -19,160 +25,240 @@ class CreatorComposeButton extends ConsumerWidget {
     if (ref.watch(currentUserIdProvider) == null) {
       return const SizedBox.shrink();
     }
-    final shop = ref.watch(vendorShopProvider).value;
-    if (shop != null) {
-      // Load gating early so the sheet can show it without a false "blocked".
-      ref.watch(vendorSubscriptionProvider);
-      ref.watch(vendorPayoutProfileProvider);
+    final shopAsync = ref.watch(vendorShopProvider);
+    if (shopAsync.isLoading && !shopAsync.hasValue) {
+      return const SizedBox.shrink();
     }
+    final hasShop = shopAsync.value != null;
 
-    return IconButton(
-      tooltip: 'Create',
-      icon: const Icon(Icons.add_circle_outline_rounded),
-      constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
-      onPressed: () async {
+    return _CreatePill(
+      key: const Key('feed-create-button'),
+      icon: hasShop ? Icons.add_rounded : Icons.storefront_outlined,
+      label: hasShop ? 'New post' : 'Sell',
+      tooltip: hasShop ? 'New post' : 'Sell on Artisan Lane',
+      onTap: () async {
         HapticFeedback.lightImpact();
-        final choice = shop == null
-            ? await _showStartSellingSheet(context)
-            : await _showCreateSheet(context, ref);
-        if (!context.mounted || choice == null) return;
-
-        switch (choice) {
-          case 'apply':
-            await context.push('/vendor/apply');
-          case 'story':
-            await context.push('/create/story', extra: shop);
-          case 'post':
-            await context.push('/create/post');
-          case 'product':
-            await context.push('/create/product');
-          case 'subscription':
-            await context.push('/vendor/profile/subscription');
-          case 'payouts':
-            await context.push('/vendor/profile/payouts');
+        if (hasShop) {
+          await context.push('/create/post');
+        } else {
+          final apply = await showStartSellingSheet(context);
+          if (!context.mounted || apply != true) return;
+          await context.push('/vendor/apply');
         }
         if (context.mounted) await onFinished();
       },
     );
   }
+}
 
-  Future<String?> _showStartSellingSheet(BuildContext context) {
-    return showModalBottomSheet<String>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                child: Text(
-                  'What are you creating?',
-                  style: Theme.of(ctx).textTheme.headlineSmall,
-                ),
+class _CreatePill extends StatelessWidget {
+  const _CreatePill({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Semantics(
+      button: true,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Material(
+        color: AppTheme.terracotta.withValues(alpha: .08),
+        shape: const StadiumBorder(
+          side: BorderSide(color: AppTheme.terracotta, width: 1.2),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 40, minWidth: 44),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 18, color: AppTheme.terracotta),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.terracotta,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              ListTile(
-                minVerticalPadding: 14,
-                leading: const Icon(Icons.storefront_outlined),
-                title: const Text('Start selling'),
-                subtitle: const Text(
-                  'Apply to open your own shop on Artisan Lane',
-                ),
-                onTap: () => Navigator.pop(ctx, 'apply'),
-              ),
-              const SizedBox(height: 12),
-            ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Future<String?> _showCreateSheet(BuildContext context, WidgetRef ref) {
-    // Reuse the same gating ProductFormScreen relies on so sellers see the
-    // requirement here instead of hitting a dead-end gate screen.
-    // Until both are known, don't claim a block: the product form still
-    // enforces the same gate.
-    final payoutAsync = ref.read(vendorPayoutProfileProvider);
-    final subscriptionAsync = ref.read(vendorSubscriptionProvider);
-    final gatingKnown = payoutAsync.hasValue && subscriptionAsync.hasValue;
-    final payoutProfile =
-        ref.read(vendorPayoutProfileStreamProvider).value ?? payoutAsync.value;
-    final payoutReady = isVendorPayoutSetupComplete(payoutProfile);
-    final subscription = preferredVendorSubscription(
-      streamValue: ref.read(vendorSubscriptionStreamProvider).value,
-      futureValue: subscriptionAsync.value,
-    );
-    final subscriptionActive = isVendorSubscriptionActive(subscription);
-    final productBlocked = gatingKnown && (!subscriptionActive || !payoutReady);
-    final productBlockReason = !subscriptionActive
-        ? 'Start your artisan subscription to list products'
-        : 'Complete your payout details to list products';
-
-    return showModalBottomSheet<String>(
-      context: context,
-      useRootNavigator: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+/// "Sell on Artisan Lane" sheet for signed-in buyers without a shop.
+/// Resolves to true when they choose to apply.
+Future<bool?> showStartSellingSheet(BuildContext context) {
+  return showModalBottomSheet<bool>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: AppTheme.cardBg,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetContext) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppTheme.sand,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 22),
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.terracotta, AppTheme.baobab],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.storefront_rounded,
+              color: Colors.white,
+              size: 30,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Sell on Artisan Lane',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 23,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Make something by hand? Open your own shop and share the '
+            'story behind your work with buyers across South Africa.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const _SellPoint(
+            icon: Icons.photo_library_outlined,
+            text: 'List your pieces and post updates to this feed',
+          ),
+          const _SellPoint(
+            icon: Icons.lock_outline_rounded,
+            text: 'Get paid securely when buyers order',
+          ),
+          const _SellPoint(
+            icon: Icons.fact_check_outlined,
+            text: 'Quick application, reviewed by our team',
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              key: const Key('start-selling-apply'),
+              onPressed: () => Navigator.pop(sheetContext, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.terracotta,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: Text(
+                'Apply to open a shop',
+                style: GoogleFonts.poppins(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: () => Navigator.pop(sheetContext, false),
+            child: Text(
+              'Not now',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ),
+        ],
       ),
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                child: Text(
-                  'What are you creating?',
-                  style: Theme.of(ctx).textTheme.headlineSmall,
-                ),
-              ),
-              ListTile(
-                minVerticalPadding: 14,
-                leading: Icon(
-                  Icons.shopping_bag_outlined,
-                  color: productBlocked ? Theme.of(ctx).disabledColor : null,
-                ),
-                title: const Text('Product'),
-                subtitle: Text(
-                  productBlocked
-                      ? productBlockReason
-                      : 'A new piece for your shop',
-                ),
-                onTap: () => Navigator.pop(
-                  ctx,
-                  productBlocked
-                      ? (!subscriptionActive ? 'subscription' : 'payouts')
-                      : 'product',
-                ),
-              ),
-              ListTile(
-                minVerticalPadding: 14,
-                leading: const Icon(Icons.photo_library_outlined),
-                title: const Text('Post'),
-                subtitle: const Text('Share your craft and link your products'),
-                onTap: () => Navigator.pop(ctx, 'post'),
-              ),
-              ListTile(
-                minVerticalPadding: 14,
-                leading: const Icon(Icons.timelapse_rounded),
-                title: const Text('24-hour story'),
-                subtitle: const Text('A photo or short video from today'),
-                onTap: () => Navigator.pop(ctx, 'story'),
-              ),
-              const SizedBox(height: 12),
-            ],
+    ),
+  );
+}
+
+class _SellPoint extends StatelessWidget {
+  const _SellPoint({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 5),
+    child: Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppTheme.bone,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 17, color: AppTheme.terracotta),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              color: AppTheme.textPrimary,
+              height: 1.4,
+            ),
           ),
         ),
-      ),
-    );
-  }
+      ],
+    ),
+  );
 }

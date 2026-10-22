@@ -369,8 +369,9 @@ class _EngagementRow extends StatelessWidget {
   );
 }
 
-/// A compact horizontal row of tagged-product chips ("Shop this post"),
-/// replacing the old full-width list under every post.
+/// "Shop this piece": the products a maker linked to this post, shown as
+/// tappable product chips (photo, title, price) that open the product page.
+/// One linked product gets a full-width chip; several scroll sideways.
 class _TaggedProducts extends ConsumerWidget {
   const _TaggedProducts({required this.postId});
   final String postId;
@@ -381,82 +382,166 @@ class _TaggedProducts extends ConsumerWidget {
         // A quiet, degraded placeholder rather than a full loading/error row.
         loading: () => const SizedBox(height: 4),
         error: (_, _) => const SizedBox.shrink(),
-        data: (products) => products.isEmpty
-            ? const SizedBox.shrink()
-            : SizedBox(
-                height: 64,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (_, index) =>
-                      _ProductChip(product: products[index]),
+        data: (products) {
+          if (products.isEmpty) return const SizedBox.shrink();
+          final label = products.length == 1
+              ? 'Shop this piece'
+              : 'Shop this post · ${products.length} pieces';
+          return Padding(
+            key: Key('post-shop-products-$postId'),
+            padding: const EdgeInsets.only(top: 2, bottom: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.shopping_bag_outlined,
+                        size: 16,
+                        color: AppTheme.terracotta,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: Theme.of(context).textTheme.labelLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.terracotta,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                if (products.length == 1)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _ProductChip(product: products.single, wide: true),
+                  )
+                else
+                  SizedBox(
+                    height: 68,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: products.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (_, index) =>
+                          _ProductChip(product: products[index]),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       );
 }
 
 class _ProductChip extends StatelessWidget {
-  const _ProductChip({required this.product});
+  const _ProductChip({required this.product, this.wide = false});
   final Product product;
+  final bool wide;
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: () => context.push('/home/product/${product.id}'),
-    borderRadius: BorderRadius.circular(30),
-    child: Container(
-      constraints: const BoxConstraints(minHeight: 44, maxWidth: 200),
-      padding: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBg,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppTheme.sand),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(30),
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final thumb = product.images.isEmpty
+        ? Container(width: 52, height: 52, color: AppTheme.bone)
+        : CachedNetworkImage(
+            imageUrl: product.images.first,
+            width: 52,
+            height: 52,
+            fit: BoxFit.cover,
+            errorWidget: (_, _, _) =>
+                Container(width: 52, height: 52, color: AppTheme.bone),
+          );
+    return Semantics(
+      button: true,
+      label: 'Shop ${product.title}, ${formatBrowsePrice(product.price)}',
+      excludeSemantics: true,
+      child: Material(
+        color: AppTheme.bone.withValues(alpha: .45),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppTheme.sand),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: Key('post-product-chip-${product.id}'),
+          onTap: () => context.push('/home/product/${product.id}'),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: 60,
+              maxWidth: wide ? double.infinity : 240,
             ),
-            child: product.images.isEmpty
-                ? Container(width: 44, height: 44, color: AppTheme.bone)
-                : CachedNetworkImage(
-                    imageUrl: product.images.first,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) =>
-                        Container(width: 44, height: 44, color: AppTheme.bone),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Row(
+                mainAxisSize: wide ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: thumb,
                   ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  product.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(width: 10),
+                  Flexible(
+                    fit: wide ? FlexFit.tight : FlexFit.loose,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formatBrowsePrice(product.price),
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.terracotta,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  formatBrowsePrice(product.price),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF435951),
-                  ),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  if (wide)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.terracotta,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        'View',
+                        style: textTheme.labelMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 20,
+                      color: AppTheme.textSecondary,
+                    ),
+                  const SizedBox(width: 6),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

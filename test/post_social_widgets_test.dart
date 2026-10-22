@@ -91,7 +91,7 @@ Product piece(String id) => Product(
 );
 
 void main() {
-  testWidgets('Create connects the Feed to the existing post editor route', (
+  testWidgets('New post connects the Feed straight to the post editor route', (
     tester,
   ) async {
     final shop = Shop(
@@ -135,11 +135,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Create'));
-    await tester.pumpAndSettle();
-    expect(find.text('Product'), findsOneWidget);
-    expect(find.text('24-hour story'), findsOneWidget);
-    await tester.tap(find.text('Post'));
+    // Makers with a shop see a labelled "New post" pill that opens the
+    // composer directly, with no intermediate sheet.
+    expect(find.text('New post'), findsOneWidget);
+    await tester.tap(find.text('New post'));
     await tester.pumpAndSettle();
     expect(find.text('Real post editor route'), findsOneWidget);
   });

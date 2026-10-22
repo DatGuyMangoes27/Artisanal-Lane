@@ -70,6 +70,20 @@ VendorSubscription? preferredVendorSubscription({
   return streamValue;
 }
 
+/// Shown when an artisan without an active subscription tries to publish a
+/// feed post. The database refuses the post either way
+/// (guard_unsubscribed_post_publishing); this explains it.
+const subscribeToPostTitle = 'Subscribe to post to the feed';
+const subscribeToPostMessage =
+    'Feed posts are part of your Artisan Lane subscription. Subscribe to share '
+    'posts with buyers and to show your shop and products in the marketplace.';
+
+bool isSubscriptionRequiredToPostError(Object? error) {
+  final text = error?.toString().toLowerCase() ?? '';
+  return text.contains('subscription_required_to_post') ||
+      text.contains('subscribe to post to the feed');
+}
+
 bool isVendorSubscriptionAlreadyActiveError(Object error) {
   return error.toString().toLowerCase().contains(
     'artisan subscription is already active',

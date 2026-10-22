@@ -13,6 +13,7 @@ import type {
   MarketplaceVariant,
   ShippingOption,
 } from "./types";
+import { rankProductSearch, searchCandidateTerms } from "./product-search";
 import { resolveTrendingSearchTerms } from "./search-trends";
 import { isKnownShippingMethod } from "./shipping";
 import { SUBSCRIPTION_GRACE_DAYS } from "./vendor-utils";
@@ -390,7 +391,7 @@ async function loadPublicProductCountsForShops(
     .select("id, shop_id, shops!inner(id)")
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter)
     .in("shop_id", uniqueShopIds);
 
@@ -470,6 +471,24 @@ async function loadSubscribedVendorIds(vendorIds: Array<string | null>) {
   }
 }
 
+// Search results are ranked in memory, so cap how many matches are pulled.
+const searchCandidatePool = 300;
+
+// Relevance order unless the shopper picked an explicit price/newest sort
+// (stable, so relevance breaks ties).
+function sortSearchResults(products: MarketplaceProduct[], sort: MarketplaceProductSort | undefined) {
+  switch (sort) {
+    case "price_asc":
+      return [...products].sort((a, b) => a.price - b.price);
+    case "price_desc":
+      return [...products].sort((a, b) => b.price - a.price);
+    case "newest":
+      return [...products].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    default:
+      return products;
+  }
+}
+
 async function loadProducts(options: ProductQueryOptions = {}) {
   const supabase = await createClient();
   let query = supabase
@@ -477,12 +496,26 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     .select(productSelect)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter);
 
-  const searchQuery = options.query?.trim();
-  if (searchQuery) {
-    query = query.ilike("title", `%${searchQuery}%`);
+  // Search: pre-filter a candidate pool by word stems, then rank it with the
+  // word/prefix relevance rules in ./product-search (so "rings" no longer
+  // matches "earrings"/"strings", and title matches come first).
+  const searchTerms = options.query?.trim() ? searchCandidateTerms(options.query) : null;
+  if (searchTerms) {
+    if (searchTerms.words.length === 0) {
+      return [];
+    }
+    query = query.or(
+      [
+        ...searchTerms.stems.flatMap((stem) => [
+          `title.ilike.%${stem}%`,
+          `description.ilike.%${stem}%`,
+        ]),
+        `tags.ov.{${searchTerms.tags.join(",")}}`,
+      ].join(","),
+    );
   }
 
   if (options.categoryId) {
@@ -525,6 +558,23 @@ async function loadProducts(options: ProductQueryOptions = {}) {
     query = query.not("compare_at_price", "is", null);
   }
 
+  const limit = boundedLimit(options.limit, defaultProductLimit, maxProductLimit);
+  const offset = Math.max(Math.trunc(options.offset ?? 0), 0);
+
+  if (searchTerms) {
+    const { data, error } = await query
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(searchCandidatePool);
+
+    if (error) {
+      throw new Error("Failed to load marketplace products", { cause: error });
+    }
+
+    const ranked = rankProductSearch(((data ?? []) as ProductRow[]).map(mapProduct), options.query ?? "");
+    return sortSearchResults(ranked, options.sort).slice(offset, offset + limit);
+  }
+
   switch (options.sort) {
     case "popular":
       query = query.order("is_featured", { ascending: false });
@@ -547,8 +597,6 @@ async function loadProducts(options: ProductQueryOptions = {}) {
   // primary sort value.
   query = query.order("id", { ascending: true });
 
-  const limit = boundedLimit(options.limit, defaultProductLimit, maxProductLimit);
-  const offset = Math.max(Math.trunc(options.offset ?? 0), 0);
   const { data, error } = offset > 0
     ? await query.range(offset, offset + limit - 1)
     : await query.limit(limit);
@@ -596,7 +644,7 @@ export async function getFeaturedMarketplaceProducts(limit?: number) {
     .select(productSelect)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter)
     .eq("is_featured", true)
     .order("created_at", { ascending: false })
@@ -635,7 +683,7 @@ export async function getMarketplaceProduct(productId: string) {
     .eq("id", productId)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter)
     .maybeSingle();
 
@@ -661,7 +709,7 @@ export async function getMarketplaceProductsByIds(
     .select(productSelect)
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true);
+    .eq("shops.is_publicly_listed", true);
 
   if (!options.includeOutOfStock) {
     query = query.or(availableProductFilter);
@@ -743,12 +791,17 @@ export async function getMarketplaceSubcategories() {
   );
 }
 
+// Public queries filter on shops.is_publicly_listed (active shop + active
+// Artisan Lane subscription, maintained by the database; see migration
+// 20261022100000_hide_unsubscribed_shops). RLS already hides unlisted shops
+// from the public; the filter also keeps them out of lists for a buyer who
+// can read one only through an old order or chat.
 export async function getMarketplaceShops(limit?: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("shops")
     .select(shopSelect)
-    .eq("is_active", true)
+    .eq("is_publicly_listed", true)
     .order("is_spotlight", { ascending: false })
     .order("name", { ascending: true })
     .limit(boundedLimit(limit, defaultShopLimit, maxShopLimit));
@@ -791,7 +844,7 @@ export async function getMarketplaceShopCount() {
   const { count, error } = await supabase
     .from("shops")
     .select("id", { count: "exact", head: true })
-    .eq("is_active", true);
+    .eq("is_publicly_listed", true);
 
   if (error) {
     throw new Error("Failed to count marketplace shops", { cause: error });
@@ -810,7 +863,7 @@ export async function getMarketplaceProductCount() {
     .select("id, shops!inner(id)", { count: "exact", head: true })
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter);
 
   if (error) {
@@ -830,7 +883,7 @@ export async function getFreshMarketplaceProductCount(days = 7) {
     .select("id, shops!inner(id)", { count: "exact", head: true })
     .eq("is_published", true)
     .is("archived_at", null)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .or(availableProductFilter)
     .gte("created_at", since);
 
@@ -847,7 +900,7 @@ export async function getMarketplaceShop(shopIdOrSlug: string) {
   const { data, error } = await supabase
     .from("shops")
     .select(shopSelect)
-    .eq("is_active", true)
+    .eq("is_publicly_listed", true)
     .eq(lookupColumn, shopIdOrSlug)
     .maybeSingle();
 

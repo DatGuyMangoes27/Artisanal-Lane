@@ -23,6 +23,12 @@ String friendlyErrorMessage(
       text.contains('network')) {
     return "You're offline or the connection is slow. Check your connection and try again.";
   }
+  // The database refuses feed posts from shops without an active
+  // subscription (hint subscription_required_to_post).
+  if (text.contains('subscription_required_to_post') ||
+      text.contains('subscribe to post to the feed')) {
+    return 'Subscribe to post to the feed. Feed posts are part of your Artisan Lane subscription.';
+  }
   if (text.contains("shop isn't set up")) {
     return "Your shop isn't set up yet. Please contact Artisan Lane support.";
   }

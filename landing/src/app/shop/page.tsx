@@ -136,7 +136,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
     user ? listFavouriteProductIds(user.id) : Promise.resolve([]),
   ]);
   const rotationSeed = getDailyProductRotationSeed();
-  const pageProducts = sort === "rotation"
+  // Search results keep their relevance order; only browsing is rotated.
+  const pageProducts = sort === "rotation" && !query?.trim()
     ? rotateProductsForSeed(products.slice(0, productsPerPage), `${rotationSeed}:page-${currentPage}`)
     : products.slice(0, productsPerPage);
   const rotatedFreshProducts = rotateProductsForSeed(freshProducts, `${rotationSeed}:fresh`);

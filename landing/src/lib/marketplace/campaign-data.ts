@@ -41,7 +41,7 @@ export async function listCampaignOffers(): Promise<CampaignOffer[]> {
     .from("shop_coupons")
     .select(campaignCouponSelect)
     .eq("is_active", true)
-    .eq("shops.is_active", true)
+    .eq("shops.is_publicly_listed", true)
     .eq("shops.is_offline", false)
     .neq("shops.id", BOERSEEP_SHOP_ID)
     .or(`ends_at.is.null,ends_at.gt.${now.toISOString()}`)

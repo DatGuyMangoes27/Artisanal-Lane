@@ -24,6 +24,7 @@ import '../providers/feed_preferences.dart';
 import '../providers/feed_ranking.dart';
 import '../providers/feed_video_playback.dart';
 import '../utils/discovery_preferences.dart';
+import '../utils/feed_pagination.dart';
 import '../widgets/creator_feed/creator_feed_media_viewer.dart'
     show isCreatorFeedVideoUrl;
 import '../widgets/creator_feed/creator_feed_post_card.dart';
@@ -54,6 +55,16 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
   Object? _loadMoreError;
   var _hasMore = true;
   var _requestGeneration = 0;
+  // Keyset cursor: the last post the server returned, so the next page asks
+  // for strictly older posts instead of an offset that drifts when posts
+  // are published, removed or dropped locally.
+  FeedCursor? _cursor;
+  // Which loaded page each post arrived in. "For you" ranks page by page so
+  // a new page can never reshuffle posts the buyer already scrolled past.
+  final _pageOfPost = <String, int>{};
+  var _pageCount = 0;
+  // Pinned clock for ranking so the order doesn't drift between rebuilds.
+  var _rankedAt = DateTime.now();
   final _followRequests = <String>{};
   final _cardKeys = <String, GlobalKey>{};
   final _viewedPostIds = <String>{};
@@ -182,13 +193,19 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
       _loadMoreError = null;
     });
     try {
-      final posts = await _fetchPosts(offset: 0);
+      final posts = await _fetchPosts();
       final followedIds = await _fetchFollowedIds();
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _posts
           ..clear()
-          ..addAll(posts);
+          ..addAll(dedupePostsById(posts));
+        _pageOfPost
+          ..clear()
+          ..addAll({for (final post in _posts) post.id: 0});
+        _pageCount = 1;
+        _cursor = FeedCursor.after(posts);
+        _rankedAt = DateTime.now();
         _followedShopIds
           ..clear()
           ..addAll(followedIds);
@@ -225,13 +242,16 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
     });
     final generation = _requestGeneration;
     try {
-      final next = await _fetchPosts(offset: _posts.length);
+      final next = await _fetchPosts(cursor: _cursor);
       if (mounted && generation == _requestGeneration) {
         setState(() {
-          // A post published while paging shifts later pages by one; never
-          // show the same post twice.
-          final loaded = {for (final post in _posts) post.id};
-          _posts.addAll(next.where((post) => !loaded.contains(post.id)));
+          // Belt and braces on top of the keyset cursor: never show the
+          // same post twice.
+          final page = _pageCount++;
+          for (final post in appendUniquePosts(_posts, next)) {
+            _pageOfPost[post.id] = page;
+          }
+          _cursor = FeedCursor.after(next) ?? _cursor;
           _hasMore = next.length == _pageSize;
         });
       }
@@ -250,21 +270,27 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
     }
   }
 
-  Future<List<ShopPost>> _fetchPosts({required int offset}) async {
+  Future<List<ShopPost>> _fetchPosts({FeedCursor? cursor}) async {
     final service = ref.read(supabaseServiceProvider);
     final userId = ref.read(currentUserIdProvider);
     if (_mode == _FeedMode.following) {
       if (userId == null) return [];
-      return service.getFollowingFeed(userId, limit: _pageSize, offset: offset);
+      return service.getFollowingFeed(
+        userId,
+        limit: _pageSize,
+        before: cursor,
+      );
     }
-    final data = await ref
+    var query = ref
         .read(supabaseClientProvider)
         .from('shop_posts')
         .select(ShopPost.select)
-        .eq('is_published', true)
+        .eq('is_published', true);
+    if (cursor != null) query = query.or(cursor.olderThanFilter);
+    final data = await query
         .order('published_at', ascending: false)
         .order('id', ascending: false)
-        .range(offset, offset + _pageSize - 1);
+        .limit(_pageSize);
     return (data as List)
         .map((row) => ShopPost.fromJson(row as Map<String, dynamic>))
         .toList();
@@ -310,6 +336,7 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
       categoryIdsByProductId: categoryByProduct,
       mutedShopIds: shapePrefs.mutedShopIds,
       boostedCategoryIds: shapePrefs.boostedCategoryIds,
+      now: _rankedAt,
     );
   }
 
@@ -332,7 +359,7 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (sheetContext) => _ShapeYourFeedSheet(makers: makers),
+      builder: (sheetContext) => TuneYourFeedSheet(makers: makers),
     );
   }
 
@@ -411,7 +438,11 @@ class _CreatorFeedScreenState extends ConsumerState<CreatorFeedScreen> {
     final hiddenShopIds = ref.watch(hiddenShopIdsProvider);
     final visiblePosts = filterMutedPosts(_posts, hiddenShopIds);
     final displayPosts = _mode == _FeedMode.forYou
-        ? rankForYouFeed(visiblePosts, _buildRankingSignals())
+        ? rankForYouFeedByPage(
+            visiblePosts,
+            _pageOfPost,
+            _buildRankingSignals(),
+          )
         : visiblePosts;
     return Scaffold(
       body: SafeArea(
@@ -538,11 +569,16 @@ class _FeedHeader extends StatelessWidget {
                 selected: mode == _FeedMode.following,
                 onTap: () => onModeChanged(_FeedMode.following),
               ),
-              const Spacer(),
-              CreatorComposeButton(onFinished: onCreated),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: CreatorComposeButton(onFinished: onCreated),
+                ),
+              ),
               IconButton(
                 key: const Key('shape-your-feed-button'),
-                tooltip: 'Shape your feed',
+                tooltip: 'Tune your feed',
                 onPressed: onShapeFeed,
                 icon: const Icon(Icons.tune_rounded),
               ),
@@ -587,47 +623,50 @@ class _FeedPill extends StatelessWidget {
   );
 }
 
-/// "Shape your feed" bottom sheet: personal, on-device choices that steer
+/// "Tune your feed" bottom sheet: personal, on-device choices that steer
 /// the "For you" ranking without unfollowing anyone. [makers] is the set of
-/// makers currently visible in the loaded feed, for the "show fewer" list.
-class _ShapeYourFeedSheet extends ConsumerWidget {
-  const _ShapeYourFeedSheet({required this.makers});
+/// makers currently visible in the loaded feed (shop id to name).
+class TuneYourFeedSheet extends ConsumerWidget {
+  const TuneYourFeedSheet({super.key, required this.makers});
   final Map<String, String> makers;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final textTheme = Theme.of(context).textTheme;
     final categories = ref.watch(categoriesProvider).value ?? const [];
     final preferences =
         ref.watch(feedPreferencesProvider).value ?? const FeedPreferences();
     final notifier = ref.read(feedPreferencesProvider.notifier);
     final mutedShopIds =
         ref.watch(mutedShopIdsProvider).value ?? const <String>{};
+    final sortedMakers = makers.entries.toList()
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+    final helperStyle = textTheme.bodySmall?.copyWith(
+      height: 1.45,
+      color: AppTheme.textSecondary,
+    );
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 0, 22, 28),
+        padding: const EdgeInsets.fromLTRB(22, 0, 22, 20),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
+              Text('Tune your feed', style: textTheme.headlineSmall),
+              const SizedBox(height: 6),
               Text(
-                'Shape your feed',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "This is personal to you and stays on this device. Choose "
-                'what to see more of, and quiet a maker without unfollowing '
-                'them.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(height: 1.5),
+                'Choose what you see more and less of in For you. Only you '
+                'see these choices, and they stay on this device.',
+                style: helperStyle,
               ),
               if (categories.isNotEmpty) ...[
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
+                Text('See more of', style: textTheme.titleSmall),
+                const SizedBox(height: 2),
                 Text(
-                  'Show me more of',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  'Pick the categories you like and their posts move up.',
+                  style: helperStyle,
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -648,18 +687,48 @@ class _ShapeYourFeedSheet extends ConsumerWidget {
                       .toList(),
                 ),
               ],
-              if (mutedShopIds.isNotEmpty) ...[
-                const SizedBox(height: 20),
+              if (sortedMakers.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                Text('Makers in your feed', style: textTheme.titleSmall),
+                const SizedBox(height: 2),
                 Text(
-                  'Muted makers',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  'Turn a maker off to see fewer of their posts. You will '
+                  'still follow them.',
+                  style: helperStyle,
                 ),
                 const SizedBox(height: 4),
+                ...sortedMakers.map((entry) {
+                  final showingFewer = preferences.mutedShopIds.contains(
+                    entry.key,
+                  );
+                  return SwitchListTile(
+                    key: Key('shape-feed-mute-${entry.key}'),
+                    contentPadding: EdgeInsets.zero,
+                    activeThumbColor: AppTheme.terracotta,
+                    title: Text(entry.value),
+                    subtitle: Text(
+                      showingFewer ? 'Showing fewer posts' : 'Showing as usual',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: showingFewer
+                            ? AppTheme.terracotta
+                            : AppTheme.textSecondary,
+                        fontWeight: showingFewer ? FontWeight.w600 : null,
+                      ),
+                    ),
+                    value: !showingFewer,
+                    onChanged: (show) => show
+                        ? notifier.unmuteShop(entry.key)
+                        : notifier.muteShop(entry.key),
+                  );
+                }),
+              ],
+              if (mutedShopIds.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                Text('Muted makers', style: textTheme.titleSmall),
+                const SizedBox(height: 2),
                 Text(
                   "You won't see posts or stories from these makers.",
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(height: 1.4),
+                  style: helperStyle,
                 ),
                 const SizedBox(height: 6),
                 ...mutedShopIds.map(
@@ -680,34 +749,13 @@ class _ShapeYourFeedSheet extends ConsumerWidget {
                   ),
                 ),
               ],
-              if (makers.isNotEmpty) ...[
-                const SizedBox(height: 20),
-                Text(
-                  'Show fewer posts from',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                ...makers.entries.map(
-                  (entry) => SwitchListTile(
-                    key: Key('shape-feed-mute-${entry.key}'),
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(entry.value),
-                    value: preferences.mutedShopIds.contains(entry.key),
-                    onChanged: (value) => value
-                        ? notifier.muteShop(entry.key)
-                        : notifier.unmuteShop(entry.key),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    context.go('/discover');
-                  },
-                  icon: const Icon(Icons.tune_rounded, size: 17),
-                  label: const Text('Refine in Discover'),
+              const SizedBox(height: 22),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  key: const Key('tune-feed-done'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Done'),
                 ),
               ),
             ],

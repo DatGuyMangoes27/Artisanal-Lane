@@ -21,6 +21,8 @@ import { ProductCard } from "@/components/marketplace/product-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getMarketplaceShop } from "@/lib/marketplace/catalog";
+import { formatPrice, getProductPrimaryImage } from "@/lib/marketplace/format";
+import type { MarketplaceProduct } from "@/lib/marketplace/types";
 import {
   getShopReviewSummary,
   listShopMarketEvents,
@@ -50,8 +52,22 @@ function formatDate(value: string) {
   });
 }
 
-function PostCard({ post, shopName }: { post: ShopPost; shopName: string }) {
+function PostCard({
+  post,
+  shopName,
+  products = [],
+}: {
+  post: ShopPost;
+  shopName: string;
+  products?: MarketplaceProduct[];
+}) {
   const image = post.mediaUrls[0] ?? null;
+  // Only this shop's published products resolve here, so a stale or foreign
+  // id in product_ids is simply ignored.
+  const byId = new Map(products.map((product) => [product.id, product]));
+  const linkedProducts = (post.productIds ?? [])
+    .map((id) => byId.get(id))
+    .filter((product): product is MarketplaceProduct => Boolean(product));
 
   return (
     <article className="group overflow-hidden rounded-[1.6rem] border border-[#E2CDB9] bg-[#FFFDF9] shadow-[0_14px_40px_rgba(58,23,17,0.06)]">
@@ -80,6 +96,38 @@ function PostCard({ post, shopName }: { post: ShopPost; shopName: string }) {
         <p className="mt-4 line-clamp-6 text-sm leading-6 text-[#6B5040]">
           {post.caption || "This maker shared a new studio update."}
         </p>
+        {linkedProducts.length > 0 ? (
+          <div className="mt-5">
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-artisan-terracotta">
+              {linkedProducts.length === 1 ? "Shop this piece" : "Shop this post"}
+            </p>
+            <ul className="flex flex-col gap-2">
+              {linkedProducts.map((product) => {
+                const productImage = getProductPrimaryImage(product);
+                return (
+                  <li key={product.id}>
+                    <Link
+                      href={`/products/${product.id}`}
+                      aria-label={`Shop ${product.title}, ${formatPrice(product.price)}`}
+                      className="flex items-center gap-3 rounded-2xl border border-[#E2CDB9] bg-[#FBF1E6] p-1.5 pr-3 transition hover:border-artisan-terracotta"
+                    >
+                      <span className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-[#EAD9CA]">
+                        {productImage ? (
+                          <Image src={productImage} alt="" fill sizes="48px" className="object-cover" />
+                        ) : null}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-[#351711]">{product.title}</span>
+                        <span className="block text-xs font-bold text-artisan-terracotta">{formatPrice(product.price)}</span>
+                      </span>
+                      <ArrowRight className="size-4 shrink-0 text-artisan-terracotta" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </article>
   );
@@ -327,7 +375,7 @@ export default async function ShopProfilePage({ params }: ShopProfilePageProps) 
               <p className="text-sm text-muted-foreground">{posts.length} latest {posts.length === 1 ? "update" : "updates"}</p>
             </div>
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              {posts.map((post) => <PostCard key={post.id} post={post} shopName={shop.name} />)}
+              {posts.map((post) => <PostCard key={post.id} post={post} shopName={shop.name} products={shop.products} />)}
             </div>
           </section>
         ) : null}

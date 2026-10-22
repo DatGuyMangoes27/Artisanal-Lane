@@ -297,9 +297,9 @@ final searchProductsProvider = FutureProvider.family<List<Product>, String>((
   return service.getProducts(search: query);
 });
 
-/// Server-side search across title/description/shop name for the Shop tab's
-/// inline search bar (broader than [searchProductsProvider]'s title-only
-/// match). Empty query resolves to an empty list.
+/// Relevance-ranked search (title, then tags/category, then shop name, then
+/// description; word/prefix matching, see `product_search.dart`) for the
+/// Shop tab's inline search bar. Empty query resolves to an empty list.
 final shopSearchProductsProvider = FutureProvider.family<List<Product>, String>(
   (ref, query) async {
     if (query.trim().isEmpty) return const [];

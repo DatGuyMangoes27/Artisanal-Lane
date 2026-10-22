@@ -134,14 +134,15 @@ class CategoriesScreen extends ConsumerWidget {
                             Container(
                               width: 70,
                               height: 70,
-                              decoration: const BoxDecoration(
-                                color: AppTheme.bone,
+                              // Artisan Lane green (client direction).
+                              decoration: BoxDecoration(
+                                color: AppTheme.baobab.withValues(alpha: 0.14),
                                 shape: BoxShape.circle,
                               ),
                               child: Center(
                                 child: Icon(
                                   cat.icon,
-                                  color: AppTheme.terracotta,
+                                  color: AppTheme.sienna,
                                   size: 32,
                                 ),
                               ),
@@ -315,12 +316,12 @@ class _CategoryTile extends StatelessWidget {
             Container(
               width: 70,
               height: 70,
-              decoration: const BoxDecoration(
-                color: AppTheme.bone,
+              decoration: BoxDecoration(
+                color: AppTheme.baobab.withValues(alpha: 0.14),
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Icon(icon, color: AppTheme.terracotta, size: 32),
+                child: Icon(icon, color: AppTheme.sienna, size: 32),
               ),
             ),
             const SizedBox(height: 16),

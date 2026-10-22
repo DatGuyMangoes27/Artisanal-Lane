@@ -77,7 +77,7 @@ double _score(ShopPost post, FeedRankingSignals signals, DateTime now) {
       }
     }
   }
-  final ageHours = now.difference(post.createdAt).inSeconds / 3600.0;
+  final ageHours = now.difference(post.publishedAt).inSeconds / 3600.0;
   final recency = _recencyWeight * math.exp(-ageHours / _recencyHalfLifeHours);
   score += recency;
   return score;
@@ -105,6 +105,30 @@ List<ShopPost> rankForYouFeed(
     return b.key.createdAt.compareTo(a.key.createdAt);
   });
   return _applyDiversity(scored.map((entry) => entry.key).toList());
+}
+
+/// Ranks the "For you" feed one loaded page at a time and concatenates the
+/// pages in load order, so loading page N+1 can never move a post from an
+/// earlier page. Re-ranking the whole list instead lets higher-scoring posts
+/// from a freshly loaded page jump above the ones the buyer has already
+/// scrolled past, pushing those back below the viewport where they show up
+/// a second time. [pageOf] maps a post id to the page it arrived in; posts
+/// without an entry are treated as page 0. Duplicate ids are dropped
+/// (first occurrence wins).
+List<ShopPost> rankForYouFeedByPage(
+  List<ShopPost> posts,
+  Map<String, int> pageOf,
+  FeedRankingSignals signals,
+) {
+  if (posts.isEmpty) return const [];
+  final pages = <int, List<ShopPost>>{};
+  final seen = <String>{};
+  for (final post in posts) {
+    if (!seen.add(post.id)) continue;
+    pages.putIfAbsent(pageOf[post.id] ?? 0, () => <ShopPost>[]).add(post);
+  }
+  final order = pages.keys.toList()..sort();
+  return [for (final page in order) ...rankForYouFeed(pages[page]!, signals)];
 }
 
 /// Greedily reorders so a post never sits directly after another post from

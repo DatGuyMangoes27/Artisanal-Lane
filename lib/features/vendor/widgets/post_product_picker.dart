@@ -26,14 +26,17 @@ class PostProductPicker extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Shop this post',
+                'Link a product (optional)',
                 style: TextStyle(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
               const Text(
-                'Link up to five published pieces from your shop.',
-                style: TextStyle(fontSize: 12),
+                'Buyers see a "Shop this piece" button under your post that '
+                'opens the product. Link up to five published pieces from '
+                'your shop.',
+                style: TextStyle(fontSize: 12, height: 1.4),
               ),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 children: ids

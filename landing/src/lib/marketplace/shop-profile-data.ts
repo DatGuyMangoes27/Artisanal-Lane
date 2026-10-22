@@ -7,6 +7,8 @@ export type ShopPost = {
   shopId: string;
   caption: string;
   mediaUrls: string[];
+  /** Products the maker linked to the post ("Shop this piece"); same shop only. */
+  productIds?: string[];
   createdAt: string;
 };
 
@@ -32,7 +34,7 @@ export async function listShopPosts(shopId: string, limit = 6): Promise<ShopPost
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("shop_posts")
-    .select("id, shop_id, caption, media_urls, created_at")
+    .select("id, shop_id, caption, media_urls, product_ids, created_at")
     .eq("shop_id", shopId)
     .eq("is_published", true)
     .order("created_at", { ascending: false })
@@ -47,6 +49,7 @@ export async function listShopPosts(shopId: string, limit = 6): Promise<ShopPost
     shopId: String(row.shop_id),
     caption: String(row.caption ?? ""),
     mediaUrls: toStringArray(row.media_urls),
+    productIds: toStringArray(row.product_ids),
     createdAt: String(row.created_at),
   }));
 }

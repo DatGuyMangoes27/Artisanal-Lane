@@ -222,16 +222,56 @@ describe("marketplace catalog helpers", () => {
     const calls = supabase.queries[0].calls;
     expect(calls).toContainEqual(["eq", "is_published", true]);
     expect(calls).toContainEqual(["is", "archived_at", null]);
-    expect(calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(calls).toContainEqual(["eq", "shops.is_publicly_listed", true]);
     expect(calls).toContainEqual([
       "or",
       "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
     ]);
     expect(calls).toContainEqual(["eq", "category_id", "category-1"]);
     expect(calls).toContainEqual(["contains", "tags", ["home"]]);
-    expect(calls).toContainEqual(["ilike", "title", "%Basket%"]);
-    expect(calls).toContainEqual(["order", "price", { ascending: true }]);
-    expect(calls).toContainEqual(["limit", 12]);
+    // Search pre-filters by word stem, then ranks + pages in memory.
+    expect(calls).toContainEqual([
+      "or",
+      "title.ilike.%basket%,description.ilike.%basket%,tags.ov.{basket}",
+    ]);
+    expect(calls).toContainEqual(["limit", 300]);
+  });
+
+  it("ranks search results by relevance and drops in-word substring matches", async () => {
+    const row = (id: string, title: string, description: string, createdAt: string) => ({
+      ...productRow,
+      id,
+      title,
+      description,
+      tags: [],
+      categories: null,
+      created_at: createdAt,
+    });
+    const supabase = createSupabaseMock([
+      {
+        data: [
+          row("santa", "Santa tree hanger", "Hangs from strings", "2026-10-21T00:00:00.000Z"),
+          row("hoops", "Sweet Panda Hoops", "Clay earrings", "2026-10-20T00:00:00.000Z"),
+          row("ring", "Silver Stacking Ring", "Sterling", "2026-01-01T00:00:00.000Z"),
+          row("band", "Moon band", "A ring for every day", "2026-02-01T00:00:00.000Z"),
+        ],
+        error: null,
+      },
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    const products = await getMarketplaceProducts({ query: "rings", limit: 1, offset: 1 });
+    expect(products.map((product) => product.id)).toEqual(["band"]);
+    expect(supabase.queries[0].calls).toContainEqual([
+      "or",
+      "title.ilike.%ring%,description.ilike.%ring%,tags.ov.{rings,ring}",
+    ]);
+  });
+
+  it("returns nothing for a punctuation-only search without querying", async () => {
+    const supabase = createSupabaseMock([{ data: [productRow], error: null }]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+    expect(await getMarketplaceProducts({ query: "%,()" })).toEqual([]);
   });
 
   it("limits fresh products and their count to the last seven days", async () => {
@@ -347,7 +387,7 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["in", "id", ["product-1", "product-2"]]);
     expect(supabase.queries[0].calls).toContainEqual(["eq", "is_published", true]);
     expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
-    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_publicly_listed", true]);
     expect(supabase.queries[0].calls).toContainEqual([
       "or",
       "stock_qty.gt.0,fulfillment_mode.in.(made_to_order,stocked_with_mto)",
@@ -398,7 +438,7 @@ describe("marketplace catalog helpers", () => {
     await getMarketplaceProducts({ createdAfter: "2026-09-01T00:00:00.000Z", limit: 25, offset: 24, sort: "newest" });
     expect(supabase.queries[0].calls).toContainEqual(["gte", "created_at", "2026-09-01T00:00:00.000Z"]);
     expect(supabase.queries[0].calls).toContainEqual(["range", 24, 48]);
-    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_active", true]);
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_publicly_listed", true]);
     expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
   });
 });
