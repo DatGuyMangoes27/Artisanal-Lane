@@ -77,6 +77,7 @@ type BobGoRateResponse = {
         delivery_date_to?: unknown;
         min_delivery_days?: unknown;
         max_delivery_days?: unknown;
+        service_level_days?: unknown;
       };
     }>;
   }>;
@@ -180,8 +181,13 @@ function rateEta(response: NonNullable<NonNullable<BobGoRateResponse["provider_r
   return {
     etaFrom: isoOrNull(response.delivery_date_from ?? response.min_delivery_date ?? service?.delivery_date_from),
     etaTo: isoOrNull(response.delivery_date_to ?? response.max_delivery_date ?? service?.delivery_date_to),
-    etaMinDays: positiveOrNull(response.min_delivery_days ?? service?.min_delivery_days),
-    etaMaxDays: positiveOrNull(response.max_delivery_days ?? service?.max_delivery_days),
+    // Live Bob Go rates carry no dates; some couriers give service_level_days.
+    etaMinDays: positiveOrNull(
+      response.min_delivery_days ?? service?.min_delivery_days ?? service?.service_level_days,
+    ),
+    etaMaxDays: positiveOrNull(
+      response.max_delivery_days ?? service?.max_delivery_days ?? service?.service_level_days,
+    ),
   };
 }
 

@@ -290,8 +290,10 @@ export function extractRateEta(response) {
     response?.estimated_delivery_to,
     service.delivery_date_to,
   );
-  const minDays = Number(response?.min_delivery_days ?? service.min_delivery_days);
-  const maxDays = Number(response?.max_delivery_days ?? service.max_delivery_days);
+  // Live Bob Go rates carry no dates; some couriers give service_level_days.
+  const serviceDays = service.service_level_days;
+  const minDays = Number(response?.min_delivery_days ?? service.min_delivery_days ?? serviceDays);
+  const maxDays = Number(response?.max_delivery_days ?? service.max_delivery_days ?? serviceDays);
   return {
     etaFrom: toIso(from),
     etaTo: toIso(to),
