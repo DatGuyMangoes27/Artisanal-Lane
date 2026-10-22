@@ -422,11 +422,11 @@ export function buildPayFastUpdateBody(input: {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.runDate)) {
       throw new Error("Next charge date must be YYYY-MM-DD.");
     }
-    // PayFast's update endpoint validates the date under both names: sending
-    // only run_date fails "next run is required", only next_run fails "run
-    // date is required" (seen live, Oct 2026). Send both.
+    // PayFast's update validation (seen live, Oct 2026): a date on its own
+    // fails under either name (run_date alone: "next run required"; next_run
+    // alone: "run date required"; both: each prohibits the other). It passes
+    // when the amount is sent too, so callers always include the amount.
     body.run_date = input.runDate;
-    body.next_run = input.runDate;
   }
   if (Object.keys(body).length === 0) {
     throw new Error("Nothing to update.");

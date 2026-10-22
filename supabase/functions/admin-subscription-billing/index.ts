@@ -116,8 +116,11 @@ Deno.serve(async (request) => {
       );
     }
 
+    // PayFast refuses a date-only update, so a date change always carries the
+    // subscription's current amount (unchanged unless a new one was given).
+    const currentAmount = before.amountCents == null ? null : before.amountCents / 100;
     const result = await updatePayFastSubscription(subscription.payfast_token, {
-      amountRands: amount,
+      amountRands: amount ?? (runDate != null ? currentAmount : null),
       runDate,
     });
     if (!result.ok) {
