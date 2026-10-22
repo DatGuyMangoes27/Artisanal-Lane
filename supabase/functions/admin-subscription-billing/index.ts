@@ -121,12 +121,33 @@ Deno.serve(async (request) => {
       runDate,
     });
     if (!result.ok) {
+      // PayFast answers 200 with {status: "failed", data: {response: "..."}}
+      // and its reason is the only clue, so log it and show it to the admin.
+      const payfastBody = result.body as
+        | { data?: { response?: unknown; message?: unknown }; message?: unknown }
+        | string
+        | null;
+      const reasonValue = typeof payfastBody === "string"
+        ? payfastBody
+        : payfastBody?.data?.response ?? payfastBody?.data?.message ?? payfastBody?.message;
+      const reason = typeof reasonValue === "string"
+        ? reasonValue.slice(0, 300)
+        : reasonValue != null
+        ? JSON.stringify(reasonValue).slice(0, 300)
+        : null;
       console.error("admin-subscription-billing: PayFast update failed", {
         vendorId,
         status: result.status,
+        reason,
+        payfastStatus: before.statusText,
       });
       return jsonResponse(
-        { error: "PayFast rejected the change. Nothing was changed.", payfast: result.body },
+        {
+          error: reason
+            ? `PayFast rejected the change: ${reason}. Nothing was changed.`
+            : "PayFast rejected the change. Nothing was changed.",
+          payfast: result.body,
+        },
         { status: 502 },
       );
     }
