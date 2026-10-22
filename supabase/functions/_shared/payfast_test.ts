@@ -172,11 +172,14 @@ Deno.test("renewal extends from now when the period end has lapsed", () => {
   );
 });
 
-Deno.test("subscription update sends the next charge date as next_run and the amount in cents", () => {
-  // PayFast rejected run_date ("The next run field is required ...").
-  assertEquals(buildPayFastUpdateBody({ runDate: "2026-11-15" }), { next_run: "2026-11-15" });
+Deno.test("subscription update sends the next charge date as run_date and next_run, amount in cents", () => {
+  // PayFast requires both names when only the date changes.
+  assertEquals(
+    buildPayFastUpdateBody({ runDate: "2026-11-15" }),
+    { run_date: "2026-11-15", next_run: "2026-11-15" },
+  );
   assertEquals(
     buildPayFastUpdateBody({ amountRands: 199, runDate: "2026-11-15" }),
-    { amount: "19900", next_run: "2026-11-15" },
+    { amount: "19900", run_date: "2026-11-15", next_run: "2026-11-15" },
   );
 });
