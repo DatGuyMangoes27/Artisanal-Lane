@@ -13,6 +13,7 @@ import '../core/constants/feature_flags.dart';
 import '../features/internal/screens/creator_commerce_preview_screen.dart';
 
 import '../features/buyer/screens/buyer_home_screen.dart';
+import '../features/buyer/screens/front_page_screen.dart';
 import '../features/buyer/screens/creator_shop_screen.dart';
 import '../features/buyer/screens/creator_feed_screen.dart';
 import '../features/buyer/screens/discover_screen.dart';
@@ -76,10 +77,12 @@ import '../models/shop.dart';
 
 import '../widgets/buyer_shell.dart';
 import '../widgets/vendor_shell.dart';
+import 'buyer_routes.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _buyerShellKey = GlobalKey<NavigatorState>();
 final _vendorShellKey = GlobalKey<NavigatorState>();
+final _homeBranchKey = GlobalKey<NavigatorState>();
 final _feedBranchKey = GlobalKey<NavigatorState>();
 final _discoverBranchKey = GlobalKey<NavigatorState>();
 final _shopBranchKey = GlobalKey<NavigatorState>();
@@ -123,11 +126,7 @@ CustomTransitionPage<T> _slidePage<T>(Widget child) {
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: creatorCommercePreviewEnabled
-        ? '/internal/creator-commerce'
-        : creatorCommerceEnabled
-        ? '/feed'
-        : '/welcome',
+    initialLocation: appInitialLocation(),
     redirect: (context, state) {
       final session = Supabase.instance.client.auth.currentSession;
       final isLoggedIn = session != null;
@@ -152,7 +151,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Guests can browse home, search, products, shops, categories
       final isBrowseRoute =
           (creatorCommerceEnabled &&
-              (path == '/feed' || path == '/discover')) ||
+              (path == frontPageRoute ||
+                  path == '/feed' ||
+                  path == '/discover')) ||
           path == '/home' ||
           path.startsWith('/home/') ||
           path == '/search' ||
@@ -188,7 +189,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (requestedRole == 'vendor') {
           return '/vendor/onboarding';
         }
-        return '/home';
+        return buyerLandingRoute;
       }
 
       return null;
@@ -235,22 +236,25 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── Buyer Shell ────────────────────────────────────────────
       // The creator-commerce shell uses a StatefulShellRoute so each tab
-      // (Feed / Discover / Shop / You) keeps its own navigator and its own
-      // scroll/filter/deck state when switching tabs. The legacy (flag off)
-      // shell is left exactly as it was: a single plain ShellRoute with five
-      // tabs including Search, Favourites and Cart.
+      // (Home / Discover / Shop / Feed / You) keeps its own navigator and
+      // its own scroll/filter/deck state when switching tabs. Branch order
+      // must match BuyerShell.creatorTabs. Home is the front page at `/`;
+      // the Shop tab keeps its `/home` path so existing links still work.
+      // The legacy (flag off) shell is left exactly as it was: a single
+      // plain ShellRoute with five tabs including Search, Favourites and
+      // Cart.
       if (creatorCommerceEnabled) ...[
         StatefulShellRoute.indexedStack(
           builder: (context, state, navigationShell) =>
               BuyerShell(navigationShell: navigationShell),
           branches: [
             StatefulShellBranch(
-              navigatorKey: _feedBranchKey,
+              navigatorKey: _homeBranchKey,
               routes: [
                 GoRoute(
-                  path: '/feed',
+                  path: frontPageRoute,
                   pageBuilder: (context, state) =>
-                      const NoTransitionPage(child: CreatorFeedScreen()),
+                      const NoTransitionPage(child: FrontPageScreen()),
                 ),
               ],
             ),
@@ -323,6 +327,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                       builder: (context, state) => const ShopsDirectoryScreen(),
                     ),
                   ],
+                ),
+              ],
+            ),
+            StatefulShellBranch(
+              navigatorKey: _feedBranchKey,
+              routes: [
+                GoRoute(
+                  path: '/feed',
+                  pageBuilder: (context, state) =>
+                      const NoTransitionPage(child: CreatorFeedScreen()),
                 ),
               ],
             ),

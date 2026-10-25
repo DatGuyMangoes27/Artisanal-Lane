@@ -20,6 +20,8 @@ import {
 const GIFT_SERVICE_FEE = 30;
 // Matches the stale-checkout cleanup, which cancels unpaid orders after 30 minutes.
 const MULTI_SHOP_PAYMENT_MINUTES = 30;
+// No longer offered for new orders (replaced by Bob Go door-to-door).
+const RETIRED_SHIPPING_METHODS = new Set(["courier_guy_door_to_door"]);
 
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -265,6 +267,13 @@ async function quoteShop(
   const shippingMethod = selection.shippingMethod;
   if (shippingMethod == null) {
     throw new CheckoutRequestError("Please select a shipping method.");
+  }
+  // Retired methods stay valid on past orders but can't be chosen for new
+  // ones, even if a product's stored shipping_options still has them on.
+  if (RETIRED_SHIPPING_METHODS.has(shippingMethod)) {
+    throw new CheckoutRequestError(
+      "Courier Guy door-to-door is no longer available. Please choose Bob Go door-to-door or another delivery option.",
+    );
   }
 
   let shippingCost: number;

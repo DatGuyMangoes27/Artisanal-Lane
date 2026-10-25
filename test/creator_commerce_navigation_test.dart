@@ -9,11 +9,11 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   testWidgets(
-    'integrated navigation uses four creator destinations, keeps cart '
+    'integrated navigation uses five creator destinations, keeps cart '
     'routed outside the tab bar, and preserves each tab\'s navigator',
     (tester) async {
       final router = GoRouter(
-        initialLocation: '/feed',
+        initialLocation: '/',
         routes: [
           StatefulShellRoute.indexedStack(
             builder: (context, state, navigationShell) =>
@@ -22,9 +22,8 @@ void main() {
               StatefulShellBranch(
                 routes: [
                   GoRoute(
-                    path: '/feed',
-                    builder: (_, __) =>
-                        const Center(child: Text('screen:/feed')),
+                    path: '/',
+                    builder: (_, __) => const Center(child: Text('screen:/')),
                   ),
                 ],
               ),
@@ -43,6 +42,15 @@ void main() {
                     path: '/home',
                     builder: (_, __) =>
                         const Center(child: Text('screen:/home')),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/feed',
+                    builder: (_, __) =>
+                        const Center(child: Text('screen:/feed')),
                   ),
                 ],
               ),
@@ -72,6 +80,9 @@ void main() {
           child: MaterialApp.router(routerConfig: router),
         ),
       );
+      await tester.pumpAndSettle();
+      expect(find.text('screen:/'), findsOneWidget);
+      await tester.tap(find.text('Feed'));
       await tester.pumpAndSettle();
       expect(find.text('screen:/feed'), findsOneWidget);
       await tester.tap(find.text('Discover'));

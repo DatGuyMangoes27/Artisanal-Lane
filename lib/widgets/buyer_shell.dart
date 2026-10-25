@@ -15,8 +15,9 @@ class BuyerShell extends ConsumerWidget {
   /// page.
   final Widget? child;
 
-  /// Creator-commerce shell: one navigator per tab (Feed/Discover/Shop/You)
-  /// so each tab keeps its own scroll position and state when switching.
+  /// Creator-commerce shell: one navigator per tab (Home/Discover/Shop/Feed/
+  /// You) so each tab keeps its own scroll position and state when
+  /// switching. The router's branches must be in [creatorTabs] order.
   final StatefulNavigationShell? navigationShell;
 
   const BuyerShell({super.key, this.child, this.navigationShell})
@@ -41,10 +42,12 @@ class BuyerShell extends ConsumerWidget {
     }
   }
 
-  static const _creatorTabs = [
-    BuyerTab.feed,
+  /// Bottom-nav order of the creator-commerce tabs (one router branch each).
+  static const creatorTabs = [
+    BuyerTab.home,
     BuyerTab.discover,
     BuyerTab.shop,
+    BuyerTab.feed,
     BuyerTab.you,
   ];
 
@@ -66,7 +69,7 @@ class BuyerShell extends ConsumerWidget {
   void _onTap(BuildContext context, WidgetRef ref, int index) {
     final guest = _isGuest;
     if (navigationShell != null) {
-      if (guest && index == 3) {
+      if (guest && creatorTabs[index] == BuyerTab.you) {
         _showGuestSignInPrompt(context);
         return;
       }
@@ -74,7 +77,7 @@ class BuyerShell extends ConsumerWidget {
         // Tapping the tab you're already on: pop that branch back to its
         // root and tell the screen to scroll to top.
         navigationShell!.goBranch(index, initialLocation: true);
-        ref.read(tabReselectProvider(_creatorTabs[index]).notifier).reselect();
+        ref.read(tabReselectProvider(creatorTabs[index]).notifier).reselect();
         return;
       }
       navigationShell!.goBranch(index);
@@ -241,9 +244,9 @@ class BuyerShell extends ConsumerWidget {
               labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
               destinations: [
                 const NavigationDestination(
-                  icon: Icon(Icons.dynamic_feed_outlined),
-                  selectedIcon: Icon(Icons.dynamic_feed),
-                  label: 'Feed',
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: 'Home',
                 ),
                 const NavigationDestination(
                   icon: Icon(Icons.explore_outlined),
@@ -254,6 +257,11 @@ class BuyerShell extends ConsumerWidget {
                   icon: Icon(Icons.storefront_outlined),
                   selectedIcon: Icon(Icons.storefront),
                   label: 'Shop',
+                ),
+                const NavigationDestination(
+                  icon: Icon(Icons.dynamic_feed_outlined),
+                  selectedIcon: Icon(Icons.dynamic_feed),
+                  label: 'Feed',
                 ),
                 NavigationDestination(
                   icon: const Icon(Icons.person_outline),

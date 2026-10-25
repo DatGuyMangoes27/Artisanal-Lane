@@ -90,10 +90,7 @@ class _ShippingRatesReferenceCardState
             ),
           ),
           if (_expanded) ...[
-            Divider(
-              color: AppTheme.ochre.withValues(alpha: 0.25),
-              height: 1,
-            ),
+            Divider(color: AppTheme.ochre.withValues(alpha: 0.25), height: 1),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
               child: Column(
@@ -120,12 +117,10 @@ class _ShippingRatesReferenceCardState
                     _RateRow('L', null, 'R174,72'),
                     _RateRow('XL', null, 'R234,08'),
                   ]),
-                  const SizedBox(height: 14),
-                  _subHeading('Door to Door · 2–3 business days'),
-                  const SizedBox(height: 6),
-                  _simpleRow('Same province', 'R85'),
-                  const SizedBox(height: 4),
-                  _simpleRow('Cross province', 'R110'),
+                  const SizedBox(height: 10),
+                  _note(
+                    'Courier Guy door-to-door is no longer offered. Door-to-door courier delivery now runs through Bob Go, priced live for each order, and is switched on in Shop Settings.',
+                  ),
                   const SizedBox(height: 10),
                   _note(
                     'Locker ↔ Kiosk pricing matches Locker ↔ Locker. Kiosk ↔ Door matches Door ↔ Locker. A 12% fuel surcharge applies to any shipment touching a door (effective 1 Apr 2026).',
@@ -189,10 +184,7 @@ class _ShippingRatesReferenceCardState
         children: [
           for (int i = 0; i < rows.length; i++) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   SizedBox(
@@ -227,39 +219,10 @@ class _ShippingRatesReferenceCardState
               ),
             ),
             if (i != rows.length - 1)
-              Divider(
-                height: 1,
-                color: AppTheme.sand.withValues(alpha: 0.4),
-              ),
+              Divider(height: 1, color: AppTheme.sand.withValues(alpha: 0.4)),
           ],
         ],
       ),
-    );
-  }
-
-  Widget _simpleRow(String label, String price) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: GoogleFonts.poppins(
-              fontSize: 12,
-              color: AppTheme.textSecondary,
-              height: 1.4,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          price,
-          style: GoogleFonts.poppins(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textPrimary,
-          ),
-        ),
-      ],
     );
   }
 

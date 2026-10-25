@@ -232,10 +232,35 @@ class _MediaPageState extends State<_MediaPage> with WidgetsBindingObserver {
 
   Future<void> _activate() async {
     if (!_isVideo) return;
+    final existing = _controller;
+    if (existing != null && _error != null) return _retry();
+    if (existing != null) {
+      // Swiping back to an already-loaded page resumes it instead of
+      // creating (and leaking) a second native player.
+      await existing.play().catchError((Object error) {
+        if (mounted) setState(() => _error = error);
+      });
+      return;
+    }
     if (_isPrivate && _resolvedUrl == null) {
       await _resolvePrivateUrl();
     }
     await _loadVideo();
+  }
+
+  /// Retry from scratch: drop a failed player and, for private videos,
+  /// request a fresh signed URL (the previous one may have expired).
+  Future<void> _retry() async {
+    final old = _controller;
+    _controller = null;
+    old?.removeListener(_onControllerChanged);
+    await old?.dispose();
+    if (!mounted) return;
+    setState(() {
+      _error = null;
+      if (_isPrivate) _resolvedUrl = null;
+    });
+    await _activate();
   }
 
   Future<void> _resolvePrivateUrl() async {
@@ -332,7 +357,7 @@ class _MediaPageState extends State<_MediaPage> with WidgetsBindingObserver {
   Widget _videoBody() {
     if (_isPrivate && _resolvedUrl == null) {
       if (_error != null) {
-        return _MediaError(onRetry: _resolvePrivateUrl);
+        return _MediaError(onRetry: _retry);
       }
       return const CircularProgressIndicator(color: AppTheme.terracotta);
     }
@@ -343,7 +368,7 @@ class _MediaPageState extends State<_MediaPage> with WidgetsBindingObserver {
       return const CircularProgressIndicator(color: AppTheme.terracotta);
     }
     if (_error != null || _controller == null) {
-      return _MediaError(onRetry: _loadVideo);
+      return _MediaError(onRetry: _retry);
     }
     final controller = _controller!;
     return GestureDetector(

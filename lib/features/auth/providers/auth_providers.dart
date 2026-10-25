@@ -28,7 +28,14 @@ final currentUserIdProvider = Provider<String?>((ref) {
 });
 
 /// The current user's profile from the database. Only fetched when authenticated.
+///
+/// It also re-reads on every auth event (sign-in, token refresh), not only
+/// when the user id changes. Otherwise a first read that failed while a
+/// restored session was still refreshing its token stayed cached as `null`,
+/// and an artisan looked like a buyer (no Selling switch, "Start selling"
+/// shown) until something else happened to refresh the profile.
 final currentProfileProvider = FutureProvider<Profile?>((ref) async {
+  ref.watch(authStateProvider);
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return null;
   final service = ref.read(supabaseServiceProvider);

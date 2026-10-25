@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:artisanal_lane/features/auth/providers/auth_providers.dart';
 import 'package:artisanal_lane/features/auth/screens/reset_password_screen.dart';
+import 'package:artisanal_lane/app/buyer_routes.dart';
 import 'package:artisanal_lane/features/auth/utils/auth_redirects.dart';
 import 'package:artisanal_lane/features/auth/utils/forgot_password_validation.dart';
 import 'package:artisanal_lane/features/auth/utils/social_auth_error_messages.dart';
@@ -159,7 +160,8 @@ void main() {
       routeForAuthEvent(AuthChangeEvent.signedIn, requestedRole: 'vendor'),
       '/vendor/onboarding',
     );
-    expect(routeForAuthEvent(AuthChangeEvent.signedIn), '/home');
+    // The front page with the creator-commerce app, else the classic home.
+    expect(routeForAuthEvent(AuthChangeEvent.signedIn), buyerLandingRoute);
     expect(routeForAuthEvent(AuthChangeEvent.signedOut), '/welcome');
   });
 
@@ -1829,9 +1831,11 @@ void main() {
     );
     expect(
       ShippingOption.defaults().map((option) => option.key),
-      containsAll(['courier_guy', 'courier_guy_door_to_door']),
+      containsAll(['courier_guy', 'pargo', 'market_pickup']),
     );
 
+    // Courier Guy door-to-door is retired (Bob Go door-to-door replaces it)
+    // and is dropped along with unknown methods such as paxi.
     final filtered = ShippingOption.listFromJson([
       {'key': 'courier_guy', 'enabled': true, 'price': 99},
       {'key': 'courier_guy_door_to_door', 'enabled': true, 'price': 110},
@@ -1841,7 +1845,6 @@ void main() {
 
     expect(filtered.map((option) => option.key), [
       'courier_guy',
-      'courier_guy_door_to_door',
       'market_pickup',
     ]);
   });

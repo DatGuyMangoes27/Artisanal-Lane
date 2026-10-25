@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../app/buyer_routes.dart';
 import '../core/constants/app_constants.dart';
 import '../features/buyer/utils/cart_stock_guard.dart';
 import '../features/buyer/utils/favourite_products.dart';
@@ -2313,7 +2314,7 @@ class SupabaseService {
       return '/vendor/onboarding';
     }
 
-    return '/home';
+    return buyerLandingRoute;
   }
 
   // ── Order Creation ─────────────────────────────────────────────

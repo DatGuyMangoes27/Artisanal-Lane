@@ -12,7 +12,13 @@ String? shopForYouReason({
   required Product product,
   required Set<String> likedCategoryIds,
   required List<Product> referenceProducts,
+  Set<String> lovedProductIds = const {},
+  Set<String> savedProductIds = const {},
 }) {
+  // Reminders of the buyer's own picks (see `rankShopForYou`).
+  if (lovedProductIds.contains(product.id)) return 'You loved this';
+  if (savedProductIds.contains(product.id)) return 'You saved this';
+
   final categoryName = product.categoryName?.trim();
   if (categoryName == null || categoryName.isEmpty) return null;
   if (product.categoryId == null) return null;

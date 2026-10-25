@@ -128,7 +128,7 @@ class VendorProfileScreen extends ConsumerWidget {
                   context,
                   Icons.auto_awesome_rounded,
                   'Creator Commerce Preview',
-                  'Explore the new Feed, Shop and AI seller studio',
+                  'Explore the new Feed, Shop and Photo enhancer',
                   () => context.push('/internal/creator-commerce'),
                 ),
               _buildMenuItem(
@@ -182,6 +182,13 @@ class VendorProfileScreen extends ConsumerWidget {
                 'Shop Posts',
                 'Manage your social feed',
                 () => context.push('/vendor/profile/posts'),
+              ),
+              _buildMenuItem(
+                context,
+                Icons.insights_outlined,
+                'Insights',
+                'Post views, followers and top posts',
+                () => context.push('/vendor/insights'),
               ),
               _buildMenuItem(
                 context,

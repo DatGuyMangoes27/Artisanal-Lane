@@ -63,6 +63,38 @@ void main() {
     expect(find.byType(InteractiveViewer), findsOneWidget);
   });
 
+  testWidgets('private video that cannot be signed offers a working retry', (
+    tester,
+  ) async {
+    // No Supabase client in tests, so signing fails like an RLS "not found".
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: CreatorFeedMediaViewer(
+          mediaUrls: [
+            'artisan-post://e9b1c61e-102c-4014-89a3-0efd7f70a81c/'
+                'e9f1d718-15ba-4c14-bc30-6674ee91959a.mp4',
+          ],
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('This video could not be loaded.'), findsOneWidget);
+    final retry = find.byKey(const Key('retry-creator-feed-video'));
+    expect(retry, findsOneWidget);
+
+    await tester.tap(retry);
+    await tester.pump();
+    await tester.pump();
+
+    // The retry re-signs and reloads in one tap; it lands back on the same
+    // explained error rather than a dead spinner or a "secure link" message.
+    expect(find.text('This video could not be loaded.'), findsOneWidget);
+    expect(find.text('This video needs a secure link.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('insecure feed video stays in-app and explains the block', (
     tester,
   ) async {

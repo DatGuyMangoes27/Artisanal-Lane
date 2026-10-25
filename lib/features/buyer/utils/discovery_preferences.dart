@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../models/product.dart';
 import '../../auth/providers/auth_providers.dart';
+import 'discover_taste.dart';
 import 'discovery_remote_store.dart';
 
 /// Personal choices with device caching and opt-in, account-private cloud sync.
@@ -195,26 +196,20 @@ final discoveryPreferencesProvider =
     );
 
 /// A deliberately transparent, local ranking. It only uses the buyer's saved
-/// category, budget, and in-app like/skip decisions.
+/// category, budget, and in-app like/skip/save decisions (see
+/// [DiscoverTaste]); pass [taste] to include saved favourites.
 List<Product> rankDiscoverProducts(
   List<Product> products,
-  DiscoveryPreferences preferences,
-) {
-  final liked = products
-      .where((product) => preferences.likedProductIds.contains(product.id))
-      .toList(growable: false);
-  int score(Product product) {
-    var value = product.isFeatured ? 1 : 0;
+  DiscoveryPreferences preferences, {
+  DiscoverTaste? taste,
+}) {
+  final profile = taste ?? discoverTasteFor(products, preferences);
+  final scores = <String, double>{};
+  double score(Product product) => scores.putIfAbsent(product.id, () {
+    var value = product.isFeatured ? 1.0 : 0.0;
     if (preferences.categoryIds.contains(product.categoryId)) value += 6;
-    for (final favourite in liked) {
-      if (favourite.categoryId != null &&
-          favourite.categoryId == product.categoryId) {
-        value += 4;
-      }
-      value += product.tags.where(favourite.tags.contains).length * 2;
-    }
-    return value;
-  }
+    return value + profile.scoreOf(product);
+  });
 
   // Already-decided items (loved or skipped) never reappear in the deck.
   final visible = products

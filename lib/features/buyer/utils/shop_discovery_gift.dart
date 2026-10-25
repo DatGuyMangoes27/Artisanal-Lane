@@ -13,15 +13,54 @@ extension GiftRecipientLabel on GiftRecipient {
   };
 }
 
-/// The occasion, picked in the second step.
-enum GiftOccasion { birthday, thankYou, wedding, justBecause }
+/// The occasion, picked in the second step. Occasions only influence the
+/// order of results (see [giftOccasionScore]); they never filter.
+enum GiftOccasion {
+  birthday,
+  christmas,
+  easter,
+  mothersDay,
+  fathersDay,
+  valentines,
+  anniversary,
+  wedding,
+  housewarming,
+  newBaby,
+  thankYou,
+  justBecause,
+}
 
 extension GiftOccasionLabel on GiftOccasion {
   String get label => switch (this) {
     GiftOccasion.birthday => 'Birthday',
-    GiftOccasion.thankYou => 'Thank you',
+    GiftOccasion.christmas => 'Christmas',
+    GiftOccasion.easter => 'Easter',
+    GiftOccasion.mothersDay => "Mother's Day",
+    GiftOccasion.fathersDay => "Father's Day",
+    GiftOccasion.valentines => "Valentine's",
+    GiftOccasion.anniversary => 'Anniversary',
     GiftOccasion.wedding => 'Wedding',
+    GiftOccasion.housewarming => 'Housewarming',
+    GiftOccasion.newBaby => 'New baby',
+    GiftOccasion.thankYou => 'Thank you',
     GiftOccasion.justBecause => 'Just because',
+  };
+
+  /// Short result reason for a piece that suits this occasion, or null
+  /// when the occasion has no keywords of its own.
+  String? get reason => switch (this) {
+    GiftOccasion.birthday => 'A birthday-ready pick',
+    GiftOccasion.christmas => 'A festive Christmas pick',
+    GiftOccasion.easter => 'A sweet Easter pick',
+    GiftOccasion.mothersDay => "Lovely for Mother's Day",
+    GiftOccasion.fathersDay => "Great for Father's Day",
+    GiftOccasion.valentines => "A Valentine's favourite",
+    GiftOccasion.anniversary => 'An anniversary keepsake',
+    GiftOccasion.wedding => 'A wedding-worthy pick',
+    GiftOccasion.housewarming => 'Great for a new home',
+    GiftOccasion.newBaby => 'Sweet for a new baby',
+    GiftOccasion.thankYou => 'A thoughtful thank-you',
+    GiftOccasion.justBecause => null,
   };
 }
 
@@ -149,10 +188,79 @@ const Map<GiftRecipient, List<String>> _recipientKeywords =
 const Map<GiftOccasion, List<String>> _occasionKeywords =
     <GiftOccasion, List<String>>{
       GiftOccasion.birthday: ['birthday', 'celebration', 'party'],
-      GiftOccasion.thankYou: ['thank', 'gratitude', 'card', 'note'],
+      GiftOccasion.christmas: [
+        'christmas',
+        'xmas',
+        'festive',
+        'ornament',
+        'bauble',
+        'advent',
+        'stocking',
+      ],
+      GiftOccasion.easter: ['easter', 'bunny', 'bunnies', 'chocolate'],
+      GiftOccasion.mothersDay: [
+        'mother',
+        'mama',
+        'floral',
+        'flower',
+        'pamper',
+        'skincare',
+      ],
+      GiftOccasion.fathersDay: [
+        'father',
+        'daddy',
+        'leather',
+        'wallet',
+        'grooming',
+        'beard',
+        'braai',
+      ],
+      GiftOccasion.valentines: [
+        'valentine',
+        'heart',
+        'romantic',
+        'rose',
+        'love',
+      ],
+      GiftOccasion.anniversary: [
+        'anniversary',
+        'couple',
+        'keepsake',
+        'engraved',
+        'personalised',
+        'personalized',
+      ],
       GiftOccasion.wedding: ['wedding', 'couple', 'engagement', 'bridal'],
+      GiftOccasion.housewarming: [
+        'housewarming',
+        'home',
+        'candle',
+        'vase',
+        'planter',
+        'kitchen',
+        'serving',
+        'decor',
+      ],
+      GiftOccasion.newBaby: [
+        'baby',
+        'newborn',
+        'infant',
+        'nursery',
+        'onesie',
+        'babygrow',
+        'teether',
+        'swaddle',
+      ],
+      GiftOccasion.thankYou: ['thank', 'gratitude', 'card', 'note'],
       GiftOccasion.justBecause: [],
     };
+
+String _affinityHaystack(Product product) => <String>[
+  product.title,
+  product.categoryName ?? '',
+  product.subcategoryName ?? '',
+  ...product.tags,
+].join(' ').toLowerCase();
 
 /// Number of keyword hits between [product] and the recipient/occasion
 /// keyword lists. Exposed separately so tests can check affinity directly.
@@ -166,12 +274,19 @@ int giftAffinityScore({
     ..._occasionKeywords[occasion]!,
   };
   if (keywords.isEmpty) return 0;
-  final haystack = <String>[
-    product.title,
-    product.categoryName ?? '',
-    product.subcategoryName ?? '',
-    ...product.tags,
-  ].join(' ').toLowerCase();
+  final haystack = _affinityHaystack(product);
+  return keywords.where(haystack.contains).length;
+}
+
+/// Number of [occasion] keyword hits for [product]. Only used to order
+/// results and explain them ("Lovely for Christmas"), never to filter.
+int giftOccasionScore({
+  required Product product,
+  required GiftOccasion occasion,
+}) {
+  final keywords = _occasionKeywords[occasion]!;
+  if (keywords.isEmpty) return 0;
+  final haystack = _affinityHaystack(product);
   return keywords.where(haystack.contains).length;
 }
 

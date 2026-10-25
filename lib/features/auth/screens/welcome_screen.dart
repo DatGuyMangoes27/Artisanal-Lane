@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../../app/buyer_routes.dart';
 import '../../../app/theme.dart';
 import '../../../widgets/gradient_button.dart';
 
@@ -107,7 +108,7 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
                       TextButton(
-                        onPressed: () => context.go('/home'),
+                        onPressed: () => context.go(buyerLandingRoute),
                         child: Text(
                           'Browse as Guest',
                           style: GoogleFonts.poppins(

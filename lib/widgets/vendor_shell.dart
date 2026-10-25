@@ -20,52 +20,61 @@ class VendorShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Hide the "Switch to shopping" bar while the keyboard is up so forms
+    // (shop settings, product details) keep that room for the field being
+    // typed in.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return Scaffold(
       body: creatorCommerceEnabled
           ? Column(
               children: [
                 SafeArea(
                   bottom: false,
-                  child: Container(
-                    color: AppTheme.cardBg,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      children: [
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppTheme.terracotta,
-                            minimumSize: const Size(0, 44),
-                          ),
-                          onPressed: () => context.go('/feed'),
-                          icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                          label: Text(
-                            'Switch to shopping',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
+                  child: keyboardOpen
+                      ? const SizedBox(width: double.infinity)
+                      : Container(
+                          color: AppTheme.cardBg,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Row(
+                            children: [
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppTheme.terracotta,
+                                  minimumSize: const Size(0, 44),
+                                ),
+                                onPressed: () => context.go('/feed'),
+                                icon: const Icon(
+                                  Icons.swap_horiz_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  'Switch to shopping',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppTheme.textSecondary,
+                                  minimumSize: const Size(0, 44),
+                                ),
+                                onPressed: () =>
+                                    context.push('/vendor/profile/posts'),
+                                icon: const Icon(
+                                  Icons.dynamic_feed_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  'My posts',
+                                  style: GoogleFonts.poppins(fontSize: 13),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const Spacer(),
-                        TextButton.icon(
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppTheme.textSecondary,
-                            minimumSize: const Size(0, 44),
-                          ),
-                          onPressed: () =>
-                              context.push('/vendor/profile/posts'),
-                          icon: const Icon(
-                            Icons.dynamic_feed_outlined,
-                            size: 18,
-                          ),
-                          label: Text(
-                            'My posts',
-                            style: GoogleFonts.poppins(fontSize: 13),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
                 // The bar above already clears the status bar.
                 Expanded(

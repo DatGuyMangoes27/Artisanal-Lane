@@ -392,8 +392,16 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
 
   static IconData _occasionIcon(GiftOccasion value) => switch (value) {
     GiftOccasion.birthday => Icons.cake_outlined,
-    GiftOccasion.thankYou => Icons.volunteer_activism_outlined,
+    GiftOccasion.christmas => Icons.celebration_outlined,
+    GiftOccasion.easter => Icons.local_florist_outlined,
+    GiftOccasion.mothersDay => Icons.woman_outlined,
+    GiftOccasion.fathersDay => Icons.man_outlined,
+    GiftOccasion.valentines => Icons.favorite_rounded,
+    GiftOccasion.anniversary => Icons.event_available_outlined,
     GiftOccasion.wedding => Icons.favorite_border_rounded,
+    GiftOccasion.housewarming => Icons.home_outlined,
+    GiftOccasion.newBaby => Icons.child_care_outlined,
+    GiftOccasion.thankYou => Icons.volunteer_activism_outlined,
     GiftOccasion.justBecause => Icons.wb_sunny_outlined,
   };
 }

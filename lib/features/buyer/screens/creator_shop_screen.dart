@@ -20,6 +20,7 @@ import '../utils/discovery_preferences.dart';
 import '../utils/product_search.dart';
 import '../utils/shop_discovery_location.dart';
 import '../utils/shop_discovery_reasons.dart';
+import '../utils/shop_for_you_ranking.dart';
 import '../widgets/shop_product_tile.dart';
 
 /// On-device key for the buyer's chosen "Near me" area (a province or city
@@ -33,6 +34,9 @@ List<Product> filterCreatorShopProducts({
   required String query,
   required CreatorShopFilter filter,
   DiscoveryPreferences? preferences,
+  Iterable<Product> savedProducts = const [],
+  Set<String> savedProductIds = const {},
+  Set<String> purchasedProductIds = const {},
 }) {
   final hasQuery = searchQueryWords(query).isNotEmpty;
   final filtered = products
@@ -47,7 +51,15 @@ List<Product> filterCreatorShopProducts({
     filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
   if (filter == CreatorShopFilter.forYou && preferences != null) {
-    return rankDiscoverProducts(filtered, preferences);
+    // The default view reinforces Discover: same choices and swipe signals,
+    // with loved/saved pieces surfaced near the top as a reminder.
+    return rankShopForYou(
+      products: filtered,
+      preferences: preferences,
+      savedProducts: savedProducts,
+      savedProductIds: savedProductIds,
+      purchasedProductIds: purchasedProductIds,
+    );
   }
   return filtered;
 }
@@ -378,6 +390,13 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
         ref.watch(categoriesProvider).value ?? const <Category>[];
     final favouriteProducts =
         ref.watch(favouriteProductsProvider).value ?? const <Product>[];
+    final savedIds = {
+      ...ref.watch(currentFavouriteIdsProvider),
+      for (final product in favouriteProducts) product.id,
+    };
+    final boughtIds = purchasedProductIds(
+      ref.watch(ordersProvider).value ?? const <Order>[],
+    );
 
     ref.listen<int>(tabReselectProvider(BuyerTab.shop), (_, __) {
       _scrollToTop();
@@ -430,6 +449,9 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
           query: _debouncedQuery,
           filter: _filter,
           preferences: preferences,
+          savedProducts: favouriteProducts,
+          savedProductIds: savedIds,
+          purchasedProductIds: boughtIds,
         );
       } else if (catalogue.hasError && !catalogue.isLoading) {
         error = catalogue.error;
@@ -462,6 +484,8 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
                   ...favouriteProducts,
                 ],
           likedCategoryIds: preferences?.categoryIds ?? const {},
+          lovedProductIds: preferences?.likedProductIds ?? const {},
+          savedProductIds: savedIds,
           onRefresh: onRefresh,
         ),
       ),
@@ -844,6 +868,8 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
     VoidCallback? onRetry,
     List<Product> referenceProducts = const [],
     Set<String> likedCategoryIds = const {},
+    Set<String> lovedProductIds = const {},
+    Set<String> savedProductIds = const {},
   }) {
     final isInitialLoad = baseProducts == null && error == null;
     var products = applyShopSortAndFilters(
@@ -869,6 +895,8 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
             product: product,
             likedCategoryIds: likedCategoryIds,
             referenceProducts: referenceProducts,
+            lovedProductIds: lovedProductIds,
+            savedProductIds: savedProductIds,
           )
         : null;
 

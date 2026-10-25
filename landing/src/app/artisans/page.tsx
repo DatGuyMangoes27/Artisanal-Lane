@@ -13,6 +13,11 @@ type ArtisanSearchParams = {
 
 const artisansPerPage = 20;
 
+// Always render per request: the directory reads the live shops table (only
+// shops.is_publicly_listed rows), so a shop that is delisted, unsubscribed or
+// deleted drops off on the next page load instead of lingering in a cache.
+export const dynamic = "force-dynamic";
+
 function parsePage(value: string | undefined) {
   const page = Number(value);
   return Number.isFinite(page) && page > 0 ? Math.trunc(page) : 1;
@@ -213,7 +218,7 @@ export default async function ArtisansPage({
           </div>
 
           {activeShops.length > 0 ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {activePageShops.map((shop) => (
                 <ShopCard key={shop.id} shop={shop} />
               ))}
@@ -258,7 +263,7 @@ export default async function ArtisansPage({
                   These makers have joined Artisan Lane and are busy adding their first products.
                 </p>
               </div>
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {comingSoonPageShops.map((shop) => (
                   <ShopCard key={shop.id} shop={shop} />
                 ))}

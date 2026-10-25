@@ -12,10 +12,8 @@ import '../../../app/theme.dart';
 import '../../../widgets/african_patterns.dart';
 import '../../auth/providers/auth_providers.dart' show currentProfileProvider;
 import '../../../core/constants/feature_flags.dart';
-import '../../vendor/providers/vendor_providers.dart'
-    show vendorShopProvider, vendorPostsProvider, vendorProductsProvider;
-import '../../vendor/screens/shop_insights_screen.dart'
-    show shopInsightsProvider;
+import '../../vendor/providers/selling_mode_provider.dart';
+import '../../vendor/widgets/seller_hub.dart';
 import '../providers/buyer_providers.dart';
 import 'moderation_reports_screen.dart';
 
@@ -29,9 +27,6 @@ class BuyerProfileScreen extends ConsumerStatefulWidget {
 class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
   final _picker = ImagePicker();
   bool _isUploadingAvatar = false;
-  // Buying/Selling switch (BATCH 5, "one app"): remembered in memory only
-  // for this screen instance, per the "lightweight" scope of this feature.
-  bool _sellingMode = false;
 
   String _imagePickerErrorMessage(ImageSource source) {
     return source == ImageSource.camera
@@ -199,7 +194,13 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
       0,
       (sum, item) => sum + item.quantity,
     );
-    final isVendor = ref.watch(currentProfileProvider).value?.isVendor == true;
+    // Artisan status comes from the profile this screen already loaded
+    // (profileProvider), with currentProfileProvider as a fallback. Reading
+    // only currentProfileProvider made a straight-after-sign-in artisan look
+    // like a buyer while it was still loading or after a failed first fetch.
+    final isVendor =
+        profileAsync.value?.isVendor == true ||
+        ref.watch(currentProfileProvider).value?.isVendor == true;
 
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
@@ -243,6 +244,7 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
     bool isVendor,
   ) {
     final showSellingSwitch = creatorCommerceEnabled && isVendor;
+    final sellingMode = ref.watch(youTabSellingModeProvider);
     return SingleChildScrollView(
       child: SafeArea(
         top: creatorCommerceEnabled,
@@ -254,14 +256,19 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
               const SizedBox(height: 20),
               _buildModeSwitch(context),
             ],
-            if (showSellingSwitch && _sellingMode) ...[
+            if (showSellingSwitch && sellingMode) ...[
               const SizedBox(height: 24),
               _buildSellingShortcuts(context),
             ] else ...[
               const SizedBox(height: 32),
               _buildStatsRow(context, orderCount, favouriteCount, cartCount),
               const SizedBox(height: 32),
-              _buildMenuSection(context, unreadMessages, disputeCount),
+              _buildMenuSection(
+                context,
+                unreadMessages,
+                disputeCount,
+                isVendor: isVendor,
+              ),
             ],
             const SizedBox(height: 40),
             const TripleDot(),
@@ -274,6 +281,7 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
 
   // ── Buying / Selling switch (item 9) ────────────────────────────
   Widget _buildModeSwitch(BuildContext context) {
+    final sellingMode = ref.watch(youTabSellingModeProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
@@ -286,10 +294,10 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
         child: Row(
           children: [
             Expanded(
-              child: _modeSwitchSegment('Buying', selected: !_sellingMode),
+              child: _modeSwitchSegment('Buying', selected: !sellingMode),
             ),
             Expanded(
-              child: _modeSwitchSegment('Selling', selected: _sellingMode),
+              child: _modeSwitchSegment('Selling', selected: sellingMode),
             ),
           ],
         ),
@@ -302,7 +310,9 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
       onTap: () {
         if (selected) return;
         HapticFeedback.selectionClick();
-        setState(() => _sellingMode = label == 'Selling');
+        ref
+            .read(youTabSellingModeProvider.notifier)
+            .choose(selling: label == 'Selling');
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -383,9 +393,9 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
         children: [
-          _buildCreatorMakerHeader(context),
+          const SellerShopCard(),
           const SizedBox(height: 20),
-          _buildCreatorTiles(context),
+          const SellerToolTiles(),
           const SizedBox(height: 24),
           for (final s in shortcuts) ...[
             _MenuItem(
@@ -405,193 +415,6 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
     );
   }
 
-  // ── Selling view: maker header (mirrors the "You" creator profile in
-  // lib/concepts/creator_commerce/creator_commerce_mockup_app.dart) ──────
-  Widget _buildCreatorMakerHeader(BuildContext context) {
-    final shopAsync = ref.watch(vendorShopProvider);
-    final postsCount = ref.watch(vendorPostsProvider).asData?.value.length;
-    final productsCount = ref
-        .watch(vendorProductsProvider)
-        .asData
-        ?.value
-        .length;
-
-    return shopAsync.when(
-      data: (shop) {
-        if (shop == null) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: AppTheme.bone,
-                backgroundImage: shop.logoUrl != null
-                    ? CachedNetworkImageProvider(shop.logoUrl!)
-                    : null,
-                child: shop.logoUrl == null
-                    ? Text(
-                        shop.name.isNotEmpty ? shop.name[0] : 'S',
-                        style: GoogleFonts.playfairDisplay(
-                          color: AppTheme.terracotta,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            shop.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.playfairDisplay(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                            ),
-                          ),
-                        ),
-                        if (shop.isVerified) ...[
-                          const SizedBox(width: 5),
-                          const Icon(
-                            Icons.verified,
-                            size: 16,
-                            color: AppTheme.baobab,
-                          ),
-                        ],
-                      ],
-                    ),
-                    Text(
-                      shop.handle,
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textHint,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        _creatorStat('${productsCount ?? 0}', 'products'),
-                        const SizedBox(width: 16),
-                        _creatorStat('${postsCount ?? 0}', 'posts'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      loading: () => const SizedBox(
-        height: 76,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-    );
-  }
-
-  Widget _creatorStat(String value, String label) {
-    return RichText(
-      text: TextSpan(
-        style: GoogleFonts.poppins(fontSize: 12, color: AppTheme.textSecondary),
-        children: [
-          TextSpan(
-            text: '$value ',
-            style: const TextStyle(
-              fontWeight: FontWeight.w800,
-              color: AppTheme.textPrimary,
-            ),
-          ),
-          TextSpan(text: label),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCreatorTiles(BuildContext context) {
-    final shopAsync = ref.watch(vendorShopProvider);
-    final shop = shopAsync.asData?.value;
-    final insightsAsync = shop == null
-        ? null
-        : ref.watch(shopInsightsProvider(30));
-    final insights = insightsAsync?.asData?.value;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _CreatorToolTile(
-                icon: Icons.add_circle_outline,
-                title: 'Create post',
-                subtitle: 'Photos and more',
-                onTap: () => context.push('/create/post'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _CreatorToolTile(
-                icon: Icons.auto_awesome_outlined,
-                title: 'Add story',
-                subtitle: 'Live for 24 hours',
-                onTap: shop == null
-                    ? null
-                    : () => context.push('/create/story', extra: shop),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _CreatorToolTile(
-                icon: Icons.inventory_2_outlined,
-                title: 'Add product',
-                subtitle: 'List a new piece',
-                onTap: () => context.push('/create/product'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _CreatorToolTile(
-                icon: Icons.auto_fix_high_outlined,
-                title: 'AI studio',
-                subtitle: 'Photo tools',
-                onTap: () => context.push('/create/product'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _CreatorToolTile(
-          icon: Icons.insights_outlined,
-          title: 'Insights',
-          subtitle: insights == null
-              ? 'See how your shop is performing'
-              : '${insights.postViews} post views · ${insights.followers} followers · last 30 days',
-          onTap: () => context.push('/vendor/insights'),
-          fullWidth: true,
-        ),
-      ],
-    );
-  }
-
   // ── Error body ────────────────────────────────────────────────
   Widget _buildErrorBody(
     BuildContext context,
@@ -608,7 +431,12 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
           const SizedBox(height: 32),
           _buildStatsRow(context, orderCount, favouriteCount, cartCount),
           const SizedBox(height: 32),
-          _buildMenuSection(context, unreadMessages, disputeCount),
+          _buildMenuSection(
+            context,
+            unreadMessages,
+            disputeCount,
+            isVendor: ref.watch(currentProfileProvider).value?.isVendor == true,
+          ),
           const SizedBox(height: 40),
           const TripleDot(),
           const SizedBox(height: 32),
@@ -1015,8 +843,9 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
   Widget _buildMenuSection(
     BuildContext context,
     int unreadMessages,
-    int disputeCount,
-  ) {
+    int disputeCount, {
+    required bool isVendor,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Column(
@@ -1048,7 +877,8 @@ class _BuyerProfileScreenState extends ConsumerState<BuyerProfileScreen> {
               onTap: () => context.push('/profile/saved-posts'),
             ),
             const SizedBox(height: 16),
-            if (ref.watch(currentProfileProvider).value?.isVendor == true) ...[
+            // Never offer "Start selling" to someone who already has a shop.
+            if (isVendor) ...[
               _MenuItem(
                 icon: Icons.storefront_outlined,
                 title: 'Artisan workspace',
@@ -1221,78 +1051,6 @@ class _MenuItem extends StatelessWidget {
             ],
             const Icon(Icons.chevron_right, size: 20, color: AppTheme.textHint),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Creator profile tool tile (Create post / Add story / Insights, etc.)
-// ═══════════════════════════════════════════════════════════════════
-class _CreatorToolTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback? onTap;
-  final bool fullWidth;
-
-  const _CreatorToolTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.fullWidth = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: onTap == null ? 0.5 : 1,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppTheme.sand.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: AppTheme.terracotta.withValues(alpha: 0.1),
-                child: Icon(icon, color: AppTheme.terracotta, size: 19),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary,
-                      ),
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: fullWidth ? 2 : 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.poppins(
-                        fontSize: 11.5,
-                        color: AppTheme.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

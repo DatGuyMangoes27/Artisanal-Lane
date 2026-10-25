@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../app/buyer_routes.dart';
+
 const String passwordRecoveryRoute = '/reset-password';
 const String authCallbackScheme = 'artisanlane';
 const String authCallbackHost = 'login-callback';
@@ -37,7 +39,7 @@ String? routeForAuthEvent(
       if (requestedRole == 'vendor') {
         return '/vendor/onboarding';
       }
-      return '/home';
+      return buyerLandingRoute;
     default:
       return null;
   }

@@ -10,6 +10,7 @@ import '../../../app/theme.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/shop_market_event.dart';
 import '../../../models/shipping_option.dart';
+import '../../../widgets/keyboard_aware_form.dart';
 import '../widgets/bobgo_collection_section.dart';
 import '../widgets/shipping_rates_reference.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -250,7 +251,11 @@ class _VendorShopSettingsScreenState
     try {
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
-      if (shop == null) throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
+      if (shop == null) {
+        throw Exception(
+          "Your shop isn't set up yet. Please contact Artisan Lane support.",
+        );
+      }
       final userId = ref.read(currentUserIdProvider);
 
       if (userId != null) {
@@ -349,7 +354,9 @@ class _VendorShopSettingsScreenState
     final service = ref.read(supabaseServiceProvider);
     final shop = await ref.read(vendorShopProvider.future);
     if (shop == null) {
-      throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
+      throw Exception(
+        "Your shop isn't set up yet. Please contact Artisan Lane support.",
+      );
     }
 
     await service.replaceShopMarketEvents(shop.id, _marketEvents);
@@ -425,46 +432,30 @@ class _VendorShopSettingsScreenState
         data: (_) => marketEventsAsync.when(
           data: (_) => Form(
             key: _formKey,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
-                    children: [
-                      _buildShopPreviewHeader(),
-                      const SizedBox(height: 28),
-                      // ── Cover image ────────────────────────────────────
-                      _buildLabel('Cover Image'),
-                      const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () => _pickImage(isLogo: false),
-                        child: Container(
-                          height: 160,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardBg,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppTheme.sand,
-                              width: 1.5,
-                            ),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: _buildCoverPreview(),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Logo ───────────────────────────────────────────
-                      _buildLabel('Shop Logo'),
-                      const SizedBox(height: 8),
-                      Row(
+            // While typing, the save bar gives way to a slim Done bar and
+            // the focused field is scrolled fully into view, so the field
+            // is never hidden behind the keyboard or under the app bar.
+            child: KeyboardVisibilityBuilder(
+              builder: (context, keyboardVisible) => Column(
+                children: [
+                  Expanded(
+                    child: RevealFocusedField(
+                      child: ListView(
+                        key: const ValueKey('shop-settings-list'),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 12),
                         children: [
+                          _buildShopPreviewHeader(),
+                          const SizedBox(height: 28),
+                          // ── Cover image ────────────────────────────────────
+                          _buildLabel('Cover Image'),
+                          const SizedBox(height: 8),
                           GestureDetector(
-                            onTap: () => _pickImage(isLogo: true),
+                            onTap: () => _pickImage(isLogo: false),
                             child: Container(
-                              width: 90,
-                              height: 90,
+                              height: 160,
+                              width: double.infinity,
                               decoration: BoxDecoration(
                                 color: AppTheme.cardBg,
                                 borderRadius: BorderRadius.circular(16),
@@ -474,322 +465,371 @@ class _VendorShopSettingsScreenState
                                 ),
                               ),
                               clipBehavior: Clip.antiAlias,
-                              child: _buildLogoPreview(),
+                              child: _buildCoverPreview(),
                             ),
                           ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Tap to change',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: AppTheme.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Square image works best',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 12,
-                                    color: AppTheme.textHint,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
+                          const SizedBox(height: 24),
 
-                      // ── Text fields ────────────────────────────────────
-                      _buildLabel('Shop Name'),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _nameController,
-                        validator: (v) =>
-                            v == null || v.trim().isEmpty ? 'Required' : null,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          hintText: 'Your shop name',
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      _buildLabel('Bio'),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _bioController,
-                        maxLines: 3,
-                        decoration: const InputDecoration(
-                          hintText: 'Short description of your shop',
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      _buildLabel('Brand Story'),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _brandStoryController,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          hintText: 'Tell your story...',
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      _buildLabel('Location'),
-                      const SizedBox(height: 8),
-                      TextFormField(
-                        controller: _locationController,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. Cape Town, South Africa',
-                        ),
-                      ),
-                      const SizedBox(height: 28),
-
-                      _buildLabel('Upcoming Markets'),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Show buyers where they can find you next. Market dates save immediately, and only active future dates appear on your public profile.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: AppTheme.textHint,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (_marketEvents.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: AppTheme.sand.withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          // ── Logo ───────────────────────────────────────────
+                          _buildLabel('Shop Logo'),
+                          const SizedBox(height: 8),
+                          Row(
                             children: [
-                              Text(
-                                'No market dates added yet',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
+                              GestureDetector(
+                                onTap: () => _pickImage(isLogo: true),
+                                child: Container(
+                                  width: 90,
+                                  height: 90,
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.cardBg,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: AppTheme.sand,
+                                      width: 1.5,
+                                    ),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: _buildLogoPreview(),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Add upcoming events so buyers know when they can meet you in person.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: AppTheme.textHint,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        ..._marketEvents.asMap().entries.map(
-                          (entry) =>
-                              _buildMarketEventCard(entry.value, entry.key),
-                        ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: () => _openMarketEventSheet(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Add Market Date'),
-                      ),
-                      const SizedBox(height: 28),
-
-                      _buildLabel('Vacation Mode'),
-                      const SizedBox(height: 8),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: AppTheme.sand.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            SwitchListTile(
-                              value: _isOffline,
-                              activeThumbColor: AppTheme.terracotta,
-                              title: Text(
-                                'Pause my shop while I am away',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppTheme.textPrimary,
-                                ),
-                              ),
-                              subtitle: Text(
-                                _isOffline
-                                    ? 'Buyers can still view your shop, but the storefront is marked as offline.'
-                                    : 'Turn this on when you need to put the store into vacation mode.',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 12,
-                                  color: AppTheme.textHint,
-                                ),
-                              ),
-                              onChanged: (value) {
-                                setState(() {
-                                  _isOffline = value;
-                                  if (!value) {
-                                    _backToWorkDate = null;
-                                  }
-                                });
-                              },
-                            ),
-                            if (_isOffline) ...[
-                              Divider(
-                                height: 1,
-                                color: AppTheme.sand.withValues(alpha: 0.5),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  14,
-                                  16,
-                                  16,
-                                ),
-                                child: Row(
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Back to work date',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                              color: AppTheme.textPrimary,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            _backToWorkDate != null
-                                                ? '${_backToWorkDate!.day}/${_backToWorkDate!.month}/${_backToWorkDate!.year}'
-                                                : 'Optional. Let customers know when you expect to return.',
-                                            style: GoogleFonts.poppins(
-                                              fontSize: 12,
-                                              color: AppTheme.textHint,
-                                            ),
-                                          ),
-                                        ],
+                                    Text(
+                                      'Tap to change',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                        color: AppTheme.textSecondary,
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
-                                    OutlinedButton(
-                                      onPressed: () async {
-                                        final now = DateTime.now();
-                                        final picked = await showDatePicker(
-                                          context: context,
-                                          initialDate: _backToWorkDate ?? now,
-                                          firstDate: DateTime(
-                                            now.year,
-                                            now.month,
-                                            now.day,
-                                          ),
-                                          lastDate: DateTime(now.year + 2),
-                                        );
-                                        if (picked != null) {
-                                          setState(
-                                            () => _backToWorkDate = picked,
-                                          );
-                                        }
-                                      },
-                                      child: const Text('Choose date'),
-                                    ),
-                                    if (_backToWorkDate != null) ...[
-                                      const SizedBox(width: 8),
-                                      IconButton(
-                                        onPressed: () {
-                                          setState(
-                                            () => _backToWorkDate = null,
-                                          );
-                                        },
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          color: AppTheme.textHint,
-                                        ),
-                                        tooltip: 'Clear date',
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Square image works best',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: AppTheme.textHint,
                                       ),
-                                    ],
+                                    ),
                                   ],
                                 ),
                               ),
                             ],
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 36),
+                          ),
+                          const SizedBox(height: 24),
 
-                      // ── Shipping & Delivery ────────────────────────────
-                      _buildLabel('Shipping & Delivery'),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Choose which methods you offer and set your own price for each.',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: AppTheme.textHint,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: AppTheme.cardBg,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppTheme.borderColor),
-                        ),
-                        child: SwitchListTile.adaptive(
-                          value: _combinedShippingEnabled,
-                          activeTrackColor: AppTheme.terracotta,
-                          onChanged: (value) =>
-                              setState(() => _combinedShippingEnabled = value),
-                          title: Text(
-                            'Combine shipping for one order',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary,
+                          // ── Text fields ────────────────────────────────────
+                          _buildLabel('Shop Name'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _nameController,
+                            validator: (v) => v == null || v.trim().isEmpty
+                                ? 'Required'
+                                : null,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              hintText: 'Your shop name',
                             ),
                           ),
-                          subtitle: Text(
-                            'Recommended. Buyers pay one delivery fee when ordering multiple products from your shop. We use the highest applicable rate. Turn this off only when every item must ship separately.',
+                          const SizedBox(height: 20),
+
+                          _buildLabel('Bio'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            key: const ValueKey('shop-bio-field'),
+                            controller: _bioController,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLines: 3,
+                            decoration: const InputDecoration(
+                              hintText: 'Short description of your shop',
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildLabel('Brand Story'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            key: const ValueKey('shop-brand-story-field'),
+                            controller: _brandStoryController,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              hintText: 'Tell your story...',
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          _buildLabel('Location'),
+                          const SizedBox(height: 8),
+                          TextFormField(
+                            controller: _locationController,
+                            onChanged: (_) => setState(() {}),
+                            decoration: const InputDecoration(
+                              hintText: 'e.g. Cape Town, South Africa',
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+
+                          _buildLabel('Upcoming Markets'),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Show buyers where they can find you next. Market dates save immediately, and only active future dates appear on your public profile.',
                             style: GoogleFonts.poppins(
-                              fontSize: 11,
+                              fontSize: 12,
                               color: AppTheme.textHint,
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 12),
+                          if (_marketEvents.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: AppTheme.sand.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'No market dates added yet',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.textPrimary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Add upcoming events so buyers know when they can meet you in person.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: AppTheme.textHint,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            ..._marketEvents.asMap().entries.map(
+                              (entry) =>
+                                  _buildMarketEventCard(entry.value, entry.key),
+                            ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () => _openMarketEventSheet(),
+                            icon: const Icon(Icons.add_rounded),
+                            label: const Text('Add Market Date'),
+                          ),
+                          const SizedBox(height: 28),
+
+                          _buildLabel('Vacation Mode'),
+                          const SizedBox(height: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: AppTheme.sand.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            // Lets the switch tile paint its ink on the card.
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: Column(
+                                children: [
+                                  SwitchListTile(
+                                    value: _isOffline,
+                                    activeThumbColor: AppTheme.terracotta,
+                                    title: Text(
+                                      'Pause my shop while I am away',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppTheme.textPrimary,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      _isOffline
+                                          ? 'Buyers can still view your shop, but the storefront is marked as offline.'
+                                          : 'Turn this on when you need to put the store into vacation mode.',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        color: AppTheme.textHint,
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {
+                                        _isOffline = value;
+                                        if (!value) {
+                                          _backToWorkDate = null;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  if (_isOffline) ...[
+                                    Divider(
+                                      height: 1,
+                                      color: AppTheme.sand.withValues(
+                                        alpha: 0.5,
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        14,
+                                        16,
+                                        16,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Back to work date',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppTheme.textPrimary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  _backToWorkDate != null
+                                                      ? '${_backToWorkDate!.day}/${_backToWorkDate!.month}/${_backToWorkDate!.year}'
+                                                      : 'Optional. Let customers know when you expect to return.',
+                                                  style: GoogleFonts.poppins(
+                                                    fontSize: 12,
+                                                    color: AppTheme.textHint,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          OutlinedButton(
+                                            onPressed: () async {
+                                              final now = DateTime.now();
+                                              final picked =
+                                                  await showDatePicker(
+                                                    context: context,
+                                                    initialDate:
+                                                        _backToWorkDate ?? now,
+                                                    firstDate: DateTime(
+                                                      now.year,
+                                                      now.month,
+                                                      now.day,
+                                                    ),
+                                                    lastDate: DateTime(
+                                                      now.year + 2,
+                                                    ),
+                                                  );
+                                              if (picked != null) {
+                                                setState(
+                                                  () =>
+                                                      _backToWorkDate = picked,
+                                                );
+                                              }
+                                            },
+                                            child: const Text('Choose date'),
+                                          ),
+                                          if (_backToWorkDate != null) ...[
+                                            const SizedBox(width: 8),
+                                            IconButton(
+                                              onPressed: () {
+                                                setState(
+                                                  () => _backToWorkDate = null,
+                                                );
+                                              },
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                                color: AppTheme.textHint,
+                                              ),
+                                              tooltip: 'Clear date',
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 36),
+
+                          // ── Shipping & Delivery ────────────────────────────
+                          _buildLabel('Shipping & Delivery'),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Choose which methods you offer and set your own price for each.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: AppTheme.cardBg,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: AppTheme.borderColor),
+                            ),
+                            child: Material(
+                              type: MaterialType.transparency,
+                              child: SwitchListTile.adaptive(
+                                value: _combinedShippingEnabled,
+                                activeTrackColor: AppTheme.terracotta,
+                                onChanged: (value) => setState(
+                                  () => _combinedShippingEnabled = value,
+                                ),
+                                title: Text(
+                                  'Combine shipping for one order',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.textPrimary,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Recommended. Buyers pay one delivery fee when ordering multiple products from your shop. We use the highest applicable rate. Turn this off only when every item must ship separately.',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 11,
+                                    color: AppTheme.textHint,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const ShippingRatesReferenceCard(),
+                          const SizedBox(height: 12),
+                          ..._shippingOptions.map(
+                            (opt) => _buildShippingOptionCard(opt),
+                          ),
+                          const SizedBox(height: 12),
+                          ..._buildBobGoSection(shopAsync.asData?.value?.id),
+                        ],
                       ),
-                      const SizedBox(height: 12),
-                      const ShippingRatesReferenceCard(),
-                      const SizedBox(height: 12),
-                      ..._shippingOptions.map(
-                        (opt) => _buildShippingOptionCard(opt),
-                      ),
-                      const SizedBox(height: 12),
-                      ..._buildBobGoSection(shopAsync.asData?.value?.id),
-                    ],
+                    ),
                   ),
-                ),
-                _StickySaveBar(
-                  isLoading: _isLoading,
-                  onSave: _isLoading ? null : _save,
-                ),
-              ],
+                  if (keyboardVisible)
+                    const KeyboardDoneBar()
+                  else
+                    _StickySaveBar(
+                      isLoading: _isLoading,
+                      onSave: _isLoading ? null : _save,
+                    ),
+                ],
+              ),
             ),
           ),
           loading: () => const Center(
@@ -1627,11 +1667,14 @@ class _VendorShopSettingsScreenState
                       ),
                       const SizedBox(width: 8),
                       if (opt.key == 'market_pickup')
-                        Text(
-                          '(free pickup)',
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: AppTheme.textHint,
+                        Flexible(
+                          child: Text(
+                            '(free pickup)',
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: AppTheme.textHint,
+                            ),
                           ),
                         ),
                     ],
@@ -1705,7 +1748,8 @@ class _VendorShopSettingsScreenState
   /// Courier (Bob Go) collection details. Hidden until the server flag is on.
   List<Widget> _buildBobGoSection(String? shopId) {
     if (shopId == null) return const [];
-    final enabled = ref.watch(bobGoServerEnabledProvider).asData?.value ?? false;
+    final enabled =
+        ref.watch(bobGoServerEnabledProvider).asData?.value ?? false;
     if (!enabled) return const [];
     final profile = ref.watch(shopFulfillmentProfileProvider(shopId));
     return [

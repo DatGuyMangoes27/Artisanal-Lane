@@ -17,6 +17,7 @@ import '../providers/buyer_providers.dart';
 import '../providers/discover_feed_provider.dart';
 import '../providers/favourite_actions.dart';
 import '../utils/discover_deck.dart';
+import '../utils/discover_taste.dart';
 import '../utils/discovery_preferences.dart';
 import '../utils/discovery_remote_store.dart';
 import '../widgets/creator_commerce_header.dart';
@@ -38,8 +39,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   bool _isDragging = false;
   bool _isDismissing = false;
   bool _isUndoing = false;
-  Product? _lastSwipedProduct;
+  _LastSwipe? _lastSwipe;
   String? _restoreToFrontId;
+
+  /// The card currently on top. Kept on top across rebuilds until it is
+  /// swiped, so a Save (which re-tunes the ranking) never swaps the card
+  /// out from under the buyer's thumb.
+  String? _shownId;
 
   /// Cards swiped while the deck is recycling already-reviewed pieces; see
   /// [buildDiscoverDeck].
@@ -63,8 +69,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   /// Clears per-session deck position so a new set of preferences (or a new
   /// buyer) starts from the top of a freshly built deck.
   void _resetDeckState() {
-    _lastSwipedProduct = null;
+    _lastSwipe = null;
     _restoreToFrontId = null;
+    _shownId = null;
     _recycleCursor = 0;
   }
 
@@ -138,6 +145,16 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     if (_isDismissing) return;
     final liked = direction > 0;
     final decisionUserId = ref.read(currentUserIdProvider);
+    // What the buyer had decided before this swipe (only recycled cards
+    // have one), so undo can put it back exactly as it was.
+    final before = ref.read(discoveryPreferencesProvider).value;
+    final previousDecision = before == null
+        ? null
+        : before.likedProductIds.contains(product.id)
+        ? true
+        : before.skippedProductIds.contains(product.id)
+        ? false
+        : null;
     HapticFeedback.lightImpact();
     setState(() {
       _isDragging = false;
@@ -169,42 +186,65 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
       if (mounted) _message('Could not save that choice. Please try again.');
     } finally {
       if (mounted) {
+        // A loved item should be easy to find again: save it to favourites
+        // too, best-effort, when the buyer is signed in. Guests aren't
+        // interrupted with a sign-in prompt mid-swipe.
+        final autoSave =
+            savedProduct != null &&
+            liked &&
+            ref.read(currentUserIdProvider) != null &&
+            !ref.read(isFavouriteProvider(product.id));
         setState(() {
           _dragOffset = Offset.zero;
           _isDismissing = false;
           if (savedProduct != null) {
-            _lastSwipedProduct = savedProduct;
+            _shownId = null;
+            _lastSwipe = _LastSwipe(
+              product: savedProduct,
+              previousDecision: previousDecision,
+              recycled: recycled,
+              autoSaved: autoSave,
+            );
             // Recycled cards are already decided, so the decision alone
             // doesn't move the deck on; advance the recycle position.
             if (recycled) _recycleCursor++;
           }
         });
-        // A loved item should be easy to find again: save it to favourites
-        // too, best-effort, when the buyer is signed in. Guests aren't
-        // interrupted with a sign-in prompt mid-swipe.
-        if (savedProduct != null && liked) {
-          final uid = ref.read(currentUserIdProvider);
-          if (uid != null && !ref.read(isFavouriteProvider(product.id))) {
-            unawaited(toggleFavourite(ref, context, product.id));
-          }
+        if (autoSave) {
+          unawaited(toggleFavourite(ref, context, product.id));
         }
       }
     }
   }
 
+  /// Takes back the last swipe: the card returns to the top, its earlier
+  /// decision (if it had one) is restored, and the counter steps back.
   Future<void> _undo() async {
-    final product = _lastSwipedProduct;
-    if (product == null || _isUndoing) return;
+    final swipe = _lastSwipe;
+    if (swipe == null || _isUndoing) return;
+    final product = swipe.product;
     setState(() => _isUndoing = true);
     try {
-      await ref
-          .read(discoveryPreferencesProvider.notifier)
-          .undoDecision(product.id);
+      final notifier = ref.read(discoveryPreferencesProvider.notifier);
+      final previous = swipe.previousDecision;
+      if (previous == null) {
+        await notifier.undoDecision(product.id);
+      } else {
+        await notifier.recordDecision(product.id, liked: previous);
+      }
       if (!mounted) return;
       setState(() {
         _restoreToFrontId = product.id;
-        _lastSwipedProduct = null;
+        _shownId = null;
+        _lastSwipe = null;
+        // The recycled pass moved on by one card for this swipe; step back
+        // so the same card is on top and the counter goes down, not up.
+        if (swipe.recycled && _recycleCursor > 0) _recycleCursor--;
       });
+      // Undo the automatic save that came with "Love it".
+      if (swipe.autoSaved && ref.read(isFavouriteProvider(product.id))) {
+        unawaited(toggleFavourite(ref, context, product.id));
+      }
       HapticFeedback.lightImpact();
     } catch (_) {
       if (mounted) _message("Couldn't undo that. Please try again.");
@@ -218,7 +258,10 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   );
 
   Future<void> _refresh() async {
-    setState(() => _recycleCursor = 0);
+    setState(() {
+      _recycleCursor = 0;
+      _shownId = null;
+    });
     ref.invalidate(discoverFeedProvider);
     ref.invalidate(discoveryPreferencesProvider);
     await Future.wait([
@@ -238,6 +281,13 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     final products = ref.watch(discoverFeedProvider);
     final categories = ref.watch(categoriesProvider);
     final preferences = ref.watch(discoveryPreferencesProvider);
+    final savedProducts =
+        ref.watch(favouriteProductsProvider).value ?? const <Product>[];
+    final savedIds = ref.watch(currentFavouriteIdsProvider).toSet();
+    final categoryNames = {
+      for (final category in categories.value ?? const <Category>[])
+        category.id: category.name,
+    };
     return Scaffold(
       backgroundColor: AppTheme.scaffoldBg,
       appBar: PreferredSize(
@@ -275,6 +325,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
               prefs,
               canLoadMore: feed.hasMore,
               recycleCursor: _recycleCursor,
+              taste: discoverTasteFor(
+                feed.products,
+                prefs,
+                savedProducts: savedProducts,
+                savedProductIds: savedIds,
+              ),
             );
             final recycled = deck.mode == DiscoverDeckMode.recycled;
             // Keep the pool topped up: fetch the next page as the fresh
@@ -291,37 +347,42 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
             }
             var ranked = [...deck.items];
             // Undo just brought a card back: show it next rather than
-            // wherever it happens to rank.
-            if (_restoreToFrontId != null) {
-              final idx = ranked.indexWhere(
-                (product) => product.id == _restoreToFrontId,
-              );
+            // wherever it happens to rank. Otherwise keep the card that is
+            // already showing on top while the ranking re-tunes around it.
+            final frontId = _restoreToFrontId ?? _shownId;
+            if (frontId != null) {
+              final idx = ranked.indexWhere((product) => product.id == frontId);
               if (idx > 0) {
                 final restored = ranked.removeAt(idx);
                 ranked = [restored, ...ranked];
               } else if (idx == -1) {
                 _restoreToFrontId = null;
+                _shownId = null;
               }
             }
+            void tune() => _showPreferences(
+              categories.value ?? const [],
+              prefs,
+              categoryNames,
+            );
             if (ranked.isEmpty) {
               return _DiscoverEmpty(
                 onShowEverything: _showEverything,
-                onTune: () =>
-                    _showPreferences(categories.value ?? const [], prefs),
+                onTune: tune,
                 onBrowseShop: () => context.push('/home/shop-all'),
               );
             }
             final deckTotal = deck.total;
-            final reviewedCount = deck.reviewed.clamp(0, deckTotal);
-            final intro = switch (deck.mode) {
-              DiscoverDeckMode.beyondBudget =>
-                "You've seen everything within your budget, so here are more pieces just above it.",
-              DiscoverDeckMode.recycled =>
-                "You're all caught up on new pieces. Here's another look at ones you've seen, in a fresh order.",
-              _ =>
-                'Choose what fits. Your category, budget and swipe choices shape this order.',
-            };
+            final position = deck.position;
+            // More pages may still add pieces to the first round.
+            final totalMayGrow =
+                feed.hasMore && deck.mode == DiscoverDeckMode.fresh;
+            final intro = discoverRoundIntro(
+              deck.mode,
+              hasChosenCategories: prefs.categoryIds.isNotEmpty,
+            );
             final product = ranked.first;
+            _shownId = product.id;
             final nextProduct = ranked.length > 1 ? ranked[1] : null;
             final compact = MediaQuery.sizeOf(context).height < 640;
             final isFavourite = ref.watch(isFavouriteProvider(product.id));
@@ -329,8 +390,12 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
               top: false,
               child: Column(
                 children: [
+                  _ChoicesSummary(
+                    label: discoverChoicesSummary(prefs, categoryNames),
+                    onTap: tune,
+                  ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, compact ? 8 : 12),
                     child: Row(
                       children: [
                         Expanded(
@@ -349,7 +414,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                         IconButton(
                           tooltip: 'Undo last swipe',
                           visualDensity: VisualDensity.compact,
-                          onPressed: _lastSwipedProduct == null || _isUndoing
+                          onPressed: _lastSwipe == null || _isUndoing
                               ? null
                               : _undo,
                           icon: const Icon(Icons.undo_rounded, size: 20),
@@ -363,7 +428,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                           color: AppTheme.textSecondary,
                         ),
                         Text(
-                          '${(reviewedCount + 1).clamp(1, deckTotal)} of $deckTotal',
+                          '$position of $deckTotal${totalMayGrow ? '+' : ''}',
+                          key: const Key('discover-counter'),
                           style: GoogleFonts.poppins(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -377,7 +443,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                     child: LinearProgressIndicator(
                       value: deckTotal == 0
                           ? 0
-                          : ((reviewedCount + 1) / deckTotal).clamp(0.0, 1.0),
+                          : (position / deckTotal).clamp(0.0, 1.0),
                       minHeight: 5,
                       borderRadius: BorderRadius.circular(4),
                       backgroundColor: AppTheme.clay,
@@ -440,8 +506,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                   ),
                   if (!compact)
                     TextButton.icon(
-                      onPressed: () =>
-                          _showPreferences(categories.value ?? const [], prefs),
+                      onPressed: tune,
                       icon: const Icon(Icons.tune, size: 17),
                       label: const Text('Tune my preferences'),
                     )
@@ -449,10 +514,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                     Center(
                       child: IconButton(
                         tooltip: 'Tune my preferences',
-                        onPressed: () => _showPreferences(
-                          categories.value ?? const [],
-                          prefs,
-                        ),
+                        onPressed: tune,
                         icon: const Icon(Icons.tune),
                       ),
                     ),
@@ -469,6 +531,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   Future<void> _showPreferences(
     List<Category> categories,
     DiscoveryPreferences preferences,
+    Map<String, String> categoryNames,
   ) async {
     final chosen = {...preferences.categoryIds};
     double? budget = preferences.maxBudget;
@@ -563,7 +626,43 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                         )
                         .toList(),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
+                  // Says in plain words what saving will do to the deck.
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bone,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_outlined,
+                          size: 16,
+                          color: AppTheme.terracotta,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            discoverChoicesPreview(
+                              chosen,
+                              budget,
+                              categoryNames,
+                            ),
+                            key: const Key('discover-sheet-preview'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textPrimary,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -607,6 +706,84 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
       ),
     );
   }
+}
+
+/// The last swipe, kept so undo can reverse it exactly.
+class _LastSwipe {
+  const _LastSwipe({
+    required this.product,
+    required this.previousDecision,
+    required this.recycled,
+    required this.autoSaved,
+  });
+  final Product product;
+
+  /// The decision the card had before the swipe: true = loved,
+  /// false = skipped, null = undecided (a fresh card).
+  final bool? previousDecision;
+
+  /// Whether the swipe advanced the recycled pass.
+  final bool recycled;
+
+  /// Whether "Love it" also saved the piece to favourites.
+  final bool autoSaved;
+}
+
+/// Always-visible line stating what the buyer's choices are doing to the
+/// deck ("Showing Baby & Kids · up to R1000"); tap to tune.
+class _ChoicesSummary extends StatelessWidget {
+  const _ChoicesSummary({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(14, 0, 14, 2),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: Semantics(
+        button: true,
+        label: '$label. Tune Discover',
+        excludeSemantics: true,
+        child: InkWell(
+          key: const Key('discover-choices-summary'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.tune, size: 14, color: AppTheme.terracotta),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Edit',
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.terracotta,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _DiscoveryCard extends StatelessWidget {

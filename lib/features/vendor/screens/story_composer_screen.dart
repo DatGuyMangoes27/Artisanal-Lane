@@ -14,6 +14,7 @@ import '../../buyer/providers/story_providers.dart';
 import '../../buyer/widgets/story_media.dart';
 import '../../safety/community_guidelines_gate.dart';
 import '../../safety/content_filter.dart';
+import '../widgets/seller_hub.dart' show kStoryPlacementNote;
 
 class StoryComposerScreen extends ConsumerStatefulWidget {
   const StoryComposerScreen({super.key, required this.shop});
@@ -149,6 +150,14 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
       ref.invalidate(storiesProvider);
       _dirty = false;
       HapticFeedback.mediumImpact();
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+            'Story shared. It shows at the top of the Feed for 24 hours.',
+          ),
+        ),
+      );
       Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
@@ -268,6 +277,18 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
                           Text(
                             'A moment from your workshop',
                             style: TextStyle(color: Colors.white70),
+                          ),
+                          SizedBox(height: 8),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              kStoryPlacementNote,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -422,6 +443,18 @@ class _StoryComposerScreenState extends ConsumerState<StoryComposerScreen> {
                         ),
                       ],
                     ),
+                    if (_file != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        kStoryPlacementNote,
+                        key: const ValueKey('story-placement-note'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,

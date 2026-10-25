@@ -236,6 +236,122 @@ void main() {
     expect(find.text('Silver ring'), findsOneWidget);
   });
 
+  String counter(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const Key('discover-counter'))).data!;
+
+  Future<void> undo(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Undo last swipe'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('undo steps the counter back instead of up', (tester) async {
+    await pumpDiscover(
+      tester,
+      products: [
+        product('a', 'Piece A'),
+        product(
+          'b',
+          'Piece B',
+          createdAt: now.subtract(const Duration(days: 1)),
+        ),
+        product(
+          'c',
+          'Piece C',
+          createdAt: now.subtract(const Duration(days: 2)),
+        ),
+      ],
+    );
+    expect(counter(tester), '1 of 3');
+    await swipeRight(tester);
+    expect(counter(tester), '2 of 3');
+    await swipeRight(tester);
+    expect(counter(tester), '3 of 3');
+
+    await undo(tester);
+    expect(counter(tester), '2 of 3');
+    expect(find.text('Piece B'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('undo while recycling seen pieces steps back too, keeping the '
+      'earlier decision', (tester) async {
+    await pumpDiscover(
+      tester,
+      products: [
+        product('one', 'First real piece'),
+        product(
+          'two',
+          'Second real piece',
+          createdAt: now.subtract(const Duration(days: 1)),
+        ),
+      ],
+    );
+    await swipeRight(tester);
+    await swipeRight(tester);
+    expect(find.textContaining('another look'), findsOneWidget);
+    expect(counter(tester), '1 of 2');
+    final top = tester
+        .widgetList<Text>(find.textContaining('real piece'))
+        .first
+        .data;
+
+    await swipeRight(tester);
+    expect(counter(tester), '2 of 2');
+
+    await undo(tester);
+    // Previously this jumped to "2 of 2" (and lost the decision); now it
+    // goes back to the same card in the same round.
+    expect(counter(tester), '1 of 2');
+    expect(find.textContaining('another look'), findsOneWidget);
+    expect(find.text(top!), findsWidgets);
+  });
+
+  testWidgets('chosen categories lead alone, with an obvious summary, then a '
+      'labelled fallback round', (tester) async {
+    await pumpDiscover(
+      tester,
+      categories: [
+        Category(id: 'home', name: 'Home', slug: 'home', createdAt: now),
+        Category(id: 'kids', name: 'Baby & Kids', slug: 'kids', createdAt: now),
+      ],
+      products: [
+        product(
+          'vase',
+          'Newest vase',
+          createdAt: now.add(const Duration(days: 1)),
+        ),
+        product('rattle', 'Wooden rattle', categoryId: 'kids'),
+      ],
+    );
+    expect(find.text('Showing everything · any price'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('discover-choices-summary')));
+    await tester.pumpAndSettle();
+    expect(find.text('Tune Discover'), findsOneWidget);
+    await tester.tap(find.text('Baby & Kids'));
+    await tester.tap(find.text('Up to R1000'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.byKey(const Key('discover-sheet-preview'))).data,
+      contains('only Baby & Kids up to R1000'),
+    );
+    await tester.tap(find.byKey(const Key('discover-save-preferences')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Showing Baby & Kids · up to R1000'), findsOneWidget);
+    expect(find.text('Wooden rattle'), findsOneWidget);
+    expect(find.text('Newest vase'), findsNothing);
+    expect(counter(tester), '1 of 1');
+
+    await swipeRight(tester);
+    expect(find.text('Newest vase'), findsOneWidget);
+    expect(
+      find.textContaining('More in your budget from other categories'),
+      findsOneWidget,
+    );
+    expect(counter(tester), '1 of 1');
+  });
+
   testWidgets('"all caught up" only shows with no products, and its buttons '
       'do not clip at large text sizes', (tester) async {
     await pumpDiscover(tester, products: const [], textScale: 1.15);

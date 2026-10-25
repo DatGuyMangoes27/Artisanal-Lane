@@ -10,6 +10,7 @@ import '../../../widgets/unread_messages_fab.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../buyer/providers/buyer_providers.dart'
     show notificationsStreamProvider;
+import '../widgets/seller_hub.dart';
 import '../widgets/stationery_sheet_header.dart';
 import '../widgets/workspace/workspace_header.dart';
 import '../widgets/workspace/workspace_stat_tile.dart';
@@ -296,6 +297,33 @@ class _DashboardContent extends ConsumerWidget {
                       ),
                       const SizedBox(height: 24),
 
+                      // Create & grow: the same seller tools as the You
+                      // tab's Selling hub, so they are easy to find here too.
+                      Text(
+                        'Create & grow',
+                        style: GoogleFonts.playfairDisplay(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SellerToolTiles(
+                        onAddProduct: () => _handleAddProductTap(
+                          context,
+                          payoutReady,
+                          subscriptionActive,
+                          targetRoute: '/create/product',
+                        ),
+                        onPhotoEnhancer: () => _handleAddProductTap(
+                          context,
+                          payoutReady,
+                          subscriptionActive,
+                          targetRoute: '/create/product',
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
                       // Stats
                       earningsAsync.when(
                         data: (earnings) => _buildStatsRow(
@@ -321,54 +349,16 @@ class _DashboardContent extends ConsumerWidget {
                       ),
                       const SizedBox(height: 28),
 
-                      // Quick actions
-                      Text(
-                        'Quick actions',
-                        style: GoogleFonts.playfairDisplay(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
+                      // More tools
                       Row(
                         children: [
-                          Expanded(
-                            child: _buildActionCard(
-                              context,
-                              Icons.add_circle_outline,
-                              'Add product',
-                              AppTheme.baobab,
-                              () => _handleAddProductTap(
-                                context,
-                                payoutReady,
-                                subscriptionActive,
-                                targetRoute: '/create/product',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
                           Expanded(
                             child: _buildActionCard(
                               context,
                               Icons.edit_note_rounded,
-                              'New post',
+                              'My posts',
                               AppTheme.ochre,
-                              () => context.push('/create/post'),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildActionCard(
-                              context,
-                              Icons.auto_stories_outlined,
-                              'New story',
-                              AppTheme.terracotta,
-                              () => context.push('/create/story', extra: shop),
+                              () => context.push('/vendor/profile/posts'),
                             ),
                           ),
                           const SizedBox(width: 12),

@@ -32,10 +32,11 @@ class AppConstants {
   static const String shopBrandingBucket = 'shop-branding';
   static const String avatarsBucket = 'avatars';
 
-  // Shipping methods
+  // Shipping methods artisans can offer. Courier Guy door-to-door was retired
+  // in favour of Bob Go door-to-door; past orders keep their label through
+  // Order.shippingMethodDisplay and ShippingOption's catalogue.
   static const Map<String, String> shippingMethods = {
     'courier_guy': 'Pudo Locker (Courier Guy)',
-    'courier_guy_door_to_door': 'Courier Guy Door to Door',
     'pargo': 'Pargo',
     'market_pickup': 'Market Pickup',
   };

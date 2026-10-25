@@ -8,6 +8,7 @@ import {
   getMarketplaceProducts,
   getMarketplaceProductsByIds,
   getMarketplaceShop,
+  getMarketplaceShops,
 } from "./catalog";
 
 vi.mock("server-only", () => ({}));
@@ -440,5 +441,50 @@ describe("marketplace catalog helpers", () => {
     expect(supabase.queries[0].calls).toContainEqual(["range", 24, 48]);
     expect(supabase.queries[0].calls).toContainEqual(["eq", "shops.is_publicly_listed", true]);
     expect(supabase.queries[0].calls).toContainEqual(["is", "archived_at", null]);
+  });
+
+  it("lists only publicly listed shops for the directory with cover and count", async () => {
+    const shopRow = (id: string, name: string, cover: string | null) => ({
+      id,
+      vendor_id: null,
+      name,
+      slug: `${id}-slug`,
+      bio: null,
+      brand_story: null,
+      logo_url: `https://cdn.example.com/${id}-logo.jpg`,
+      cover_image_url: cover,
+      location: "Durban",
+      is_offline: false,
+      is_spotlight: false,
+      shipping_options: [],
+      vendor: null,
+    });
+    const supabase = createSupabaseMock([
+      {
+        data: [
+          shopRow("shop-b", "Blackreefforge", "https://cdn.example.com/cover.jpg"),
+          shopRow("shop-a", "Amber Weaves", null),
+        ],
+        error: null,
+      },
+      {
+        data: [
+          { id: "p1", shop_id: "shop-b" },
+          { id: "p2", shop_id: "shop-b" },
+        ],
+        error: null,
+      },
+    ]);
+    vi.mocked(createClient).mockResolvedValue(supabase as unknown as SupabaseClientMock);
+
+    const shops = await getMarketplaceShops(1000);
+
+    expect(supabase.from).toHaveBeenNthCalledWith(1, "shops");
+    expect(supabase.queries[0].calls).toContainEqual(["eq", "is_publicly_listed", true]);
+    expect(supabase.queries[1].calls).toContainEqual(["eq", "shops.is_publicly_listed", true]);
+    expect(shops.map((shop) => [shop.name, shop.coverImageUrl, shop.productCount])).toEqual([
+      ["Amber Weaves", null, 0],
+      ["Blackreefforge", "https://cdn.example.com/cover.jpg", 2],
+    ]);
   });
 });

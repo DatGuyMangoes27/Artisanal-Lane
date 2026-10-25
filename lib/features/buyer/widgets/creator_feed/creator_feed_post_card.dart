@@ -703,12 +703,19 @@ class _PostMedia extends StatelessWidget {
 }
 
 /// Static "watch video" placeholder: used when videos aren't autoplay-able
-/// (feature flag off) and as the loading state before playback starts.
+/// (feature flag off), as the loading state before playback starts, and as
+/// the tap-to-retry state when a video could not be loaded.
 class _VideoThumb extends StatelessWidget {
-  const _VideoThumb({required this.onTap, this.keyName, this.loading = false});
+  const _VideoThumb({
+    required this.onTap,
+    this.keyName,
+    this.loading = false,
+    this.failed = false,
+  });
   final VoidCallback onTap;
   final String? keyName;
   final bool loading;
+  final bool failed;
 
   @override
   Widget build(BuildContext context) => InkWell(
@@ -729,13 +736,19 @@ class _VideoThumb extends StatelessWidget {
                     strokeWidth: 2.5,
                   ),
                 )
-              : const Icon(
-                  Icons.play_circle_outline_rounded,
+              : Icon(
+                  failed
+                      ? Icons.refresh_rounded
+                      : Icons.play_circle_outline_rounded,
                   size: 54,
                   color: Colors.white,
                 ),
           const SizedBox(height: 8),
-          const Text('Watch video', style: TextStyle(color: Colors.white)),
+          Text(
+            failed ? "Video didn't load. Tap to try again" : 'Watch video',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
         ],
       ),
     ),
@@ -764,7 +777,6 @@ class _InlineFeedVideo extends ConsumerStatefulWidget {
 
 class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
   VideoPlayerController? _controller;
-  String? _resolvedUrl;
   Object? _error;
   var _loading = false;
 
@@ -773,7 +785,6 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
   @override
   void initState() {
     super.initState();
-    _resolvedUrl = _isPrivate ? null : widget.raw;
     // A card rebuilt while its post is already the active one (e.g. scrolled
     // back into view) gets no change notification, so start it here instead
     // of leaving it on a spinner.
@@ -790,7 +801,6 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.raw != widget.raw) {
       _disposeController();
-      _resolvedUrl = _isPrivate ? null : widget.raw;
       _error = null;
     }
   }
@@ -804,8 +814,34 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
   void _disposeController() {
     final controller = _controller;
     _controller = null;
+    controller?.removeListener(_onControllerChanged);
     controller?.pause();
     controller?.dispose();
+  }
+
+  /// Playback can still fail after a successful initialize (dropped
+  /// connection, decoder error). Surface it as the retry state instead of a
+  /// frozen frame.
+  void _onControllerChanged() {
+    final controller = _controller;
+    if (!mounted || controller == null || !controller.value.hasError) return;
+    _disposeController();
+    setState(() => _error = 'Playback failed');
+  }
+
+  /// Private videos are signed for a few minutes only, so a fresh URL is
+  /// requested on every activation rather than reusing one that may have
+  /// expired while the post was scrolled away.
+  Future<String> _playableUrl() async {
+    final url = _isPrivate
+        ? await CreatorPostMediaRepository(
+            Supabase.instance.client,
+          ).signedUrlFor(widget.raw)
+        : widget.raw;
+    if (url == null || !isCreatorFeedHttpsUrl(url)) {
+      throw StateError('Video unavailable');
+    }
+    return url;
   }
 
   Future<void> _activate() async {
@@ -814,20 +850,11 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
       _loading = true;
       _error = null;
     });
+    VideoPlayerController? controller;
     try {
-      var url = _resolvedUrl;
-      if (url == null) {
-        url = _isPrivate
-            ? await CreatorPostMediaRepository(
-                Supabase.instance.client,
-              ).signedUrlFor(widget.raw)
-            : widget.raw;
-        if (url == null || !isCreatorFeedHttpsUrl(url)) {
-          throw StateError('Video unavailable');
-        }
-        _resolvedUrl = url;
-      }
-      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      final url = await _playableUrl();
+      if (!mounted) return;
+      controller = VideoPlayerController.networkUrl(Uri.parse(url));
       await controller.initialize();
       if (!mounted ||
           ref.read(activeFeedVideoPostIdProvider) != widget.postId) {
@@ -844,8 +871,14 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
         await controller.dispose();
         return;
       }
+      controller.addListener(_onControllerChanged);
       setState(() => _controller = controller);
     } catch (error) {
+      // A controller that failed to initialize is never handed to the
+      // widget, so release its native player here.
+      if (controller != null && controller != _controller) {
+        await controller.dispose().catchError((_) {});
+      }
       if (mounted) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -895,7 +928,11 @@ class _InlineFeedVideoState extends ConsumerState<_InlineFeedVideo> {
               ),
             )
           else if (_error != null)
-            _VideoThumb(onTap: widget.onOpenFullScreen)
+            _VideoThumb(
+              keyName: 'retry-inline-creator-feed-video',
+              onTap: _activate,
+              failed: true,
+            )
           else
             _VideoThumb(
               onTap: widget.onOpenFullScreen,

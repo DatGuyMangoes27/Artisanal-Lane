@@ -147,6 +147,9 @@ class _BobGoCollectionSectionState extends State<BobGoCollectionSection> {
       key: fieldKey,
       controller: controller,
       keyboardType: keyboardType,
+      // "Next" moves down the form; the screen keeps each focused field in
+      // view above the keyboard (RevealFocusedField in shop settings).
+      textInputAction: TextInputAction.next,
       style: GoogleFonts.poppins(fontSize: 15, color: AppTheme.textPrimary),
       decoration: _decoration(label),
     ),
@@ -186,18 +189,18 @@ class _BobGoCollectionSectionState extends State<BobGoCollectionSection> {
           Material(
             type: MaterialType.transparency,
             child: SwitchListTile.adaptive(
-            key: const ValueKey('bobgo-enabled-switch'),
-            contentPadding: EdgeInsets.zero,
-            activeTrackColor: AppTheme.terracotta,
-            title: Text(
-              'Offer Bob Go delivery',
-              style: GoogleFonts.poppins(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              key: const ValueKey('bobgo-enabled-switch'),
+              contentPadding: EdgeInsets.zero,
+              activeTrackColor: AppTheme.terracotta,
+              title: Text(
+                'Offer Bob Go delivery',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            value: _enabled,
-            onChanged: (value) => setState(() => _enabled = value),
+              value: _enabled,
+              onChanged: (value) => setState(() => _enabled = value),
             ),
           ),
           const SizedBox(height: 8),

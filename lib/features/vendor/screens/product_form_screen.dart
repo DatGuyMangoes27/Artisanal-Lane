@@ -15,6 +15,7 @@ import '../../../core/constants/feature_flags.dart';
 import '../../../core/ui/friendly_error.dart';
 import '../../../models/models.dart';
 import '../../../widgets/gradient_button.dart';
+import '../../../widgets/keyboard_aware_form.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/bobgo_vendor_providers.dart';
 import '../providers/vendor_providers.dart';
@@ -1560,7 +1561,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
       final service = ref.read(supabaseServiceProvider);
       final shop = await ref.read(vendorShopProvider.future);
-      if (shop == null) throw Exception("Your shop isn't set up yet. Please contact Artisan Lane support.");
+      if (shop == null) {
+        throw Exception(
+          "Your shop isn't set up yet. Please contact Artisan Lane support.",
+        );
+      }
 
       final List<Map<String, dynamic>> variantPayloads;
       final List<Map<String, dynamic>> optionGroups;
@@ -2014,677 +2019,730 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         if (didPop || _isLoading) return;
         if (await _confirmDiscard() && mounted) this.context.pop();
       },
-      child: Scaffold(
-        backgroundColor: AppTheme.scaffoldBg,
-        appBar: AppBar(
+      // While typing, the save bar gives way to a slim Done bar and the
+      // focused field is scrolled fully into view above the keyboard.
+      child: KeyboardVisibilityBuilder(
+        builder: (_, keyboardVisible) => Scaffold(
           backgroundColor: AppTheme.scaffoldBg,
-          leading: IconButton(
-            icon: const Icon(Icons.close_rounded, size: 22),
-            tooltip: 'Close',
-            onPressed: _isLoading ? null : _handleClose,
-          ),
-          title: Text(
-            _isEditing ? 'Edit Product' : 'New Product',
-            style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
-          ),
-          actions: _isEditing
-              ? [
-                  IconButton(
-                    tooltip: 'Delete product',
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: AppTheme.error,
-                    ),
-                    onPressed: _isLoading || internalEditorTestMode
-                        ? null
-                        : _confirmDeleteProduct,
-                  ),
-                  const SizedBox(width: 4),
-                ]
-              : null,
-        ),
-        body: Form(
-          key: _formKey,
-          child: ListView(
-            controller: _scrollController,
-            padding: const EdgeInsets.all(24),
-            children: [
-              if (_formError != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppTheme.error.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
+          appBar: AppBar(
+            backgroundColor: AppTheme.scaffoldBg,
+            leading: IconButton(
+              icon: const Icon(Icons.close_rounded, size: 22),
+              tooltip: 'Close',
+              onPressed: _isLoading ? null : _handleClose,
+            ),
+            title: Text(
+              _isEditing ? 'Edit Product' : 'New Product',
+              style: GoogleFonts.playfairDisplay(fontWeight: FontWeight.w600),
+            ),
+            actions: _isEditing
+                ? [
+                    IconButton(
+                      tooltip: 'Delete product',
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
                         color: AppTheme.error,
-                        size: 18,
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          _formError!,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            color: AppTheme.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              if (internalEditorTestMode) ...[
-                Container(
-                  key: const Key('internal-product-editor-test-mode'),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppTheme.sand.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppTheme.baobab.withValues(alpha: 0.4),
+                      onPressed: _isLoading || internalEditorTestMode
+                          ? null
+                          : _confirmDeleteProduct,
                     ),
-                  ),
-                  child: Text(
-                    'Internal product-editor test mode: local photo tools only. '
-                    'Publishing and saving are disabled.',
-                    style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                      height: 1.45,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-              if (creatorCommerceEnabled) ...[
-                _buildListingReadiness(),
-                const SizedBox(height: 20),
-              ],
-
-              // ── Photos section ──────────────────────────────────
-              _buildLabel(_hasOptions ? 'Fallback Photos' : 'Product Photos'),
-              const SizedBox(height: 4),
-              Text(
-                _hasOptions
-                    ? '$totalImages/8 photos added · used when no option photos are set · drag to reorder · first photo is the cover'
-                    : '$totalImages/8 photos added · drag to reorder · first photo is the cover',
-                style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: AppTheme.textHint,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 120,
-                child: ReorderableListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  buildDefaultDragHandles: false,
-                  itemCount: _photos.length + (totalImages < 8 ? 1 : 0),
-                  onReorderItem: (oldIndex, newIndex) {
-                    if (oldIndex >= _photos.length) return;
-                    _reorderPhoto(oldIndex, newIndex);
-                  },
-                  itemBuilder: (context, index) {
-                    if (index == _photos.length) {
-                      return GestureDetector(
-                        key: const ValueKey('add-product-photo'),
-                        onTap: _showImageSourcePicker,
-                        child: Container(
-                          width: 110,
-                          height: 110,
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(
-                            color: AppTheme.cardBg,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: AppTheme.sand,
-                              width: 1.5,
-                              strokeAlign: BorderSide.strokeAlignInside,
+                    const SizedBox(width: 4),
+                  ]
+                : null,
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: Form(
+                  key: _formKey,
+                  child: RevealFocusedField(
+                    child: ListView(
+                      controller: _scrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        if (_formError != null)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppTheme.error.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppTheme.error.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: AppTheme.error,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _formError!,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      color: AppTheme.error,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.baobab.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
+                        if (internalEditorTestMode) ...[
+                          Container(
+                            key: const Key('internal-product-editor-test-mode'),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppTheme.sand.withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: AppTheme.baobab.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Text(
+                              'Internal product-editor test mode: local photo tools only. '
+                              'Publishing and saving are disabled.',
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary,
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+                        if (creatorCommerceEnabled) ...[
+                          _buildListingReadiness(),
+                          const SizedBox(height: 20),
+                        ],
+
+                        // ── Photos section ──────────────────────────────────
+                        _buildLabel(
+                          _hasOptions ? 'Fallback Photos' : 'Product Photos',
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _hasOptions
+                              ? '$totalImages/8 photos added · used when no option photos are set · drag to reorder · first photo is the cover'
+                              : '$totalImages/8 photos added · drag to reorder · first photo is the cover',
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            color: AppTheme.textHint,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 120,
+                          child: ReorderableListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            buildDefaultDragHandles: false,
+                            itemCount:
+                                _photos.length + (totalImages < 8 ? 1 : 0),
+                            onReorderItem: (oldIndex, newIndex) {
+                              if (oldIndex >= _photos.length) return;
+                              _reorderPhoto(oldIndex, newIndex);
+                            },
+                            itemBuilder: (context, index) {
+                              if (index == _photos.length) {
+                                return GestureDetector(
+                                  key: const ValueKey('add-product-photo'),
+                                  onTap: _showImageSourcePicker,
+                                  child: Container(
+                                    width: 110,
+                                    height: 110,
+                                    margin: const EdgeInsets.only(right: 10),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.cardBg,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: AppTheme.sand,
+                                        width: 1.5,
+                                        strokeAlign:
+                                            BorderSide.strokeAlignInside,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.baobab.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.add_a_photo_rounded,
+                                            color: AppTheme.baobab,
+                                            size: 20,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Add Photo',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: AppTheme.baobab,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              final photo = _photos[index];
+                              return _ImageTile(
+                                key: ValueKey('photo-${photo.id}'),
+                                index: index,
+                                isCover: index == 0,
+                                onRemove: () => _removePhoto(photo),
+                                onPreview: () => _showPhotoPreview(
+                                  image: photo.isPending
+                                      ? FileImage(photo.file!)
+                                      : CachedNetworkImageProvider(photo.url!),
+                                  label: photo.isPending
+                                      ? 'New product photo ${index + 1}'
+                                      : 'Product photo ${index + 1}',
                                 ),
-                                child: const Icon(
-                                  Icons.add_a_photo_rounded,
-                                  color: AppTheme.baobab,
-                                  size: 20,
+                                onEdit: photo.isPending
+                                    ? () => _editPhotoCrop(photo)
+                                    : null,
+                                isPending: photo.isPending,
+                                child: photo.isPending
+                                    ? Image.file(photo.file!, fit: BoxFit.cover)
+                                    : CachedNetworkImage(
+                                        imageUrl: photo.url!,
+                                        fit: BoxFit.cover,
+                                        placeholder: (_, __) => const Center(
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        ),
+                                        errorWidget: (_, __, ___) => const Icon(
+                                          Icons.broken_image,
+                                          color: AppTheme.textHint,
+                                        ),
+                                      ),
+                              );
+                            },
+                          ),
+                        ),
+                        _buildStudioEntry(
+                          enabled: !_isLoading && !_isUploading,
+                        ),
+                        if (_isUploading)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Row(
+                              children: [
+                                const SizedBox(
+                                  width: 14,
+                                  height: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppTheme.baobab,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Uploading photos...',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: AppTheme.baobab,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+
+                        // ── Title ───────────────────────────────────────────
+                        _buildLabel('Product Title'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _titleController,
+                          textCapitalization: TextCapitalization.words,
+                          onChanged: (_) => setState(() {}),
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? 'Required' : null,
+                          decoration: const InputDecoration(
+                            hintText: 'Handwoven Basket',
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _buildLabel('Description'),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _descriptionController,
+                          maxLines: 4,
+                          textCapitalization: TextCapitalization.sentences,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            hintText: 'Describe your product...',
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        _buildLabel('Category'),
+                        const SizedBox(height: 8),
+                        categoriesAsync.when(
+                          data: (categories) => DropdownButtonFormField<String>(
+                            key: const Key('product-category'),
+                            initialValue: _selectedCategoryId,
+                            decoration: const InputDecoration(
+                              hintText: 'Select category',
+                            ),
+                            items: categories
+                                .map(
+                                  (c) => DropdownMenuItem(
+                                    value: c.id,
+                                    child: Text(
+                                      c.name,
+                                      style: GoogleFonts.poppins(fontSize: 14),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) => setState(() {
+                              _selectedCategoryId = v;
+                              _selectedSubcategoryId = null;
+                              _selectedTags.clear();
+                            }),
+                          ),
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, __) =>
+                              const Text('Could not load categories'),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Subcategory
+                        if (_selectedCategoryId != null) ...[
+                          _buildLabel('Subcategory'),
+                          const SizedBox(height: 8),
+                          _buildSubcategoryDropdown(),
+                          const SizedBox(height: 20),
+                        ],
+
+                        // Tags (category-specific filters)
+                        if (_selectedCategoryId != null) ...[
+                          Builder(
+                            builder: (context) {
+                              final cats =
+                                  ref.read(vendorCategoriesProvider).value ??
+                                  [];
+                              final cat = cats
+                                  .where((c) => c.id == _selectedCategoryId)
+                                  .firstOrNull;
+                              final tags = cat?.availableFilterTags ?? [];
+                              if (tags.isEmpty) return const SizedBox.shrink();
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel('Tags'),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: tags.map((tag) {
+                                      final selected = _selectedTags.contains(
+                                        tag,
+                                      );
+                                      return FilterChip(
+                                        label: Text(
+                                          tag[0].toUpperCase() +
+                                              tag.substring(1),
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 13,
+                                            color: selected
+                                                ? Colors.white
+                                                : AppTheme.textPrimary,
+                                          ),
+                                        ),
+                                        selected: selected,
+                                        onSelected: (v) {
+                                          setState(() {
+                                            if (v) {
+                                              _selectedTags.add(tag);
+                                            } else {
+                                              _selectedTags.remove(tag);
+                                            }
+                                          });
+                                        },
+                                        selectedColor: AppTheme.terracotta,
+                                        checkmarkColor: Colors.white,
+                                        backgroundColor: Colors.white,
+                                        side: BorderSide(
+                                          color: selected
+                                              ? AppTheme.terracotta
+                                              : AppTheme.sand.withValues(
+                                                  alpha: 0.5,
+                                                ),
+                                        ),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
+
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _hasOptions
+                                  ? AppTheme.terracotta.withValues(alpha: 0.35)
+                                  : AppTheme.sand.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          // ListTiles need their own Material inside a decorated box so
+                          // ink splashes render (and the framework assertion stays quiet).
+                          child: Material(
+                            type: MaterialType.transparency,
+                            borderRadius: BorderRadius.circular(14),
+                            child: SwitchListTile(
+                              value: _hasOptions,
+                              onChanged: (value) => _setHasOptions(value),
+                              title: Text(
+                                'This product has multiple options',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Add Photo',
+                              subtitle: Text(
+                                _hasOptions
+                                    ? 'Set up sizes, colours or other combinations below.'
+                                    : 'Off by default — turn on if this product comes in variations like size or colour.',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppTheme.baobab,
+                                  fontSize: 12,
+                                  color: AppTheme.textHint,
+                                  height: 1.4,
+                                ),
+                              ),
+                              activeTrackColor: AppTheme.terracotta,
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 4,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        if (_hasOptions) ...[
+                          _buildLabel('Product Options'),
+                          const SizedBox(height: 8),
+                          Text(
+                            productOptionsHelperText,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _optionOneNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Primary option name',
+                                    hintText: defaultProductOptionOneName,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _optionTwoNameController,
+                                  textCapitalization: TextCapitalization.words,
+                                  onChanged: (_) => setState(() {}),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Second option name',
+                                    hintText: defaultProductOptionTwoName,
+                                  ),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      );
-                    }
-                    final photo = _photos[index];
-                    return _ImageTile(
-                      key: ValueKey('photo-${photo.id}'),
-                      index: index,
-                      isCover: index == 0,
-                      onRemove: () => _removePhoto(photo),
-                      onPreview: () => _showPhotoPreview(
-                        image: photo.isPending
-                            ? FileImage(photo.file!)
-                            : CachedNetworkImageProvider(photo.url!),
-                        label: photo.isPending
-                            ? 'New product photo ${index + 1}'
-                            : 'Product photo ${index + 1}',
-                      ),
-                      onEdit: photo.isPending
-                          ? () => _editPhotoCrop(photo)
-                          : null,
-                      isPending: photo.isPending,
-                      child: photo.isPending
-                          ? Image.file(photo.file!, fit: BoxFit.cover)
-                          : CachedNetworkImage(
-                              imageUrl: photo.url!,
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => const Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _optionOneValuesController,
+                                  minLines: 2,
+                                  maxLines: 3,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: InputDecoration(
+                                    labelText:
+                                        _optionOneNameController.text
+                                            .trim()
+                                            .isEmpty
+                                        ? 'Option 1 Values'
+                                        : '${_optionOneNameController.text.trim()} Values',
+                                    hintText: defaultProductOptionOneValuesHint,
                                   ),
                                 ),
                               ),
-                              errorWidget: (_, __, ___) => const Icon(
-                                Icons.broken_image,
-                                color: AppTheme.textHint,
-                              ),
-                            ),
-                    );
-                  },
-                ),
-              ),
-              _buildStudioEntry(enabled: !_isLoading && !_isUploading),
-              if (_isUploading)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppTheme.baobab,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Uploading photos...',
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          color: AppTheme.baobab,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              const SizedBox(height: 24),
-
-              // ── Title ───────────────────────────────────────────
-              _buildLabel('Product Title'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _titleController,
-                textCapitalization: TextCapitalization.words,
-                onChanged: (_) => setState(() {}),
-                validator: (v) =>
-                    v == null || v.trim().isEmpty ? 'Required' : null,
-                decoration: const InputDecoration(hintText: 'Handwoven Basket'),
-              ),
-              const SizedBox(height: 20),
-
-              _buildLabel('Description'),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
-                  hintText: 'Describe your product...',
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              _buildLabel('Category'),
-              const SizedBox(height: 8),
-              categoriesAsync.when(
-                data: (categories) => DropdownButtonFormField<String>(
-                  key: const Key('product-category'),
-                  initialValue: _selectedCategoryId,
-                  decoration: const InputDecoration(
-                    hintText: 'Select category',
-                  ),
-                  items: categories
-                      .map(
-                        (c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text(
-                            c.name,
-                            style: GoogleFonts.poppins(fontSize: 14),
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) => setState(() {
-                    _selectedCategoryId = v;
-                    _selectedSubcategoryId = null;
-                    _selectedTags.clear();
-                  }),
-                ),
-                loading: () => const LinearProgressIndicator(),
-                error: (_, __) => const Text('Could not load categories'),
-              ),
-              const SizedBox(height: 20),
-
-              // Subcategory
-              if (_selectedCategoryId != null) ...[
-                _buildLabel('Subcategory'),
-                const SizedBox(height: 8),
-                _buildSubcategoryDropdown(),
-                const SizedBox(height: 20),
-              ],
-
-              // Tags (category-specific filters)
-              if (_selectedCategoryId != null) ...[
-                Builder(
-                  builder: (context) {
-                    final cats = ref.read(vendorCategoriesProvider).value ?? [];
-                    final cat = cats
-                        .where((c) => c.id == _selectedCategoryId)
-                        .firstOrNull;
-                    final tags = cat?.availableFilterTags ?? [];
-                    if (tags.isEmpty) return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel('Tags'),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: tags.map((tag) {
-                            final selected = _selectedTags.contains(tag);
-                            return FilterChip(
-                              label: Text(
-                                tag[0].toUpperCase() + tag.substring(1),
-                                style: GoogleFonts.poppins(
-                                  fontSize: 13,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppTheme.textPrimary,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _optionTwoValuesController,
+                                  minLines: 2,
+                                  maxLines: 3,
+                                  textCapitalization: TextCapitalization.words,
+                                  decoration: InputDecoration(
+                                    labelText:
+                                        _optionTwoNameController.text
+                                            .trim()
+                                            .isEmpty
+                                        ? 'Option 2 Values'
+                                        : '${_optionTwoNameController.text.trim()} Values',
+                                    hintText: defaultProductOptionTwoValuesHint,
+                                  ),
                                 ),
                               ),
-                              selected: selected,
-                              onSelected: (v) {
-                                setState(() {
-                                  if (v) {
-                                    _selectedTags.add(tag);
-                                  } else {
-                                    _selectedTags.remove(tag);
-                                  }
-                                });
-                              },
-                              selectedColor: AppTheme.terracotta,
-                              checkmarkColor: Colors.white,
-                              backgroundColor: Colors.white,
-                              side: BorderSide(
-                                color: selected
-                                    ? AppTheme.terracotta
-                                    : AppTheme.sand.withValues(alpha: 0.5),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Enter values separated by commas or new lines, then generate the combinations below. You can keep Size and Color or rename them if this product needs different options.',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              OutlinedButton.icon(
+                                onPressed: _generateCombinations,
+                                icon: const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  size: 18,
+                                ),
+                                label: const Text('Generate Combinations'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.terracotta,
+                                  side: BorderSide(
+                                    color: AppTheme.terracotta.withValues(
+                                      alpha: 0.45,
+                                    ),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          ..._variants.asMap().entries.map(
+                            (entry) => Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: _buildVariantCard(entry.key, entry.value),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: _addVariant,
+                              icon: const Icon(
+                                Icons.add_rounded,
+                                color: AppTheme.terracotta,
                               ),
-                            );
-                          }).toList(),
+                              label: Text(
+                                'Add Another Combination',
+                                style: GoogleFonts.poppins(
+                                  color: AppTheme.terracotta,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                        ],
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel(_fallbackCurrentPriceLabel),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _priceController,
+                                    keyboardType: _priceKeyboard,
+                                    inputFormatters: _priceInputFormatters,
+                                    validator: (v) {
+                                      if (_hasOptions) return null;
+                                      return _requiredPriceValidator(v);
+                                    },
+                                    decoration: InputDecoration(
+                                      hintText: _hasOptions
+                                          ? 'Optional when variants are set'
+                                          : 'What buyers pay',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildLabel(salePriceFieldLabel),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    controller: _compareAtPriceController,
+                                    keyboardType: _priceKeyboard,
+                                    inputFormatters: _priceInputFormatters,
+                                    validator: _optionalPriceValidator,
+                                    onChanged: (_) => setState(() {}),
+                                    decoration: const InputDecoration(
+                                      hintText: 'Optional discounted price',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 20),
-                      ],
-                    );
-                  },
-                ),
-              ],
 
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: _hasOptions
-                        ? AppTheme.terracotta.withValues(alpha: 0.35)
-                        : AppTheme.sand.withValues(alpha: 0.4),
-                  ),
-                ),
-                // ListTiles need their own Material inside a decorated box so
-                // ink splashes render (and the framework assertion stays quiet).
-                child: Material(
-                  type: MaterialType.transparency,
-                  borderRadius: BorderRadius.circular(14),
-                  child: SwitchListTile(
-                    value: _hasOptions,
-                    onChanged: (value) => _setHasOptions(value),
-                    title: Text(
-                      'This product has multiple options',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      _hasOptions
-                          ? 'Set up sizes, colours or other combinations below.'
-                          : 'Off by default — turn on if this product comes in variations like size or colour.',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppTheme.textHint,
-                        height: 1.4,
-                      ),
-                    ),
-                    activeTrackColor: AppTheme.terracotta,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 4,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              if (_hasOptions) ...[
-                _buildLabel('Product Options'),
-                const SizedBox(height: 8),
-                Text(
-                  productOptionsHelperText,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _optionOneNameController,
-                        textCapitalization: TextCapitalization.words,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'Primary option name',
-                          hintText: defaultProductOptionOneName,
+                        _buildLabel(
+                          _hasOptions
+                              ? 'Fallback Stock Quantity'
+                              : 'Stock Quantity',
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _optionTwoNameController,
-                        textCapitalization: TextCapitalization.words,
-                        onChanged: (_) => setState(() {}),
-                        decoration: const InputDecoration(
-                          labelText: 'Second option name',
-                          hintText: defaultProductOptionTwoName,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _optionOneValuesController,
-                        minLines: 2,
-                        maxLines: 3,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: InputDecoration(
-                          labelText:
-                              _optionOneNameController.text.trim().isEmpty
-                              ? 'Option 1 Values'
-                              : '${_optionOneNameController.text.trim()} Values',
-                          hintText: defaultProductOptionOneValuesHint,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _optionTwoValuesController,
-                        minLines: 2,
-                        maxLines: 3,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: InputDecoration(
-                          labelText:
-                              _optionTwoNameController.text.trim().isEmpty
-                              ? 'Option 2 Values'
-                              : '${_optionTwoNameController.text.trim()} Values',
-                          hintText: defaultProductOptionTwoValuesHint,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Enter values separated by commas or new lines, then generate the combinations below. You can keep Size and Color or rename them if this product needs different options.',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _generateCombinations,
-                      icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                      label: const Text('Generate Combinations'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.terracotta,
-                        side: BorderSide(
-                          color: AppTheme.terracotta.withValues(alpha: 0.45),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                ..._variants.asMap().entries.map(
-                  (entry) => Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildVariantCard(entry.key, entry.value),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: _addVariant,
-                    icon: const Icon(
-                      Icons.add_rounded,
-                      color: AppTheme.terracotta,
-                    ),
-                    label: Text(
-                      'Add Another Combination',
-                      style: GoogleFonts.poppins(
-                        color: AppTheme.terracotta,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-              ],
-
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel(_fallbackCurrentPriceLabel),
                         const SizedBox(height: 8),
                         TextFormField(
-                          controller: _priceController,
-                          keyboardType: _priceKeyboard,
-                          inputFormatters: _priceInputFormatters,
+                          controller: _stockController,
+                          keyboardType: TextInputType.number,
                           validator: (v) {
                             if (_hasOptions) return null;
-                            return _requiredPriceValidator(v);
+                            if (v == null || v.isEmpty) return 'Required';
+                            if (int.tryParse(v) == null) return 'Invalid';
+                            return null;
                           },
                           decoration: InputDecoration(
                             hintText: _hasOptions
                                 ? 'Optional when variants are set'
-                                : 'What buyers pay',
+                                : 'How many you have in stock',
                           ),
                         ),
+                        const SizedBox(height: 20),
+
+                        _buildFulfillmentSection(),
+                        const SizedBox(height: 20),
+
+                        _buildProductShippingSection(),
+                        const SizedBox(height: 20),
+
+                        // ── Care Instructions ────────────────────────────────
+                        _buildCareSection(),
+                        const SizedBox(height: 16),
+
+                        // ── Fragrance Options ────────────────────────────────
+                        _buildFragranceSection(),
+                        const SizedBox(height: 20),
+
+                        SwitchListTile(
+                          value: internalEditorTestMode ? false : _isPublished,
+                          onChanged: internalEditorTestMode
+                              ? null
+                              : (v) => setState(() => _isPublished = v),
+                          title: Text(
+                            'Publish',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Text(
+                            internalEditorTestMode
+                                ? 'Disabled for this local validation session'
+                                : _isPublished
+                                ? 'Visible to buyers'
+                                : 'Saved as draft',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: AppTheme.textHint,
+                            ),
+                          ),
+                          activeTrackColor: AppTheme.baobab,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        const SizedBox(height: 100),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildLabel(salePriceFieldLabel),
-                        const SizedBox(height: 8),
-                        TextFormField(
-                          controller: _compareAtPriceController,
-                          keyboardType: _priceKeyboard,
-                          inputFormatters: _priceInputFormatters,
-                          validator: _optionalPriceValidator,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            hintText: 'Optional discounted price',
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-
-              _buildLabel(
-                _hasOptions ? 'Fallback Stock Quantity' : 'Stock Quantity',
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _stockController,
-                keyboardType: TextInputType.number,
-                validator: (v) {
-                  if (_hasOptions) return null;
-                  if (v == null || v.isEmpty) return 'Required';
-                  if (int.tryParse(v) == null) return 'Invalid';
-                  return null;
-                },
-                decoration: InputDecoration(
-                  hintText: _hasOptions
-                      ? 'Optional when variants are set'
-                      : 'How many you have in stock',
                 ),
               ),
-              const SizedBox(height: 20),
-
-              _buildFulfillmentSection(),
-              const SizedBox(height: 20),
-
-              _buildProductShippingSection(),
-              const SizedBox(height: 20),
-
-              // ── Care Instructions ────────────────────────────────
-              _buildCareSection(),
-              const SizedBox(height: 16),
-
-              // ── Fragrance Options ────────────────────────────────
-              _buildFragranceSection(),
-              const SizedBox(height: 20),
-
-              SwitchListTile(
-                value: internalEditorTestMode ? false : _isPublished,
-                onChanged: internalEditorTestMode
-                    ? null
-                    : (v) => setState(() => _isPublished = v),
-                title: Text(
-                  'Publish',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                subtitle: Text(
-                  internalEditorTestMode
-                      ? 'Disabled for this local validation session'
-                      : _isPublished
-                      ? 'Visible to buyers'
-                      : 'Saved as draft',
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-                activeTrackColor: AppTheme.baobab,
-                contentPadding: EdgeInsets.zero,
-              ),
-              const SizedBox(height: 100),
+              if (keyboardVisible) const KeyboardDoneBar(),
             ],
           ),
-        ),
-        bottomNavigationBar: SafeArea(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-            decoration: BoxDecoration(
-              color: AppTheme.scaffoldBg,
-              border: Border(
-                top: BorderSide(color: AppTheme.sand.withValues(alpha: 0.4)),
-              ),
-            ),
-            child: GradientButton(
-              label: internalEditorTestMode
-                  ? 'Saving disabled in test mode'
-                  : _isEditing
-                  ? 'Save Changes'
-                  : 'Create Product',
-              isLoading: _isLoading,
-              onPressed: _isLoading || internalEditorTestMode ? null : _save,
-            ),
-          ),
+          bottomNavigationBar: keyboardVisible
+              ? null
+              : SafeArea(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.scaffoldBg,
+                      border: Border(
+                        top: BorderSide(
+                          color: AppTheme.sand.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ),
+                    child: GradientButton(
+                      label: internalEditorTestMode
+                          ? 'Saving disabled in test mode'
+                          : _isEditing
+                          ? 'Save Changes'
+                          : 'Create Product',
+                      isLoading: _isLoading,
+                      onPressed: _isLoading || internalEditorTestMode
+                          ? null
+                          : _save,
+                    ),
+                  ),
+                ),
         ),
       ),
     );

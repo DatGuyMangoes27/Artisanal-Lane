@@ -8,6 +8,7 @@ import 'buyer_providers.dart';
 /// Optional fourth step of the gift finder: what the person is into.
 enum GiftInterest {
   jewellery,
+  accessories,
   homeDecor,
   kitchen,
   textiles,
@@ -20,6 +21,7 @@ enum GiftInterest {
 extension GiftInterestDetails on GiftInterest {
   String get label => switch (this) {
     GiftInterest.jewellery => 'Jewellery',
+    GiftInterest.accessories => 'Accessories',
     GiftInterest.homeDecor => 'Home decor',
     GiftInterest.kitchen => 'Kitchen & table',
     GiftInterest.textiles => 'Textiles',
@@ -31,6 +33,7 @@ extension GiftInterestDetails on GiftInterest {
 
   IconData get icon => switch (this) {
     GiftInterest.jewellery => Icons.diamond_outlined,
+    GiftInterest.accessories => Icons.shopping_bag_outlined,
     GiftInterest.homeDecor => Icons.chair_outlined,
     GiftInterest.kitchen => Icons.coffee_outlined,
     GiftInterest.textiles => Icons.checkroom_outlined,
@@ -58,6 +61,29 @@ extension GiftInterestDetails on GiftInterest {
       'anklet',
       'brooch',
       'choker',
+    ],
+    // Matches the "Accessories" category (and the Baby & Kids
+    // "Accessories" subcategory) by name, so its Hair and Other pieces count,
+    // plus whole accessory words (bags, belts, hats, scarves, ...). Words
+    // like "hair" alone are left out so hair oil isn't an accessory.
+    GiftInterest.accessories => const [
+      'accessories',
+      'accessory',
+      'bag',
+      'handbag',
+      'clutch',
+      'purse',
+      'tote',
+      'belt',
+      'hat',
+      'beanie',
+      'scarf',
+      'scarves',
+      'headband',
+      'scrunchie',
+      'keyring',
+      'keychain',
+      'sunglasses',
     ],
     GiftInterest.homeDecor => const [
       'decor',
@@ -227,6 +253,7 @@ List<GiftRecommendation> recommendGifts({
           recipient: recipient,
           occasion: occasion,
         ),
+        occasionFit: giftOccasionScore(product: ranked[i], occasion: occasion),
       ),
   ]..removeWhere((entry) => interests.isNotEmpty && entry.interests.isEmpty);
   scored.sort((a, b) {
@@ -235,12 +262,20 @@ List<GiftRecommendation> recommendGifts({
   });
 
   String reasonFor(
-    ({int index, Product product, List<GiftInterest> interests, int affinity})
+    ({
+      int index,
+      Product product,
+      List<GiftInterest> interests,
+      int affinity,
+      int occasionFit,
+    })
     entry,
   ) {
     if (entry.interests.isNotEmpty) {
       return 'Matches ${entry.interests.first.label.toLowerCase()}';
     }
+    final occasionReason = occasion.reason;
+    if (entry.occasionFit > 0 && occasionReason != null) return occasionReason;
     if (entry.affinity > 0 && recipient != GiftRecipient.anyone) {
       return recipient == GiftRecipient.home
           ? 'A good fit for the home'

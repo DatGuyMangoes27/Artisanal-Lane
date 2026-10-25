@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum BuyerTab { feed, discover, shop, you }
+enum BuyerTab { home, discover, shop, feed, you }
 
 /// Increments whenever the user taps the tab they are already on. Tab screens
 /// listen to scroll back to the top, the standard social-app behaviour.

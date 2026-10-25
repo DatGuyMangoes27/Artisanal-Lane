@@ -70,6 +70,7 @@ class ShippingOption {
       description: 'Collect at a Pudo locker near you',
       icon: Icons.lock_outline_rounded,
     ),
+    // Retired (see [retiredKeys]): kept only so past orders still read well.
     'courier_guy_door_to_door': _MethodMeta(
       name: 'Courier Guy Door to Door',
       description: 'Courier delivery to your address, 2–4 business days',
@@ -98,19 +99,27 @@ class ShippingOption {
   String get description => _catalogue[key]?.description ?? '';
   IconData get icon => _catalogue[key]?.icon ?? Icons.local_shipping_outlined;
 
+  /// Methods that are no longer offered to artisans or buyers. Courier Guy
+  /// door-to-door was replaced by Bob Go door-to-door. Their names stay in
+  /// the catalogue (and in the order model) so older orders still display,
+  /// but they are dropped when shop or product options are read, so they
+  /// never appear in shop settings, the product form or checkout, and the
+  /// next save removes them from the stored JSON.
+  static const Set<String> retiredKeys = {'courier_guy_door_to_door'};
+
+  /// Whether [key] is a method artisans can still offer.
+  static bool isOffered(String key) =>
+      _catalogue.containsKey(key) && !retiredKeys.contains(key);
+
   /// Returns the full default set of options (all enabled, default prices).
   static List<ShippingOption> defaults() => [
     const ShippingOption(key: 'courier_guy', enabled: true, price: 69.00),
-    const ShippingOption(
-      key: 'courier_guy_door_to_door',
-      enabled: true,
-      price: 110.00,
-    ),
     const ShippingOption(key: 'pargo', enabled: true, price: 65.00),
     const ShippingOption(key: 'market_pickup', enabled: true, price: 0.00),
   ];
 
   /// Parses the JSONB array from Supabase; falls back to [fallback] if null/empty.
+  /// Unknown and retired methods are dropped.
   static List<ShippingOption> listFromJson(
     dynamic json, {
     List<ShippingOption>? fallback,
@@ -121,7 +130,7 @@ class ShippingOption {
     if (list.isEmpty) return fallbackValue;
     return list
         .map((e) => ShippingOption.fromJson(e as Map<String, dynamic>))
-        .where((option) => _catalogue.containsKey(option.key))
+        .where((option) => isOffered(option.key))
         .toList();
   }
 }

@@ -33,9 +33,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
     {
       'q': 'What shipping options are available?',
       'a':
-          'We offer The Courier Guy (door-to-door or locker-to-locker, 2-4 days), Pargo pick-up points, '
-          'and Market Pickup where you collect directly '
-          'from the artisan.',
+          'We offer Pudo lockers (The Courier Guy, 2-4 days), Pargo pick-up points, '
+          'Market Pickup where you collect directly from the artisan, and '
+          'Bob Go door-to-door courier delivery from artisans who offer it.',
     },
     {
       'q': 'How do I return or exchange an item?',
