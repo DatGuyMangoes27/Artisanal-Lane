@@ -245,7 +245,7 @@ class BuyerShell extends ConsumerWidget {
               destinations: [
                 const NavigationDestination(
                   icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
+                  selectedIcon: Icon(Icons.home_outlined),
                   label: 'Home',
                 ),
                 const NavigationDestination(
@@ -276,7 +276,7 @@ class BuyerShell extends ConsumerWidget {
               items: [
                 const BottomNavigationBarItem(
                   icon: Icon(Icons.home_outlined),
-                  activeIcon: Icon(Icons.home),
+                  activeIcon: Icon(Icons.home_outlined),
                   label: 'Home',
                 ),
                 const BottomNavigationBarItem(
