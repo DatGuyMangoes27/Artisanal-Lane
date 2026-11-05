@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 
 import { AuthHashHandler } from "@/components/auth/auth-hash-handler";
+import { APP_STORE_APP_ID } from "@/lib/app-links";
 import { AUTH_HASH_STORAGE_KEY } from "@/lib/auth/auth-hash";
 
 // Moves auth tokens from the URL fragment into sessionStorage before any
@@ -26,6 +27,8 @@ export const metadata: Metadata = {
   description: "Discover unique handmade goods from South Africa's finest artisans. Artisan Lane is a curated marketplace where every product tells a story of craftsmanship.",
   keywords: ["handmade", "artisan", "craft marketplace", "South Africa", "handcrafted goods", "curated marketplace", "artisanal products"],
   authors: [{ name: "Artisan Lane" }],
+  // Safari on iPhone shows its "Open / Get" app banner at the top.
+  itunes: { appId: APP_STORE_APP_ID },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",

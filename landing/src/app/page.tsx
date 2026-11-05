@@ -26,6 +26,8 @@ import {
 import { getProductPrimaryImage } from "@/lib/marketplace/format";
 import type { MarketplaceCategorySummary, MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
+import { GetTheAppSection } from "@/components/marketplace/get-the-app";
+import { APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/app-links";
 
 function categoryHref(category: MarketplaceCategorySummary) {
   return `/shop?category=${encodeURIComponent(category.id)}`;
@@ -175,7 +177,7 @@ function Footer() {
         </div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Shop</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/shop">All products</Link><Link href="/shop?fresh=7&sort=newest">New arrivals</Link><Link href="/artisans">Artisans</Link><Link href="/account/favourites">Favourites</Link></div></div>
         <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Artisan Lane</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/about">Our story</Link><Link href="/tutorials">Tutorials</Link><Link href="/login?intent=vendor">Become a seller</Link><Link href="mailto:nicky@artisanlanesa.com">Contact</Link></div></div>
-        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Help</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/account/help">Help centre</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/login?intent=buyer">My account</Link></div></div>
+        <div><h3 className="text-xs font-bold uppercase tracking-widest text-[#E5B35A]">Help</h3><div className="mt-4 grid gap-3 text-sm text-[#D9BFA9]"><Link href="/account/help">Help centre</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link><Link href="/login?intent=buyer">My account</Link><a href={APP_STORE_URL} target="_blank" rel="noopener noreferrer">App for iPhone</a><a href={GOOGLE_PLAY_URL} target="_blank" rel="noopener noreferrer">App for Android</a></div></div>
       </div>
       <div className="mx-auto mt-12 flex max-w-[1440px] flex-col justify-between gap-3 border-t border-white/10 px-5 pt-6 text-xs text-[#A98C78] sm:flex-row sm:px-8"><span>© 2026 Artisan Lane. All rights reserved.</span><span>Made in South Africa</span></div>
     </footer>
@@ -202,6 +204,7 @@ export default async function Home() {
       <MarketplaceStory products={products} />
       <TrustRow />
       <SellerInvitation />
+      <GetTheAppSection />
       <section className="border-t border-artisan-clay bg-artisan-bone/40 px-5 py-12 text-center">
         <h2 className="font-serif text-3xl">A little handmade inspiration in your inbox</h2>
         <p className="mx-auto mt-3 max-w-lg text-muted-foreground">Opt in to news, fresh finds and special offers. Your choice, always.</p>

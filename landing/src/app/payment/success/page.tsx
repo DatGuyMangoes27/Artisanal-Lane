@@ -1,3 +1,4 @@
+import { GetTheAppStrip } from "@/components/marketplace/get-the-app";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { PaymentSuccessContent } from "@/components/marketplace/payment-success-content";
 
@@ -13,6 +14,9 @@ export default async function PaymentSuccessPage({ searchParams }: PaymentSucces
       <MarketplaceHeader />
       <main className="mx-auto max-w-3xl px-4 py-16 text-center sm:px-6 lg:px-8">
         <PaymentSuccessContent orderId={params?.orderId ?? null} checkoutGroupId={params?.group ?? null} />
+        <div className="mt-10">
+          <GetTheAppStrip message="Track this order and chat to the maker in the Artisan Lane app." />
+        </div>
       </main>
     </div>
   );

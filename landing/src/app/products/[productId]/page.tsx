@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Heart, MessageCircle, ShieldCheck, Star, Store, 
 
 import { toggleFavouriteProduct } from "@/app/account/actions";
 import { submitProductReview } from "@/app/account/reviews/actions";
+import { GetTheAppStrip } from "@/components/marketplace/get-the-app";
 import { GuestCartProvider } from "@/components/marketplace/guest-cart-provider";
 import { MarketplaceHeader } from "@/components/marketplace/marketplace-header";
 import { ProductCard } from "@/components/marketplace/product-card";
@@ -156,6 +157,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
           }
         />
+
+        <div className="px-4 sm:px-6 lg:px-8"><GetTheAppStrip message="Save favourites, follow this maker and get order updates in the Artisan Lane app." /></div>
 
         {relatedProducts.length ? <section className="border-t border-artisan-clay bg-white py-16"><div className="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-8"><div className="mb-8 flex items-end justify-between"><div><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-artisan-terracotta">Keep exploring</p><h2 className="mt-2 font-serif text-3xl font-bold text-[#351711]">You may also like</h2></div><Link href={product.category ? `/shop?category=${product.category.id}` : "/shop"} className="hidden text-sm font-semibold text-artisan-terracotta sm:block">View category →</Link></div><div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:gap-6">{relatedProducts.map((item) => <ProductCard key={item.id} product={item} isFavourite={favouriteSet.has(item.id)} redirectTo={`/products/${product.id}`} />)}</div></div></section> : null}
       </div>
