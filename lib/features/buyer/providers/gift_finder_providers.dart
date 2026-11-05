@@ -209,10 +209,24 @@ class GiftFinderResults {
   const GiftFinderResults({
     required this.matches,
     this.closeMatches = const [],
+    this.totalMatches,
+    this.hasMore = false,
+    this.isLastPage = true,
   });
 
-  /// Pieces inside the budget that match every chosen answer.
+  /// Pieces inside the budget that match every chosen answer (the current
+  /// page of them; see [findGiftIdeas]).
   final List<GiftRecommendation> matches;
+
+  /// Every match across all pages; null means [matches] is all of them.
+  final int? totalMatches;
+
+  /// There are more matches than fit on one page, so "Show me other ideas"
+  /// can bring in a different set.
+  final bool hasMore;
+
+  /// This page reaches the end of the matches: the next one starts over.
+  final bool isLastPage;
 
   /// Shown in their own section, only when [matches] is short: pieces that
   /// fit the chosen interests (if any) but sit outside the budget, nearest
@@ -260,6 +274,24 @@ List<GiftRecommendation> recommendGifts({
     final byInterest = b.interests.length.compareTo(a.interests.length);
     return byInterest != 0 ? byInterest : a.index.compareTo(b.index);
   });
+  // Mix the makers: within each interest tier every shop's best piece comes
+  // before any shop's second one, so one maker with a big recent upload
+  // can't fill the whole shortlist.
+  final turnOf = <String, int>{};
+  final turns = [
+    for (final entry in scored)
+      turnOf.update(entry.product.shopId, (n) => n + 1, ifAbsent: () => 0),
+  ];
+  final order = List<int>.generate(scored.length, (i) => i)
+    ..sort((a, b) {
+      final byInterest = scored[b].interests.length.compareTo(
+        scored[a].interests.length,
+      );
+      if (byInterest != 0) return byInterest;
+      final byTurn = turns[a].compareTo(turns[b]);
+      return byTurn != 0 ? byTurn : a.compareTo(b);
+    });
+  final mixed = [for (final i in order) scored[i]];
 
   String reasonFor(
     ({
@@ -287,7 +319,7 @@ List<GiftRecommendation> recommendGifts({
   }
 
   return [
-    for (final entry in scored.take(limit))
+    for (final entry in mixed.take(limit))
       GiftRecommendation(product: entry.product, reason: reasonFor(entry)),
   ];
 }
@@ -297,6 +329,10 @@ List<GiftRecommendation> recommendGifts({
 /// buyable pieces that fit the chosen interests but miss the budget, nearest
 /// price first. Close matches say how they miss the budget and are never
 /// labelled as matching.
+///
+/// [limit] is the page size: [page] 0 shows the first [limit] matches,
+/// page 1 the next ones ("Show me other ideas") and so on, starting over
+/// after the last page.
 GiftFinderResults findGiftIdeas({
   required List<Product> products,
   required GiftRecipient recipient,
@@ -305,17 +341,31 @@ GiftFinderResults findGiftIdeas({
   Set<GiftInterest> interests = const {},
   int limit = 24,
   int closeLimit = 6,
+  int page = 0,
 }) {
-  final matches = recommendGifts(
+  final all = recommendGifts(
     products: products,
     recipient: recipient,
     occasion: occasion,
     budget: budget,
     interests: interests,
-    limit: limit,
+    limit: 1 << 30,
   );
-  if (matches.length >= giftCloseMatchThreshold || budget == GiftBudget.any) {
-    return GiftFinderResults(matches: matches);
+  final pages = all.isEmpty ? 1 : (all.length + limit - 1) ~/ limit;
+  final current = page % pages;
+  final matches = all.skip(current * limit).take(limit).toList();
+  final paging = (
+    totalMatches: all.length,
+    hasMore: pages > 1,
+    isLastPage: current == pages - 1,
+  );
+  if (all.length >= giftCloseMatchThreshold || budget == GiftBudget.any) {
+    return GiftFinderResults(
+      matches: matches,
+      totalMatches: paging.totalMatches,
+      hasMore: paging.hasMore,
+      isLastPage: paging.isLastPage,
+    );
   }
 
   final outside = rankGiftConciergeProducts(
@@ -346,6 +396,9 @@ GiftFinderResults findGiftIdeas({
 
   return GiftFinderResults(
     matches: matches,
+    totalMatches: paging.totalMatches,
+    hasMore: paging.hasMore,
+    isLastPage: paging.isLastPage,
     closeMatches: [
       for (final entry in ordered.take(closeLimit))
         GiftRecommendation(

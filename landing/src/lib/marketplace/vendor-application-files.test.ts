@@ -33,6 +33,6 @@ describe("validateVendorProofFiles", () => {
         { size: MAX_VENDOR_PROOF_TOTAL_BYTES, type: "image/jpeg" },
         { size: 1, type: "image/webp" },
       ]),
-    ).toMatch(/under 4 MB/);
+    ).toMatch(/too large together/);
   });
 });

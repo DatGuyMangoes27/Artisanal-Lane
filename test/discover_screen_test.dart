@@ -289,19 +289,19 @@ void main() {
     await swipeRight(tester);
     await swipeRight(tester);
     expect(find.textContaining('another look'), findsOneWidget);
-    expect(counter(tester), '1 of 2');
+    expect(counter(tester), 'Another look · 1 of 2');
     final top = tester
         .widgetList<Text>(find.textContaining('real piece'))
         .first
         .data;
 
     await swipeRight(tester);
-    expect(counter(tester), '2 of 2');
+    expect(counter(tester), 'Another look · 2 of 2');
 
     await undo(tester);
     // Previously this jumped to "2 of 2" (and lost the decision); now it
     // goes back to the same card in the same round.
-    expect(counter(tester), '1 of 2');
+    expect(counter(tester), 'Another look · 1 of 2');
     expect(find.textContaining('another look'), findsOneWidget);
     expect(find.text(top!), findsWidgets);
   });
@@ -349,6 +349,12 @@ void main() {
       find.textContaining('More in your budget from other categories'),
       findsOneWidget,
     );
+    // The count runs on from the chosen round into the fallback one.
+    expect(counter(tester), '2 of 2');
+
+    // Undo steps back into the chosen round: the count goes down, not up.
+    await undo(tester);
+    expect(find.text('Wooden rattle'), findsOneWidget);
     expect(counter(tester), '1 of 1');
   });
 

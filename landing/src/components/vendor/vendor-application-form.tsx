@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   submitVendorApplication,
   type VendorApplicationState,
 } from "@/app/vendor/actions";
+import { shrinkImage } from "@/lib/marketplace/shrink-image";
 import { validateVendorProofFiles } from "@/lib/marketplace/vendor-application-files";
 
 const initialState: VendorApplicationState = { error: null };
@@ -23,16 +24,16 @@ type ProofImagePreview = {
   url: string;
 };
 
-function SubmitButton({ hasFileError }: { hasFileError: boolean }) {
+function SubmitButton({ hasFileError, preparing }: { hasFileError: boolean; preparing: boolean }) {
   const { pending } = useFormStatus();
 
   return (
     <Button
       type="submit"
-      disabled={pending || hasFileError}
+      disabled={pending || hasFileError || preparing}
       className="rounded-full bg-artisan-terracotta hover:bg-artisan-terracotta/90"
     >
-      {pending ? "Submitting…" : "Submit application"}
+      {pending ? "Submitting…" : preparing ? "Preparing photos…" : "Submit application"}
     </Button>
   );
 }
@@ -47,6 +48,8 @@ export function VendorApplicationForm({
   const [state, formAction] = useActionState(submitVendorApplication, initialState);
   const [fileError, setFileError] = useState<string | null>(null);
   const [proofImagePreviews, setProofImagePreviews] = useState<ProofImagePreview[]>([]);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
+  const selectionRef = useRef(0);
 
   useEffect(
     () => () => {
@@ -61,9 +64,29 @@ export function VendorApplicationForm({
     return error;
   }
 
-  function handleProofImagesChange(event: ChangeEvent<HTMLInputElement>) {
-    const files = event.currentTarget.files ? Array.from(event.currentTarget.files) : [];
-    validateSelectedFiles(event.currentTarget.files);
+  async function handleProofImagesChange(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const picked = input.files ? Array.from(input.files) : [];
+    const selection = ++selectionRef.current;
+    let files = picked;
+    if (picked.length > 0 && typeof DataTransfer !== "undefined") {
+      // Phone photos are several MB each: shrink them so a few still fit the
+      // upload limit (and HEIC photos become JPEG).
+      setPreparingPhotos(true);
+      try {
+        const shrunk = await Promise.all(picked.map((file) => shrinkImage(file)));
+        if (selection !== selectionRef.current) return;
+        const transfer = new DataTransfer();
+        shrunk.forEach((file) => transfer.items.add(file));
+        input.files = transfer.files;
+        files = shrunk;
+      } catch {
+        // Keep the original photos; the size check below explains any problem.
+      } finally {
+        if (selection === selectionRef.current) setPreparingPhotos(false);
+      }
+    }
+    validateSelectedFiles(input.files);
     setProofImagePreviews(
       files.map((file) => ({
         key: `${file.name}-${file.size}-${file.lastModified}`,
@@ -153,8 +176,8 @@ export function VendorApplicationForm({
           className="text-sm"
         />
         <span className="text-xs font-normal text-muted-foreground">
-          Required if you don&apos;t have a portfolio link — up to 5 JPEG, PNG, or WebP photos,
-          4 MB combined.
+          Required if you don&apos;t have a portfolio link — up to 5 photos. Large phone photos
+          are made smaller automatically.
         </span>
       </label>
 
@@ -207,7 +230,7 @@ export function VendorApplicationForm({
       ) : null}
 
       <div>
-        <SubmitButton hasFileError={Boolean(fileError)} />
+        <SubmitButton hasFileError={Boolean(fileError)} preparing={preparingPhotos} />
       </div>
     </form>
   );

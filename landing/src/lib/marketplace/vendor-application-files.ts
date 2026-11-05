@@ -16,7 +16,7 @@ export function validateVendorProofFiles(files: VendorProofFile[]) {
 
   const totalBytes = files.reduce((total, file) => total + file.size, 0);
   if (totalBytes > MAX_VENDOR_PROOF_TOTAL_BYTES) {
-    return "Please keep the combined photo upload under 4 MB, or use a portfolio link instead.";
+    return "These photos are too large together. Please choose fewer photos, or add a portfolio link instead.";
   }
 
   return null;

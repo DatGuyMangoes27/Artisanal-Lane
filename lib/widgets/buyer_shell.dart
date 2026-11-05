@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../app/theme.dart';
 import '../app/tab_reselect.dart';
 import '../features/buyer/providers/buyer_providers.dart';
+import '../features/buyer/providers/catalogue_refresh.dart';
 import '../models/cart_item.dart';
 import 'cart_nav_icon.dart';
 
@@ -233,7 +234,7 @@ class BuyerShell extends ConsumerWidget {
     final cartCount = cartBadgeCount(cartItems);
 
     return Scaffold(
-      body: navigationShell ?? child!,
+      body: CatalogueAutoRefresh(child: navigationShell ?? child!),
       bottomNavigationBar: navigationShell != null
           ? NavigationBar(
               selectedIndex: _currentIndex(context),

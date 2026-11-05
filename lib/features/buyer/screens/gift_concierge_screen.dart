@@ -34,6 +34,9 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
   final Set<GiftInterest> _interests = {};
   bool _showResults = false;
 
+  /// Which page of matches is showing; "Show me other ideas" moves it on.
+  int _page = 0;
+
   int get _missingAnswers =>
       [_recipient, _occasion, _budget].where((value) => value == null).length;
 
@@ -44,7 +47,10 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
   }
 
   void _setResults(bool show) {
-    setState(() => _showResults = show);
+    setState(() {
+      _showResults = show;
+      _page = 0;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) _scroll.jumpTo(0);
     });
@@ -54,6 +60,14 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
     if (_missingAnswers > 0) return;
     HapticFeedback.mediumImpact();
     _setResults(true);
+  }
+
+  void _showOtherIdeas() {
+    HapticFeedback.selectionClick();
+    setState(() => _page++);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    });
   }
 
   void _retry() {
@@ -260,8 +274,12 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
               occasion: _occasion!,
               budget: _budget!,
               interests: _interests,
+              page: _page,
             );
             if (results.isEmpty) return _buildEmpty();
+            final shownCount = results.hasMore
+                ? results.totalMatches!
+                : results.matches.length;
             final matches = results.matches;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -283,7 +301,7 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
                         ),
                       ),
                       Text(
-                        '${matches.length} ${matches.length == 1 ? 'idea' : 'ideas'}',
+                        '$shownCount ${shownCount == 1 ? 'idea' : 'ideas'}',
                         key: const Key('gift-finder-match-count'),
                         style: GoogleFonts.poppins(
                           fontSize: 12,
@@ -306,6 +324,33 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
                     key: const Key('gift-finder-matches'),
                     results: matches,
                   ),
+                  if (results.hasMore) ...[
+                    const SizedBox(height: 18),
+                    Center(
+                      child: OutlinedButton.icon(
+                        key: const Key('gift-finder-more'),
+                        onPressed: _showOtherIdeas,
+                        icon: const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(
+                          results.isLastPage
+                              ? 'Start again from the top'
+                              : 'Show me other ideas',
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppTheme.terracotta,
+                          side: const BorderSide(color: AppTheme.terracotta),
+                          minimumSize: const Size(220, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(26),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 if (results.closeMatches.isNotEmpty)
                   _CloseMatchesSection(results: results.closeMatches),
@@ -368,7 +413,10 @@ class _GiftConciergeScreenState extends ConsumerState<GiftConciergeScreen> {
               filled: true,
               onPressed: () {
                 HapticFeedback.selectionClick();
-                setState(() => _budget = GiftBudget.any);
+                setState(() {
+                  _budget = GiftBudget.any;
+                  _page = 0;
+                });
               },
             ),
           const SizedBox(height: 8),

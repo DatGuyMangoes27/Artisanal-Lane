@@ -68,15 +68,17 @@ void main() {
     });
 
     test('then "more in your budget from other categories", counted on '
-        'their own', () {
+        'from the chosen round', () {
       final deck = buildDiscoverDeck(
         products,
         kidsUnder1000.copyWith(likedProductIds: {'rattle', 'blanket'}),
       );
       expect(deck.mode, DiscoverDeckMode.otherCategories);
       expect(ids(deck.items), ['vase', 'bowl']);
-      expect(deck.total, 2);
-      expect(deck.position, 1);
+      // The 2 chosen pieces already seen plus the 2 new ones: the counter
+      // runs on (3 of 4) instead of starting again at 1.
+      expect(deck.total, 4);
+      expect(deck.position, 3);
       expect(
         discoverRoundIntro(deck.mode, hasChosenCategories: true),
         startsWith('More in your budget from other categories'),

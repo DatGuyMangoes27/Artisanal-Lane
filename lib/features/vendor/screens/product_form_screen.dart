@@ -19,6 +19,7 @@ import '../../../widgets/keyboard_aware_form.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../providers/bobgo_vendor_providers.dart';
 import '../providers/vendor_providers.dart';
+import '../../buyer/providers/catalogue_refresh.dart';
 import '../utils/parcel_measurements.dart';
 import '../utils/product_form_copy.dart';
 import '../utils/vendor_payout_setup.dart';
@@ -1703,6 +1704,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       }
 
       ref.invalidate(vendorProductsProvider);
+      // The artisan may switch to buying straight away: show the change there.
+      refreshBuyerCatalogue(ref.invalidate);
       _dirty = false;
       await _clearDraft();
       if (mounted) {
@@ -1807,6 +1810,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       final service = ref.read(supabaseServiceProvider);
       await service.deleteProduct(widget.productId!);
       ref.invalidate(vendorProductsProvider);
+      // The artisan may switch to buying straight away: show the change there.
+      refreshBuyerCatalogue(ref.invalidate);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

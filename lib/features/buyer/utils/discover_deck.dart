@@ -45,10 +45,11 @@ class DiscoverDeck {
   /// Cards in display order; the first is the top card.
   final List<Product> items;
 
-  /// Number of pieces in the current round (for the "n of total" counter).
+  /// Number of pieces counted by the "n of total" counter: the current round
+  /// plus the rounds before it (see [buildDiscoverDeck]).
   final int total;
 
-  /// How many pieces of the current round are already behind the buyer.
+  /// How many of those pieces are already behind the buyer.
   final int reviewed;
 
   bool get isEmpty => items.isEmpty;
@@ -77,8 +78,11 @@ class DiscoverDeck {
 ///    it wraps into the next round automatically, so the deck is endless.
 /// 6. [DiscoverDeckMode.empty] only when [products] is empty.
 ///
-/// [DiscoverDeck.total] and [DiscoverDeck.reviewed] always describe the
-/// current round only.
+/// [DiscoverDeck.total] and [DiscoverDeck.reviewed] count the current round
+/// together with the rounds before it, so the counter runs on from one round
+/// into the next: every swipe adds exactly one and every undo takes exactly
+/// one off, even when the undo steps back into the previous round. Only the
+/// recycled pass counts on its own (the screen labels it as another look).
 DiscoverDeck buildDiscoverDeck(
   List<Product> products,
   DiscoveryPreferences preferences, {
@@ -97,25 +101,30 @@ DiscoverDeck buildDiscoverDeck(
   DiscoverDeck round(
     DiscoverDeckMode mode,
     bool Function(Product) belongs, {
+    required bool Function(Product) counted,
     bool chosenFirst = false,
   }) {
-    final members = products.where(belongs).toList(growable: false);
     final items = rankDiscoverRound(
-      members.where((p) => !decided(p)),
+      products.where((p) => belongs(p) && !decided(p)),
       profile,
       chosenFirst: chosenFirst ? chosen : const <String>{},
     );
+    final scope = products.where(counted).toList(growable: false);
     return DiscoverDeck(
       mode: mode,
       items: items,
-      total: members.length,
-      reviewed: members.length - items.length,
+      total: scope.length,
+      reviewed: scope.where(decided).length,
     );
   }
 
+  bool freshBelongs(Product p) =>
+      inBudget(p) && (chosen.isEmpty || inChosen(p));
+
   final fresh = round(
     DiscoverDeckMode.fresh,
-    (p) => inBudget(p) && (chosen.isEmpty || inChosen(p)),
+    freshBelongs,
+    counted: freshBelongs,
   );
   if (!fresh.isEmpty || canLoadMore) return fresh;
   if (products.isEmpty) {
@@ -131,6 +140,7 @@ DiscoverDeck buildDiscoverDeck(
     final others = round(
       DiscoverDeckMode.otherCategories,
       (p) => inBudget(p) && !inChosen(p),
+      counted: inBudget,
     );
     if (!others.isEmpty) return others;
   }
@@ -138,6 +148,7 @@ DiscoverDeck buildDiscoverDeck(
   final beyond = round(
     DiscoverDeckMode.beyondBudget,
     (p) => !inBudget(p),
+    counted: (_) => true,
     chosenFirst: true,
   );
   if (!beyond.isEmpty) return beyond;

@@ -98,6 +98,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         !_isDismissing &&
+        !_isUndoing &&
         ref.read(discoverySyncEnabledProvider)) {
       ref.invalidate(discoveryPreferencesProvider);
     }
@@ -110,7 +111,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   }
 
   void _updateDrag(DragUpdateDetails details) {
-    if (_isDismissing) return;
+    if (_isDismissing || _isUndoing) return;
     setState(() {
       _isDragging = true;
       _dragOffset += Offset(details.delta.dx, details.delta.dy * .16);
@@ -122,7 +123,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     Product product, {
     required bool recycled,
   }) async {
-    if (_isDismissing) return;
+    if (_isDismissing || _isUndoing) return;
     final velocity = details.velocity.pixelsPerSecond.dx;
     final passedDistance = _dragOffset.dx.abs() > 110;
     final passedVelocity = velocity.abs() > 700;
@@ -142,7 +143,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
     double direction, {
     required bool recycled,
   }) async {
-    if (_isDismissing) return;
+    if (_isDismissing || _isUndoing) return;
     final liked = direction > 0;
     final decisionUserId = ref.read(currentUserIdProvider);
     // What the buyer had decided before this swipe (only recycled cards
@@ -221,7 +222,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
   /// decision (if it had one) is restored, and the counter steps back.
   Future<void> _undo() async {
     final swipe = _lastSwipe;
-    if (swipe == null || _isUndoing) return;
+    // While a swipe is still saving, undo would take back the card before it
+    // and the saving swipe would then land, moving the counter up.
+    if (swipe == null || _isUndoing || _isDismissing) return;
     final product = swipe.product;
     setState(() => _isUndoing = true);
     try {
@@ -414,7 +417,8 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                         IconButton(
                           tooltip: 'Undo last swipe',
                           visualDensity: VisualDensity.compact,
-                          onPressed: _lastSwipe == null || _isUndoing
+                          onPressed:
+                              _lastSwipe == null || _isUndoing || _isDismissing
                               ? null
                               : _undo,
                           icon: const Icon(Icons.undo_rounded, size: 20),
@@ -428,6 +432,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen>
                           color: AppTheme.textSecondary,
                         ),
                         Text(
+                          '${deck.mode == DiscoverDeckMode.recycled ? 'Another look · ' : ''}'
                           '$position of $deckTotal${totalMayGrow ? '+' : ''}',
                           key: const Key('discover-counter'),
                           style: GoogleFonts.poppins(
