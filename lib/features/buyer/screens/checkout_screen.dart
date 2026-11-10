@@ -24,6 +24,7 @@ import '../utils/checkout_validation.dart';
 import '../utils/checkout_shipping_layout.dart';
 import '../utils/multi_shop_checkout.dart';
 import '../widgets/bobgo_rate_picker.dart';
+import '../../../core/constants/marketing_consent.dart';
 
 /// Bob Go door-to-door for one shop: the quote is saved server-side; we only
 /// keep its id and the rate the buyer picked.
@@ -142,6 +143,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   final _suburbController = TextEditingController(text: '');
   final _couponController = TextEditingController(text: '');
   bool _submitAttempted = false;
+  bool _marketingOptIn = false;
   bool _isSubmittingPayment = false;
   bool _isApplyingCoupon = false;
   String? _appliedCouponCode;
@@ -880,6 +882,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       'shopTotals': totals.shops,
     };
 
+    if (_marketingOptIn) {
+      // A gift's phone number belongs to the recipient, not the buyer.
+      unawaited(
+        ref
+            .read(supabaseServiceProvider)
+            .recordMarketingConsent(
+              phone: ref.read(giftOptionsProvider).isGift
+                  ? ''
+                  : _phoneController.text,
+            ),
+      );
+    }
+
     try {
       await ref
           .read(metaAppEventsServiceProvider)
@@ -1161,6 +1176,25 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         prefixIcon: Icons.phone_outlined,
                         hintText: 'Include country code if needed',
                         focusNode: _phoneFocusNode,
+                      ),
+                      const SizedBox(height: 12),
+                      CheckboxListTile(
+                        key: const Key('checkout-marketing-opt-in'),
+                        value: _marketingOptIn,
+                        onChanged: (value) =>
+                            setState(() => _marketingOptIn = value ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        activeColor: AppTheme.terracotta,
+                        title: Text(
+                          marketingConsentText,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            height: 1.45,
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
                       ),
 
                       const SizedBox(height: 32),

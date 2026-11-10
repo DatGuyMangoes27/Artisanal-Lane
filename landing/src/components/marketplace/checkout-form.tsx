@@ -46,6 +46,7 @@ import { formatRateEta, isBobGoQuoteExpired } from "@/lib/marketplace/bobgo-stat
 import { useBobGoAvailabilityByShop } from "@/lib/marketplace/use-bobgo-availability";
 import type { MarketplaceProduct, ShippingOption } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/browser";
+import { MARKETING_CONSENT_TEXT, recordMarketingConsent } from "@/lib/marketing-consent";
 
 const provinces = [
   "Eastern Cape",
@@ -594,6 +595,7 @@ export function CheckoutForm() {
   const [pickupByShop, setPickupByShop] = useState<Record<string, ShopPickupSelection>>({});
   const [bobGoByShop, setBobGoByShop] = useState<Record<string, BobGoShopState>>({});
   const [pendingGroup, setPendingGroup] = useState<PendingCheckoutGroup | null>(null);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [addressFields, setAddressFields] = useState({
     name: "",
     phone: "",
@@ -1032,6 +1034,11 @@ export function CheckoutForm() {
         throw new Error(result.message);
       }
 
+      if (marketingOptIn) {
+        // A gift's delivery phone belongs to the recipient, not the buyer.
+        await recordMarketingConsent(supabase, isGift ? "" : addressFields.phone);
+      }
+
       if (result.kind === "single") {
         clearCart();
         clearGuestCartReservationToken();
@@ -1335,6 +1342,22 @@ export function CheckoutForm() {
                 onChange={(event) => setAddressFields((current) => ({ ...current, phone: event.target.value }))}
                 className="w-full rounded-xl border border-artisan-clay bg-white px-3 py-2"
               />
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-artisan-clay/70 bg-artisan-bone/30 p-3 text-xs leading-5 text-muted-foreground">
+              <input
+                type="checkbox"
+                name="marketingOptIn"
+                checked={marketingOptIn}
+                onChange={(event) => setMarketingOptIn(event.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                {MARKETING_CONSENT_TEXT}{" "}
+                <Link href="/privacy" target="_blank" className="underline">
+                  Privacy policy
+                </Link>
+                .
+              </span>
             </label>
           </CardContent>
         </Card>

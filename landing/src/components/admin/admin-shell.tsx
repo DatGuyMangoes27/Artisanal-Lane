@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
+  Mail,
   MessageSquare,
   Package,
   PackageOpen,
@@ -48,6 +49,11 @@ const navItems = [
     href: "/admin/orders",
     label: "Orders",
     icon: Receipt,
+  },
+  {
+    href: "/admin/contacts",
+    label: "Contacts",
+    icon: Mail,
   },
   {
     href: "/admin/messages",

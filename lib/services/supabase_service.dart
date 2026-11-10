@@ -14,6 +14,7 @@ import '../features/buyer/utils/search_trends.dart';
 import '../features/vendor/utils/vendor_earnings.dart';
 import '../features/vendor/services/post_publication.dart';
 import '../models/models.dart';
+import '../core/constants/marketing_consent.dart';
 
 class _AccountDeletionException implements Exception {
   final String message;
@@ -2956,6 +2957,25 @@ class SupabaseService {
       'released': released,
       'fees': fees,
     };
+  }
+
+  /// Records a ticked "Keep me posted" box at checkout (email from the
+  /// buyer's profile, plus the phone they typed). Never blocks the order.
+  Future<void> recordMarketingConsent({required String phone}) async {
+    try {
+      await _client.rpc(
+        'set_marketing_consent',
+        params: {
+          'p_opt_in': true,
+          'p_phone': phone,
+          'p_source': 'app-checkout',
+          'p_consent_text': marketingConsentText,
+          'p_consent_version': marketingConsentVersion,
+        },
+      );
+    } catch (_) {
+      // Consent is a bonus; the order matters more.
+    }
   }
 
   // ── Vendor Application ──────────────────────────────────────
