@@ -71,6 +71,7 @@ export default async function AdminShopsPage({
     { value: "", label: "All shops", count: subscriptionCounts.all },
     { value: "subscribed", label: "Subscribed", count: subscriptionCounts.subscribed },
     { value: "not-subscribed", label: "Not subscribed yet", count: subscriptionCounts.notSubscribed },
+    { value: "payment-late", label: "Payment late", count: subscriptionCounts.paymentLate },
   ];
 
   return (
@@ -196,7 +197,9 @@ export default async function AdminShopsPage({
                       {shop.name}
                     </h3>
                     <StatusBadge value={shop.is_active ? "active" : "suspended"} />
-                    <StatusBadge value={shop.subscribed ? "subscribed" : "not subscribed"} />
+                    <StatusBadge
+                      value={shop.subscribed ? "subscribed" : shop.paymentLate ? "payment late" : "not subscribed"}
+                    />
                     {shop.is_spotlight ? <StatusBadge value="spotlight" /> : null}
                     {shop.is_offline ? <StatusBadge value="offline" /> : null}
                   </div>

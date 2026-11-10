@@ -3,6 +3,7 @@ import "server-only";
 import { getPostgrestSearchTokens } from "@/lib/admin-search";
 import {
   activeSubscriptionVendorIds,
+  lateSubscriptionVendorIds,
   countBySubscription,
   filterBySubscription,
   parseShopSubscriptionFilter,
@@ -599,10 +600,11 @@ type AdminShopRow = ShopRecord & {
   totalPostCount: number;
   publishedPostCount: number;
   subscribed: boolean;
+  paymentLate: boolean;
 };
 
 export type AdminShopPage = {
-  subscriptionCounts: { all: number; subscribed: number; notSubscribed: number };
+  subscriptionCounts: { all: number; subscribed: number; notSubscribed: number; paymentLate: number };
   items: AdminShopRow[];
   total: number;
   page: number;
@@ -656,7 +658,7 @@ async function loadActiveSubscriptionVendorIds(vendorIds: Array<string | null>) 
     rows.push(...((data ?? []) as SubscriptionRow[]));
   }
 
-  return activeSubscriptionVendorIds(rows);
+  return { active: activeSubscriptionVendorIds(rows), late: lateSubscriptionVendorIds(rows) };
 }
 
 async function loadShopContentCounts(shopIds: string[]) {
@@ -736,14 +738,15 @@ export async function listShops(
     shops.map((shop) => shop.vendor_id ?? ""),
   );
 
-  const subscribedVendorIds = await loadActiveSubscriptionVendorIds(
+  const subscriptionVendorIds = await loadActiveSubscriptionVendorIds(
     shops.map((shop) => shop.vendor_id),
   );
 
   let rows: AdminShopRow[] = shops.map((shop) => ({
     ...shop,
     vendor: shop.vendor_id ? profiles.get(shop.vendor_id) ?? null : null,
-    subscribed: shop.vendor_id ? subscribedVendorIds.has(shop.vendor_id) : false,
+    subscribed: shop.vendor_id ? subscriptionVendorIds.active.has(shop.vendor_id) : false,
+    paymentLate: shop.vendor_id ? subscriptionVendorIds.late.has(shop.vendor_id) : false,
     productCount: 0,
     totalPostCount: 0,
     publishedPostCount: 0,

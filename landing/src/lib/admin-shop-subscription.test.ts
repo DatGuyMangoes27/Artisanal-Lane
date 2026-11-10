@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeSubscriptionVendorIds,
   countBySubscription,
+  lateSubscriptionVendorIds,
   filterBySubscription,
   parseShopSubscriptionFilter,
 } from "./admin-shop-subscription";
@@ -27,13 +28,33 @@ describe("admin shop subscription split", () => {
     expect([...ids].sort()).toEqual(["a", "c", "f", "g"]);
   });
 
+  it("flags active subscriptions past their grace as payment late", () => {
+    const ids = lateSubscriptionVendorIds([
+      { vendor_id: "a", status: "active", current_period_end: future },
+      { vendor_id: "b", status: "active", current_period_end: past },
+      { vendor_id: "c", status: "cancelled", current_period_end: past },
+      { vendor_id: "d", status: "inactive", current_period_end: past },
+      { vendor_id: "e", status: "active", current_period_end: lateWithinGrace },
+      { vendor_id: "f", status: "past_due", current_period_end: past },
+      { vendor_id: "g", status: "active", current_period_end: null },
+    ]);
+    expect([...ids].sort()).toEqual(["b", "f"]);
+    const items = [
+      { subscribed: false, paymentLate: true },
+      { subscribed: false, paymentLate: false },
+    ];
+    expect(filterBySubscription(items, "payment-late")).toHaveLength(1);
+    expect(countBySubscription(items).paymentLate).toBe(1);
+    expect(parseShopSubscriptionFilter("payment-late")).toBe("payment-late");
+  });
+
   it("filters and counts", () => {
     const items = [
       { id: 1, subscribed: true },
       { id: 2, subscribed: false },
       { id: 3, subscribed: false },
     ];
-    expect(countBySubscription(items)).toEqual({ all: 3, subscribed: 1, notSubscribed: 2 });
+    expect(countBySubscription(items)).toEqual({ all: 3, subscribed: 1, notSubscribed: 2, paymentLate: 0 });
     expect(filterBySubscription(items, "subscribed")).toHaveLength(1);
     expect(filterBySubscription(items, "not-subscribed")).toHaveLength(2);
     expect(filterBySubscription(items, "")).toHaveLength(3);

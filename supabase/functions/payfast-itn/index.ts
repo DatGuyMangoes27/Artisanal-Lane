@@ -2,6 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 import {
   callPayFastValidate,
+  fetchPayFastSubscription,
   getPayFastConfig,
   initialSubscriptionPeriodEnd,
   mapPayFastSubscriptionStatus,
@@ -142,6 +143,53 @@ Deno.serve(async (request) => {
       expectedSignature: signatureCheck?.expectedSignature,
       signingString: signatureCheck?.signingString,
     });
+    return textResponse("OK");
+  }
+
+  // Cancellation notices never pass PayFast's validate endpoint (it only
+  // knows payments), which used to leave "PayFast ITN server validation
+  // failed." on every cancelled shop and made PayFast retry for days. The
+  // signature already matched, so confirm with PayFast's API instead. Access
+  // still runs to the paid-through date (vendor_subscription_is_active).
+  if (
+    !isStationeryPayment &&
+    vendorId != null &&
+    (paymentStatus ?? "").toUpperCase() === "CANCELLED"
+  ) {
+    const { data: current } = await admin
+      .from("vendor_subscriptions")
+      .select("status, payfast_token, cancelled_at")
+      .eq("vendor_id", vendorId)
+      .maybeSingle();
+    const token = payfastToken ?? (current?.payfast_token as string | null) ?? null;
+    const payfast = token == null ? null : await fetchPayFastSubscription(token);
+    const confirmed = payfast?.ok === true &&
+      (payfast.statusText ?? "").toUpperCase().includes("CANCEL");
+    if (!confirmed) {
+      console.warn("payfast-itn cancellation not confirmed by PayFast", {
+        vendorId,
+        payfastStatus: payfast?.statusText ?? null,
+        httpStatus: payfast?.status ?? null,
+      });
+      await admin
+        .from("vendor_subscriptions")
+        .update({
+          status_reason:
+            `PayFast sent a cancellation notice that its API did not confirm (${payfast?.statusText ?? "no answer"}).`,
+        })
+        .eq("vendor_id", vendorId);
+      return textResponse("OK");
+    }
+    if (current != null) {
+      await admin
+        .from("vendor_subscriptions")
+        .update({
+          status: "cancelled",
+          cancelled_at: current.cancelled_at ?? nowIso,
+          status_reason: "PayFast marked the subscription as cancelled.",
+        })
+        .eq("vendor_id", vendorId);
+    }
     return textResponse("OK");
   }
 

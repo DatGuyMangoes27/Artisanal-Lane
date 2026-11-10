@@ -34,6 +34,19 @@ const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 /** A problem with the buyer's checkout (returned as a 400 with this message). */
 class CheckoutRequestError extends Error {}
 
+// TradeSafe refuses transactions below about R50 ("Validation failed for the
+// field [transactionCreate]"): R49.99 has gone through, R20-R30 never has.
+// Each shop is its own TradeSafe transaction, so the minimum is per shop.
+const TRADESAFE_MINIMUM_TOTAL = 50;
+
+function assertAboveTradeSafeMinimum(total: number, shopName?: string) {
+  if (total + 0.011 >= TRADESAFE_MINIMUM_TOTAL) return;
+  const where = shopName ? ` from ${shopName}` : "";
+  throw new CheckoutRequestError(
+    `Our secure payment partner needs a minimum of R${TRADESAFE_MINIMUM_TOTAL} per shop. Add another piece${where} to check out.`,
+  );
+}
+
 function firstNonEmptyString(...values: Array<unknown>) {
   for (const value of values) {
     if (typeof value != "string") continue;
@@ -1104,6 +1117,7 @@ Deno.serve(async (request) => {
       });
     }
 
+    assertAboveTradeSafeMinimum(grandTotal);
     await checkAvailability(admin, items, reservationToken);
 
     const { data: buyerProfile } = await admin
@@ -1141,15 +1155,42 @@ Deno.serve(async (request) => {
       reservationToken,
     });
 
-    const { transaction, paymentReference } = await createShopTransaction({
-      orderId,
-      shopName: seller.shop.name,
-      quote,
-      buyerTokenId,
-      sellerTokenId,
-    });
-
-    const checkoutUrl = await createCheckoutLink(transaction.transactionId);
+    let transaction: Awaited<ReturnType<typeof createShopTransaction>>["transaction"];
+    let paymentReference: string;
+    let checkoutUrl: string;
+    let createdTransactionId: string | null = null;
+    try {
+      ({ transaction, paymentReference } = await createShopTransaction({
+        orderId,
+        shopName: seller.shop.name,
+        quote,
+        buyerTokenId,
+        sellerTokenId,
+      }));
+      createdTransactionId = transaction.transactionId;
+      checkoutUrl = await createCheckoutLink(transaction.transactionId);
+    } catch (paymentError) {
+      if (createdTransactionId != null) {
+        await cancelTradeSafeTransaction(createdTransactionId, "Checkout could not be completed.")
+          .catch((cancelError) =>
+            console.log(
+              `[checkout-debug] rollback cancel failed transactionId=${createdTransactionId} ${errorMessage(cancelError)}`,
+            )
+          );
+      }
+      // TradeSafe refused: undo the order now (returning its stock) instead of
+      // holding the piece until the stale-checkout cleanup, and show the buyer
+      // a plain message rather than TradeSafe's raw error.
+      const { error: undoError } = await admin.rpc("cancel_unpaid_checkout_orders", {
+        order_ids: [orderId],
+      });
+      console.log(
+        `[checkout-debug] single-shop rollback orderId=${orderId} cause=${errorMessage(paymentError)} undoError=${undoError?.message ?? "none"}`,
+      );
+      throw new CheckoutRequestError(
+        "We couldn't start the secure payment for this order. Nothing was charged. Please try again in a moment.",
+      );
+    }
     console.log(`[checkout-debug] checkoutUrl=${checkoutUrl}`);
 
     await recordShopTransaction(admin, {
@@ -1327,6 +1368,9 @@ async function multiShopCheckout(
     return jsonResponse({ preview: true, couponCode: appliedCode, ...totals, shops: shopBreakdown });
   }
 
+  for (const quote of quotes) {
+    assertAboveTradeSafeMinimum(quote.grandTotal, shopNames.get(quote.shopId));
+  }
   await checkAvailability(admin, items, reservationToken);
 
   const { data: buyerProfile } = await admin

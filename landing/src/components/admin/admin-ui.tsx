@@ -108,6 +108,7 @@ export function StatusBadge({
         : normalized === "disputed" ||
             normalized === "action_required" ||
             normalized === "cancelled" ||
+            normalized === "payment late" ||
             normalized === "suspended" ||
             normalized === "inactive" ||
             normalized === "deleted" ||
