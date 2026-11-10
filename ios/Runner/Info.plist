@@ -75,6 +75,19 @@
 	<string>Artisan Lane needs access to your camera so you can take photos of products, your shop, or your profile to add them to the app.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Artisan Lane needs access to your photo library so you can choose images of products, your shop, or your profile to add them to the app.</string>
+	<!-- Meta SDK: same app as android/app/src/main/res/values/strings.xml.
+	     FBSDK throws without these. Auto logging and advertiser ID stay off
+	     until the user allows tracking (MetaAppEventsService turns them on). -->
+	<key>FacebookAppID</key>
+	<string>1723523761979472</string>
+	<key>FacebookClientToken</key>
+	<string>3515a1c0a08dd9f8d7fae113910899a0</string>
+	<key>FacebookDisplayName</key>
+	<string>Artisan Lane</string>
+	<key>FacebookAutoLogAppEventsEnabled</key>
+	<false/>
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<false/>
 	<!-- Meta's SKAdNetwork IDs: lets Apple credit app installs to Meta ads
 	     without tracking anyone. -->
 	<key>SKAdNetworkItems</key>
