@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../core/pricing/price_format.dart';
 import '../../../models/product.dart';
 import 'product_favourite_button.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 enum ShopProductView { rows, twoCards, oneCard }
 
@@ -82,7 +83,7 @@ class ShopProductTile extends StatelessWidget {
           Positioned(
             top: 8,
             left: 8,
-            child: Container(
+            child: SaleOrBlackFridayBadge(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppTheme.terracotta,
@@ -96,7 +97,7 @@ class ShopProductTile extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-            ),
+            )),
           ),
       ],
     );

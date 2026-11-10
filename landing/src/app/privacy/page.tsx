@@ -105,8 +105,11 @@ export default function PrivacyPage() {
 
           <h2>8. Cookies & Tracking</h2>
           <p>
-            Our website uses essential cookies to ensure functionality. We do not use third-party
-            advertising cookies. Analytics data is collected anonymously to improve the user experience.
+            Our website uses essential cookies to ensure functionality. We also use the Meta Pixel to
+            measure visits and purchases that come from our Facebook and Instagram adverts, and the
+            Artisan Lane app reports installs and purchases to Meta for the same purpose. On iPhone,
+            the app only shares your advertising identifier if you allow tracking when asked. You can
+            limit ad tracking in your browser, phone or Meta ad settings at any time.
           </p>
 
           <h2>9. Children&apos;s Privacy</h2>

@@ -22,6 +22,7 @@ import '../utils/shop_discovery_location.dart';
 import '../utils/shop_discovery_reasons.dart';
 import '../utils/shop_for_you_ranking.dart';
 import '../widgets/shop_product_tile.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 /// On-device key for the buyer's chosen "Near me" area (a province or city
 /// name from [saProvinces]/[saProvinceCities]). Not synced anywhere.
@@ -915,6 +916,15 @@ class _CreatorShopScreenState extends ConsumerState<CreatorShopScreen>
               title: 'Shop the lane',
               subtitle: 'Handmade pieces from local makers.',
               cartCount: cartBadgeCount(cartItems),
+            ),
+          ),
+          // Black Friday (27-30 Nov only): tap to show the pieces on sale.
+          SliverToBoxAdapter(
+            child: BlackFridayBanner(
+              onTap: () => setState(() {
+                _onSaleOnly = true;
+                _resetPaging();
+              }),
             ),
           ),
           SliverToBoxAdapter(child: _buildSearchBar(context)),

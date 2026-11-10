@@ -29,6 +29,7 @@ import '../../safety/review_safety.dart';
 import '../providers/blocking_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/buyer_providers.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 final madeToOrderOpenUnitsProvider = FutureProvider.family<int, String>((
   ref,
@@ -720,6 +721,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ),
                               ),
 
+                            // Black Friday sticker (only while it runs)
+                            if ((displayCompareAtPrice ?? 0) > displayPrice)
+                              const Positioned(
+                                top: 16,
+                                left: 16,
+                                child: BlackFridayTag(
+                                  onSale: true,
+                                  compact: false,
+                                ),
+                              ),
                             // Sale Badge
                             if ((displayCompareAtPrice ?? 0) > displayPrice)
                               Positioned(

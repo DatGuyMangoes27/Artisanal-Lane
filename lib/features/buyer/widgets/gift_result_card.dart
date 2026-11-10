@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../core/pricing/price_format.dart';
 import '../providers/gift_finder_providers.dart';
 import '../utils/shop_discovery_gift.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 /// A gift idea card: square photo, maker, title, price and a short
 /// "why it fits" line. Grows with text scale instead of clipping.
@@ -64,7 +65,9 @@ class GiftResultCard extends StatelessWidget {
                             Positioned(
                               left: 8,
                               top: 8,
-                              child: _badge('Sale', AppTheme.terracotta),
+                              child: SaleOrBlackFridayBadge(
+                                child: _badge('Sale', AppTheme.terracotta),
+                              ),
                             ),
                         ],
                       ),

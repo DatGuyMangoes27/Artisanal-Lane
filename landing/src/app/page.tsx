@@ -23,11 +23,12 @@ import {
   getMarketplaceCategories,
   getMarketplaceProducts,
 } from "@/lib/marketplace/catalog";
-import { getProductPrimaryImage } from "@/lib/marketplace/format";
+import { getProductPrimaryImage, isBlackFridayActive } from "@/lib/marketplace/format";
 import type { MarketplaceCategorySummary, MarketplaceProduct } from "@/lib/marketplace/types";
 import { createClient } from "@/lib/supabase/server";
 import { GetTheAppSection } from "@/components/marketplace/get-the-app";
 import { APP_STORE_URL, GOOGLE_PLAY_URL } from "@/lib/app-links";
+import { BlackFridayBanner } from "@/components/marketplace/black-friday";
 
 function categoryHref(category: MarketplaceCategorySummary) {
   return `/shop?category=${encodeURIComponent(category.id)}`;
@@ -198,6 +199,7 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-[#FFF9F2]">
       <MarketplaceHeader activeItem="home" />
+      {isBlackFridayActive() ? <BlackFridayBanner /> : null}
       <Hero products={products} />
       <CategoryRail categories={categories} products={categoryProducts} />
       <ProductEdit products={freshProducts} favouriteIds={favouriteIds} />

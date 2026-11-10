@@ -120,5 +120,9 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <data android:scheme="http" />
         </intent>
+        <!-- Meta install referrer: credits installs to Meta ads (Android 11+). -->
+        <package android:name="com.facebook.katana" />
+        <package android:name="com.facebook.lite" />
+        <package android:name="com.instagram.android" />
     </queries>
 </manifest>

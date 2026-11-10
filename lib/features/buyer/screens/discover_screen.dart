@@ -21,6 +21,7 @@ import '../utils/discover_taste.dart';
 import '../utils/discovery_preferences.dart';
 import '../utils/discovery_remote_store.dart';
 import '../widgets/creator_commerce_header.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 /// Start fetching the next page when this few fresh cards remain, so the
 /// buyer rarely waits at the end of a page.
@@ -922,6 +923,14 @@ class _DiscoveryCard extends StatelessWidget {
                             top: 16,
                             child: _Badge(label: 'SAVED', icon: Icons.bookmark),
                           ),
+                        Positioned(
+                          left: 16,
+                          top: 50,
+                          child: BlackFridayTag(
+                            onSale: product.isOnSale,
+                            compact: false,
+                          ),
+                        ),
                         Positioned(
                           left: 18,
                           top: 76,

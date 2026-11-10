@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
 
 import 'buyer_providers.dart';
 import 'front_page_providers.dart';
+import '../../../core/promotions/black_friday.dart';
 
 /// How long the buyer catalogue may stay on screen before coming back to the
 /// app reloads it. Phones (iPhones especially) keep the app alive in the
@@ -23,6 +24,7 @@ void refreshBuyerCatalogue(
   invalidate(curatedCollectionProductsProvider);
   invalidate(frontPageSpotlightShopsProvider);
   invalidate(frontPageLatestPostsProvider);
+  invalidate(blackFridayActiveProvider);
 }
 
 /// Wraps the buyer shell and reloads the catalogue when the app returns to

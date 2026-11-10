@@ -21,7 +21,8 @@ import {
   type MarketplaceProductSort,
 } from "@/lib/marketplace/catalog";
 import { createClient } from "@/lib/supabase/server";
-import { getProductPrimaryImage } from "@/lib/marketplace/format";
+import { getProductPrimaryImage, isBlackFridayActive } from "@/lib/marketplace/format";
+import { BlackFridayBanner } from "@/components/marketplace/black-friday";
 import {
   getDailyProductRotationSeed,
   rotateProductsForSeed,
@@ -181,6 +182,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
 
   return (
     <main>
+      {isBlackFridayActive() ? <BlackFridayBanner /> : null}
       <section className="relative overflow-hidden border-b border-[#E7D4C2] bg-[#F8EEE3]">
         <div className="pointer-events-none absolute -left-52 -top-48 size-[38rem] rounded-full bg-gradient-to-br from-[#7A0000]/15 via-[#D4A020]/10 to-transparent blur-[95px]" />
         <div className="pointer-events-none absolute -bottom-56 left-[26%] size-[34rem] rounded-full bg-gradient-to-tr from-[#559826]/10 via-[#D4A020]/8 to-transparent blur-[95px]" />

@@ -19,6 +19,7 @@ import '../../utils/shop_profile_actions.dart';
 import '../../../../core/constants/feature_flags.dart';
 import '../../providers/blocking_providers.dart';
 import '../../providers/buyer_providers.dart';
+import '../../../../widgets/black_friday_badge.dart';
 
 /// Optimistically flips the like state for [post] and rolls back on failure.
 /// Shared by the social bar's heart button and the media double-tap gesture.
@@ -500,12 +501,18 @@ class _ProductChip extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          formatBrowsePrice(product.price),
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.terracotta,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              formatBrowsePrice(product.price),
+                              style: textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.terracotta,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            BlackFridayTag(onSale: product.isOnSale),
+                          ],
                         ),
                       ],
                     ),

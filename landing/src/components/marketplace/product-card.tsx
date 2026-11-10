@@ -10,8 +10,10 @@ import {
   getProductPrimaryImage,
   getProductStockLabel,
   isProductOnSale,
+  isBlackFridayActive,
 } from "@/lib/marketplace/format";
 import type { MarketplaceProduct } from "@/lib/marketplace/types";
+import { BlackFridaySticker } from "@/components/marketplace/black-friday";
 
 export function ProductCard({
   product,
@@ -39,7 +41,7 @@ export function ProductCard({
           />
         </Link>
         <div className="absolute left-3 top-3 flex flex-col gap-2">
-          {onSale ? <Badge className="rounded-full bg-[#8F120D] px-3 py-1 text-[10px] uppercase tracking-widest text-white">Sale</Badge> : null}
+          {onSale ? (isBlackFridayActive() ? <BlackFridaySticker /> : <Badge className="rounded-full bg-[#8F120D] px-3 py-1 text-[10px] uppercase tracking-widest text-white">Sale</Badge>) : null}
           {mtoAvailable ? <Badge variant="secondary" className="rounded-full bg-white/90 px-3 py-1 text-[10px] uppercase tracking-wider backdrop-blur">Made to order</Badge> : null}
         </div>
         <div className="absolute right-3 top-3">

@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, Minus, Plus, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { BlackFridaySticker } from "@/components/marketplace/black-friday";
+import { isBlackFridayActive } from "@/lib/marketplace/format";
 
 type ProductGalleryProps = {
   images: string[];
@@ -102,7 +104,7 @@ export function ProductGallery({ images, title, onSale = false }: ProductGallery
           sizes="(min-width: 1024px) 50vw, 100vw"
           className="object-cover transition duration-300 group-hover:scale-[1.02]"
         />
-        {onSale ? <Badge className="absolute left-4 top-4 bg-artisan-terracotta">Sale</Badge> : null}
+        {onSale ? (isBlackFridayActive() ? <BlackFridaySticker className="absolute left-4 top-4" /> : <Badge className="absolute left-4 top-4 bg-artisan-terracotta">Sale</Badge>) : null}
         <span className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">
           <Maximize2 className="h-3.5 w-3.5" />
           Tap to zoom

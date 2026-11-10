@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../app/theme.dart';
 import '../models/product.dart';
 import '../features/buyer/providers/favourite_actions.dart';
+import 'black_friday_badge.dart';
 
 /// ═══════════════════════════════════════════════════════════════
 /// ProductCard – Clean, elegant item display
@@ -96,7 +97,7 @@ class ProductCard extends ConsumerWidget {
                     Positioned(
                       top: 10,
                       left: 10,
-                      child: Container(
+                      child: SaleOrBlackFridayBadge(child: Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
@@ -114,7 +115,7 @@ class ProductCard extends ConsumerWidget {
                             letterSpacing: 0.5,
                           ),
                         ),
-                      ),
+                      )),
                     ),
                   // Favourite
                   Positioned(
@@ -270,7 +271,7 @@ class FeaturedProductCard extends StatelessWidget {
                       Positioned(
                         top: 10,
                         left: 10,
-                        child: Container(
+                        child: SaleOrBlackFridayBadge(child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
                             vertical: 4,
@@ -288,7 +289,7 @@ class FeaturedProductCard extends StatelessWidget {
                               letterSpacing: 0.5,
                             ),
                           ),
-                        ),
+                        )),
                       ),
                   ],
                 ),

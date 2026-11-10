@@ -219,9 +219,12 @@ class _VendorShopSettingsScreenState
     try {
       final XFile? image = await _picker.pickImage(
         source: source,
-        maxWidth: isLogo ? 512 : 1400,
-        maxHeight: isLogo ? 512 : 800,
-        imageQuality: 85,
+        // Covers fill the whole width of the shop page (and the website's
+        // hero), so keep them large: 1400 x 800 left portrait photos only
+        // 600 pixels wide and visibly blurry.
+        maxWidth: isLogo ? 800 : 2560,
+        maxHeight: isLogo ? 800 : 2560,
+        imageQuality: isLogo ? 85 : 90,
       );
       if (image != null) {
         setState(() {

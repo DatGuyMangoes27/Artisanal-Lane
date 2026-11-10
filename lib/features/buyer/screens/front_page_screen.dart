@@ -21,6 +21,7 @@ import '../widgets/artisan_edit_banner.dart';
 import '../widgets/creator_commerce_header.dart';
 import '../widgets/gift_finder_banner.dart';
 import '../widgets/shop_product_tile.dart';
+import '../../../widgets/black_friday_badge.dart';
 
 /// Where each front-page "See all" goes. New arrivals open the full
 /// catalogue in the Shop tab, which lists newest first.
@@ -134,6 +135,11 @@ class _FrontPageScreenState extends ConsumerState<FrontPageScreen> {
                       'studios.',
                   cartCount: cartBadgeCount(cartItems),
                 ),
+              ),
+
+              // Black Friday (27-30 Nov only): opens the Shop tab.
+              SliverToBoxAdapter(
+                child: BlackFridayBanner(onTap: () => context.go('/home')),
               ),
 
               // 2. Seasonal hero
