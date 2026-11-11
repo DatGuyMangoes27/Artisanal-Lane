@@ -1,7 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 import { getBearerToken, jsonResponse } from "../_shared/http.ts";
-import { cancelPayFastSubscription } from "../_shared/payfast.ts";
+import {
+  cancelPayFastSubscription,
+  fetchPayFastSubscription,
+} from "../_shared/payfast.ts";
 import {
   getPayFastCancellationToken,
   hasPayFastBillingReference,
@@ -284,7 +287,24 @@ Deno.serve(async (request) => {
 
       if (token != null && subscription.status !== "cancelled") {
         const cancelResult = await cancelPayFastSubscription(token);
+        // PayFast refuses to cancel a subscription that is already cancelled
+        // on its side (for example cancelled in the PayFast dashboard), which
+        // used to block deletion forever. Ask PayFast for the real status.
+        let alreadyCancelled = false;
         if (!cancelResult.ok) {
+          const current = await fetchPayFastSubscription(token);
+          alreadyCancelled = current.ok &&
+            (current.statusText ?? "").toUpperCase().includes("CANCEL");
+          console.error("delete-account: PayFast cancel refused", {
+            userId: user.id,
+            httpStatus: cancelResult.status,
+            response: cancelResult.body,
+            payfastStatus: current.statusText,
+            payfastHttpStatus: current.status,
+            alreadyCancelled,
+          });
+        }
+        if (!cancelResult.ok && !alreadyCancelled) {
           return jsonResponse(
             {
               error:
