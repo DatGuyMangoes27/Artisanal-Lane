@@ -191,10 +191,12 @@ export function VendorProductForm({
       {showParcelFields ? (
       <section className="rounded-[2rem] border border-artisan-clay/70 bg-white/90 p-6 shadow-sm">
         <input type="hidden" name="parcelFieldsShown" value="1" />
-        <h3 className="text-2xl font-semibold text-artisan-sienna">Packed parcel measurements</h3>
+        <h3 className="text-2xl font-semibold text-artisan-sienna">Bob Go door-to-door delivery</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Required only for Bob Go door-to-door quotes. Measure the product after it is packed,
-          including its box or protective wrapping.
+          No price to set here: Bob Go quotes the buyer at checkout. Enter this product&apos;s
+          weight and size once packed (box and wrapping included) and buyers can choose courier
+          delivery to their door. Bob Go must also be switched on in your shop settings. Leave
+          blank if you do not want to courier this product.
         </p>
         <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <label className="grid gap-2 text-sm font-medium text-artisan-sienna">

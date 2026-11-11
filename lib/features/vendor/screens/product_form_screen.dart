@@ -3034,17 +3034,29 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
         const SizedBox(height: 12),
         ..._shippingOptions.map(_buildProductShippingOptionCard),
         if (ref.watch(bobGoServerEnabledProvider).asData?.value ?? false) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 4),
           ParcelMeasurementsFields(
             weightController: _parcelWeightController,
             lengthController: _parcelLengthController,
             widthController: _parcelWidthController,
             heightController: _parcelHeightController,
             errorText: _parcelError,
+            shopOffersBobGo: _shopOffersBobGo(),
           ),
         ],
       ],
     );
+  }
+
+  /// Whether this artisan's shop offers Bob Go (switch on and collection
+  /// details complete). Null while loading, so the card shows no status.
+  bool? _shopOffersBobGo() {
+    final shopId = ref.watch(vendorShopProvider).asData?.value?.id;
+    if (shopId == null) return null;
+    final profile = ref.watch(shopFulfillmentProfileProvider(shopId));
+    if (!profile.hasValue) return null;
+    final value = profile.value;
+    return value != null && value.bobgoEnabled && value.validate() == null;
   }
 
   Widget _buildProductShippingOptionCard(ShippingOption option) {

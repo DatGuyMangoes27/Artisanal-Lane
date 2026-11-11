@@ -388,6 +388,30 @@ void main() {
       expect(find.byKey(ValueKey(key)), findsOneWidget);
     }
     expect(find.byKey(const ValueKey('parcel-error')), findsOneWidget);
+    expect(find.text('Bob Go Door to Door'), findsOneWidget);
+    expect(find.byKey(const ValueKey('bobgo-shop-on')), findsNothing);
+    expect(find.byKey(const ValueKey('bobgo-shop-off')), findsNothing);
+  });
+
+  testWidgets('ParcelMeasurementsFields says whether the shop offers Bob Go', (
+    tester,
+  ) async {
+    Widget card(bool on) => _host(
+      SingleChildScrollView(
+        child: ParcelMeasurementsFields(
+          weightController: TextEditingController(),
+          lengthController: TextEditingController(),
+          widthController: TextEditingController(),
+          heightController: TextEditingController(),
+          shopOffersBobGo: on,
+        ),
+      ),
+    );
+    await tester.pumpWidget(card(false));
+    expect(find.byKey(const ValueKey('bobgo-shop-off')), findsOneWidget);
+    expect(find.textContaining('Shop Settings'), findsOneWidget);
+    await tester.pumpWidget(card(true));
+    expect(find.byKey(const ValueKey('bobgo-shop-on')), findsOneWidget);
   });
 
   group('CheckoutScreen with Bob Go', () {
