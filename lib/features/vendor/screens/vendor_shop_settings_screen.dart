@@ -40,6 +40,8 @@ class _VendorShopSettingsScreenState
   ];
 
   final _formKey = GlobalKey<FormState>();
+  final _bobGoKey = GlobalKey<BobGoCollectionSectionState>();
+  bool _savingWholeShop = false;
   final _nameController = TextEditingController();
   final _bioController = TextEditingController();
   final _brandStoryController = TextEditingController();
@@ -250,6 +252,30 @@ class _VendorShopSettingsScreenState
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
+
+    // The courier (Bob Go) section has its own save button, but artisans
+    // press Save Changes and expect everything on the screen to be kept.
+    final courier = _bobGoKey.currentState;
+    if (courier != null) {
+      _savingWholeShop = true;
+      final saved = await courier.saveWithShop();
+      _savingWholeShop = false;
+      if (!saved) {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Check your Bob Go courier details: ${courier.error ?? 'they could not be saved.'}',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     try {
       final service = ref.read(supabaseServiceProvider);
@@ -1759,6 +1785,7 @@ class _VendorShopSettingsScreenState
       const SizedBox(height: 12),
       profile.when(
         data: (value) => BobGoCollectionSection(
+          key: _bobGoKey,
           shopId: shopId,
           initial: value,
           onSave: (draft) async {
@@ -1766,7 +1793,7 @@ class _VendorShopSettingsScreenState
                 .read(supabaseServiceProvider)
                 .saveShopFulfillmentProfile(draft);
             ref.invalidate(shopFulfillmentProfileProvider(shopId));
-            if (!mounted) return;
+            if (!mounted || _savingWholeShop) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(

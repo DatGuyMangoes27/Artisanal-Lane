@@ -33,10 +33,10 @@ class BobGoCollectionSection extends StatefulWidget {
   final Future<void> Function(ShopFulfillmentProfile profile) onSave;
 
   @override
-  State<BobGoCollectionSection> createState() => _BobGoCollectionSectionState();
+  State<BobGoCollectionSection> createState() => BobGoCollectionSectionState();
 }
 
-class _BobGoCollectionSectionState extends State<BobGoCollectionSection> {
+class BobGoCollectionSectionState extends State<BobGoCollectionSection> {
   late final _name = TextEditingController(
     text: widget.initial?.contactFullName,
   );
@@ -86,6 +86,18 @@ class _BobGoCollectionSectionState extends State<BobGoCollectionSection> {
     postalCode: _postal.text,
     bobgoEnabled: _enabled,
   );
+
+  /// The problem shown on the section after the last save, if any.
+  String? get error => _error;
+
+  /// Saves these details when the artisan presses the shop's main
+  /// "Save Changes" button, so pressing that alone keeps Bob Go switched on.
+  /// Returns false (with the problem shown on the section) when they are
+  /// incomplete or could not be saved.
+  Future<bool> saveWithShop() async {
+    await _save();
+    return _error == null;
+  }
 
   Future<void> _save() async {
     final draft = _draft();

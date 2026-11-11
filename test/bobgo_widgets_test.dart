@@ -331,6 +331,54 @@ void main() {
       expect(saved.single.shopId, 'shop-1');
     });
 
+    testWidgets('the shop Save Changes button saves the courier details too', (
+      tester,
+    ) async {
+      final saved = <ShopFulfillmentProfile>[];
+      final key = GlobalKey<BobGoCollectionSectionState>();
+      await tester.binding.setSurfaceSize(const Size(420, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        _host(
+          SingleChildScrollView(
+            child: BobGoCollectionSection(
+              key: key,
+              shopId: 'shop-1',
+              initial: null,
+              onSave: (p) async => saved.add(p),
+            ),
+          ),
+        ),
+      );
+      // Switched on with no details: blocked, with the problem shown.
+      await tester.tap(find.byKey(const ValueKey('bobgo-enabled-switch')));
+      await tester.pump();
+      expect(await key.currentState!.saveWithShop(), false);
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('bobgo-collection-error')),
+        findsOneWidget,
+      );
+      expect(saved, isEmpty);
+
+      await fill(tester, 'bobgo-name', 'Maker Name');
+      await fill(tester, 'bobgo-email', 'maker@example.com');
+      await fill(tester, 'bobgo-phone', '0820000000');
+      await fill(tester, 'bobgo-street', '1 Maker Road');
+      await fill(tester, 'bobgo-suburb', 'Woodstock');
+      await fill(tester, 'bobgo-city', 'Cape Town');
+      await fill(tester, 'bobgo-postal', '7925');
+      await tester.tap(find.byKey(const ValueKey('bobgo-province')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Western Cape').last);
+      await tester.pumpAndSettle();
+
+      // Never pressing "Save courier details", only the shop's Save Changes.
+      expect(await key.currentState!.saveWithShop(), true);
+      expect(saved, hasLength(1));
+      expect(saved.single.bobgoEnabled, true);
+    });
+
     testWidgets('shows a friendly message when saving fails', (tester) async {
       await tester.binding.setSurfaceSize(const Size(420, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
